@@ -15,29 +15,16 @@ scan_duration = 30
 cal_sources = ff.sources.filter(tag='CALIBRATOR')
  # get calibrator sources from the built in catalog
 
-ff.new_experiment(tag="Pointing Model Scan")
- # cleans environment and prepares for new experiment. Optional descriptive tag supplied
-
-ff.dbe.configure(defaults=True, cfreq=1420.1)
- # configure the dbe using standard default apart from specifying the centre frequency
-
-ff.dbe.req_destination_ip("192.168.6.40")
- # instruct the simulator to send data to dss-dp1
-
-ffui.print_defaults()
- # print the current fringe finder configuration and status to the screen
-
 source = cal_sources.filterpop(70)
  # find the first available source that is above elevation limit 70
 
 while source is not None:
     print "Pointing Scan: ",source.name
-    ff.ant.req_mode("STOP")
-    ff.ant.req_target("Named", source.name, "0")
+    ff.ant1.req_target_named(source.name)
      # send this target to the antenna. No time offset
-    ff.ant.req_mode("POINT")
+    ff.ant1.req_mode("POINT")
      # set mode to point
-    ff.ant.wait("lock","1",300)
+    ff.ant1.wait("lock","1",300)
      # wait for lock
     scan_count = 0
     
