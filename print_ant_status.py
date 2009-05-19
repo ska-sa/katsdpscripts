@@ -27,15 +27,15 @@ if __name__ == "__main__":
             lock = ant.sensor_lock.value == '1' and 'True' or 'False'
             mode = ant.sensor_mode.value
             scan = ant.sensor_scan_status.value
-            desired_az = float(ant.sensor_pos_request_tgt_azim.value)
-            desired_el = float(ant.sensor_pos_request_tgt_elev.value)
-            desired_ra = float(ant.sensor_pos_request_tgt_ra.value)
-            desired_dec = float(ant.sensor_pos_request_tgt_dec.value)
-            actual_az = float(ant.sensor_pos_actual_tgt_azim.value)
-            actual_el = float(ant.sensor_pos_actual_tgt_elev.value)
+            desired_az = float(ant.sensor_pos_request_scan_azim.value)
+            desired_el = float(ant.sensor_pos_request_scan_elev.value)
+            desired_ra = float(ant.sensor_pos_request_base_ra.value)
+            desired_dec = float(ant.sensor_pos_request_base_dec.value)
+            actual_az = float(ant.sensor_pos_actual_scan_azim.value)
+            actual_el = float(ant.sensor_pos_actual_scan_elev.value)
             error_az = abs(actual_az - desired_az)
             error_el = abs(actual_el - desired_el)
-            status = "\r%s: %s Time:%s  Mode:\033[34m%s\033[0m Scan:\033[34m%s\033[0m Lock:\033[34m%s\033[0m  Request[Ra:\033[32m%.2F\033[0m Dec:\033[32m%.2F\033[0m] Request[Az:\033[32m%.2F\033[0m El:\033[32m%.2F\033[0m]  Actual[Az:\033[33m%.2F\033[0m El:\033[33m%.2F\033[0m]  Error[Az:\033[31m%.2F\033[0m El:\033[31m%.2F\033[0m]" % (opts.ant, state[period_count % 4], time.ctime().split(" ")[3], mode, scan, lock, desired_ra, desired_dec, desired_az, desired_el, actual_az, actual_el, error_az, error_el)
+            status = "\r%s: %s Time:%s  Mode:\033[34m%s\033[0m Scan:\033[34m%s\033[0m Lock:\033[34m%s\033[0m  BaseReq[Ra:\033[32m%.2F\033[0m Dec:\033[32m%.2F\033[0m] Request[Az:\033[32m%.2F\033[0m El:\033[32m%.2F\033[0m]  Actual[Az:\033[33m%.2F\033[0m El:\033[33m%.2F\033[0m]  Error[Az:\033[31m%.2F\033[0m El:\033[31m%.2F\033[0m]" % (opts.ant, state[period_count % 4], time.ctime().split(" ")[3], mode, scan, lock, desired_ra, desired_dec, desired_az, desired_el, actual_az, actual_el, error_az, error_el)
 
             sys.stdout.write(status)
             sys.stdout.flush()
