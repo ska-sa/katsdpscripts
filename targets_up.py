@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 # Print out the list of known catalog objects ordered by elevation
 
 import ffuilib as ffui

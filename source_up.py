@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Perform cross hair scans on all targets within a specified elevation range
 
 import ffuilib as ffui
 

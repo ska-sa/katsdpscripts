@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Drive antenna to two targets and then plot az and el (predefined plot) 
 
 import ffuilib as ffui
 

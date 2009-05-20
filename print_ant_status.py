@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Print out the status (mode, lock, pointing etc...) for the specified antenna 
 
 import ffuilib as ffui
 import time

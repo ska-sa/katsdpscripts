@@ -1,5 +1,6 @@
 import ffuilib as ffui
-
+# A dummy script that will form the basis of a functional pointing model test
+ 
 #ticket = ffui.get_ticket(devices="all",level="control",tag="Simon Ratcliffe - Engineering Tests...")
  # requests control level access to the telescope. Blocks until available.
 
