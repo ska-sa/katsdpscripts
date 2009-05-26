@@ -4,7 +4,7 @@ import ffuilib as ffui
 #ticket = ffui.get_ticket(devices="all",level="control",tag="RF Proxy ffuilib tests")
  # requests control level access to the telescope. Blocks until available.
 
-ff = ffui.cbuild("ffuilib.rfe_only.rc")
+ff = ffui.cbuild("ffuilib.rf_only.rc")
  # creates connection to ANT, DBE and RFE. Reads in default configuration and build targets and observatory lists
 
 scans = [ ("-5","0") , ("0","-5") ]
