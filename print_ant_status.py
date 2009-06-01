@@ -36,7 +36,7 @@ if __name__ == "__main__":
             actual_el = float(ant.sensor_pos_actual_scan_elev.value)
             error_az = abs(actual_az - desired_az)
             error_el = abs(actual_el - desired_el)
-            status = "\r%s: %s %s Mode:\033[34m%s\033[0m Scan:\033[34m%s\033[0m Lock:\033[34m%s\033[0m  Req[Ra:\033[32m%.2F\033[0m Dec:\033[32m%.2F\033[0m] Req[Az:\033[32m%.2F\033[0m El:\033[32m%.2F\033[0m]  Act[Az:\033[33m%.2F\033[0m El:\033[33m%.2F\033[0m]  Err[Az:\033[31m%.2F\033[0m El:\033[31m%.2F\033[0m]" % (opts.ant, state[period_count % 4], time.ctime().split(" ")[3], mode, scan, lock, desired_ra, desired_dec, desired_az, desired_el, actual_az, actual_el, error_az, error_el)
+            status = "\r%s: %s %s Mode:\033[34m%s\033[0m Scan:\033[34m%s\033[0m Lock:\033[34m%s\033[0m  Req[Ra:\033[32m%.2F\033[0m Dec:\033[32m%.2F\033[0m] Req[Az:\033[32m%.2F\033[0m El:\033[32m%.2F\033[0m]  Act[Az:\033[34m%.2F\033[0m El:\033[34m%.2F\033[0m]  Err[Az:\033[31m%.2F\033[0m El:\033[31m%.2F\033[0m]" % (opts.ant, state[period_count % 4], time.ctime().split(" ")[3], mode, scan, lock, desired_ra, desired_dec, desired_az, desired_el, actual_az, actual_el, error_az, error_el)
 
             sys.stdout.write(status)
             sys.stdout.flush()
