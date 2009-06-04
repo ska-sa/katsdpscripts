@@ -26,10 +26,10 @@ ff.ant2.wait("lock","1",120)
  # produce custom pointing error plot
  # each sensor has local history
 
-req_az = ff.ant2.sensor_pos_request_scan_azim.get_history()
-req_el = ff.ant2.sensor_pos_request_scan_elev.get_history()
-actual_az = ff.ant2.sensor_pos_actual_scan_azim.get_history()
-actual_el = ff.ant2.sensor_pos_actual_scan_elev.get_history()
+req_az = ff.ant2.sensor_pos_request_scan_azim.get_cached_history()
+req_el = ff.ant2.sensor_pos_request_scan_elev.get_cached_history()
+actual_az = ff.ant2.sensor_pos_actual_scan_azim.get_cached_history()
+actual_el = ff.ant2.sensor_pos_actual_scan_elev.get_cached_history()
 
 az_error = np.array(actual_az[1]) - np.array(req_az[1][:len(actual_az[1])])
 el_error = np.array(actual_el[1]) - np.array(req_el[1][:len(actual_el[1])])

@@ -4,8 +4,8 @@
 import ffuilib as ffui
 import math
 
-array = ffui.build_array()
-sources = ffui.build_catalog(array)
+observer = ffui.build_observer()
+sources = ffui.build_catalog(observer)
  # we dont need access to any devices, so we just
  # build the source catalog manually instead of using
  # cbuild.
