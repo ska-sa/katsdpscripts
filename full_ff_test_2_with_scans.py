@@ -16,7 +16,7 @@ scan_duration = 30
 cal_sources = ff.sources.filter()  #tag='CALIBRATOR')
  # get calibrator sources from the built in catalog
 
-ff.new_experiment(tag="Full FF Test")
+ff.new_experiment(tag="Full FF Test 2 - with scans")
  # cleans environment and prepares for new experiment. Optional descriptive tag supplied
 
 ff.dbe.configure(defaults=True, cfreq=1420.1)
