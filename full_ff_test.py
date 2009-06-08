@@ -31,6 +31,7 @@ ffui.print_defaults()
 
 # specify and drive to a fixed target
 ff.ant1.req_target_azel(12,35)
+ff.ant1.req_scan_asym(3.5, -6.0, 5.0, 10.0, 100)
 ff.ant1.req_mode("POINT")
 ff.ant1.wait("lock","1",300)
 
