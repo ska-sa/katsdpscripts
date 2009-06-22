@@ -13,7 +13,7 @@ scans = [ ("-5","0") , ("0","-5") ]
 scan_duration = 30
  # take 30s per leg of the crosshair
 
-cal_sources = ff.sources.filter(tag='CALIBRATOR')
+cal_sources = ff.sources.filter(tags='CALIBRATOR')
  # get calibrator sources from the built in catalog
 
 ff.new_experiment(tag="RF Proxy ffuilib tests")

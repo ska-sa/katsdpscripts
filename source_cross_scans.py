@@ -12,16 +12,13 @@ scans = [ (-5,0) , (0,-5) ]
 scan_duration = 30
  # take 30s per leg of the crosshair
 
-cal_sources = ff.sources.filter(tag='CALIBRATOR')
- # get calibrator sources from the built in catalog
+up_sources = ff.sources.iterfilter(tags="CAL",el_limit_deg=[20,55])
+ # get all calibrator sources from the built in catalog that are between 20 and 55 degrees
+ # Note: This returns an interator which recalculates the el limits each time a new object is requested
 
-source = cal_sources.filterpop(el_min=20,el_max=55)
- # find the first available source that is above 20 and below 55 degrees elevation
-
-while source is not None:
-    source_name = source.name.rfind(" ") == -1 and source.name or source.name[:source.name.rfind(" ")+1]
-    print "Pointing Scan: ",source_name
-    ff.ant2.req_target_named(source_name)
+for source in up_sources:
+    print "Pointing Scan: ",source.name
+    ff.ant2.req_target(source.get_description())
      # send this target to the antenna. No time offset
     ff.ant2.req_mode("POINT")
      # set mode to point
@@ -38,9 +35,7 @@ while source is not None:
         ff.ant2.wait("scan_status","after",300)
          # wait for the scan to complete
         scan_count += 1
-    
     print "Scan complete."
-    source = cal_sources.filterpop(el_min=20, el_max=55)
 
 ff.disconnect()
  # exit
