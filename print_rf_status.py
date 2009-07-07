@@ -52,12 +52,14 @@ if __name__ == "__main__":
 
     parser.add_option('-r', '--rf', dest='rf', type="string", default="rf", metavar='RF',
                       help='RF proxy to attach to (default="%default") as per the rc file')
-    parser.add_option('-c', '--config', dest='rcfile', type="string", default="ffuilib.rf_only.rc", metavar='CONF',
-                      help='ffuilib rc file for config in /var/kat/conf (default="%default")')
+    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-telescope.ini", metavar='INI',
+                      help='Telescope configuration file to use in /var/kat/conf (default="%default")')
+    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local-rf-only", metavar='SELECTED',
+                      help='Selected configuration to use (default="%default")')
     (opts, args) = parser.parse_args()
 
 
-    ff = ffui.cbuild(opts.rcfile)
+    ff = ffui.tbuild(opts.ini_file, opts.selected_config)
     rf  = ff.__dict__[opts.rf] # Lookup rf key in ff dictionary
     
     state = ["|","/","-","\\"]
