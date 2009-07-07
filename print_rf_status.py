@@ -50,8 +50,8 @@ if __name__ == "__main__":
     usage = "usage: %prog [options]"
     parser = OptionParser(usage=usage)
 
-    parser.add_option('-r', '--rf', dest='rf', type="string", default="rf", metavar='RF',
-                      help='RF proxy to attach to (default="%default") as per the rc file')
+    parser.add_option('-r', '--rfe', dest='rfe', type="string", default="rfe", metavar='RFE',
+                      help='RFE proxy to attach to (default="%default") as per the configuration file')
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-telescope.ini", metavar='INI',
                       help='Telescope configuration file to use in /var/kat/conf (default="%default")')
     parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local-rf-only", metavar='SELECTED',
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
 
     ff = ffui.tbuild(opts.ini_file, opts.selected_config)
-    rf  = ff.__dict__[opts.rf] # Lookup rf key in ff dictionary
+    rfe  = ff.__dict__[opts.rfe] # Lookup rfe key in ff dictionary
     
     state = ["|","/","-","\\"]
     period_count = 0
@@ -69,11 +69,11 @@ if __name__ == "__main__":
         while True:
             sys.stdout.write("\rPrint all modes sensors")
             sys.stdout.flush()
-            modes = rf.list_sensors("mode",tuple=True)
+            modes = rfe.list_sensors("mode",tuple=True)
             for m in modes:
                name = m[0]
                val = m[1]
-               out = "\r%s: %s Name:%s Val:%s" % (opts.rf, time.ctime().split(" ")[3], name, val)
+               out = "\r%s: %s Name:%s Val:%s" % (opts.rfe, time.ctime().split(" ")[3], name, val)
                sys.stdout.write(out)
                sys.stdout.flush()
             
@@ -82,11 +82,11 @@ if __name__ == "__main__":
             sys.stdout.flush()
             
             stdout_redirect()
-            rf.req_device_list()
+            rfe.req_device_list()
             s = stdout_restore()
             sys.stdout.write("\r Number of devices "+s)
 #
-#In [120]: ff.rf.req_device_list()
+#In [120]: ff.rfe.req_device_list()
 #!device-list ok 11
 ##device-list rfe72
 ##device-list rfe71
@@ -102,7 +102,7 @@ if __name__ == "__main__":
             
             
             stdout_redirect()
-            rf.req_rfe3_set_lna_psu("all","on")
+            rfe.req_rfe3_set_lna_psu("all","on")
             s = stdout_restore()
             sys.stdout.write(s)
             sys.stdout.flush()
