@@ -102,7 +102,7 @@ if __name__ == "__main__":
             
             
             stdout_redirect()
-            rfe.req_rfe3_set_lna_psu("all","on")
+            rfe.req_rfe3_rf15_stage1_lna_psu_on("all","1")
             s = stdout_restore()
             sys.stdout.write(s)
             sys.stdout.flush()
