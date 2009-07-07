@@ -13,11 +13,13 @@ if __name__ == "__main__":
 
     parser.add_option('-a', '--antenna', dest='ant', type="string", default="ant1", metavar='ANTENNA',
                       help='antenna proxy to attach to (default="%default") as per the rc file')
-    parser.add_option('-c', '--config', dest='rcfile', type="string", default="ffuilib.ant_only.rc", metavar='CONF',
-                      help='ffuilib rc file for config in /var/kat/conf (default="%default")')
+    parser.add_option('-i', '--ini', dest='ini_file', type="string", default="cfg-telescope.ini", metavar='INI-FILE',
+                      help='load system description from INI-FILE (name is relative to CONF folder; default=%default)')
+    parser.add_option('-s', '--selected', dest='selected_config', type="string", default="local-ant-only-mot", metavar='SELECTED-CONFIG',
+                      help='selected configuration from INI-FILE (default=%default)')
     (opts, args) = parser.parse_args()
 
-    ff = ffui.cbuild(opts.rcfile)
+    ff = ffui.tbuild(opts.ini_file,opts.selected_config)
     ant  = ff.__dict__[opts.ant] # some Simon magic
     
     state = ["|","/","-","\\"]

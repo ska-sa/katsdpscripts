@@ -7,7 +7,7 @@ import ffuilib as ffui
 import time
 import numpy as np
 
-ff = ffui.cbuild("ffuilib.ant_motion.rc")
+ff = ffui.tbuild("cfg-telescope.ini","local-ant-only-mot")
 
 # specify and drive to a fixed target
 ff.ant1.req_target_azel(10,30)
