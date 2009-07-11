@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Drive antennas in various ways and make plots of the motion 
+# Drive antenna 1 in various ways and make plots of the motion 
 
 import pylab as pl
 import ffuilib as ffui
