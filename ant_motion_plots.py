@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 # from array.ini file
-real_to_antenna_az_offset_deg = 5.0
+antenna_az_offset_deg = -5.0
 
 # select the type of antenna motion (ensure antenna and control PC NTP synced)
 motions = ['az-el scan','az-el track','ra-dec track','GPS track','slew']
@@ -46,8 +46,8 @@ def make_plots(ff,start_time,end_time,title,fig_num):
     pl.subplot(241)
     pl.plot(req_azim[0][0:n],req_azim[1][0:n],'r')
     pl.plot(act_azim[0][0:n],act_azim[1][0:n],'y')
-    pl.plot(acs_des_azim[0][0:n],np.array(acs_des_azim[1][0:n])-real_to_antenna_az_offset_deg,'g')
-    pl.plot(acs_act_azim[0][0:n],np.array(acs_act_azim[1][0:n])-real_to_antenna_az_offset_deg,'b')
+    pl.plot(acs_des_azim[0][0:n],np.array(acs_des_azim[1][0:n])+antenna_az_offset_deg,'g')
+    pl.plot(acs_act_azim[0][0:n],np.array(acs_act_azim[1][0:n])+antenna_az_offset_deg,'b')
     pl.title('req,act: prox r,y; ant g,b',fontsize='small')
 
     pl.subplot(242)
