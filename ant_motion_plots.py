@@ -89,7 +89,7 @@ def make_plots(ff,start_time,end_time,title,fig_num):
 
 if __name__ == '__main__':
 
-    ff = ffui.tbuild("cfg-telescope.ini","local-ant-only-moog")
+    ff = ffui.tbuild("cfg-user-pointing.ini","local_ant_only")
 
     for motion in motions:
         if motion == 'az-el scan':
