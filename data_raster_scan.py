@@ -1,12 +1,18 @@
 #!/usr/bin/python
-# Create a DBE data stream, capture it and send the data to the signal displays.
-# Needs the C dbe simulator running (./dbe_server2 8000) and k7w which should be running (./k7w_server 8001)
+# Raster scan across a simulated target
+
+# Startup: 
+# start C dbe simulator: ~/svnDS/code/ffinder/trunk/src/simulators/dbe/dbe_server2 8000
+# start k7 writer: ~/svnDS/code/ffinder/trunk/src/streaming/k7writer/k7w_server 8001
+# start the system: kat-launch.py
+# and signal display server: ~/svnDS/code/ffinder/trunk/src/streaming/sdisp/ffsocket.py
+# (kat-launch.py and ffsocket.py use the defaults: -i cfg-telescope.ini -s local-simulated-ff)
 
 import ffuilib as ffui
 import time
 
 ff = ffui.tbuild("cfg-user.ini", "local_ff_client_sim")
- # make fringe fingder connections
+ # make fringe finder connections
 
 ff.dbesim.req_capture_stop()
 
@@ -33,7 +39,7 @@ scans = [ (2,2) , (2,1) , (2,0) , (2,-1) , (2,-2)]
 scan_duration = 60
 
 ff.ant1.req_target_azel(20,30)
-  # send this target to the antenna. No time offset
+  # send this target to the antenna. No time offset (hardcoded target in DBE sim at 20 az,30 el)
 ff.ant1.req_mode("POINT")
  # set mode to point
 ff.ant1.wait("lock",True,300)
