@@ -11,6 +11,7 @@ real_to_antenna_az_offset_deg = 5.0
 
 # select the type of antenna motion (ensure antenna and control PC NTP synced)
 motions = ['az-el scan','az-el track','ra-dec track','GPS track','slew']
+#motions = ['az-el scan']
 
 def make_plots(ff,start_time,end_time,title,fig_num):
 
@@ -26,9 +27,6 @@ def make_plots(ff,start_time,end_time,title,fig_num):
     req_elev = ff.ant1.sensor_pos_request_scan_elev.get_cached_history(start_time=start_time,end_time=end_time)
     act_azim = ff.ant1.sensor_pos_actual_scan_azim.get_cached_history(start_time=start_time,end_time=end_time)
     act_elev = ff.ant1.sensor_pos_actual_scan_elev.get_cached_history(start_time=start_time,end_time=end_time)
-
-    # disconnect - safer now rather than later in case plot thread issues
-    #ff.disconnect()
 
     #find smallest list (may be slightly different lengths due to sample timing)
     n = min(len(acs_des_azim[0]),len(acs_des_elev[0]),len(acs_act_azim[0]),len(acs_act_elev[0]),
@@ -147,3 +145,4 @@ if __name__ == '__main__':
             make_plots(ff,start_time,end_time,'slewing',4)
 
     pl.show()
+    ff.disconnect() # clean up
