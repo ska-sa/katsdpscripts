@@ -42,7 +42,7 @@ def make_plots(ff,start_time,end_time,title,fig_num):
 
     # plots
     fig = pl.figure(fig_num)
-    fig.text(0.0,0.95,title + ' (azim - top, elev - bottom)')
+    fig.text(0.1,0.95,title + ' (azim - top, elev - bottom)')
 
     #azim
     pl.subplot(241)
