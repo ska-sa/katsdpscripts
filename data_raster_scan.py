@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # Create a DBE data stream, capture it and send the data to the signal displays.
+# Needs the C dbe simulator running (./dbe_server2 8000) and k7w which should be running (./k7w_server 8001)
 
 import ffuilib as ffui
 import time
