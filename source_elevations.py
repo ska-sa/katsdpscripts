@@ -3,8 +3,11 @@
 
 import ffuilib as ffui
 import math
+import ConfigParser
 
-observer = ffui.build_observer()
+aicp = ConfigParser.RawConfigParser()
+aicp.read("/var/kat/conf/cfg-user-pointing.ini")
+observer = ffui.build_observer(aicp, "bae_sources")
 sources = ffui.build_catalog(observer)
  # we dont need access to any devices, so we just
  # build the source catalog manually instead of using
