@@ -6,7 +6,7 @@
 # start k7 writer: ~/svnDS/code/ffinder/trunk/src/streaming/k7writer/k7w_server 8001
 # start the system: kat-launch.py
 # and signal display server: ~/svnDS/code/ffinder/trunk/src/streaming/sdisp/ffsocket.py
-# (kat-launch.py and ffsocket.py use the defaults: -i cfg-telescope.ini -s local-simulated-ff)
+# (kat-launch.py and ffsocket.py use the defaults: -i cfg-telescope.ini -s local_simulated_ff)
 
 import ffuilib as ffui
 import time
