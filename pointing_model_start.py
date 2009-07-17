@@ -4,8 +4,7 @@ import ffuilib as ffui
 #ticket = ffui.get_ticket(devices="all",level="control",tag="Simon Ratcliffe - Engineering Tests...")
  # requests control level access to the telescope. Blocks until available.
 
-#ff = ffui.cbuild("ffuilib.ant_only.rc")
-ff = ffui.tbuild("cfg-telescope.ini","local-ant-only")
+ff = ffui.tbuild("cfg-telescope.ini","local_ant_only")
  # creates connection to ANT, DBE and RFE. Reads in default configuration and build targets and observatory lists
 
 scans = [ ("-5","0") , ("0","-5") ]

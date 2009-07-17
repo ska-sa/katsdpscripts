@@ -6,7 +6,7 @@ import numpy as np
 import pylab
 
 #ff = ffui.cbuild("ffuilib.ant_only.rc")
-ff = ffui.tbuild("cfg-telescope.ini","local-ant-only")
+ff = ffui.tbuild("cfg-telescope.ini","local_ant_only")
  # make fringe fingder connections
 
 ff.ant2.req_target_azel(20.31,30.45)

@@ -3,7 +3,7 @@
 
 import ffuilib as ffui
 
-ff = ffui.tbuild("cfg-telescope.ini", "local-simulated-ff")
+ff = ffui.tbuild("cfg-telescope.ini", "local_simulated_ff")
  # make fringe fingder connections
 
 ff.k7w.req_capture_start()

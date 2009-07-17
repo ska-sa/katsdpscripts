@@ -54,7 +54,7 @@ if __name__ == "__main__":
                       help='RFE proxy to attach to (default="%default") as per the configuration file')
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-telescope.ini", metavar='INI',
                       help='Telescope configuration file to use in /var/kat/conf (default="%default")')
-    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local-rf-only", metavar='SELECTED',
+    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_rf_only", metavar='SELECTED',
                       help='Selected configuration to use (default="%default")')
     (opts, args) = parser.parse_args()
 
