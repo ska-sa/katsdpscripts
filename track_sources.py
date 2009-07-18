@@ -4,7 +4,7 @@
 import ffuilib as ffui
 import time
 
-# creates connection to two antennas Reads in default configuration and build targets and observatory lists
+# creates connection to two antennas and provides access to the catalogue
 ff = ffui.tbuild("cfg-user.ini", "local_ant_only")
 
 # time to stay on each target (secs)
@@ -14,8 +14,8 @@ on_target_duration = 10
 # (options are: "longest-track", the default, or "shortest-slew")
 ff.ant1.req_drive_strategy("shortest-slew")
 
-# get sources from catalog that are between 0 and 90 degrees. Antenna will get as close as possible
-# to targets wich are out of drivable range.
+# get sources from catalogue that are in specified elevation range. Antenna will get
+# as close as possible to targets which are out of drivable range.
 # Note: This returns an interator which recalculates the el limits each time a new object is requested
 up_sources = ff.sources.iterfilter(el_limit_deg=[0,90])
 
