@@ -19,19 +19,35 @@ ff.ant1.req_drive_strategy("shortest-slew")
 # Note: This returns an interator which recalculates the el limits each time a new object is requested
 up_sources = ff.sources.iterfilter(el_limit_deg=[0,90])
 
-for source in up_sources:
-    print "Target to track: ",source.name
+total_target_count = 0
+targets_tracked = 0
+start_time = time.time()
 
-    # send this target to the antenna.
-    ff.ant1.req_target(source.get_description())
-    ff.ant1.req_mode("POINT")
+try:
+    for source in up_sources:
+        print "Target to track: ",source.name
 
-    # wait for lock
-    ff.ant1.wait("lock","1",150)
+        # send this target to the antenna.
+        ff.ant1.req_target(source.get_description())
+        ff.ant1.req_mode("POINT")
 
-    # continue tracking the target for specified time
-    time.sleep(on_target_duration)
+        # wait for lock
+        target_locked = ff.ant1.wait("lock","1",150)
+        if target_locked:
+            targets_tracked += 1
+            # continue tracking the target for specified time
+            time.sleep(on_target_duration)
 
-# exit
-ff.disconnect()
+        total_target_count += 1
+except Exception:
+    print 'exception caught: attempting to exit cleanly...'
+finally:
+    # still good to get the stats even if user interrupted with control-C
+    end_time = time.time()
+    print '\nelapsed_time: %.2f mins' %((end_time - start_time)/60.0)
+    print 'targets attempted: ', total_target_count
+    print 'target lock achieved: ', targets_tracked, '\n' 
 
+    # exit
+    ff.ant1.req_drive_strategy("longest-track") # good practice to return to the default
+    ff.disconnect()
