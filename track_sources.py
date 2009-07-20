@@ -32,22 +32,24 @@ try:
         ff.ant1.req_mode("POINT")
 
         # wait for lock
-        target_locked = ff.ant1.wait("lock","1",150)
+        target_locked = ff.ant1.wait("lock","1",200)
         if target_locked:
             targets_tracked += 1
             # continue tracking the target for specified time
             time.sleep(on_target_duration)
 
         total_target_count += 1
-except Exception:
-    print 'exception caught: attempting to exit cleanly...'
+except Exception, e:
+    print "Exception: ", e
+    print 'Exception caught: attempting to exit cleanly...'
 finally:
-    # still good to get the stats even if user interrupted with control-C
+    # still good to get the stats even if script interrupted
     end_time = time.time()
     print '\nelapsed_time: %.2f mins' %((end_time - start_time)/60.0)
     print 'targets attempted: ', total_target_count
     print 'target lock achieved: ', targets_tracked, '\n' 
 
     # exit
-    ff.ant1.req_drive_strategy("longest-track") # good practice to return to the default
+    print "setting drive-strategy back to the default"
+    ff.ant1.req_drive_strategy("longest-track") # good practice
     ff.disconnect()
