@@ -1,6 +1,20 @@
 #!/usr/bin/python
-# Create a DBE data stream, capture it and send the data to the signal displays.
-# Needs the C dbe simulator running (./dbe_server2 8000) and k7w which should be running (./k7w_server 8001)
+# Raster scan across a simulated target producing scan data for signal displays and loading into scape
+
+# Once-off setup:
+# For the augment part to work, need some webserver setup from cmd line:
+#   cd /Library/WebServer/Documents/
+#   sudo ln -s /var/kat/central_monitoring/ central_monitoring
+#   sudo apachectl start
+# ensure hat you have a data dir e.g. /var/kat/data below
+
+# Startup in different terminals:
+# start C dbe simulator: ~/svnDS/code/ffinder/trunk/src/simulators/dbe/dbe_server 8000
+# start k7 writer: cd /var/kat/data; ~/svnDS/code/ffinder/trunk/src/streaming/k7writer/k7w_server 8001
+# start the system: kat-launch.py
+# start the central monitor: ~/svnDS/code/ffinder/trunk/src/services/monitoring/central_monitor.py
+# and signal display server: ~/svnDS/code/ffinder/trunk/src/streaming/sdisp/ffsocket.py
+# (kat-launch.py and ffsocket.py use the defaults: -i cfg-telescope.ini -s local-simulated-ff)
 
 import ffuilib as ffui
 import time
@@ -66,3 +80,18 @@ print "Scan complete."
 ff.dbe.req_dbe_capture_stop("stream")
 ff.k7w.req_capture_stop()
 ff.disconnect()
+
+# now augment the hdf5 file with metadata (pointing info etc):
+#   ~/svnDS/code/ffinder/trunk/src/streaming/k7augment/augment.py -d /var/kat/data -f [xxx.h5]
+
+# load into scape from within python:
+#   import scape
+#   import pylab as pl
+#   d = scape.DataSet("[xxx.h5]") # load data from file into dataset
+#   print d
+#   scape.plot_compound_scan_on_target(d.compscans[1])
+#   pl.show()
+#   d = d.select(labelkeep="scan") # get rid of the slew data from the dataset
+#   print d
+#   print d.compscans[0]
+#   scape.plot_compound_scan_on_target(d.compscans[0])
