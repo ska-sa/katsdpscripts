@@ -35,8 +35,6 @@ ff.k7w.req_target(tgt)
 ff.k7w.req_output_directory("/var/kat/data/")
 ff.k7w.req_write_hdf5(1)
 ff.k7w.req_capture_start()
-ff.k7w.req_scan_id(1,"slew")
- # make note that our first scan is a slew
 
 ff.dbe.req_dbe_packet_count(600)
  # stream 10 minutes of data or until stop issued
@@ -62,6 +60,7 @@ ff.ant1.req_mode("POINT")
 ff.ant1.wait("lock",True,300)
 ff.k7w.req_compound_scan_id(1)
  # once we are on the target begin a new compound scan
+ # (compound scan 0 will be the slew to the target, default scan tag is "slew")
 scan_count = 1
 
 for scan in scans:
