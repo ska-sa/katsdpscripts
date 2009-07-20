@@ -4,11 +4,11 @@
 import ffuilib as ffui
 import math
 import ConfigParser
+from katcore import katconf
 
-aicp = ConfigParser.RawConfigParser()
-aicp.read("/var/kat/conf/cfg-user.ini")
-observer = ffui.build_observer(aicp, "default_sources")
-sources = ffui.build_catalog(observer)
+aicp = katconf.KatConfig("/var/kat/conf/cfg-user.ini","local_ff_client")
+observer = ffui.build_observer(aicp)
+sources = ffui.build_catalog(observer, aicp)
  # we dont need access to any devices, so we just
  # build the source catalog manually instead of using
  # cbuild.
