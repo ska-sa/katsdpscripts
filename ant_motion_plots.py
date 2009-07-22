@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # Drive antenna 1 in various ways and make plots of the motion 
 
+# startup ant proxies: kat-launch.py -i cfg-telescope.ini -s ant_only_moog1_office
+#                  or: kat-launch.py -i cfg-telescope.ini -s local_ant_only
+
 import ffuilib as ffui
 import matplotlib.pyplot as pl
 import time
@@ -10,8 +13,8 @@ import numpy as np
 antenna_az_offset_deg = -5.0
 
 # select the type of antenna motion (ensure antenna and control PC NTP synced)
-motions = ['az-el scan','az-el track','ra-dec track','GPS track','slew']
-#motions = ['az-el scan']
+#motions = ['az-el scan','az-el pointing','ra-dec track','GPS track','slew']
+motions = ['az-el scan','az-el pointing','ra-dec track']
 
 def make_plots(ff,start_time,end_time,title,fig_num):
 
@@ -93,7 +96,7 @@ if __name__ == '__main__':
         if motion == 'az-el scan':
             print 'performing az-el scan'
             ff.ant1.req_target_azel(10,30)
-            ff.ant1.req_scan_sym(2, 2, 20)
+            ff.ant1.req_scan_sym(4, 4, 20)
             ff.ant1.req_mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
