@@ -18,7 +18,7 @@ up_sources = ff.sources.iterfilter(tags="CAL",el_limit_deg=[20,55])
 
 for source in up_sources:
     print "Pointing Scan: ",source.name
-    ff.ant1.req_target(source.get_description())
+    ff.ant1.req_target(source.description)
      # send this target to the antenna. No time offset
     ff.ant1.req_mode("POINT")
      # set mode to point

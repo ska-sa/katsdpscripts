@@ -28,7 +28,7 @@ try:
         print "Target to track: ",source.name
 
         # send this target to the antenna.
-        ff.ant1.req_target(source.get_description())
+        ff.ant1.req_target(source.description)
         ff.ant1.req_mode("POINT")
 
         # wait for lock

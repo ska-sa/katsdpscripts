@@ -129,7 +129,7 @@ if __name__ == '__main__':
             print 'tracking GPS satellite'
             cat = ff.sources.filter(tags=['GPS','TLE'],el_limit_deg=[20,50])
             tgt = [t for t in cat][0] # get one target
-            ff.ant1.req_target(tgt.get_description())
+            ff.ant1.req_target(tgt.description)
             ff.ant1.req_mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
