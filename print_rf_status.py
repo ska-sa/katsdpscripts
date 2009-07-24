@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Print out the status (mode, lock, pointing etc...) for the specified antenna 
+# Print out the status (mode, lock, pointing etc...) for the specified antenna
 
 import ffuilib as ffui
 import time
@@ -7,7 +7,7 @@ import sys
 from optparse import OptionParser
 import StringIO
 
-savestdout = sys.stdout 
+savestdout = sys.stdout
 fstdout = None
 x = StringIO.StringIO()
 
@@ -17,34 +17,34 @@ x = StringIO.StringIO()
 def stdout_redirect():
     global savestdout
     global fstdout
-    savestdout = sys.stdout                                     
-    #fstdout = open('test_out.log', 'w')                             
-    sys.stdout = StringIO.StringIO()                                     
+    savestdout = sys.stdout
+    #fstdout = open('test_out.log', 'w')
+    sys.stdout = StringIO.StringIO()
     return savestdout
 
 def stdout_restore():
     global savestdout
-    global fstdout                                
+    global fstdout
     #fstdout.close()
-    #fstdout = open('test_out.log', 'r')     
-    #Out = fstdout.read()           
-    #fstdout.close() 
+    #fstdout = open('test_out.log', 'r')
+    #Out = fstdout.read()
+    #fstdout.close()
     sOut = sys.stdout.getvalue()
-    sys.stdout = savestdout  
-    return sOut                               
+    sys.stdout = savestdout
+    return sOut
 
 
 
 
 if __name__ == "__main__":
 
-#    #savestdout = sys.stdout 
+#    #savestdout = sys.stdout
 #    #sys.stdout = StringIO.StringIO()
 #    stdout_redirect()
 #    print "foo", "bar", "baz"
 #    s = stdout_restore()
-#    #sys.stdout = savestdout 
-#    
+#    #sys.stdout = savestdout
+#
 #    print "Printing" + s
 
     usage = "usage: %prog [options]"
@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     ff = ffui.tbuild(opts.ini_file, opts.selected_config)
     rfe  = ff.__dict__[opts.rfe] # Lookup rfe key in ff dictionary
-    
+
     state = ["|","/","-","\\"]
     period_count = 0
     print "\n"
@@ -76,11 +76,11 @@ if __name__ == "__main__":
                out = "\r%s: %s Name:%s Val:%s" % (opts.rfe, time.ctime().split(" ")[3], name, val)
                sys.stdout.write(out)
                sys.stdout.flush()
-            
-            
+
+
             sys.stdout.write("\rTest grouped commands\r")
             sys.stdout.flush()
-            
+
             stdout_redirect()
             rfe.req_device_list()
             s = stdout_restore()
@@ -98,20 +98,20 @@ if __name__ == "__main__":
 ##device-list rfe72.rfe51
 ##device-list rfe71.rfe31
 ##device-list rfe71.rfe32
-##device-list rfe71.rfe51         
-            
-            
+##device-list rfe71.rfe51
+
+
             stdout_redirect()
             rfe.req_rfe3_rf15_stage1_lna_psu_on("all","1")
             s = stdout_restore()
             sys.stdout.write(s)
             sys.stdout.flush()
-            
+
             #Wait for 2 seconds, then do it all again
             time.sleep(2.0)
-            
+
             #For now
-            
+
     except Exception,err:
         stdout_restore()
         print "\nError: Disconnecting... (",err,")"

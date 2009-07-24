@@ -1,6 +1,6 @@
 import ffuilib as ffui
 # A dummy script that will form the basis of a functional pointing model test
- 
+
 #ticket = ffui.get_ticket(devices="all",level="control",tag="Simon Ratcliffe - Engineering Tests...")
  # requests control level access to the telescope. Blocks until available.
 
@@ -41,7 +41,7 @@ while source is not None:
     ff.ant.wait("lock","1",300)
      # wait for lock
     scan_count = 0
-    
+
     for scan in scans:
         print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
         ff.ant.req_offset(scan[0],scan[1],scan_duration)
@@ -54,7 +54,7 @@ while source is not None:
          # wait for the scan to complete
         ff.dbe.req_capture_stop()
         scan_count += 1
-    
+
     print "Scan complete."
     source = cal_sources.filterpop(70)
 

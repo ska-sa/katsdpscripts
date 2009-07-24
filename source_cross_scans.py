@@ -25,7 +25,7 @@ for source in up_sources:
     ff.ant1.wait("lock","1",300)
      # wait for lock
     scan_count = 0
-    
+
     for scan in scans:
         print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
         ff.ant1.req_scan_sym(scan[0],scan[1],scan_duration)

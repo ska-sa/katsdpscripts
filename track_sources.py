@@ -47,7 +47,7 @@ finally:
     end_time = time.time()
     print '\nelapsed_time: %.2f mins' %((end_time - start_time)/60.0)
     print 'targets attempted: ', total_target_count
-    print 'target lock achieved: ', targets_tracked, '\n' 
+    print 'target lock achieved: ', targets_tracked, '\n'
 
     # exit
     print "setting drive-strategy back to the default"

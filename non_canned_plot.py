@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Drive antenna to two targets and then make a pointing error plot 
+# Drive antenna to two targets and then make a pointing error plot
 
 import ffuilib as ffui
 import numpy as np

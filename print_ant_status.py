@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Print out the status (mode, lock, pointing etc...) for the specified antenna 
+# Print out the status (mode, lock, pointing etc...) for the specified antenna
 
 import ffuilib as ffui
 import time
@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     ff = ffui.tbuild(opts.ini_file,opts.selected_config)
     ant  = ff.__dict__[opts.ant] # some Simon magic
-    
+
     state = ["|","/","-","\\"]
     period_count = 0
     print "\n"

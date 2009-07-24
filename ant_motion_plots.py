@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Drive antenna 1 in various ways and make plots of the motion 
+# Drive antenna 1 in various ways and make plots of the motion
 
 # startup ant proxies: kat-launch.py -i cfg-telescope.ini -s ant_only_moog1_office
 #                  or: kat-launch.py -i cfg-telescope.ini -s local_ant_only
