@@ -4,7 +4,7 @@
 import ffuilib as ffui
 import math
 import ConfigParser
-from katcore import katconf
+import katconf
 
 aicp = katconf.KatConfig("/var/kat/conf/cfg-user.ini","local_ff_client")
 observer = ffui.build_observer(aicp)
