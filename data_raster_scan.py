@@ -36,7 +36,7 @@ ff.k7w.req_output_directory("/var/kat/data/")
 ff.k7w.req_write_hdf5(1)
 ff.k7w.req_capture_start()
 
-ff.dbe.req_dbe_packet_count(600)
+ff.dbe.req_dbe_packet_count(900)
  # stream 10 minutes of data or until stop issued
 ff.dbesim.req_dump_rate(1)
  # correlator dump rate set to 1 Hz
@@ -49,9 +49,9 @@ ff.ant1.sensor_pos_actual_scan_azim.register_listener(ff.dbesim.req_pointing_az,
 ff.ant1.sensor_pos_actual_scan_elev.register_listener(ff.dbesim.req_pointing_el, 0.5)
  # when the sensor value changes send an update to the listening function. Rate limited to 0.5 second updates.
 
-scans = [ (-1,0.5) , (1,0) , (-1,-0.5) ]
+scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
  # raster scan
-scan_duration = 120
+scan_duration = 240
 
 ff.ant1.req_target(tgt)
   # send this target to the antenna. No time offset
