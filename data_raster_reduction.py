@@ -13,6 +13,7 @@ print "Reducing data file",data_file
 
 d = scape.DataSet(data_file)
 d = d.select(labelkeep="scan")
+d.average()
 d.fit_beams_and_baselines()
 
 scape.plot_compound_scan_on_target(d.compscans[0])
