@@ -3,7 +3,7 @@
 
 import ffuilib as ffui
 
-ff = ffui.tbuild("cfg-telescope.ini","local_ant_only")
+ff = ffui.tbuild("cfg-user.ini","local_ant_only")
  # make fringe fingder connections
 
 ff.ant2.req_target_azel(20.31,30.45)

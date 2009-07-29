@@ -38,7 +38,7 @@ ff.k7w.req_capture_start()
 
 ff.dbe.req_dbe_packet_count(900)
  # stream 10 minutes of data or until stop issued
-ff.dbesim.req_dump_rate(1)
+ff.dbe.req_dbe_dump_rate(1)
  # correlator dump rate set to 1 Hz
 ff.dbe.req_dbe_capture_destination("stream","127.0.0.1:7010")
  # create a new data source labelled "stream". Send data to localhost on port 7010
@@ -75,6 +75,9 @@ for scan in scans:
      # slewing to next raster pointg
     scan_count += 2
 print "Scan complete."
+
+files = ff.k7w.req_get_current_files(tuple=True)[1][2]
+print "Data captured to",files
 
 ff.dbe.req_dbe_capture_stop("stream")
 ff.k7w.req_capture_stop()

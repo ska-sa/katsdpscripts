@@ -1,5 +1,5 @@
 #!/usr/bin/python
-
+# Reduces captured data and plots using scape. Data must be local
 import scape
 import pylab as pl
 import os
