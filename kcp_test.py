@@ -16,7 +16,9 @@ if not client.is_connected():
 mp = MessageParser()
 msg = mp.parse("?sensor-list")
 
+s = time.time()
 retval = client.blocking_request(msg)
+s2 = (time.time() - s)
 print retval[0]
 sensors = []
 for msg in retval[1]:
@@ -32,5 +34,6 @@ for sensor in sensors:
     else:
         print "Failed to set strategy"
 
+print "Sensor list took:",s2
 print "Total strategy time:",(time.time() - s1)
 client.stop()
