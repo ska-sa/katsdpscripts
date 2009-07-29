@@ -1,3 +1,4 @@
+#!/bin/bash
 # The famous start to finish script.
 # Starts with capturing data and moving antennas
 # and ends with a reduced beamfitted plot in scape :)
