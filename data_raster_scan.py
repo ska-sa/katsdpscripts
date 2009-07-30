@@ -64,7 +64,7 @@ ff.k7w.req_compound_scan_id(1)
 scan_count = 1
 
 for scan in scans:
-    print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
+    print "Scan Progress:",int((float(scan_count) / len(scans)*2)*100),"%"
     ff.ant1.req_scan_asym(-scan[0],scan[1],scan[0],scan[1],scan_duration)
     ff.ant1.wait("lock",True,300)
     ff.k7w.req_scan_id(scan_count,"scan")
