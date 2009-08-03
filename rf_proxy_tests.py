@@ -85,14 +85,23 @@ rfe.req_sensor_sampling("rfe71.cryo1.ambient.temperature","event", "1000")
 rfe.req_sensor_sampling("rfe71.cryo1.ambient.temperature","period", "1500")
 
 print "".ljust(50,"=")
+print "katcp - GROUPED COMMANDS"
+print "".ljust(50,"=")
+
+#Switch all on
+rfe.req_rfe3_psu_on("all",1)
+#Switch specific instance off
+rfe.req_rfe3_psu_on("rfe71.rfe32",0)
+
+print "".ljust(50,"=")
 print "katcp - COMMON REQUESTS"
 print "".ljust(50,"=")
 
 #katcp - common requests
 rfe.req_client_list()
 rfe.req_device_list()
-#katcp - watchdog "ping"
-rfe.req_watchdog()
+rfe.req_watchdog() #katcp - watchdog "ping"
+rfe.req_scheduler_mode()
 #katcp - Lifecycle commands
 #rfe.req_halt()
 #rfe.req_restart()
