@@ -1,43 +1,115 @@
 import ffuilib as ffui
-# A dummy script that will form the basis of a functional pointing model test
-
-#ticket = ffui.get_ticket(devices="all",level="control",tag="RF Proxy ffuilib tests")
- # requests control level access to the telescope. Blocks until available.
+# An example script for accessing and controlling RF devices: Cryo, RFE3, RFE5, RFE7
 
 ff = ffui.tbuild("cfg-telescope.ini", "local_rf_only")
- # creates connection to ANT, DBE and RFE. Reads in default configuration and build targets and observatory lists
-
-scans = [ ("-5","0") , ("0","-5") ]
- # cross hair scan of the target from -5 to 5 degrees in x and y
-
-scan_duration = 30
- # take 30s per leg of the crosshair
-
-cal_sources = ff.sources.filter(tags='CALIBRATOR')
- # get calibrator sources from the built in catalog
-
-ff.new_experiment(tag="RF Proxy ffuilib tests")
- # cleans environment and prepares for new experiment. Optional descriptive tag supplied
-
-ff.dbe.configure(defaults=True, cfreq=1420.1)
- # configure the dbe using standard default apart from specifying the centre frequency
-
-ff.dbe.req_destination_ip("192.168.6.40")
- # instruct the simulator to send data to dss-dp1
-
-ffui.print_defaults()
- # print the current fringe finder configuration and status to the screen
-
 
 ########################
 #Add rf proxy tests here
 ########################
 
+rfe  = ff.__dict__["rfe"] # Lookup rfe key in ff dictionary
 
 
-#ffui.release_ticket(ticket)
-# we are done so clean up
+print "".ljust(50,"=")
+print "ACCESS THROUGH ffuilib - SENSORS"
+print "".ljust(50,"=")
 
+#List specific sensor
+rfe.list_sensors("rfe71.cryo1.ambient.temperature")
+#List sensors with filter
+rfe.list_sensors("rfe31")
+#Only those sensors with strategies
+rfe.list_sensors("rfe31",strategy=True)
+#Return result in a tuple for processing
+sens_list = rfe.list_sensors(filter="rfe71.cryo2", tuple=True)
+
+
+print "".ljust(50,"=")
+print "ACCESS THROUGH ffuilib - REQUESTS"
+print "".ljust(50,"=")
+
+# List all
+rfe.list_requests()
+#Requests filtered, and returned in tuple
+rfe.list_requests("noise")
+#Return results in a tuple for processing
+req_list = rfe.list_requests(filter="lna", tuple=True)
+
+print "".ljust(50,"=")
+print "ACCESS THROUGH ffuilib - STRATEGIES"
+print "".ljust(50,"=")
+
+#Set all cryo1 sensors to periodic 2000
+rfe.set_sensor_strategy("cryo1","period","2000")
+#Specific sensor - differential
+rfe.set_sensor_strategy("rfe71.cryo1.coldfinger.temperature","differential","1000")
+#Specific sensor - remove strategy
+rfe.set_sensor_strategy("rfe71.cryo1.coldfinger.temperature","none")
+#Specific sensor - event
+rfe.set_sensor_strategy("rfe71.cryo1.coolingfans.error",strategy="event")
+#Specific sensor - event with rate limit
+rfe.set_sensor_strategy("rfe71.cryo1.ambient.temperature", strategy="event", param="1000")
+
+print "".ljust(50,"=")
+print "katcp - HELP"
+print "".ljust(50,"=")
+
+# katcp - request help
+rfe.req_help()
+rfe.req_help("sensor-value")
+
+print "".ljust(50,"=")
+print "katcp - SENSOR LIST"
+print "".ljust(50,"=")
+
+# katcp - sensor list all
+rfe.req_sensor_list()
+# katcp - sensor list with pattern
+rfe.req_sensor_list("/temperature/")
+
+print "".ljust(50,"=")
+print "katcp - SENSOR VALUES"
+print "".ljust(50,"=")
+
+#katcp -sensor value - Specific sensor
+rfe.req_sensor_value("rfe71.psu.cam5.volt")
+#katcp - senosr value - Sensors with a pattern - start and end with /
+rfe.req_sensor_value("/noise/")
+
+print "".ljust(50,"=")
+print "katcp - SENSOR SAMPLING"
+print "".ljust(50,"=")
+
+# katcp - sensor sampling
+rfe.req_sensor_sampling("rfe71.cryo1.ambient.temperature","event", "1000")
+rfe.req_sensor_sampling("rfe71.cryo1.ambient.temperature","period", "1500")
+
+print "".ljust(50,"=")
+print "katcp - COMMON REQUESTS"
+print "".ljust(50,"=")
+
+#katcp - common requests
+rfe.req_client_list()
+rfe.req_device_list()
+#katcp - watchdog "ping"
+rfe.req_watchdog()
+#katcp - Lifecycle commands
+#rfe.req_halt()
+#rfe.req_restart()
+
+print "".ljust(50,"=")
+print "katcp - LOG LEVEL"
+print "".ljust(50,"=")
+
+#Log level:  {'all', 'trace', 'debug', 'info', 'warn', 'error', 'fatal', 'off'}, optional
+#katcp - Proxy log level
+rfe.req_log_level() #Get the current log level
+rfe.req_log_level("debug")
+#katcp - Log level for specific device
+rfe.req_log_level("rfe71.cryo1")
+rfe.req_log_level("rfe71.cryo1", "warn")
+
+
+# exit
 ff.disconnect()
- # exit
 
