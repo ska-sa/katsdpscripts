@@ -13,8 +13,10 @@ import numpy as np
 antenna_az_offset_deg = -5.0
 
 # select the type of antenna motion (ensure antenna and control PC NTP synced)
-#motions = ['az-el scan','az-el pointing','ra-dec track','GPS track','slew']
-motions = ['az-el scan','az-el pointing','ra-dec track']
+motions = ['az-el scan','az-el pointing','ra-dec track','GPS track','slew']
+#motions = ['az-el scan','ra-dec track']
+#motions = ['az-el scan']
+#motions = ['GPS track']
 
 def make_plots(ff,start_time,end_time,title,fig_num):
 
@@ -127,7 +129,7 @@ if __name__ == '__main__':
             make_plots(ff,start_time,end_time,'ra-dec track',2)
         elif motion == 'GPS track':
             print 'tracking GPS satellite'
-            cat = ff.sources.filter(tags=['GPS','TLE'],el_limit_deg=[20,50])
+            cat = ff.sources.filter(tags=['GPS'],el_limit_deg=[20,80])
             tgt = [t for t in cat][0] # get one target
             ff.ant1.req_target(tgt.description)
             ff.ant1.req_mode("POINT")
