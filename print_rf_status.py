@@ -6,7 +6,9 @@ import time
 import sys
 from optparse import OptionParser
 import StringIO
+from ansi import gotoxy, clrscr, fg, bg, prnt, reset, underline, col
 
+redirected = False
 savestdout = sys.stdout
 fstdout = None
 x = StringIO.StringIO()
@@ -17,20 +19,26 @@ x = StringIO.StringIO()
 def stdout_redirect():
     global savestdout
     global fstdout
+    global redirected
     savestdout = sys.stdout
     #fstdout = open('test_out.log', 'w')
     sys.stdout = StringIO.StringIO()
+    redirected = True
     return savestdout
 
 def stdout_restore():
     global savestdout
     global fstdout
+    global redirected
     #fstdout.close()
     #fstdout = open('test_out.log', 'r')
     #Out = fstdout.read()
     #fstdout.close()
-    sOut = sys.stdout.getvalue()
-    sys.stdout = savestdout
+    sOut = ""
+    if redirected == True:
+        sOut = sys.stdout.getvalue()
+        sys.stdout = savestdout
+        redirected = False
     return sOut
 
 
@@ -51,11 +59,15 @@ if __name__ == "__main__":
     parser = OptionParser(usage=usage)
 
     parser.add_option('-r', '--rfe', dest='rfe', type="string", default="rfe", metavar='RFE',
-                      help='RFE proxy to attach to (default="%default") as per the configuration file')
+                      help='Name of RFE proxy to attach to (default="%default") as per the configuration file')
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-telescope.ini", metavar='INI',
                       help='Telescope configuration file to use in /var/kat/conf (default="%default")')
     parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_rf_only", metavar='SELECTED',
                       help='Selected configuration to use (default="%default")')
+    parser.add_option('-f', '--filter', dest='filter', type='string', default='rfe31', metavar='FILTER',
+                      help='Filter on sensors to print (default="%default")')
+    parser.add_option('-p', '--period', dest='period', type='float', default='500', metavar='PERIOD',
+                      help='Refresh period in milliseconds (default="%default")')
     (opts, args) = parser.parse_args()
 
 
@@ -66,51 +78,33 @@ if __name__ == "__main__":
     period_count = 0
     print "\n"
     try:
-        while True:
-            sys.stdout.write("\rPrint all modes sensors")
-            sys.stdout.flush()
-            modes = rfe.list_sensors("mode",tuple=True)
-            for m in modes:
-               name = m[0]
-               val = m[1]
-               out = "\r%s: %s Name:%s Val:%s" % (opts.rfe, time.ctime().split(" ")[3], name, val)
-               sys.stdout.write(out)
-               sys.stdout.flush()
-
-
-            sys.stdout.write("\rTest grouped commands\r")
-            sys.stdout.flush()
-
-            stdout_redirect()
+        clrscr()
+        stdout_redirect()
+        try:
             rfe.req_device_list()
+        finally:
             s = stdout_restore()
-            sys.stdout.write("\r Number of devices "+s)
-#
-#In [120]: ff.rfe.req_device_list()
-#!device-list ok 11
-##device-list rfe72
-##device-list rfe71
-##device-list rfe71.rfe52
-##device-list rfe72.rfe31
-##device-list rfe72.cryo1
-##device-list rfe71.cryo1
-##device-list rfe71.cryo2
-##device-list rfe72.rfe51
-##device-list rfe71.rfe31
-##device-list rfe71.rfe32
-##device-list rfe71.rfe51
+            sys.stdout.write("Number of devices "+s)
 
+        while True:
+            gotoxy(10,1)
+            s = "Print filtered sensors: %s %s %s" % (opts.filter, state[period_count % 4], col("red")+time.ctime().replace("  "," ").split(" ")[3])+col("normal")
+            print s
+            print "Name".ljust(45),"Value".ljust(15)
+            if opts.filter.startswith("all"):
+                sens = rfe.list_sensors(tuple=True)
+            else:
+                sens = rfe.list_sensors(opts.filter,tuple=True)
+            #Set strategies for these or do a get_value ?
+            for s in sens:
+                name = s[0]
+                val = s[1]
+                print "%s %s " % (name.ljust(45), str(val).ljust(15))
+                sys.stdout.flush()
 
-            stdout_redirect()
-            rfe.req_rfe3_rf15_stage1_lna_psu_on("all","1")
-            s = stdout_restore()
-            sys.stdout.write(s)
-            sys.stdout.flush()
-
-            #Wait for 2 seconds, then do it all again
-            time.sleep(2.0)
-
-            #For now
+            #Wait, then do it all again
+            time.sleep(opts.period/1000.0)
+            period_count += 1
 
     except Exception,err:
         stdout_restore()
