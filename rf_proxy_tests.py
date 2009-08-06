@@ -42,13 +42,13 @@ print "".ljust(50,"=")
 #Set all cryo1 sensors to periodic 2000
 rfe.set_sensor_strategy("cryo1","period","2000")
 #Specific sensor - differential
-rfe.set_sensor_strategy("rfe71.cryo1.coldfinger.temperature","differential","1000")
+rfe.set_sensor_strategy("rfe71.cryo1.coldfinger.temperature", strategy="differential",param="1000", override=True)
 #Specific sensor - remove strategy
-rfe.set_sensor_strategy("rfe71.cryo1.coldfinger.temperature","none")
+rfe.set_sensor_strategy("rfe71.cryo1.coldfinger.temperature", strategy="none", override=True)
 #Specific sensor - event
-rfe.set_sensor_strategy("rfe71.cryo1.coolingfans.error",strategy="event")
+rfe.set_sensor_strategy("rfe71.cryo1.coolingfans.error",strategy="event", override=True)
 #Specific sensor - event with rate limit
-rfe.set_sensor_strategy("rfe71.cryo1.ambient.temperature", strategy="event", param="1000")
+rfe.set_sensor_strategy("rfe71.cryo1.ambient.temperature", strategy="event", param="1000", override=True)
 
 print "".ljust(50,"=")
 print "katcp - HELP"
