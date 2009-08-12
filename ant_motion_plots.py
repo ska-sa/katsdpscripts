@@ -10,13 +10,15 @@ import time
 import numpy as np
 
 # from array.ini file
-antenna_az_offset_deg = -5.0
+antenna_az_offset_deg = 45.0
 
 # select the type of antenna motion (ensure antenna and control PC NTP synced)
-motions = ['az-el scan','az-el pointing','ra-dec track','GPS track','slew']
+#motions = ['az-el scan','az-el pointing','ra-dec track','GPS track','slew','az raster','el raster']
 #motions = ['az-el scan','ra-dec track']
 #motions = ['az-el scan']
 #motions = ['GPS track']
+motions = ['az raster']
+#motions = ['el raster']
 
 def make_plots(ff,start_time,end_time,title,fig_num):
 
@@ -98,6 +100,8 @@ if __name__ == '__main__':
         if motion == 'az-el scan':
             print 'performing az-el scan'
             ff.ant1.req_target_azel(10,30)
+#            ff.ant1.req_target("Acrux | Alpha Crucis | HIC 60718, xephem radec BAE, Acrux~f|S|B0~12:26:36.2~-63:05:57~0.78~2000~0")
+#            ff.ant1.req_offset_fixed(-1.40,-1.020)
             ff.ant1.req_scan_sym(4, 4, 20)
             ff.ant1.req_mode("POINT")
             ff.ant1.wait("lock",True,300)
@@ -148,6 +152,42 @@ if __name__ == '__main__':
             ff.ant1.wait("lock",True,300)
             end_time = time.time()
             make_plots(ff,start_time,end_time,'slewing',4)
+        elif motion == 'az raster':
+            print 'azimuth raster scan'
+            scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
+            scan_duration = 20
+            ff.ant1.req_target_azel(10,30)
+            ff.ant1.req_mode("POINT")
+            ff.ant1.wait("lock",True,300)
+            start_time = time.time()
+            scan_count = 1
+            for scan in scans:
+                print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
+                ff.ant1.req_scan_asym(-scan[0],scan[1],scan[0],scan[1],scan_duration)
+                ff.ant1.wait("lock",True,300)
+                ff.ant1.req_mode("SCAN")
+                ff.ant1.wait("scan_status","after",300)
+                scan_count += 1
+            end_time = time.time()
+            make_plots(ff,start_time,end_time,'az raster',4)
+        elif motion == 'el raster':
+            print 'elevation raster scan'
+            scans = [ (-0.5,2) , (0,-2) , (0.5,2) ]
+            scan_duration = 20
+            ff.ant1.req_target_azel(10,30)
+            ff.ant1.req_mode("POINT")
+            ff.ant1.wait("lock",True,300)
+            start_time = time.time()
+            scan_count = 1
+            for scan in scans:
+                print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
+                ff.ant1.req_scan_asym(scan[0],scan[1],scan[0],-scan[1],scan_duration)
+                ff.ant1.wait("lock",True,300)
+                ff.ant1.req_mode("SCAN")
+                ff.ant1.wait("scan_status","after",300)
+                scan_count += 1
+            end_time = time.time()
+            make_plots(ff,start_time,end_time,'el raster',4)
 
     pl.show()
     ff.disconnect() # clean up
