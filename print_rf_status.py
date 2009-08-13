@@ -87,7 +87,7 @@ if __name__ == "__main__":
             sys.stdout.write("Number of devices "+s)
 
         while True:
-            gotoxy(10,1)
+            gotoxy(5,1)
             s = "Print filtered sensors: %s %s %s" % (opts.filter, state[period_count % 4], col("red")+time.ctime().replace("  "," ").split(" ")[3])+col("normal")
             print s
             print "Name".ljust(45),"Value".ljust(15)
