@@ -69,6 +69,8 @@ if __name__ == "__main__":
                       help='Filter on sensors to print (default="%default")')
     parser.add_option('-p', '--period', dest='period', type='float', default='500', metavar='PERIOD',
                       help='Refresh period in milliseconds (default="%default")')
+    parser.add_option('-o', '--override', dest='override', type='string', default='0', metavar='OVERRIDE',
+                      help='If true existing sensor strategies will be overridden (default="%default")')
     (opts, args) = parser.parse_args()
 
 
@@ -79,7 +81,12 @@ if __name__ == "__main__":
         #Do not set any additional strategies as only sensors with strategies will be reported
         pass
     else:
-        proxy.set_sensor_strategies(opts.filter,"period",str(opts.period).split(".")[0])
+        if opts.override.startswith("1"):
+            #Set strategy on all sensors
+            proxy.set_sensor_strategies(opts.filter,"period",str(opts.period).split(".")[0], override=True)
+        else:
+            #Only sets strategies on sensors without strategies
+            proxy.set_sensor_strategies(opts.filter,"period",str(opts.period).split(".")[0])
 
     state = ["|","/","-","\\"]
     period_count = 0
@@ -96,7 +103,7 @@ if __name__ == "__main__":
         while True:
             gotoxy(6,1)
             print "Print filtered sensors from %s: %s %s %s" % (opts.proxy, opts.filter, state[period_count % 4], col("red")+time.ctime().replace("  "," ").split(" ")[3])+col("normal")
-            print "%s %s %s %s" % ("Name".ljust(45), "Value".ljust(15), "Value time".ljust(25), "Update time".ljust(25))
+            print "%s %s %s %s %s" % ("Name".ljust(45), "Value".ljust(15), "Unit".ljust(7), "Value time".ljust(25), "Update time".ljust(25))
             if opts.filter.startswith("all"):
                 sens = proxy.list_sensors(tuple=True, strategy=True)
             else:
@@ -109,7 +116,7 @@ if __name__ == "__main__":
                 type = s[3]
                 units = s[4]
                 updateTime = s[5]
-                print "%s %s %s %s" % (name.ljust(45), str(val).ljust(15), get_time_str(valTime).ljust(25), get_time_str(updateTime).ljust(25) )
+                print "%s %s %s %s %s" % (name.ljust(45), str(val).ljust(15), str(units).ljust(7), get_time_str(valTime).ljust(25), get_time_str(updateTime).ljust(25) )
                 sys.stdout.flush()
 
             #Wait, then do it all again
