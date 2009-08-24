@@ -165,7 +165,8 @@ if __name__ == "__main__":
                 sens = proxy.list_sensors(tuple=True, strategy=True)
             else:
                 sens = proxy.list_sensors(opts.filter,tuple=True)
-            numpages = len(sens)/perpage
+            numpages,rest = divmod(len(sens),perpage)
+            numpages +=1
             print "Print filtered sensors from %s: %s %s %s   Page %d of %d (%d)" % \
                 (opts.proxy, opts.filter, state[period_count % 4], col("red")+time.ctime().replace("  "," ").split(" ")[3]+col("normal"), page+1, numpages, perpage)
             print "%s %s %s %s %s" % ("Name".ljust(45), "Value".ljust(25), "Unit".ljust(15), "Value time".ljust(25), "Update time".ljust(25))
