@@ -31,6 +31,7 @@ time.sleep(0.5)
  # cleanup any existing experiment
 
 ff.k7w.req_target(tgt)
+ff.dbe.req_target(tgt)
  # let the data collector know the current target
 ff.k7w.req_output_directory("/var/kat/data/")
 ff.k7w.req_write_hdf5(1)
