@@ -19,8 +19,7 @@
 import ffuilib as ffui
 import time
 
-#ff = ffui.tbuild("cfg-user.ini", "local_ff_client_sim")
-ff = ffui.tbuild("cfg-user.ini","int_ff_client")
+ff = ffui.tbuild("cfg-user.ini", "local_ff_client_sim")
  # make fringe fingder connections
 
 tgt = 'Takreem,azel,20,30'
