@@ -19,7 +19,8 @@
 import ffuilib as ffui
 import time
 
-ff = ffui.tbuild("cfg-user.ini", "local_ff_client_sim")
+#ff = ffui.tbuild("cfg-user.ini", "local_ff_client_sim")
+ff = ffui.tbuild("cfg-user.ini","int_ff_client")
  # make fringe fingder connections
 
 tgt = 'Takreem,azel,20,30'
@@ -79,7 +80,7 @@ print "Scan complete."
 
 files = ff.k7w.req_get_current_files(tuple=True)[1][2]
 print "Data captured to",files
-
+time.sleep(2)
 ff.dbe.req_dbe_capture_stop("stream")
 ff.k7w.req_capture_stop()
 ff.disconnect()
