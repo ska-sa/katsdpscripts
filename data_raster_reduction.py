@@ -5,9 +5,14 @@ import pylab as pl
 import os
 import sys
 
+data_file = ""
 p = os.listdir("/var/kat/data/")
 p.sort(reverse=True)
-data_file = "/var/kat/data/" + p[0]
+while p:
+    x = p.pop()
+    if x.endswith("001.h5"):
+        data_file = "/var/kat/data/" + x
+        break
 
 print "Reducing data file",data_file
 
