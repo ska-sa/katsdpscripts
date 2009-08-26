@@ -29,48 +29,143 @@ x = StringIO.StringIO()
 
 
 import termios,os,string
+import tty
+
+def isData():
+    return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
+
+
+class ConsoleNB(object):
+    """Class to manage non blocking reads from console.
+
+    Opens non blocking read file descriptor on console
+    Use instance method close to close file descriptor
+    Use instance methods getline & put to read & write to console
+    Needs os module
+    """
+
+    def __init__(self, canonical = True):
+        """Initialization method for instance.
+
+        opens fd on terminal console in non blocking mode
+        os.ctermid() returns path name of console usually '/dev/tty'
+        os.O_NONBLOCK makes non blocking io
+        os.O_RDWR allows both read and write.
+        Don't use print as same time since it could mess up non blocking reads.
+        Default is canonical mode so no characters available until newline
+        """
+        #need to add code to enable  non canonical mode
+
+        self.fd = os.open(os.ctermid(),os.O_NONBLOCK | os.O_RDWR)
+
+    def close(self):
+        """Closes fd. Should use  in try finally block.
+
+        """
+        os.close(self.fd)
+
+    def getline(self,bs = 80):
+        """Gets nonblocking line from console up to bs characters including newline.
+
+          Returns None if no characters available else returns line.
+          In canonical mode no chars available until newline is entered.
+        """
+        line = None
+        try:
+            line = os.read(self.fd, bs)
+        except OSError, ex1:  #if no chars available generates exception
+            try: #need to catch correct exception
+                errno = ex1.args[0] #if args not sequence get TypeError
+                if errno == 35:
+                    pass #No characters available
+                else:
+                    raise #re raise exception ex1
+            except TypeError, ex2:  #catch args[0] mismatch above
+                raise ex1 #ignore TypeError, re-raise exception ex1
+
+        return line
+
+    def put(self, data = '\n'):
+        """Writes data string to console.
+
+        """
+        os.write(self.fd, data)
 
 
 
-#    import sys
-#    import select
-#    import tty
-#    import termios
-#
-#    def isData():
-#            return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
-#
-#    old_settings = termios.tcgetattr(sys.stdin)
-#    try:
-#            tty.setcbreak(sys.stdin.fileno())
-#
-#            i = 0
-#            while 1:
-#                    print i
-#                    i += 1
-#
-#                    if isData():
-#                            c = sys.stdin.read(1)
-#                            if c == '\x1b':         # x1b is ESC
-#                                    break
-#
-#    finally:
-#            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
 
 ######## Methods #########
 
-def getKeyIf():
-    #Non-blocking key - returns 0 if no key available
-    oldattr = termios.tcgetattr(0)
-    try:
-        attr = termios.tcgetattr(0)
-        attr[2] = (attr[2] & ~termios.NLDLY) | termios.NL0
-        attr[3] = attr[3] & ~(termios.ICANON|termios.ECHO)
-        termios.tcsetattr(0,termios.TCSANOW,attr)
-        return os.read(0,1)
-    finally:
-        termios.tcsetattr(0,termios.TCSANOW,oldattr)
-    return 0
+def getKeyIf(which):
+    if which == 1:
+        # On MAC this requires a key to continue
+        x = os.read(0,1)
+
+        if len(x):
+            # ok, some key got pressed
+            return x[:1]
+        else:
+            return 0
+
+    elif which == 2:
+        #MAC - is blocking, but reads key without enter
+        oldattr = termios.tcgetattr(0)
+        try:
+            attr = termios.tcgetattr(0)
+            attr[2] = (attr[2] & ~termios.NLDLY) | termios.NL0
+            attr[3] = attr[3] & ~(termios.ICANON|termios.ECHO)
+            termios.tcsetattr(0,termios.TCSANOW,attr)
+            return os.read(0,1)
+        finally:
+            termios.tcsetattr(0,termios.TCSANOW,oldattr)
+        return 0
+
+    elif which == 3:
+        #This does not block on MAC but keypress never registers
+        old_settings = termios.tcgetattr(sys.stdin)
+        try:
+            tty.setcbreak(sys.stdin.fileno())
+            if isData():
+                c = sys.stdin.read(1)
+                print "....",c
+            else:
+                c = 0
+        finally:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        return c
+
+    elif which == 4:
+        #This works on MAC - updates without keypress - but lenny needs keypress
+        #Non-blocking key - returns 0 if no key available
+        c = 0
+        oldattr = termios.tcgetattr(0)
+        try:
+            attr = termios.tcgetattr(0)
+            attr[2] = (attr[2] & ~termios.NLDLY) | termios.NL0
+            attr[3] = attr[3] & ~(termios.ICANON|termios.ECHO)
+            termios.tcsetattr(0,termios.TCSANOW,attr)
+            c = os.read(0,1)
+        finally:
+            termios.tcsetattr(0,termios.TCSANOW,oldattr)
+        return c
+
+    elif which == 5:
+        fd = os.open(os.ctermid(),os.O_NONBLOCK | os.O_RDWR)
+        c = 0
+        try:
+            c = os.read(fd, 1)
+        except OSError, ex1:  #if no chars available generates exception
+            try: #need to catch correct exception
+                errno = ex1.args[0] #if args not sequence get TypeError
+                if errno == 35 or errno == 11:  # Make provision for MAC and UNIX
+                    pass #No characters available
+                else:
+                    raise #re raise exception ex1
+            except TypeError, ex2:  #catch args[0] mismatch above
+                raise ex1 #ignore TypeError, re-raise exception ex1
+        os.close(fd)
+        return c
 
 def getKey():
     #Get a key from stdin - block until key is available
@@ -119,7 +214,7 @@ if __name__ == "__main__":
                       help='Selected configuration to use (default="%default")')
     parser.add_option('-f', '--filter', dest='filter', type='string', default='rfe31', metavar='FILTER',
                       help='Filter on sensors to print (default="%default")')
-    parser.add_option('-p', '--period', dest='period', type='float', default='1000', metavar='PERIOD',
+    parser.add_option('-p', '--period', dest='period', type='float', default='500', metavar='PERIOD',
                       help='Refresh period in milliseconds (default="%default")')
     parser.add_option('-o', '--override', dest='override', type='string', default='0', metavar='OVERRIDE',
                       help='If true existing sensor strategies will be overridden (default="%default")')
@@ -186,7 +281,7 @@ if __name__ == "__main__":
             period_count += 1
 
             #Get user input for display control
-            c = getKeyIf()
+            c = getKeyIf(5)
             if c == '<':
                 page = (page - 1) % numpages
             elif c == '>':
@@ -197,6 +292,11 @@ if __name__ == "__main__":
                 perpage = min(perpage + 1, 60)
             elif c == 0 or c == '':
                 pass
+            elif c == 'q' or c == 'Q':
+                stdout_restore()
+                print "\nDisconnecting..."
+                ff.disconnect()
+                exit()
 
 
     except Exception,err:
