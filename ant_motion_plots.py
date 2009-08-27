@@ -94,7 +94,7 @@ def make_plots(ff,start_time,end_time,title,fig_num):
 
 if __name__ == '__main__':
 
-    ff = ffui.tbuild("cfg-user-pointing.ini","local_ant_only")
+    ff = ffui.tbuild("cfg-user.ini","integration_ff_client")
 
     for motion in motions:
         if motion == 'az-el scan':
