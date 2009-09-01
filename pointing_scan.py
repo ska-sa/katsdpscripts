@@ -110,6 +110,7 @@ try:
                     ff.ant1.wait("scan_status","after",300)
 
             compound_scan_id += 1
+            if compound_scan_id >= max_compound_scans + 1: break
 
 except BaseException, e:
     print "Exception: ", e
@@ -122,7 +123,7 @@ finally:
 
     # Find out which files have been created
     files = ff.k7w.req_get_current_files(tuple=True)[1][2]
-    print 'Data captured to', files
+    print 'Data captured to ', files
 
     # Stop recording and shut down the experiment
     ff.dbe.req_dbe_capture_stop('stream')
