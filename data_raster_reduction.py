@@ -7,9 +7,9 @@ import sys
 
 data_file = ""
 p = os.listdir("/var/kat/data/")
-p.sort(reverse=True)
+# p.sort(reverse=True)
 while p:
-    x = p.pop()
+    x = p.pop() # pops off the bottom of the list
     if x.endswith("001.h5"):
         data_file = "/var/kat/data/" + x
         break
