@@ -252,8 +252,9 @@ if __name__ == "__main__":
             sys.stdout.write("Number of devices "+s)
         page = 0
         perpage = 40
+        c = 0
 
-        while True:
+        while c != 'q' and c != 'Q':
             clrscr()
             gotoxy(1,1)
             if opts.filter.startswith("all"):
@@ -296,8 +297,6 @@ if __name__ == "__main__":
                 stdout_restore()
                 print "\nDisconnecting..."
                 ff.disconnect()
-                exit()
-
 
     except Exception,err:
         stdout_restore()
