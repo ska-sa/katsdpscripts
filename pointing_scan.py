@@ -47,6 +47,7 @@ cat = katpoint.Catalogue(add_specials=False,antenna=ant)
 cat.add('Takreem-17+70,azel,-17,70.0')
 cat.add('Takreem+10+20,azel,10,20')
 cat.add('Takreem+20+30,azel,20,30')
+cat.add('Takreem+160+05,azel,160,5')
 
 # set the drive strategy for how antenna moves between targets
 # (options are: "longest-track", the default, or "shortest-slew")
