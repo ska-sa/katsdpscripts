@@ -13,6 +13,9 @@
 import ffuilib
 import time
 import numpy as np
+import math
+
+import katpoint
 
 # Build Fringe Finder configuration, as specified in user-facing config file
 # The specific configuration is one that runs locally with DBE simulator included
@@ -38,8 +41,12 @@ scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ] # azimuth raster scan
 elmin = 2.0
 elmax = 88.0
 
-# Pointing calibrator catalogue
-cat = ff.sources
+# Pointing calibrator catalogue (create manually here for now with initial tests - load from file later)
+ant = katpoint.construct_antenna('KAT-7, -30:43:16.71, 21:24:35.86, 1055, 12.0')
+cat = katpoint.Catalogue(add_specials=False,antenna=ant)
+cat.add('Takreem-17+70,azel,-17,70.0')
+cat.add('Takreem+10+20,azel,10,20')
+cat.add('Takreem+20+30,azel,20,30')
 
 # set the drive strategy for how antenna moves between targets
 # (options are: "longest-track", the default, or "shortest-slew")
@@ -85,6 +92,10 @@ try:
             ff.k7w.req_scan_tag('slew')
             ff.k7w.req_target(source.description)
             ff.k7w.req_compound_scan_id(compound_scan_id)
+
+            # tell the DBE simulator about the target so that we get some signal coming through (temp, for testing)
+            ff.dbe.req_dbe_test_target(source.azel()[0]*180.0/math.pi,source.azel()[1]*180.0/math.pi)
+            print 'dbe test target: ', source.azel()[0]*180.0/math.pi, source.azel()[1]*180.0/math.pi
 
             # send this target to the antenna and wait for lock
             ff.ant1.req_target(source.description)

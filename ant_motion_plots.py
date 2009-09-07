@@ -16,8 +16,8 @@ antenna_az_offset_deg = 45.0
 #motions = ['az-el scan','az-el pointing','ra-dec track','GPS track','slew','az raster','el raster']
 #motions = ['az-el scan','ra-dec track']
 #motions = ['az-el scan']
-#motions = ['GPS track']
-motions = ['az raster']
+motions = ['GPS track']
+#motions = ['az raster']
 #motions = ['el raster']
 
 def make_plots(ff,start_time,end_time,title,fig_num):
@@ -94,7 +94,7 @@ def make_plots(ff,start_time,end_time,title,fig_num):
 
 if __name__ == '__main__':
 
-    ff = ffui.tbuild("cfg-user.ini","integration_ff_client")
+    ff = ffui.tbuild("cfg-user.ini","local_ant_only")
 
     for motion in motions:
         if motion == 'az-el scan':
