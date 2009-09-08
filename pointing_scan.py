@@ -72,6 +72,10 @@ ff.dbe.req_dbe_capture_destination('stream', '127.0.0.1:7010')
 # Now start emitting data on stream "stream"
 ff.dbe.req_dbe_capture_start('stream')
 
+# stream target updates to simulator
+ff.ant1.sensor_pos_actual_scan_azim.register_listener(ff.dbesim.req_pointing_az, 0.5)
+ff.ant1.sensor_pos_actual_scan_elev.register_listener(ff.dbesim.req_pointing_el, 0.5)
+
 compound_scan_id = 1
 distinct_targets_tracked = {}
 start_time = time.time()
