@@ -99,7 +99,7 @@ class ConsoleNB(object):
 
 def getKeyIf(which):
     if which == 1:
-        # On MAC this requires a key to continue
+        # MAC - blocking (no refresh) and requires enter key
         x = os.read(0,1)
 
         if len(x):
@@ -109,7 +109,7 @@ def getKeyIf(which):
             return 0
 
     elif which == 2:
-        #MAC - is blocking, but reads key without enter
+        #MAC - is blocking (no refresh), but reads key without enter
         oldattr = termios.tcgetattr(0)
         try:
             attr = termios.tcgetattr(0)
@@ -122,7 +122,7 @@ def getKeyIf(which):
         return 0
 
     elif which == 3:
-        #This does not block on MAC but keypress never registers
+        #MAC   - This does not block, but keypress never registers
         old_settings = termios.tcgetattr(sys.stdin)
         try:
             tty.setcbreak(sys.stdin.fileno())
@@ -136,8 +136,8 @@ def getKeyIf(which):
         return c
 
     elif which == 4:
-        #This works on MAC - updates without keypress - but lenny needs keypress
-        #Non-blocking key - returns 0 if no key available
+        #MAC   - blocks (no refresh) - but reads without ENTER key
+        #LENNY -
         c = 0
         oldattr = termios.tcgetattr(0)
         try:
@@ -151,6 +151,8 @@ def getKeyIf(which):
         return c
 
     elif which == 5:
+        #MAC   - does not block, but needs an ENTER key
+        #LENNY - does not block, but needs an ENTER key
         fd = os.open(os.ctermid(),os.O_NONBLOCK | os.O_RDWR)
         c = 0
         try:
@@ -165,6 +167,37 @@ def getKeyIf(which):
             except TypeError, ex2:  #catch args[0] mismatch above
                 raise ex1 #ignore TypeError, re-raise exception ex1
         os.close(fd)
+        return c
+
+    elif which == 6:
+        #MAC   - perfect - non-blocking and does not need an ENTER key
+        #LENNY - perfect - non-blocking and does not need an ENTER key
+
+        oldattr = termios.tcgetattr(0)
+        try:
+            #First set terminal to  canonical mode (no ENTER required)
+            attr = termios.tcgetattr(0)
+            attr[2] = (attr[2] & ~termios.NLDLY) | termios.NL0
+            attr[3] = attr[3] & ~(termios.ICANON|termios.ECHO)
+            termios.tcsetattr(0,termios.TCSANOW,attr)
+
+            #Then do the non-blocking read
+            fd = os.open(os.ctermid(),os.O_NONBLOCK | os.O_RDWR)
+            c = 0
+            try:
+                c = os.read(fd, 1)
+            except OSError, ex1:  #if no chars available generates exception
+                try: #need to catch correct exception
+                    errno = ex1.args[0] #if args not sequence get TypeError
+                    if errno == 35 or errno == 11:  # Make provision for MAC and UNIX
+                        pass #No characters available
+                    else:
+                        raise #re raise exception ex1
+                except TypeError, ex2:  #catch args[0] mismatch above
+                    raise ex1 #ignore TypeError, re-raise exception ex1
+            os.close(fd)
+        finally:
+            termios.tcsetattr(0,termios.TCSANOW,oldattr)
         return c
 
 def getKey():
@@ -218,6 +251,8 @@ if __name__ == "__main__":
                       help='Refresh period in milliseconds (default="%default")')
     parser.add_option('-o', '--override', dest='override', type='string', default='0', metavar='OVERRIDE',
                       help='If true existing sensor strategies will be overridden (default="%default")')
+    parser.add_option('-t', '--test', dest='test', type='int', default=6, metavar='TEST',
+                      help='Keyboard read test indication (default="%default")')
     (opts, args) = parser.parse_args()
 
 
@@ -282,7 +317,7 @@ if __name__ == "__main__":
             period_count += 1
 
             #Get user input for display control
-            c = getKeyIf(5)
+            c = getKeyIf(opts.test)
             if c == '<':
                 page = (page - 1) % numpages
             elif c == '>':
