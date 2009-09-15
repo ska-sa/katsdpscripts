@@ -29,7 +29,7 @@ ff.ant1.req_mode('STOP')
 time.sleep(0.5)
 
 # max measurements
-max_compound_scans = 20
+max_compound_scans = 5
 
 # time (secs)for each (sub)scan
 scan_duration = 20
@@ -89,8 +89,12 @@ try:
         up_sources = cat.iterfilter(el_limit_deg=[elmin,elmax])
 
         for source in up_sources:
-            print '\nScript elapsed_time: %.2f mins' %((time.time() - start_time)/60.0)
-            print "\nTarget to scan: ",source.name
+
+            print '\n------------------------------------------'
+            print 'Starting compound scan ', compound_scan_id, ' of ', max_compound_scans
+            print 'Script elapsed_time: %.2f mins' %((time.time() - start_time)/60.0)
+            print "Target to scan: ",source.name
+            print '------------------------------------------'
 
             # Start a new compound scan, which involves a new target description and 'slew' scan label
             # This part is actually slewing to target position
