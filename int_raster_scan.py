@@ -21,7 +21,7 @@ ff.k7w.req_target(tgt)
  # let the data collector know the current target
 ff.dbe.req_target(tgt)
  # tell the dbe where to point
-ff.k7w.req_baseline_mask("1","2","3")
+#ff.k7w.req_baseline_mask("1","2","3")
 ff.k7w.req_output_directory("/var/kat/data/")
 ff.k7w.req_scan_tag("cal")
  # first scan has noise diode firing
@@ -64,7 +64,7 @@ ff.ant1.wait("lock",True,300)
  # (compound scan 0 will be the slew to the target, default scan tag is "slew")
 scan_count = 2
 
-for scan in scans:
+for ix, scan in enumerate(scans):
     print "Scan Progress:",int((float(scan_count - 2) / (len(scans)*2))*100),"%"
     ff.ant1.req_scan_asym(-scan[0],scan[1],scan[0],scan[1],scan_duration)
     ff.ant1.wait("lock",True,300)
@@ -72,12 +72,13 @@ for scan in scans:
      # mark this section as valid scan data
     ff.ant1.req_mode("SCAN")
     ff.ant1.wait("scan_status","after",300)
-    ff.k7w.req_scan_id(scan_count+1,"slew")
-     # slewing to next raster pointg
+    if ix < len(scans):
+        ff.k7w.req_scan_id(scan_count+1,"slew")
+         # slewing to next raster pointg
     scan_count += 2
 print "Scan complete."
 
-ff.k7w.req_scan_id(scan_count,"cal")
+ff.k7w.req_scan_id(scan_count-1,"cal")
 
 ff.rfe.req_rfe3_rf15_noise_source_on("rfe71.rfe31","pin",1,time.time(),0)
 ff.dbe.req_dbe_noise(300)

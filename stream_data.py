@@ -9,7 +9,7 @@ ff = ffui.tbuild("cfg-user.ini", "integration_ff_client")
 ff.k7w.req_capture_start()
  # startup the k7 capture process
 
-ff.dbe.req_dbe_packet_count(600)
+ff.dbe.req_dbe_packet_count(900)
  # stream 10 minutes of data or until stop issued
 ff.dbe.req_dbe_dump_rate(1)
  # correlator dump rate set to 1 Hz
