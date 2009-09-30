@@ -282,6 +282,8 @@ if __name__ == "__main__":
         stdout_redirect()
         try:
             proxy.req_device_list()
+        except:
+            pass
         finally:
             s = stdout_restore()
             sys.stdout.write("Number of devices "+s)
