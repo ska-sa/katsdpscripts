@@ -45,10 +45,10 @@ scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
  # raster scan
 scan_duration = 60
 
-ff.rfe.req_rfe3_rf15_noise_source_on("rfe71.rfe31","pin",1,time.time(),0)
+ff.rfe.req_rfe3_rf15_noise_source_on("rfe31","pin",1,time.time(),0)
 ff.dbe.req_dbe_noise(300)
 time.sleep(5)
-ff.rfe.req_rfe3_rf15_noise_source_on("rfe71.rfe31","pin",0,time.time(),0)
+ff.rfe.req_rfe3_rf15_noise_source_on("rfe31","pin",0,time.time(),0)
 ff.dbe.req_dbe_noise(0)
 time.sleep(5)
 
@@ -80,10 +80,10 @@ print "Scan complete."
 
 ff.k7w.req_scan_id(scan_count-1,"cal")
 
-ff.rfe.req_rfe3_rf15_noise_source_on("rfe71.rfe31","pin",1,time.time(),0)
+ff.rfe.req_rfe3_rf15_noise_source_on("rfe31","pin",1,time.time(),0)
 ff.dbe.req_dbe_noise(300)
 time.sleep(5)
-ff.rfe.req_rfe3_rf15_noise_source_on("rfe71.rfe31","pin",0,time.time(),0)
+ff.rfe.req_rfe3_rf15_noise_source_on("rfe31","pin",0,time.time(),0)
 ff.dbe.req_dbe_noise(0)
 time.sleep(5)
 

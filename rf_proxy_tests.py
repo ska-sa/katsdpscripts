@@ -15,13 +15,13 @@ print "ACCESS THROUGH ffuilib - SENSORS"
 print "".ljust(50,"=")
 
 #List specific sensor
-rfe.list_sensors("rfe71.cryo1.ambient.temperature")
+rfe.list_sensors("cryo1.ambient.temperature")
 #List sensors with filter
 rfe.list_sensors("rfe31")
 #Only those sensors with strategies
 rfe.list_sensors("rfe31",strategy=True)
 #Return result in a tuple for processing
-sens_list = rfe.list_sensors(filter="rfe71.cryo2", tuple=True)
+sens_list = rfe.list_sensors(filter="cryo2", tuple=True)
 
 
 print "".ljust(50,"=")
@@ -42,13 +42,13 @@ print "".ljust(50,"=")
 #Set all cryo1 sensors to periodic 2000
 rfe.set_sensor_strategies("cryo1","period","2000")
 #Specific sensor - differential
-rfe.set_sensor_strategies("rfe71.cryo1.coldfinger.temperature", strategy="differential",param="1000", override=True)
+rfe.set_sensor_strategies("cryo1.coldfinger.temperature", strategy="differential",param="1000", override=True)
 #Specific sensor - remove strategy
-rfe.set_sensor_strategies("rfe71.cryo1.coldfinger.temperature", strategy="none", override=True)
+rfe.set_sensor_strategies("cryo1.coldfinger.temperature", strategy="none", override=True)
 #Specific sensor - event
-rfe.set_sensor_strategies("rfe71.cryo1.coolingfans.error",strategy="event", override=True)
+rfe.set_sensor_strategies("cryo1.coolingfans.error",strategy="event", override=True)
 #Specific sensor - event with rate limit
-rfe.set_sensor_strategies("rfe71.cryo1.ambient.temperature", strategy="event", param="1000", override=True)
+rfe.set_sensor_strategies("cryo1.ambient.temperature", strategy="event", param="1000", override=True)
 
 print "".ljust(50,"=")
 print "katcp - HELP"
@@ -72,7 +72,7 @@ print "katcp - SENSOR VALUES"
 print "".ljust(50,"=")
 
 #katcp -sensor value - Specific sensor
-rfe.req_sensor_value("rfe71.psu.cam5.volt")
+rfe.req_sensor_value("rfe7.psu.cam5.volt")
 #katcp - senosr value - Sensors with a pattern - start and end with /
 rfe.req_sensor_value("/noise/")
 
@@ -81,8 +81,8 @@ print "katcp - SENSOR SAMPLING"
 print "".ljust(50,"=")
 
 # katcp - sensor sampling
-rfe.req_sensor_sampling("rfe71.cryo1.ambient.temperature","event", "1000")
-rfe.req_sensor_sampling("rfe71.cryo1.ambient.temperature","period", "1500")
+rfe.req_sensor_sampling("cryo1.ambient.temperature","event", "1000")
+rfe.req_sensor_sampling("cryo1.ambient.temperature","period", "1500")
 
 print "".ljust(50,"=")
 print "katcp - GROUPED COMMANDS"
@@ -91,7 +91,7 @@ print "".ljust(50,"=")
 #Switch all on
 rfe.req_rfe3_psu_on("all",1)
 #Switch specific instance off
-rfe.req_rfe3_psu_on("rfe71.rfe32",0)
+rfe.req_rfe3_psu_on("rfe32",0)
 
 print "".ljust(50,"=")
 print "katcp - COMMON REQUESTS"
@@ -115,8 +115,8 @@ print "".ljust(50,"=")
 rfe.req_log_level() #Get the current log level
 rfe.req_log_level("debug")
 #katcp - Log level for specific device
-rfe.req_log_level("rfe71.cryo1")
-rfe.req_log_level("rfe71.cryo1", "warn")
+rfe.req_log_level("cryo1")
+rfe.req_log_level("cryo1", "warn")
 
 
 # exit
