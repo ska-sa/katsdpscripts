@@ -12,7 +12,7 @@ on_target_duration = 10
 
 # set the drive strategy for how antenna moves between targets
 # (options are: "longest-track", the default, or "shortest-slew")
-ff.ant1.req_drive_strategy("shortest-slew")
+ff.ant1.req.drive_strategy("shortest-slew")
 
 # get sources from catalogue that are in specified elevation range. Antenna will get
 # as close as possible to targets which are out of drivable range.
@@ -28,8 +28,8 @@ try:
         print "Target to track: ",source.name
 
         # send this target to the antenna.
-        ff.ant1.req_target(source.description)
-        ff.ant1.req_mode("POINT")
+        ff.ant1.req.target(source.description)
+        ff.ant1.req.mode("POINT")
 
         # wait for lock
         target_locked = ff.ant1.wait("lock","1",200)
@@ -51,5 +51,5 @@ finally:
 
     # exit
     print "setting drive-strategy back to the default"
-    ff.ant1.req_drive_strategy("longest-track") # good practice
+    ff.ant1.req.drive_strategy("longest-track") # good practice
     ff.disconnect()

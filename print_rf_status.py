@@ -81,7 +81,7 @@ if __name__ == "__main__":
         clrscr()
         stdout_redirect()
         try:
-            rfe.req_device_list()
+            rfe.req.device_list()
         finally:
             s = stdout_restore()
             sys.stdout.write("Number of devices "+s)

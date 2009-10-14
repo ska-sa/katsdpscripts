@@ -14,8 +14,8 @@ import ffuilib as ffui
 
 enviro = ffui.build_device("enviro","ff-proxy",1258)
  # connect to antenna 1 to get environment data
-enviro.sensor_enviro_wind_speed.set_strategy("period","1000")
-enviro.sensor_enviro_wind_direction.set_strategy("period","1000")
+enviro.sensor.enviro_wind_speed.set_strategy("period","1000")
+enviro.sensor.enviro_wind_direction.set_strategy("period","1000")
 
 fig = plt.figure(figsize=(12,6))
 ax = fig.add_subplot(111)
@@ -25,7 +25,7 @@ ax2 = ax.twinx()
 ax2.set_ylabel("Direction (deg)", color='r')
 
 def get_wind():
-    return (enviro.sensor_enviro_wind_speed.value, enviro.sensor_enviro_wind_direction.value)
+    return (enviro.sensor.enviro_wind_speed.value, enviro.sensor.enviro_wind_direction.value)
 
 def format_date(x, pos=None):
     return matplotlib.dates.num2date(x).strftime('%H:%M:%S')

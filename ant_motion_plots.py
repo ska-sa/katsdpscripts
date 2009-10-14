@@ -26,14 +26,14 @@ def make_plots(ff,start_time,end_time,title,fig_num):
     # Note the times for the sensors are not exactly synchronised, so might want
     # to improve things in the difference calcs by interpolating in future, if necessary
 
-    acs_des_azim = ff.ant1.sensor_antenna_acs_desired_azim.get_cached_history(start_time=start_time,end_time=end_time)
-    acs_des_elev = ff.ant1.sensor_antenna_acs_desired_elev.get_cached_history(start_time=start_time,end_time=end_time)
-    acs_act_azim = ff.ant1.sensor_antenna_acs_actual_azim.get_cached_history(start_time=start_time,end_time=end_time)
-    acs_act_elev = ff.ant1.sensor_antenna_acs_actual_elev.get_cached_history(start_time=start_time,end_time=end_time)
-    req_azim = ff.ant1.sensor_pos_request_scan_azim.get_cached_history(start_time=start_time,end_time=end_time)
-    req_elev = ff.ant1.sensor_pos_request_scan_elev.get_cached_history(start_time=start_time,end_time=end_time)
-    act_azim = ff.ant1.sensor_pos_actual_scan_azim.get_cached_history(start_time=start_time,end_time=end_time)
-    act_elev = ff.ant1.sensor_pos_actual_scan_elev.get_cached_history(start_time=start_time,end_time=end_time)
+    acs_des_azim = ff.ant1.sensor.antenna_acs_desired_azim.get_cached_history(start_time=start_time,end_time=end_time)
+    acs_des_elev = ff.ant1.sensor.antenna_acs_desired_elev.get_cached_history(start_time=start_time,end_time=end_time)
+    acs_act_azim = ff.ant1.sensor.antenna_acs_actual_azim.get_cached_history(start_time=start_time,end_time=end_time)
+    acs_act_elev = ff.ant1.sensor.antenna_acs_actual_elev.get_cached_history(start_time=start_time,end_time=end_time)
+    req_azim = ff.ant1.sensor.pos_request_scan_azim.get_cached_history(start_time=start_time,end_time=end_time)
+    req_elev = ff.ant1.sensor.pos_request_scan_elev.get_cached_history(start_time=start_time,end_time=end_time)
+    act_azim = ff.ant1.sensor.pos_actual_scan_azim.get_cached_history(start_time=start_time,end_time=end_time)
+    act_elev = ff.ant1.sensor.pos_actual_scan_elev.get_cached_history(start_time=start_time,end_time=end_time)
 
     #find smallest list (may be slightly different lengths due to sample timing)
     n = min(len(acs_des_azim[0]),len(acs_des_elev[0]),len(acs_act_azim[0]),len(acs_act_elev[0]),
@@ -99,21 +99,21 @@ if __name__ == '__main__':
     for motion in motions:
         if motion == 'az-el scan':
             print 'performing az-el scan'
-            ff.ant1.req_target_azel(10,30)
-#            ff.ant1.req_target("Acrux | Alpha Crucis | HIC 60718, xephem radec BAE, Acrux~f|S|B0~12:26:36.2~-63:05:57~0.78~2000~0")
-#            ff.ant1.req_offset_fixed(-1.40,-1.020)
-            ff.ant1.req_scan_sym(4, 4, 20)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target_azel(10,30)
+#            ff.ant1.req.target("Acrux | Alpha Crucis | HIC 60718, xephem radec BAE, Acrux~f|S|B0~12:26:36.2~-63:05:57~0.78~2000~0")
+#            ff.ant1.req.offset_fixed(-1.40,-1.020)
+            ff.ant1.req.scan_sym(4, 4, 20)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
-            ff.ant1.req_mode("SCAN")
+            ff.ant1.req.mode("SCAN")
             ff.ant1.wait("scan_status","after",300)
             end_time = time.time()
             make_plots(ff,start_time,end_time,'az-el scan',0)
         elif motion == 'az-el pointing':
             print 'tracking az-el target'
-            ff.ant1.req_target_azel(-10,30)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target_azel(-10,30)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
             time.sleep(40.0)
@@ -121,12 +121,12 @@ if __name__ == '__main__':
             make_plots(ff,start_time,end_time,'az-el pointing',1)
         elif motion == 'ra-dec track':
             print 'tracking ra-dec target'
-            ff.ant1.req_target_azel(-10,30)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target_azel(-10,30)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
-            ra = ff.ant1.sensor_pos_request_scan_ra.value
-            dec = ff.ant1.sensor_pos_request_scan_dec.value
-            ff.ant1.req_target_radec(ra,dec)
+            ra = ff.ant1.sensor.pos_request_scan_ra.value
+            dec = ff.ant1.sensor.pos_request_scan_dec.value
+            ff.ant1.req.target_radec(ra,dec)
             start_time = time.time()
             time.sleep(40.0)
             end_time = time.time()
@@ -135,8 +135,8 @@ if __name__ == '__main__':
             print 'tracking GPS satellite'
             cat = ff.sources.filter(tags=['GPS'],el_limit_deg=[20,80])
             tgt = [t for t in cat][0] # get one target
-            ff.ant1.req_target(tgt.description)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target(tgt.description)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
             time.sleep(40.0)
@@ -144,11 +144,11 @@ if __name__ == '__main__':
             make_plots(ff,start_time,end_time,'GPS track',3)
         elif motion == 'slew':
             print 'slewing'
-            ff.ant1.req_target_azel(10,30)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target_azel(10,30)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
-            ff.ant1.req_target_azel(-100,80)
+            ff.ant1.req.target_azel(-100,80)
             ff.ant1.wait("lock",True,300)
             end_time = time.time()
             make_plots(ff,start_time,end_time,'slewing',4)
@@ -156,16 +156,16 @@ if __name__ == '__main__':
             print 'azimuth raster scan'
             scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
             scan_duration = 20
-            ff.ant1.req_target_azel(10,30)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target_azel(10,30)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
             scan_count = 1
             for scan in scans:
                 print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
-                ff.ant1.req_scan_asym(-scan[0],scan[1],scan[0],scan[1],scan_duration)
+                ff.ant1.req.scan_asym(-scan[0],scan[1],scan[0],scan[1],scan_duration)
                 ff.ant1.wait("lock",True,300)
-                ff.ant1.req_mode("SCAN")
+                ff.ant1.req.mode("SCAN")
                 ff.ant1.wait("scan_status","after",300)
                 scan_count += 1
             end_time = time.time()
@@ -174,16 +174,16 @@ if __name__ == '__main__':
             print 'elevation raster scan'
             scans = [ (-0.5,2) , (0,-2) , (0.5,2) ]
             scan_duration = 20
-            ff.ant1.req_target_azel(10,30)
-            ff.ant1.req_mode("POINT")
+            ff.ant1.req.target_azel(10,30)
+            ff.ant1.req.mode("POINT")
             ff.ant1.wait("lock",True,300)
             start_time = time.time()
             scan_count = 1
             for scan in scans:
                 print "Scan Progress:",int((float(scan_count) / len(scans))*100),"%"
-                ff.ant1.req_scan_asym(scan[0],scan[1],scan[0],-scan[1],scan_duration)
+                ff.ant1.req.scan_asym(scan[0],scan[1],scan[0],-scan[1],scan_duration)
                 ff.ant1.wait("lock",True,300)
-                ff.ant1.req_mode("SCAN")
+                ff.ant1.req.mode("SCAN")
                 ff.ant1.wait("scan_status","after",300)
                 scan_count += 1
             end_time = time.time()

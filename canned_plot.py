@@ -6,16 +6,16 @@ import ffuilib as ffui
 ff = ffui.tbuild("cfg-user.ini","local_ant_only")
  # make fringe fingder connections
 
-ff.ant2.req_target_azel(20.31,30.45)
+ff.ant2.req.target_azel(20.31,30.45)
  # send an az/el target to antenna 2
 
-ff.ant2.req_mode("POINT")
+ff.ant2.req.mode("POINT")
  # switch to mode point
 
 ff.ant2.wait("lock","1",120)
  # wait for lock to be achieved (timeout=120 seconds)
 
-ff.ant2.req_target_azel(40.2,60.32)
+ff.ant2.req.target_azel(40.2,60.32)
  # send a new az/el target
 
 ff.ant2.wait("lock","1",120)

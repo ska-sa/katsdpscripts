@@ -55,56 +55,56 @@ print "katcp - HELP"
 print "".ljust(50,"=")
 
 # katcp - request help
-rfe.req_help()
-rfe.req_help("sensor-value")
+rfe.req.help()
+rfe.req.help("sensor-value")
 
 print "".ljust(50,"=")
 print "katcp - SENSOR LIST"
 print "".ljust(50,"=")
 
 # katcp - sensor list all
-rfe.req_sensor_list()
+rfe.req.sensor_list()
 # katcp - sensor list with pattern
-rfe.req_sensor_list("/temperature/")
+rfe.req.sensor_list("/temperature/")
 
 print "".ljust(50,"=")
 print "katcp - SENSOR VALUES"
 print "".ljust(50,"=")
 
 #katcp -sensor value - Specific sensor
-rfe.req_sensor_value("rfe7.psu.cam5.volt")
+rfe.req.sensor_value("rfe7.psu.cam5.volt")
 #katcp - senosr value - Sensors with a pattern - start and end with /
-rfe.req_sensor_value("/noise/")
+rfe.req.sensor_value("/noise/")
 
 print "".ljust(50,"=")
 print "katcp - SENSOR SAMPLING"
 print "".ljust(50,"=")
 
 # katcp - sensor sampling
-rfe.req_sensor_sampling("cryo1.ambient.temperature","event", "1000")
-rfe.req_sensor_sampling("cryo1.ambient.temperature","period", "1500")
+rfe.req.sensor_sampling("cryo1.ambient.temperature","event", "1000")
+rfe.req.sensor_sampling("cryo1.ambient.temperature","period", "1500")
 
 print "".ljust(50,"=")
 print "katcp - GROUPED COMMANDS"
 print "".ljust(50,"=")
 
 #Switch all on
-rfe.req_rfe3_psu_on("all",1)
+rfe.req.rfe3_psu_on("all",1)
 #Switch specific instance off
-rfe.req_rfe3_psu_on("rfe32",0)
+rfe.req.rfe3_psu_on("rfe32",0)
 
 print "".ljust(50,"=")
 print "katcp - COMMON REQUESTS"
 print "".ljust(50,"=")
 
 #katcp - common requests
-rfe.req_client_list()
-rfe.req_device_list()
-rfe.req_watchdog() #katcp - watchdog "ping"
-rfe.req_scheduler_mode()
+rfe.req.client_list()
+rfe.req.device_list()
+rfe.req.watchdog() #katcp - watchdog "ping"
+rfe.req.scheduler_mode()
 #katcp - Lifecycle commands
-#rfe.req_halt()
-#rfe.req_restart()
+#rfe.req.halt()
+#rfe.req.restart()
 
 print "".ljust(50,"=")
 print "katcp - LOG LEVEL"
@@ -112,11 +112,11 @@ print "".ljust(50,"=")
 
 #Log level:  {'all', 'trace', 'debug', 'info', 'warn', 'error', 'fatal', 'off'}, optional
 #katcp - Proxy log level
-rfe.req_log_level() #Get the current log level
-rfe.req_log_level("debug")
+rfe.req.log_level() #Get the current log level
+rfe.req.log_level("debug")
 #katcp - Log level for specific device
-rfe.req_log_level("cryo1")
-rfe.req_log_level("cryo1", "warn")
+rfe.req.log_level("cryo1")
+rfe.req.log_level("cryo1", "warn")
 
 
 # exit

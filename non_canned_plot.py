@@ -8,16 +8,16 @@ import pylab
 ff = ffui.tbuild("cfg-user.ini","local_ant_only")
  # make fringe fingder connections
 
-ff.ant2.req_target_azel(20.31,30.45)
+ff.ant2.req.target_azel(20.31,30.45)
  # send an az/el target to antenna 2
 
-ff.ant2.req_mode("POINT")
+ff.ant2.req.mode("POINT")
  # switch to mode point
 
 ff.ant2.wait("lock","1",120)
  # wait for lock to be achieved (timeout=120 seconds)
 
-ff.ant2.req_target_azel(40.2,60.32)
+ff.ant2.req.target_azel(40.2,60.32)
  # send a new az/el target
 
 ff.ant2.wait("lock","1",120)
@@ -26,10 +26,10 @@ ff.ant2.wait("lock","1",120)
  # produce custom pointing error plot
  # each sensor has local history
 
-req_az = ff.ant2.sensor_pos_request_scan_azim.get_cached_history()
-req_el = ff.ant2.sensor_pos_request_scan_elev.get_cached_history()
-actual_az = ff.ant2.sensor_pos_actual_scan_azim.get_cached_history()
-actual_el = ff.ant2.sensor_pos_actual_scan_elev.get_cached_history()
+req_az = ff.ant2.sensor.pos_request_scan_azim.get_cached_history()
+req_el = ff.ant2.sensor.pos_request_scan_elev.get_cached_history()
+actual_az = ff.ant2.sensor.pos_actual_scan_azim.get_cached_history()
+actual_el = ff.ant2.sensor.pos_actual_scan_elev.get_cached_history()
 
 az_error = np.array(actual_az[1]) - np.array(req_az[1][:len(actual_az[1])])
 el_error = np.array(actual_el[1]) - np.array(req_el[1][:len(actual_el[1])])

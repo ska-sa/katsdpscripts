@@ -27,15 +27,15 @@ if __name__ == "__main__":
     print "\n"
     try:
         while True:
-            lock = ant.sensor_lock.value == '1' and 'True' or 'False'
-            mode = ant.sensor_mode.value
-            scan = ant.sensor_scan_status.value
-            request_az = float(ant.sensor_pos_request_scan_azim.value)
-            request_el = float(ant.sensor_pos_request_scan_elev.value)
-            request_ra = float(ant.sensor_pos_request_scan_ra.value)
-            request_dec = float(ant.sensor_pos_request_scan_dec.value)
-            actual_az = float(ant.sensor_pos_actual_scan_azim.value)
-            actual_el = float(ant.sensor_pos_actual_scan_elev.value)
+            lock = ant.sensor.lock.value == '1' and 'True' or 'False'
+            mode = ant.sensor.mode.value
+            scan = ant.sensor.scan_status.value
+            request_az = float(ant.sensor.pos_request_scan_azim.value)
+            request_el = float(ant.sensor.pos_request_scan_elev.value)
+            request_ra = float(ant.sensor.pos_request_scan_ra.value)
+            request_dec = float(ant.sensor.pos_request_scan_dec.value)
+            actual_az = float(ant.sensor.pos_actual_scan_azim.value)
+            actual_el = float(ant.sensor.pos_actual_scan_elev.value)
             error_az = abs(actual_az - request_az)
             error_el = abs(actual_el - request_el)
             status = "\r%s: %s %s Mode:\033[34m%s\033[0m Scan:\033[34m%s\033[0m Lock:\033[34m%s\033[0m  Req[Ra:\033[32m%.2F\033[0m Dec:\033[32m%.2F\033[0m] Req[Az:\033[32m%.2F\033[0m El:\033[32m%.2F\033[0m]  Act[Az:\033[34m%.2F\033[0m El:\033[34m%.2F\033[0m]  Err[Az:\033[31m%.2F\033[0m El:\033[31m%.2F\033[0m]" % (opts.ant, state[period_count % 4], time.ctime().replace("  "," ").split(" ")[3], mode, scan, lock, request_ra, request_dec, request_az, request_el, actual_az, actual_el, error_az, error_el)

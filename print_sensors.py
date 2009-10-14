@@ -281,7 +281,7 @@ if __name__ == "__main__":
         clrscr()
         stdout_redirect()
         try:
-            proxy.req_device_list()
+            proxy.req.device_list()
         except:
             pass
         finally:
