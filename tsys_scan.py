@@ -18,7 +18,7 @@ time.sleep(0.5)
 target = 'Zenith, azel, 0, 90'
 
 # Let the data collector know about data file location and format
-ff.k7w.req.output_directory('/var/kat/data')
+ff.k7w.req.output_directory(ffuilib.defaults.ff_directories["data"])
 ff.k7w.req.write_hdf5(1)
 # Set the target description string for the compound scan in the output file
 ff.k7w.req.target(target)

@@ -27,7 +27,7 @@ target_el = np.repeat(elevations, len(azimuths))
 targets = ['azel, %s, %s' % (az, el) for az, el in zip(target_az, target_el)]
 
 # Let the data collector know about data file location and format
-ff.k7w.req.output_directory('/var/kat/data/')
+ff.k7w.req.output_directory(ffuilib.defaults.ff_directories["data"])
 ff.k7w.req.write_hdf5(1)
 # Set the target description string for the first compound scan in the output file
 ff.k7w.req.target(targets[0])

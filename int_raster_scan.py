@@ -22,7 +22,7 @@ ff.k7w.req.target(tgt)
 ff.dbe.req.target(tgt)
  # tell the dbe where to point
 #ff.k7w.req.baseline_mask("1","2","3")
-ff.k7w.req.output_directory("/var/kat/data/")
+ff.k7w.req.output_directory(ffui.defaults.ff_directories["data"])
 ff.k7w.req.scan_tag("cal")
  # first scan has noise diode firing
 ff.k7w.req.write_hdf5(1)

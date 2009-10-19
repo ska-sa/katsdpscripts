@@ -242,7 +242,7 @@ if __name__ == "__main__":
     parser.add_option('-x', '--proxy', dest='proxy', type="string", default="anc", metavar='PROXY',
                       help='Name of proxy to attach to (default="%default") as per the configuration file')
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-telescope.ini", metavar='INI',
-                      help='Telescope configuration file to use in /var/kat/conf (default="%default")')
+                      help='Telescope configuration file to use in conf directory (default="%default")')
     parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_simulated_ff", metavar='SELECTED',
                       help='Selected configuration to use (default="%default")')
     parser.add_option('-f', '--filter', dest='filter', type='string', default='rfe31', metavar='FILTER',

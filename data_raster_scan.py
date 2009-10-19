@@ -33,7 +33,7 @@ time.sleep(0.5)
 ff.k7w.req.target(tgt)
 ff.dbe.req.target(tgt)
  # let the data collector know the current target
-ff.k7w.req.output_directory("/var/kat/data/")
+ff.k7w.req.output_directory(ffui.defaults.ff_directories["data"])
 ff.k7w.req.write_hdf5(1)
 ff.k7w.req.capture_start()
 

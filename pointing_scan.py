@@ -54,7 +54,7 @@ cat.add('Takreem+160+05,azel,160,5')
 ff.ant1.req.drive_strategy("shortest-slew")
 
 # Let the data collector know about data file location and format
-ff.k7w.req.output_directory('/var/kat/data/')
+ff.k7w.req.output_directory(ffuilib.defaults.ff_directories["data"])
 ff.k7w.req.write_hdf5(1)
 # Set the target description string for the first compound scan in the output file
 ff.k7w.req.target('azel,5,5') # TODO: This is a bit arb - need to address!!
