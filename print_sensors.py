@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
 
     ff = ffui.tbuild(opts.ini_file, opts.selected_config)
-    proxy  = ff.__dict__[opts.proxy] # Lookup rfe key in ff dictionary
+    proxy  = ff.__dict__[opts.proxy] # Lookup proxy key in ff dictionary
 
     if opts.filter.startswith("all"):
         if opts.override.startswith("1"):
