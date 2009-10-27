@@ -22,7 +22,7 @@ def check_sensors(ff):
     for i in range(len(defaults)):
         current_vals.append(str(eval(defaults[i][0]+".get_value()")))
         if current_vals[i] <> str(defaults[i][1]):
-            print "%s %s %s" % (col("red")+str(defaults[i][0]).ljust(55),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25)+col("black"))
+            print "%s %s %s" % (col("red")+str(defaults[i][0]).ljust(55),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25)+col("normal"))
         else:
             print "%s %s %s" % (str(defaults[i][0]).ljust(55),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25))
     return
