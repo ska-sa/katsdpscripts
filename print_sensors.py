@@ -302,7 +302,7 @@ if __name__ == "__main__":
             numpages +=1
             print "Print filtered sensors from %s: %s %s %s   Page %d of %d (%d)" % \
                 (opts.proxy, opts.filter, state[period_count % 4], col("red")+time.ctime().replace("  "," ").split(" ")[3]+col("normal"), page+1, numpages, perpage)
-            print "%s %s %s %s %s" % ("Name".ljust(45), "Value".ljust(25), "Unit".ljust(15), "Value time".ljust(25), "Update time".ljust(25))
+            print "%s %s %s %s %s %s" % ("Name".ljust(45), "Status".ljust(21), "Value".ljust(25), "Unit".ljust(15), "Value time".ljust(25), "Update time".ljust(25))
 
             for s in sens[page*perpage:page*perpage+perpage]:
                 name = s[0]
@@ -311,7 +311,8 @@ if __name__ == "__main__":
                 type = s[3]
                 units = s[4]
                 updateTime = s[5]
-                print "%s %s %s %s %s" % (name.ljust(45), str(val).ljust(25), str(units).ljust(15), get_time_str(valTime).ljust(25), get_time_str(updateTime).ljust(25) )
+                stat = s[6]
+                print "%s %s %s %s %s %s" % (name.ljust(45), str(stat).ljust(15), str(val).ljust(25), str(units).ljust(15), get_time_str(valTime).ljust(25), get_time_str(updateTime).ljust(25) )
                 sys.stdout.flush()
 
             #Wait, then do it all again
