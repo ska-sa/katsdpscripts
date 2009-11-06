@@ -5,7 +5,7 @@ import ffuilib as ffui
 import numpy as np
 import pylab
 
-ff = ffui.tbuild("cfg-user.ini","local_ant_only")
+ff = ffui.tbuild("cfg-local.ini","local_ant_only")
  # make fringe fingder connections
 
 ff.ant2.req.target_azel(20.31,30.45)

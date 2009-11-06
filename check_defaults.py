@@ -41,9 +41,9 @@ if __name__ == "__main__":
     description = "check the system against the expecte default values and optionally reset to these defaults."
     parser = OptionParser(usage=usage)
 
-    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-user-lab.ini", metavar='INI',
+    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-lab.ini", metavar='INI',
                       help='Telescope configuration file to use in conf directory (default="%default")')
-    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="integration_client_ff", metavar='SELECTED',
+    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="lab_ff", metavar='SELECTED',
                       help='Selected configuration to use (default="%default")')
     parser.add_option('-r', '--reset', dest='reset', action='store_true',default=False,
                       help='Reset system to default values, if include this switch (default="%default")')

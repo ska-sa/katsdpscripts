@@ -3,7 +3,7 @@
 
 import ffuilib as ffui
 
-ff = ffui.tbuild("cfg-user.ini", "integration_ff_client")
+ff = ffui.tbuild("cfg-local.ini", "local_ff")
  # make fringe fingder connections
 
 ff.k7w.req.capture_start()

@@ -1,7 +1,7 @@
 import ffuilib as ffui
 # An example script for accessing and controlling RF devices: Cryo, RFE3, RFE5, RFE7
 
-ff = ffui.tbuild("cfg-telescope.ini", "local_rf_only")
+ff = ffui.tbuild("cfg-local.ini", "local_rf_only")
 
 ########################
 #Add rf proxy tests here

@@ -6,7 +6,7 @@ import math
 import ConfigParser
 import katconf
 
-aicp = katconf.KatConfig("cfg-user.ini","local_ff_client")
+aicp = katconf.KatConfig("cfg-local.ini","local_ff")
 observer = ffui.build_observer(aicp)
 sources = ffui.build_catalog(observer, aicp)
  # we dont need access to any devices, so we just

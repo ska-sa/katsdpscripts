@@ -21,7 +21,7 @@ import katpoint
 # The specific configuration is one that runs locally with DBE simulator included
 # This connects to all the proxies and devices and queries their commands and sensors
 # TODO: check that the pointing sources are configured!!
-ff = ffuilib.tbuild('cfg-user.ini', 'local_ff_client_sim')
+ff = ffuilib.tbuild('cfg-local.ini', 'local_ff')
 
 # Clean up any existing experiment
 ff.dbe.req.dbe_capture_stop()

@@ -5,7 +5,7 @@ import ffuilib as ffui
 import time
 
 # creates connection to two antennas and provides access to the catalogue
-ff = ffui.tbuild("cfg-user.ini", "local_ant_only")
+ff = ffui.tbuild("cfg-local.ini", "local_ant_only")
 
 # time to stay on each target (secs)
 on_target_duration = 10

@@ -14,12 +14,12 @@
 # start the system: kat-launch.py
 # start the central monitor: ~/svnDS/code/ffinder/trunk/src/services/monitoring/central_monitor.py
 # and signal display server: ~/svnDS/code/ffinder/trunk/src/streaming/sdisp/ffsocket.py
-# (kat-launch.py and ffsocket.py use the defaults: -i cfg-telescope.ini -s local-simulated-ff)
+# (kat-launch.py and ffsocket.py use the defaults: -i cfg-local.ini -s local_ff)
 
 import ffuilib as ffui
 import time
 
-ff = ffui.tbuild("cfg-user.ini", "local_ff_client_sim")
+ff = ffui.tbuild("cfg-local.ini", "local_ff")
  # make fringe fingder connections
 
 tgt = 'Takreem,azel,20,30'
