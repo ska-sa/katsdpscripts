@@ -30,12 +30,12 @@ ff.ant1.req.mode("STOP")
 time.sleep(0.5)
  # cleanup any existing experiment
 
-ff.k7w.req.target(tgt)
+ff.dbe.req.k7w_target(tgt)
 ff.dbe.req.target(tgt)
  # let the data collector know the current target
-ff.k7w.req.output_directory(ffui.defaults.ff_directories["data"])
-ff.k7w.req.write_hdf5(1)
-ff.k7w.req.capture_start()
+ff.dbe.req.k7w_output_directory(ffui.defaults.ff_directories["data"])
+ff.dbe.req.k7w_write_hdf5(1)
+ff.dbe.req.k7w_capture_start()
 
 ff.dbe.req.dbe_packet_count(900)
  # stream 10 minutes of data or until stop issued
@@ -46,8 +46,8 @@ ff.dbe.req.dbe_capture_destination("stream","127.0.0.1:7010")
 ff.dbe.req.dbe_capture_start("stream")
  # start emitting data on stream "stream"
 
-ff.ant1.sensor.pos_actual_scan_azim.register_listener(ff.dbesim.req.pointing_az, 0.5)
-ff.ant1.sensor.pos_actual_scan_elev.register_listener(ff.dbesim.req.pointing_el, 0.5)
+ff.ant1.sensor.pos_actual_scan_azim.register_listener(ff.dbe.req.dbe_pointing_az, 0.5)
+ff.ant1.sensor.pos_actual_scan_elev.register_listener(ff.dbe.req.dbe_pointing_el, 0.5)
  # when the sensor value changes send an update to the listening function. Rate limited to 0.5 second updates.
 
 scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
@@ -59,7 +59,7 @@ ff.ant1.req.target(tgt)
 ff.ant1.req.mode("POINT")
  # set mode to point
 ff.ant1.wait("lock",True,300)
-ff.k7w.req.compound_scan_id(1)
+ff.dbe.req.k7w_compound_scan_id(1)
  # once we are on the target begin a new compound scan
  # (compound scan 0 will be the slew to the target, default scan tag is "slew")
 scan_count = 1
@@ -68,20 +68,20 @@ for scan in scans:
     print "Scan Progress:",int((float(scan_count) / len(scans)*2)*100),"%"
     ff.ant1.req.scan_asym(-scan[0],scan[1],scan[0],scan[1],scan_duration)
     ff.ant1.wait("lock",True,300)
-    ff.k7w.req.scan_id(scan_count,"scan")
+    ff.dbe.req.k7w_scan_id(scan_count,"scan")
      # mark this section as valid scan data
     ff.ant1.req.mode("SCAN")
     ff.ant1.wait("scan_status","after",300)
-    ff.k7w.req.scan_id(scan_count+1,"slew")
+    ff.dbe.req.k7w_scan_id(scan_count+1,"slew")
      # slewing to next raster pointg
     scan_count += 2
 print "Scan complete."
 
-files = ff.k7w.req.get_current_files(tuple=True)[1][2]
+files = ff.dbe.req.k7w_get_current_files(tuple=True)[1][2]
 print "Data captured to",files
 time.sleep(2)
 ff.dbe.req.dbe_capture_stop("stream")
-ff.k7w.req.capture_stop()
+ff.dbe.req.k7w_capture_stop()
 ff.disconnect()
 
 # now augment the hdf5 file with metadata (pointing info etc):
