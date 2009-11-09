@@ -1,4 +1,5 @@
 #!/bin/bash
+echo Checkout scripts
 mkdir -p ~/scripts
 cd ~/scripts
 svn co --no_auth_cache https://katfs.kat.ac.za/svnDS/code/ffinder/trunk/src/test/scripts .
