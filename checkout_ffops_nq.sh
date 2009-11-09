@@ -1,4 +1,5 @@
 #!/bin/bash
+
 echo Checkout scripts
 [ "$FFhome" ] || FFhome="/home/ffuser"
 mkdir -p $FFhome/svn
@@ -43,6 +44,9 @@ svn co --username ffuser --password ffuser4svnup https://katfs.kat.ac.za/svnDS/c
 mkdir -p $FFhome/svn/ffinder/roach
 cd $FFhome/svn/ffinder/roach
 svn co --username ffuser --password ffuser4svnup https://katfs.kat.ac.za/svnROACH/sw/lib/katcp .
+
+echo "Placing update_fringe_finder.sh in usr/local/bin"
+sudo scp $FFhome/svn/ffinder/src/etc/lenny/update_fringe_finder.sh /usr/local/bin
 
 cd $FFhome/svn
 ls -la
