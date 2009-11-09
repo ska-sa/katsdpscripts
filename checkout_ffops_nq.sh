@@ -1,15 +1,14 @@
 #!/bin/bash
-mkdir -p /home/ffuser/scripts
-cd scripts
-svn co https://katfs.kat.ac.za/svnDS/code/ffinder/trunk/src/test/scripts .
+mkdir -p ~/scripts
+cd ~/scripts
+svn co --no_auth_cache https://katfs.kat.ac.za/svnDS/code/ffinder/trunk/src/test/scripts .
 
-mkdir -p /home/ffuser/svn
-cd svn
-[ "$FFSVN" ] || FFSVN="/home/ffuser/svn"
+mkdir -p ~/svn
+[ "$FFSVN" ] || FFSVN="~/svn"
 echo "Getting local configuration files"
 mkdir -p /var/kat/conf
 cd /var/kat/conf
-svn co https://katfs.kat.ac.za/svnDS/code/conf/ff .
+svn co --no_auth_cache https://katfs.kat.ac.za/svnDS/code/conf/ff .
 
 echo "Getting katcp libraries"
 mkdir -p $FFSVN/katcp
