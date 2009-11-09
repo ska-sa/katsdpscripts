@@ -40,9 +40,8 @@ echo "Getting fringe finder libraries"
 mkdir -p $FFhome/svn/ffinder
 cd $FFhome/svn/ffinder
 svn co --username ffuser --password ffuser4svnup https://katfs.kat.ac.za/svnDS/code/ffinder/trunk .
-cd $FFhome/svn/ffinder/src/streaming/k7writer
-svn co --username ffuser --password ffuser4svnup https://katfs.kat.ac.za/svnROACH/sw/lib/katcp .
-cd $FFhome/svn/ffinder/src/simulators/dbe
+mkdir -p $FFhome/svn/ffinder/roach
+cd $FFhome/svn/ffinder/roach
 svn co --username ffuser --password ffuser4svnup https://katfs.kat.ac.za/svnROACH/sw/lib/katcp .
 
 cd $FFhome/svn
