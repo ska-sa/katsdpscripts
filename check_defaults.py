@@ -8,24 +8,30 @@ import time
 
 defaults = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("ff.rfe.sensor.rfe31_psu_on.get_value()", 1, "ff.rfe.req.rfe3_psu_on('rfe31',1)"),
-("ff.rfe.sensor.rfe31_rf15_stage1_lna_psu_on.get_value()", 1, "ff.rfe.req.rfe3_rf15_stage1_lna_psu_on('rfe31',1)"),
+("ff.rfe.sensor.rfe31_rfe15_rfe1_lna_psu_on.get_value()", 1, "ff.rfe.req.rfe3_rfe15_rfe1_lna_psu_on('rfe31',1)"),
 ("ff.rfe.sensor.rfe51_attenuator_horizontal.get_value()", 5.0, "ff.rfe.req.rfe5_attenuation('rfe51','h',5.0)"),
 ("ff.rfe.sensor.rfe51_attenuator_vertical.get_value()", 5.0, "ff.rfe.req.rfe5_attenuation('rfe51','v',5.0)"),
 ("ff.rfe.sensor.rfe7_downconverter_ant1_h_attenuation.get_value()", 5.5, "ff.rfe.req.rfe7_downconverter_attenuation('1','h',5.5)" ),
 ("ff.rfe.sensor.rfe7_downconverter_ant1_v_attenuation.get_value()", 5.5, "ff.rfe.req.rfe7_downconverter_attenuation('1','v',5.5)" ),
-("ff.rfe.req.log_level('cryo1',tuple=True)[0][2][1]","fatal","ff.rfe.req.log_level('cryo1', 'fatal')")
+("ff.rfe.req.log_level('cryo1',tuple=True)[0][2][1]", "fatal", "ff.rfe.req.log_level('cryo1', 'fatal')"),
+("ff.rfe.sensor.rfe7_lo1_frequency.get_value()", 5700000000.0, "ff.rfe.req.rfe7_lo1_frequency(5.7,'GHz')"),
+("ff.rfe.sensor.rfe31_rfe15_noise_pin_on.get_value()", 0, "ff.rfe.req.rfe3_rfe15_noise_source_on('rfe31','pin',0,'now',0)"),
+("ff.rfe.sensor.rfe31_rfe15_noise_coupler_on.get_value()", 0, "ff.rfe.req.rfe3_rfe15_noise_source_on('rfe31','coupler',0,'now',0)"),
+("ff.rfe.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_downconverter_powerswitch(1,'h',1)"),
+("ff.rfe.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_downconverter_powerswitch(1,'v',1)"),
+("ff.rfe.sensor.rfe7_orx1_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_orx_powerswitch(1,1)"),
 ]
 
 def check_sensors(ff):
     # check current system setting and compare with defaults as specified above
-    print "%s %s %s" % ("Sensor".ljust(55), "Current Value".ljust(25),"Default Value".ljust(25))
+    print "%s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Default Value".ljust(25))
     current_vals = []
     for i in range(len(defaults)):
         current_vals.append(str(eval(defaults[i][0])))
         if current_vals[i] <> str(defaults[i][1]):
-            print "%s %s %s" % (col("red")+str(defaults[i][0]).ljust(55),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25)+col("normal"))
+            print "%s %s %s" % (col("red")+str(defaults[i][0]).ljust(65),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25)+col("normal"))
         else:
-            print "%s %s %s" % (str(defaults[i][0]).ljust(55),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25))
+            print "%s %s %s" % (str(defaults[i][0]).ljust(65),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25))
 
     return
 
