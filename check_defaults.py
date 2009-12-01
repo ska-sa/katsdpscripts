@@ -32,8 +32,6 @@ karoo_default_set = [ # structure is list of tuples with (command to access sens
 ("ff.rfe.sensor.rfe7_downconverter_ant3_h_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_downconverter_powerswitch(3,'h',1)"),
 ("ff.rfe.sensor.rfe7_downconverter_ant3_v_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_downconverter_powerswitch(3,'v',1)"),
 ("ff.rfe.sensor.rfe7_orx1_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_orx_powerswitch(1,1)"),
-("ff.rfe.sensor.rfe7_orx2_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_orx_powerswitch(2,1)"),
-("ff.rfe.sensor.rfe7_orx3_powerswitch.get_value()", 1, "ff.rfe.req.rfe7_orx_powerswitch(3,1)"),
 ]
 
 lab_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
