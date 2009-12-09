@@ -11,6 +11,8 @@
 
 import katpoint
 import ephem
+import matplotlib.pyplot as plt
+import numpy as np
 
 # First use original settings in checkcalc.c as far as possible
 ###############################################################
@@ -31,7 +33,7 @@ ant_a = katpoint.construct_antenna('EC, 0, 0, -6378137.0, 0.0')
 # Station B is Kitt Peak VLBA antenna
 kp_lla = katpoint.ecef_to_lla(-1995678.4969, -5037317.8209, 3357328.0825)
 kp_lat, kp_long, kp_alt = katpoint.rad2deg(kp_lla[0]), katpoint.rad2deg(kp_lla[1]), kp_lla[2]
-ant_a = katpoint.construct_antenna('KP, %.16f, %.16f, %.16f, 25.0, 0, 0, 0' % (kp_lat, kp_long, kp_alt))
+ant_b = katpoint.construct_antenna('KP, %.16f, %.16f, %.16f, 25.0, 0, 0, 0' % (kp_lat, kp_long, kp_alt))
 # Station A is an imaginary antenna close to Kitt Peak (south-east of it)
 ant_a = katpoint.construct_antenna('RF, %.16f, %.16f, %.16f, 25.0, 63.336, -63.336, 0' % (kp_lat, kp_long, kp_alt))
 a_lla = (ant_a.observer.lat, ant_a.observer.long, ant_a.observer.elevation)
@@ -114,25 +116,18 @@ print 'Station B azimuth error   = %g arcsec' % (katpoint.rad2deg(az_b - az_b_ca
 print 'Station B elevation error = %g arcsec' % (katpoint.rad2deg(el_b - el_b_calc) * 3600,)
 
 # Assume Antenna A is the array reference position - baseline is B - A
-baseline_m = np.array(ant_b.offset) - np.array(ant_a.offset)
-# Get geometric delay from direct dot product
-source_vec = azel_to_enu(az_b, el_b)
-geom_delay = - np.dot(baseline_m, source_vec) / katpoint.lightspeed
-# Get source position a second later, and use it to derive delay rate
-az_b_1s, el_b_1s = target.azel(t + 1.0, ant_b)
-source_vec_1s = azel_to_enu(az_b_1s, el_b_1s)
-geom_delay_1s = - np.dot(baseline_m, source_vec_1s) / katpoint.lightspeed
-delay_rate = geom_delay_1s - geom_delay
+geom_delay, delay_rate = target.geometric_delay(ant_b, t, ant_a)
 # Expected fringe period in seconds
-fringe_period = 1.0 / ((1.5 + (350 - 256)/512.*0.4) * 1e9 * delay_rate)
+fringe_period = 1.0 / ((1.5 - (350 - 256)/512.*0.4) * 1e9 * delay_rate)
 
 # CALC has:
 delay_calc, delay_rate_calc = -2.2232772665e-07, -1.5603396713e-12
 
 print 'Delay error = %g ns (%g %%)' % ((geom_delay - delay_calc) * 1e9,
                                        100 * (geom_delay / delay_calc - 1.0))
-print 'Delay rate error = %g sec / sec (%g %%)' % (delay_rate - delay_rate_calc,
-                                                   100 * (delay_rate / delay_rate_calc - 1.0))
+print 'Delay rate error = %g s / s (%g %%)' % (delay_rate - delay_rate_calc,
+                                               100 * (delay_rate / delay_rate_calc - 1.0))
+print 'Fringe period = %g s' % (fringe_period,)
 
 # We choose the Moon...
 t = katpoint.Timestamp('2009-12-01 17:27:00')
@@ -140,15 +135,9 @@ target = katpoint.construct_target('Moon, special')
 az_a, el_a = target.azel(t, ant_a)
 az_b, el_b = target.azel(t, ant_b)
 # Get geometric delay from direct dot product
-source_vec = azel_to_enu(az_b, el_b)
-geom_delay = - np.dot(baseline_m, source_vec) / katpoint.lightspeed
-# Get source position a second later, and use it to derive delay rate
-az_b_1s, el_b_1s = target.azel(t + 1.0, ant_b)
-source_vec_1s = azel_to_enu(az_b_1s, el_b_1s)
-geom_delay_1s = - np.dot(baseline_m, source_vec_1s) / katpoint.lightspeed
-delay_rate = geom_delay_1s - geom_delay
+geom_delay, delay_rate = target.geometric_delay(ant_b, t, ant_a)
 # Expected fringe period in seconds
-fringe_period = 1.0 / ((1.5 + (350 - 256)/512.*0.4) * 1e9 * delay_rate)
+fringe_period = 1.0 / ((1.5 - (350 - 256)/512.*0.4) * 1e9 * delay_rate)
 
 # And the Sun...
 t = katpoint.Timestamp('2009-12-01 17:00:00')
@@ -156,12 +145,74 @@ target = katpoint.construct_target('Sun, special')
 az_a, el_a = target.azel(t, ant_a)
 az_b, el_b = target.azel(t, ant_b)
 # Get geometric delay from direct dot product
-source_vec = azel_to_enu(az_b, el_b)
-geom_delay = - np.dot(baseline_m, source_vec) / katpoint.lightspeed
-# Get source position a second later, and use it to derive delay rate
-az_b_1s, el_b_1s = target.azel(t + 1.0, ant_b)
-source_vec_1s = azel_to_enu(az_b_1s, el_b_1s)
-geom_delay_1s = - np.dot(baseline_m, source_vec_1s) / katpoint.lightspeed
-delay_rate = geom_delay_1s - geom_delay
+geom_delay, delay_rate = target.geometric_delay(ant_b, t, ant_a)
 # Expected fringe period in seconds
-fringe_period = 1.0 / ((1.5 + (350 - 256)/512.*0.4) * 1e9 * delay_rate)
+fringe_period = 1.0 / ((1.5 - (350 - 256)/512.*0.4) * 1e9 * delay_rate)
+
+# How about an all-sky fringe pattern for the first baseline?
+#############################################################
+
+baseline_m = ant_a.baseline_toward(ant_b)
+lat = ant_a.observer.lat
+rf_freq = 1.8e9
+
+# In terms of (az, el)
+x_range, y_range = np.linspace(-1., 1., 201), np.linspace(-1., 1., 201)
+x_grid, y_grid = np.meshgrid(x_range, y_range)
+xx, yy = x_grid.flatten(), y_grid.flatten()
+outside_circle = xx * xx + yy * yy > 1.0
+xx[outside_circle] = yy[outside_circle] = np.nan
+az, el = katpoint.plane_to_sphere['SIN'](0.0, np.pi / 2.0, xx, yy)
+
+source_vec = katpoint.azel_to_enu(az, el)
+geom_delay = -np.dot(baseline_m, source_vec) / katpoint.lightspeed
+turns = geom_delay * rf_freq
+phase = turns - np.floor(turns)
+
+plt.figure(1)
+plt.clf()
+plt.imshow(phase.reshape(x_grid.shape), origin='lower',
+           extent=[x_range[0], x_range[-1], y_range[0], y_range[-1]])
+
+# In terms of (ha, dec)
+# One second resolution on hour angle - picks up fast fringes that way
+ha_range = np.linspace(-12., 12., 86401.)
+dec_range = np.linspace(-90., katpoint.rad2deg(lat) + 90., 101)
+ha_grid, dec_grid = np.meshgrid(ha_range, dec_range)
+hh, dd = ha_grid.flatten(), dec_grid.flatten()
+
+source_vec = katpoint.hadec_to_enu(hh  / 12. * np.pi, katpoint.deg2rad(dd), lat)
+geom_delay = -np.dot(baseline_m, source_vec) / katpoint.lightspeed
+geom_delay = geom_delay.reshape(ha_grid.shape)
+turns = geom_delay * rf_freq
+phase = turns - np.floor(turns)
+fringe_rate = np.diff(geom_delay, axis=1) / (np.diff(ha_range) * 3600.) * rf_freq
+
+plt.figure(2)
+plt.clf()
+plt.imshow(phase, origin='lower', aspect='auto',
+           extent=[ha_range[0], ha_range[-1], dec_range[0], dec_range[-1]])
+plt.xlabel('Hour angle (hours)')
+plt.ylabel('Declination (degrees)')
+plt.title('Fringe phase across sky for given baseline')
+plt.colorbar()
+
+plt.figure(3)
+plt.clf()
+plt.imshow(turns, origin='lower', aspect='auto',
+           extent=[ha_range[0], ha_range[-1], dec_range[0], dec_range[-1]])
+plt.xlabel('Hour angle (hours)')
+plt.ylabel('Declination (degrees)')
+plt.title('Geometric delay (number of turns) across sky for given baseline')
+plt.colorbar()
+
+plt.figure(4)
+plt.clf()
+plt.imshow(fringe_rate, origin='lower', aspect='auto',
+           extent=[ha_range[0], ha_range[-2], dec_range[0], dec_range[-1]])
+plt.xlabel('Hour angle (hours)')
+plt.ylabel('Declination (degrees)')
+plt.title('Geometric fringe rate (turns / s) across sky for given baseline')
+plt.colorbar()
+
+plt.show()
