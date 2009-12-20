@@ -13,6 +13,7 @@ import katpoint
 import ephem
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.special as sp
 
 # First use original settings in checkcalc.c as far as possible
 ###############################################################
@@ -119,9 +120,11 @@ print 'Station B elevation error = %g arcsec' % (katpoint.rad2deg(el_b - el_b_ca
 geom_delay, delay_rate = target.geometric_delay(ant_b, t, ant_a)
 # Expected fringe period in seconds
 fringe_period = 1.0 / ((1.5 - (350 - 256)/512.*0.4) * 1e9 * delay_rate)
+uvw = target.uvw(ant_b, t, ant_a)
 
 # CALC has:
 delay_calc, delay_rate_calc = -2.2232772665e-07, -1.5603396713e-12
+uvw_calc = (6.476748e+00, -3.580610e+01, -6.665174e+01)
 
 print 'Delay error = %g ns (%g %%)' % ((geom_delay - delay_calc) * 1e9,
                                        100 * (geom_delay / delay_calc - 1.0))
@@ -214,5 +217,72 @@ plt.xlabel('Hour angle (hours)')
 plt.ylabel('Declination (degrees)')
 plt.title('Geometric fringe rate (turns / s) across sky for given baseline')
 plt.colorbar()
+
+# Now predict the visibility magnitude for the Sun across the band
+##################################################################
+
+# Jinc function
+def jinc(x):
+    j = np.ones(x.shape)
+    # Handle 0/0 at origin
+    nonzero_x = abs(x) > 1e-20
+    j[nonzero_x] = 2 * sp.j1(np.pi * x[nonzero_x]) / (np.pi * x[nonzero_x])
+    return j
+
+# Use Fringe Finder antennas 1 and 2
+ref_lla = '-30:43:17.34, 21:24:38.46, 1038.0'
+ant1 = katpoint.construct_antenna('FF1, %s, 12.0, 18.4, -8.7, 0.0' % ref_lla)
+ant2 = katpoint.construct_antenna('FF2, %s, 12.0, 86.2, 25.5, 0.0' % ref_lla)
+
+# Channel frequencies
+band_center = 1822.
+channel_bw = 400. / 512
+num_chans = 512
+freqs = band_center - channel_bw * (np.arange(num_chans) - num_chans / 2 + 0.5)
+channels = range(100, 400)
+# Equivalent wavelength, in m
+lambdas = katpoint.lightspeed / (freqs[channels] * 1e6)
+# Timestamps for observation
+t = np.array([katpoint.Timestamp('2009-12-10 06:19:40.579')]) + np.linspace(0, 2700., 2700.)
+
+# Set up the Sun as target
+target = katpoint.construct_target('Sun, special')
+# Angular diameter of the Sun (about 32 arcminutes), in radians
+diam = katpoint.deg2rad(32.0 / 60.0)
+
+# Get (u,v,w) coordinates (in meters) as a function of time
+u, v, w = target.uvw(ant2, t, ant1)
+# Normalised uv distance, in wavelengths
+uvdist = np.outer(np.sqrt(u ** 2 + v ** 2), 1.0 / lambdas)
+# Normalised w distance, in wavelengths (= turns of geometric delay) (also add cable delay)
+wdist = np.outer(w - 20, 1.0 / lambdas)
+# Contribution from sunspot 1034
+spot_angle = katpoint.deg2rad(160.)
+sunspot_ripple = np.outer(np.cos(spot_angle) * u + np.sin(spot_angle) * v, 1.0 / lambdas)
+sunspots = 0.1 * np.exp(1j * 2 * np.pi * 0.96 * 0.5 * diam * sunspot_ripple) + \
+           0.1 * np.exp(1j * 2 * np.pi * 0.92 * 0.5 * diam * sunspot_ripple)
+# Calculate normalised coherence function (see Born & Wolf, Section 10.4.2, p. 574-576)
+coh = (jinc(diam * uvdist) + sunspots) * np.exp(1j * 2 * np.pi * wdist)
+
+plt.figure(5)
+plt.clf()
+plt.imshow(np.abs(coh), origin='lower', aspect='auto',
+           extent=[0, channels[-1] - channels[0], t[-1] - t[0], 0.0])
+plt.colorbar()
+
+plt.figure(6)
+plt.clf()
+plt.imshow(np.angle(coh), origin='lower', aspect='auto',
+           extent=[0, channels[-1] - channels[0], t[-1] - t[0], 0.0])
+plt.colorbar()
+
+plt.figure(7)
+plt.clf()
+plt.subplot(311)
+plt.plot(t - t[0], coh[:, 0].real)
+plt.subplot(312)
+plt.plot(t - t[0], coh[:, 100].real)
+plt.subplot(313)
+plt.plot(t - t[0], coh[:, 200].real)
 
 plt.show()
