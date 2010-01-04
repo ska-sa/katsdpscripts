@@ -259,8 +259,10 @@ wdist = np.outer(w - 20, 1.0 / lambdas)
 # Contribution from sunspot 1034
 spot_angle = katpoint.deg2rad(160.)
 sunspot_ripple = np.outer(np.cos(spot_angle) * u + np.sin(spot_angle) * v, 1.0 / lambdas)
-sunspots = 0.1 * np.exp(1j * 2 * np.pi * 0.96 * 0.5 * diam * sunspot_ripple) + \
-           0.1 * np.exp(1j * 2 * np.pi * 0.92 * 0.5 * diam * sunspot_ripple)
+sunspots = 0.02 * np.exp(1j * 2 * np.pi * 0.96 * 0.5 * diam * sunspot_ripple) + \
+           0.02 * np.exp(1j * 2 * np.pi * 0.92 * 0.5 * diam * sunspot_ripple)
+# Contribution from limb-brightening
+limbs = 0.05 * np.cos(2 * np.pi * 0.9 * 0.5 * diam * np.outer(u, 1.0 / lambdas))
 # Calculate normalised coherence function (see Born & Wolf, Section 10.4.2, p. 574-576)
 coh = (jinc(diam * uvdist) + sunspots) * np.exp(1j * 2 * np.pi * wdist)
 
