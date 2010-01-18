@@ -72,10 +72,11 @@ if __name__ == "__main__":
     ff.dbe.req.dbe_capture_start("stream")
     # start emitting data on stream "stream"
 
-    for ant_x in ants:
-        ant_x.sensor.pos_actual_scan_azim.register_listener(ff.dbe.req.dbe_pointing_az, 0.5)
-        ant_x.sensor.pos_actual_scan_elev.register_listener(ff.dbe.req.dbe_pointing_el, 0.5)
-        # when the sensor value changes send an update to the listening function. Rate limited to 0.5 second updates.
+###    for ant_x in ants:
+###        ant_x.sensor.pos_actual_scan_azim.register_listener(ff.dbe.req.dbe_pointing_az, 1.5)
+###        ant_x.sensor.pos_actual_scan_elev.register_listener(ff.dbe.req.dbe_pointing_el, 1.5)
+###        # when the sensor value changes send an update to the listening function. Rate limited to 0.5 second updates.
+
 
     scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
     # raster scan
@@ -90,7 +91,12 @@ if __name__ == "__main__":
     for ant_x in ants:
         ant_x.wait("lock",True,300)
 
-    ff.dbe.req.k7w_compound_scan_id(1)
+    try:
+        ff.dbe.req.k7w_compound_scan_id(1)
+    except RuntimeError, err:
+        print "  k7w compund scan failed (", err, " )"
+
+
     # once we are on the target begin a new compound scan
     # (compound scan 0 will be the slew to the target, default scan tag is "slew")
     scan_count = 1
