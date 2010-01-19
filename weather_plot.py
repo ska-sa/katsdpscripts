@@ -12,8 +12,8 @@ import matplotlib.dates as mdates
 
 import ffuilib as ffui
 
-enviro = ffui.build_device("enviro","ff-proxy",1258)
- # connect to antenna 1 to get environment data
+enviro = ffui.build_device("enviro","ff-proxy",1341)
+ # connect to ancillary proxy to get environment data
 enviro.sensor.enviro_wind_speed.set_strategy("period","1000")
 enviro.sensor.enviro_wind_direction.set_strategy("period","1000")
 
