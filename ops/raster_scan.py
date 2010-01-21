@@ -12,7 +12,7 @@ parser.add_option('-s', '--selected_config', dest='selected_config', type="strin
                   help='Selected configuration to use (default="%default")')
 parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                   help="Comma-separated list of antennas to include in scan (e.g. 'ant1,ant2')," +
-                       " or 'all' for all antennas - this MUST be specified")
+                       " or 'all' for all antennas - this MUST be specified (safety reasons)")
 parser.add_option('-t', '--tgt', dest='tgt', type="string", default="Takreem,azel,20,30", metavar='TGT',
                   help='Target to scan, as description string (default="%default")')
 (opts, args) = parser.parse_args()
