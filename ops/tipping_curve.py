@@ -38,10 +38,12 @@ else:
         raise ValueError("Antenna '%s' not found" % ant_x)
 
 ffobserve.setup(ff, ants, opts.centre_freq)
+compscan_id = 0
 # Iterate through elevation angles
 for el in [2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90]:
-    ffobserve.track(ff, ants, "azel, %f, %f" % (opts.az, el), duration=15.0)
+    ffobserve.track(ff, ants, "azel, %f, %f" % (opts.az, el), duration=15.0,  compscan_id=compscan_id)
     ffobserve.fire_noise_diode(ff, ants, 'coupler', scan_id=2)
+    compscan_id += 1
 ffobserve.shutdown(ff)
 
 ff.disconnect()
