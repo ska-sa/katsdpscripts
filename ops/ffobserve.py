@@ -2,7 +2,7 @@
 
 import numpy as np
 
-def setup(ff, centre_freq=1800.0, dump_rate=1.0, ants='all'):
+def setup(ff, ants, centre_freq=1800.0, dump_rate=1.0):
     """Initialise Fringe Finder hardware before the observation starts.
 
     This prepares the data capturing subsystem (DBE and k7writer) and sets the
@@ -12,16 +12,15 @@ def setup(ff, centre_freq=1800.0, dump_rate=1.0, ants='all'):
     ----------
     ff : FF object
         Fringe Finder connection object
+    ants : List of antenna device objects, or string
+        List of antennas that will perform scans, as FFDevice objects,
+        e.g. [ff.ant1, ff.ant2]. If this is 'all', use all antennas.
     centre_freq : float
         RF centre frequency, in MHz
     dump_rate : float
         Correlator dump rate, in Hz
-    ants : List of antenna device objects
-        List of antennas that will perform scans, as FFDevice objects,
-        e.g. [ff.ant1, ff.ant2] (default = all antennas)
 
     """
-    # Use all antennas by default
     if ants == 'all':
         ants = ff.ants.devs
     # Create list of baselines, based on the selected antennas
@@ -54,8 +53,8 @@ def setup(ff, centre_freq=1800.0, dump_rate=1.0, ants='all'):
     # The DBE proxy needs to know the dump rate as well as the effective LO freq, which is used for fringe stopping (eventually)
     ff.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
 
-def raster_scan(ff, target, num_scans=3, scan_duration=20.0, scan_extent=4.0,
-                scan_spacing=0.5, compscan_id=0, ants='all',
+def raster_scan(ff, ants, target, num_scans=3, scan_duration=20.0,
+                scan_extent=4.0, scan_spacing=0.5, compscan_id=0,
                 scan_in_azimuth=True, drive_strategy="shortest-slew"):
     """Perform raster scan on target.
 
@@ -84,14 +83,17 @@ def raster_scan(ff, target, num_scans=3, scan_duration=20.0, scan_extent=4.0,
     have a different compound scan index, as each compound scan can only have
     a single target associated with it.
 
-    The antennas that will perform the raster scan may be specified, and by
-    default all antennas are used. They all perform the same raster scan
-    across the given target, in parallel.
+    The antennas that will perform the raster scan should be specified, to
+    provide some reminder to the user of what will physically move. They all
+    perform the same raster scan across the given target, in parallel.
 
     Parameters
     ----------
     ff : FF object
         Fringe Finder connection object
+    ants : List of antenna device objects, or string
+        List of antennas that will perform scans, as FFDevice objects,
+        e.g. [ff.ant1, ff.ant2]. If this is 'all', use all antennas.
     target : string
         Target to scan across, as description string
     num_scans : integer
@@ -129,7 +131,6 @@ def raster_scan(ff, target, num_scans=3, scan_duration=20.0, scan_extent=4.0,
     qualitative scan for any position on the celestial sphere.
 
     """
-    # Use all antennas by default
     if ants == 'all':
         ants = ff.ants.devs
     # Initialise antennas
@@ -148,10 +149,10 @@ def raster_scan(ff, target, num_scans=3, scan_duration=20.0, scan_extent=4.0,
 
     # Create start positions of each scan, based on scan parameters
     scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
-    scanning_coord = scan_offset * (-1) ** scan_steps
+    scanning_coord = (scan_extent / 2.0) * (-1) ** scan_steps
     stepping_coord = scan_spacing * scan_steps
     # These minus signs ensure that the first scan always starts at the top left of target
-    scan_starts = zip(scanning_coord, -stepping_coord) if azimuth_scan else zip(stepping_coord, -scanning_coord)
+    scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
 
     # Iterate through the scans across the target
     for scan_count, scan in enumerate(scan_starts):
@@ -164,7 +165,7 @@ def raster_scan(ff, target, num_scans=3, scan_duration=20.0, scan_extent=4.0,
             ff.dbe.req.capture_start()
         # Send each antenna to the start position of the next scan
         for ant_x in ants:
-            if azimuth_scan:
+            if scan_in_azimuth:
                 ant_x.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
             else:
                 ant_x.req.scan_asym(scan[0], scan[1], scan[0], -scan[1], scan_duration)
