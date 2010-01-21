@@ -34,6 +34,38 @@ karoo_default_set = [ # structure is list of tuples with (command to access sens
 ("ff.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_orx_powerswitch(1,1)"),
 ]
 
+karoo1_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+("ff.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "ff.ped1.req.log_level('cryo', 'fatal')"),
+("ff.ped1.sensor.rfe3_psu_on.get_value()", 1, "ff.ped1.req.rfe3_psu_on(1)"),
+("ff.ped1.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "ff.ped1.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
+("ff.ped1.sensor.rfe5_attenuator_horizontal.get_value()", 3.5, "ff.ped1.req.rfe5_attenuation('h',3.5)"),
+("ff.ped1.sensor.rfe5_attenuator_vertical.get_value()", 2.5, "ff.ped1.req.rfe5_attenuation('v',2.5)"),
+("ff.rfe7.sensor.rfe7_lo1_frequency.get_value()", 5700000000.0, "ff.rfe7.req.rfe7_lo1_frequency(5.7,'GHz')"),
+("ff.rfe7.sensor.rfe7_downconverter_ant1_h_attenuation.get_value()", 5.5, "ff.rfe7.req.rfe7_downconverter_attenuation('1','h',5.5)" ),
+("ff.rfe7.sensor.rfe7_downconverter_ant1_v_attenuation.get_value()", 5.5, "ff.rfe7.req.rfe7_downconverter_attenuation('1','v',5.5)" ),
+("ff.ped1.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0, "ff.ped1.req.rfe3_rfe15_noise_source_on('pin',0,'now',0)"),
+("ff.ped1.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0, "ff.ped1.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
+("ff.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_downconverter_powerswitch(1,'h',1)"),
+("ff.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_downconverter_powerswitch(1,'v',1)"),
+("ff.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_orx_powerswitch(1,1)"),
+]
+
+karoo2_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+("ff.ped2.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "ff.ped2.req.log_level('cryo', 'fatal')"),
+("ff.ped2.sensor.rfe3_psu_on.get_value()", 1, "ff.ped2.req.rfe3_psu_on(1)"),
+("ff.ped2.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "ff.ped2.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
+("ff.ped2.sensor.rfe5_attenuator_horizontal.get_value()", 4.0, "ff.ped2.req.rfe5_attenuation('h',4.0)"),
+("ff.ped2.sensor.rfe5_attenuator_vertical.get_value()", 3.5, "ff.ped2.req.rfe5_attenuation('v',3.5)"),
+("ff.rfe7.sensor.rfe7_lo1_frequency.get_value()", 5700000000.0, "ff.rfe7.req.rfe7_lo1_frequency(5.7,'GHz')"),
+("ff.rfe7.sensor.rfe7_downconverter_ant2_h_attenuation.get_value()", 5.5, "ff.rfe7.req.rfe7_downconverter_attenuation('2','h',5.5)" ),
+("ff.rfe7.sensor.rfe7_downconverter_ant2_v_attenuation.get_value()", 5.5, "ff.rfe7.req.rfe7_downconverter_attenuation('2','v',5.5)" ),
+("ff.ped2.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0, "ff.ped2.req.rfe3_rfe15_noise_source_on('pin',0,'now',0)"),
+("ff.ped2.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0, "ff.ped2.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
+("ff.rfe7.sensor.rfe7_downconverter_ant2_h_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_downconverter_powerswitch(2,'h',1)"),
+("ff.rfe7.sensor.rfe7_downconverter_ant2_v_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_downconverter_powerswitch(2,'v',1)"),
+("ff.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "ff.rfe7.req.rfe7_orx_powerswitch(1,1)"),
+]
+
 lab_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("ff.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "ff.ped1.req.log_level('cryo', 'fatal')"),
 ("ff.ped1.sensor.rfe3_psu_on.get_value()", 1, "ff.ped1.req.rfe3_psu_on(1)"),
@@ -82,7 +114,7 @@ if __name__ == "__main__":
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="", metavar='INI',
                       help='Telescope configuration file to use in conf directory (default="%default")')
     parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="", metavar='SELECTED',
-                      help='Selected configuration to use (default="%default")')
+                      help='Selected configuration to use (karoo|karoo1|karoo2|lab) (default="%default")')
     parser.add_option('-d', '--defaults_set', dest='defaults_set', type="string", default="karoo", metavar='DEFAULTS',
                       help='Selected defaults set config to use - karoo or lab (default="%default")')
     parser.add_option('-r', '--reset', dest='reset', action='store_true',default=False,
@@ -98,6 +130,10 @@ if __name__ == "__main__":
 
         if opts.defaults_set == "karoo":
             defaults = karoo_default_set
+        elif opts.defaults_set == "karoo1":
+            defaults = karoo1_default_set
+        elif opts.defaults_set == "karoo2":
+            defaults = karoo2_default_set
         elif opts.defaults_set == 'lab':
             defaults = lab_default_set
         else:
