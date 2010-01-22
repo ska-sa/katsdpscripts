@@ -114,9 +114,9 @@ if __name__ == "__main__":
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="", metavar='INI',
                       help='Telescope configuration file to use in conf directory (default="%default")')
     parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="", metavar='SELECTED',
-                      help='Selected configuration to use (karoo|karoo1|karoo2|lab) (default="%default")')
+                      help='Selected configuration to use (default="%default")')
     parser.add_option('-d', '--defaults_set', dest='defaults_set', type="string", default="karoo", metavar='DEFAULTS',
-                      help='Selected defaults set config to use - karoo or lab (default="%default")')
+                      help='Selected defaults set config to use - karoo|karoo1|karoo2|lab (default="%default")')
     parser.add_option('-r', '--reset', dest='reset', action='store_true',default=False,
                       help='Reset system to default values, if include this switch (default="%default")')
     (opts, args) = parser.parse_args()
