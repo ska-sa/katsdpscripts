@@ -28,10 +28,10 @@ ff = ffuilib.tbuild(opts.ini_file, opts.selected_config)
 
 # Create a list of the specified antenna devices, and complain if they are not found
 if opts.ants.strip() == 'all':
-    ants = ff.ants.devs
+    ants = ff.ants
 else:
     try:
-        ants = [getattr(ff, ant_x.strip()) for ant_x in opts.ants.split(",")]
+        ants = ffuilib.Array('ants', [getattr(ff, ant_x.strip()) for ant_x in opts.ants.split(",")])
     except AttributeError:
         raise ValueError("Antenna '%s' not found" % ant_x)
 

@@ -2,6 +2,7 @@
 
 import numpy as np
 import time
+import ffuilib
 
 def setup(ff, ants, centre_freq=1800.0, dump_rate=1.0):
     """Initialise Fringe Finder hardware before the observation starts.
@@ -11,32 +12,25 @@ def setup(ff, ants, centre_freq=1800.0, dump_rate=1.0):
 
     Parameters
     ----------
-    ff : FFHost object
+    ff : :class:`ffuilib.utility.FFHost` object
         Fringe Finder connection object
-    ants : Antenna FFDevice object, list of objects, or 'all'
-        Antenna or list of antennas that will perform tracks or scans, as
-        FFDevice objects, e.g. ff.ant1 or [ff.ant1, ff.ant2]. If this is 'all',
-        use all antennas.
+    ants : :class:`ffuilib.Array` object
+        Antenna or list of antennas that will perform tracks or scans, as an
+        Array object containing antenna devices
     centre_freq : float
         RF centre frequency, in MHz
     dump_rate : float
         Correlator dump rate, in Hz
 
     """
-    # Select all antennas
-    if ants == 'all':
-        ants = ff.ants.devs
-    # Simple test if *ants* is an antenna device - put device in list for uniformity
-    elif hasattr(ants, 'req'):
-        ants = [ants]
     # Create list of baselines, based on the selected antennas
     # (1 = ant1-ant1 autocorr, 2 = ant1-ant2 cross-corr, 3 = ant2-ant2 autocorr)
     # This determines which HDF5 files are created
-    if ff.ant1 in ants and ff.ant2 in ants:
+    if ff.ant1 in ants.devs and ff.ant2 in ants.devs:
         baselines = [1, 2, 3]
-    elif ff.ant1 in ants and ff.ant2 not in ants:
+    elif ff.ant1 in ants.devs and ff.ant2 not in ants.devs:
         baselines = [1]
-    elif ff.ant1 not in ants and ff.ant2 in ants:
+    elif ff.ant1 not in ants.devs and ff.ant2 in ants.devs:
         baselines = [3]
     else:
         baselines = []
@@ -70,12 +64,11 @@ def fire_noise_diode(ff, ants, diode='pin', on_duration=5.0, off_duration=5.0, s
 
     Parameters
     ----------
-    ff : FFHost object
+    ff : :class:`ffuilib.utility.FFHost` object
         Fringe Finder connection object
-    ants : Antenna FFDevice object, list of objects, or 'all'
-        Antenna or list of antennas that will perform tracks or scans, as
-        FFDevice objects, e.g. ff.ant1 or [ff.ant1, ff.ant2]. If this is 'all',
-        use all antennas.
+    ants : :class:`ffuilib.Array` object
+        Antenna or list of antennas that will perform tracks or scans, as an
+        Array object containing antenna devices
     diode : {'pin', 'coupler'}
         Noise diode source to use (pin diode is situated in feed horn and
         produces high-level signal, while coupler diode couples into
@@ -88,28 +81,20 @@ def fire_noise_diode(ff, ants, diode='pin', on_duration=5.0, off_duration=5.0, s
         Scan index to use
 
     """
-    # Select all antennas
-    if ants == 'all':
-        ants = ff.ants.devs
-    # Simple test if *ants* is an antenna device - put device in list for uniformity
-    elif hasattr(ants, 'req'):
-        ants = [ants]
-    # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1')
-    pedestals = [getattr(ff, 'ped' + ant_x.name[3:]) for ant_x in ants]
+    # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
+    pedestals = ffuilib.Array('peds', [getattr(ff, 'ped' + ant_x.name[3:]) for ant_x in ants.devs])
 
     print "Firing '%s' noise diode" % (diode,)
     # Set the new scan ID - this will create a new Scan group in the HDF5 file
     ff.dbe.req.k7w_scan_id(scan_id, 'cal')
     # Switch noise diode on on all antennas
-    for ped_x in pedestals:
-        ped_x.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
+    pedestals.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
     # If we haven't yet, start recording data from the correlator
     if ff.dbe.sensor.capturing.get_value() == '0':
         ff.dbe.req.capture_start()
     time.sleep(on_duration)
     # Switch noise diode off on all antennas
-    for ped_x in pedestals:
-        ped_x.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
+    pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
     time.sleep(off_duration)
 
 def track(ff, ants, target, duration=20.0, compscan_id=0, drive_strategy="longest-track"):
@@ -142,11 +127,11 @@ def track(ff, ants, target, duration=20.0, compscan_id=0, drive_strategy="longes
 
     Parameters
     ----------
-    ff : FFHost object
+    ff : :class:`ffuilib.utility.FFHost` object
         Fringe Finder connection object
-    ants : Antenna FFDevice object, list of objects, or 'all'
-        Antenna or list of antennas that will track target, as FFDevice objects,
-        e.g. ff.ant1 or [ff.ant1, ff.ant2]. If this is 'all', use all antennas.
+    ants : :class:`ffuilib.Array` object
+        Antenna or list of antennas that will perform tracks or scans, as an
+        Array object containing antenna devices
     target : string
         Target to track, as description string
     duration : float, optional
@@ -160,18 +145,10 @@ def track(ff, ants, target, duration=20.0, compscan_id=0, drive_strategy="longes
         the target sets.
 
     """
-    # Select all antennas
-    if ants == 'all':
-        ants = ff.ants.devs
-    # Simple test if *ants* is an antenna device - put device in list for uniformity
-    elif hasattr(ants, 'req'):
-        ants = [ants]
-    # Initialise antennas
-    for ant_x in ants:
-        # Set the drive strategy for how antenna moves between targets
-        ant_x.req.drive_strategy(drive_strategy)
-        # Set the antenna target
-        ant_x.req.target(target)
+    # Set the drive strategy for how antenna moves between targets
+    ants.req.drive_strategy(drive_strategy)
+    # Set the antenna target
+    ants.req.target(target)
 
     # Provide target to k7_writer, which will put it in data file (do this *before* changing compound scan ID...)
     ff.dbe.req.k7w_target(target)
@@ -187,11 +164,9 @@ def track(ff, ants, target, duration=20.0, compscan_id=0, drive_strategy="longes
     if ff.dbe.sensor.capturing.get_value() == '0':
         ff.dbe.req.capture_start()
     # Send each antenna to the target
-    for ant_x in ants:
-        ant_x.req.mode("POINT")
+    ants.req.mode("POINT")
     # Wait until they are all in position (with 5 minute timeout)
-    for ant_x in ants:
-        ant_x.wait("lock", True, 300)
+    ants.wait("lock", True, 300)
 
     print "Tracking target '%s'" % target
     # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
@@ -242,11 +217,11 @@ def raster_scan(ff, ants, target, num_scans=3, scan_duration=20.0,
 
     Parameters
     ----------
-    ff : FFHost object
+    ff : :class:`ffuilib.utility.FFHost` object
         Fringe Finder connection object
-    ants : Antenna FFDevice object, list of objects, or 'all'
-        Antenna or list of antennas that will perform scans, as FFDevice objects,
-        e.g. ff.ant1 or [ff.ant1, ff.ant2]. If this is 'all', use all antennas.
+    ants : :class:`ffuilib.Array` object
+        Antenna or list of antennas that will perform tracks or scans, as an
+        Array object containing antenna devices
     target : string
         Target to scan across, as description string
     num_scans : integer, optional
@@ -281,18 +256,10 @@ def raster_scan(ff, ants, target, num_scans=3, scan_duration=20.0,
     qualitative scan for any position on the celestial sphere.
 
     """
-    # Select all antennas
-    if ants == 'all':
-        ants = ff.ants.devs
-    # Simple test if *ants* is an antenna device - put device in list for uniformity
-    elif hasattr(ants, 'req'):
-        ants = [ants]
-    # Initialise antennas
-    for ant_x in ants:
-        # Set the drive strategy for how antenna moves between targets
-        ant_x.req.drive_strategy(drive_strategy)
-        # Set the antenna target
-        ant_x.req.target(target)
+    # Set the drive strategy for how antenna moves between targets
+    ants.req.drive_strategy(drive_strategy)
+    # Set the antenna target
+    ants.req.target(target)
 
     # Provide target to k7_writer, which will put it in data file (do this *before* changing compound scan ID...)
     ff.dbe.req.k7w_target(target)
@@ -318,27 +285,23 @@ def raster_scan(ff, ants, target, num_scans=3, scan_duration=20.0,
         if ff.dbe.sensor.capturing.get_value() == '0':
             ff.dbe.req.capture_start()
         # Send each antenna to the start position of the next scan
-        for ant_x in ants:
-            if scan_in_azimuth:
-                ant_x.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
-            else:
-                ant_x.req.scan_asym(scan[0], scan[1], scan[0], -scan[1], scan_duration)
-            ant_x.req.mode("POINT")
+        if scan_in_azimuth:
+            ants.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
+        else:
+            ants.req.scan_asym(scan[0], scan[1], scan[0], -scan[1], scan_duration)
+        ants.req.mode("POINT")
         # Wait until they are all in position (with 5 minute timeout)
-        for ant_x in ants:
-            ant_x.wait("lock", True, 300)
+        ants.wait("lock", True, 300)
 
         print "Starting scan %d of %d" % (scan_count + 1, len(scan_starts))
         # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
         ff.dbe.req.k7w_scan_id(2*scan_count + 1, "scan")
         # Start scanning the antennas
-        for ant_x in ants:
-            ant_x.req.mode("SCAN")
+        ants.req.mode("SCAN")
         # Wait until they are all finished scanning (with 5 minute timeout)
-        for ant_x in ants:
-            ant_x.wait("scan_status", "after", 300)
+        ants.wait("scan_status", "after", 300)
 
-def holography_scan(ff, track_ants, scan_ants, target, num_scans=3, scan_duration=20.0,
+def holography_scan(ff, all_ants, scan_ants, target, num_scans=3, scan_duration=20.0,
                     scan_extent=4.0, scan_spacing=0.5, compscan_id=0,
                     scan_in_azimuth=True, drive_strategy="shortest-slew"):
     """Perform holography scan on target.
@@ -374,15 +337,15 @@ def holography_scan(ff, track_ants, scan_ants, target, num_scans=3, scan_duratio
 
     Parameters
     ----------
-    ff : FFHost object
+    ff : :class:`ffuilib.utility.FFHost` object
         Fringe Finder connection object
-    track_ants : Antenna FFDevice object, list of objects
-        Antenna or list of antennas that will track target, as FFDevice objects,
-        e.g. ff.ant1 or [ff.ant1, ff.ant2]. These serve as reference antennas.
-    scan_ants : Antenna FFDevice object, list of objects, or 'rest'
-        Antenna or list of antennas that will scan across target, as FFDevice
-        objects, e.g. ff.ant1 or [ff.ant1, ff.ant2]. If this is 'rest', use all
-        antennas except the ones in *track_ants*.
+    all_ants : :class:`ffuilib.Array` object
+        List of all antennas that will track target (the *track_ants*) or scan
+        across target (the *scan_ants*), as an Array object containing antenna
+        devices
+    scan_ants : :class:`ffuilib.Array` object
+        Antenna or list of antennas that will scan across target, as an Array
+        object containing antenna devices
     target : string
         Target to scan across or track, as description string
     num_scans : integer, optional
@@ -408,24 +371,10 @@ def holography_scan(ff, track_ants, scan_ants, target, num_scans=3, scan_duratio
         thereby saving time.
 
     """
-    # Simple test if *track_ants* is an antenna device - put device in list for uniformity
-    if hasattr(track_ants, 'req'):
-        track_ants = [track_ants]
-    # Select all antennas
-    if scan_ants == 'rest':
-        # Lude's "day in the life of a Python coder" line
-        scan_ants = list(set(ff.ants.devs) - set(track_ants))
-    # Simple test if *ants* is an antenna device - put device in list for uniformity
-    elif hasattr(scan_ants, 'req'):
-        scan_ants = [scan_ants]
-    if len(set(scan_ants) & set(track_ants)) > 0:
-        raise ValueError('Scanning and tracking antenna lists overlap')
-    # Initialise antennas
-    for ant_x in scan_ants + track_ants:
-        # Set the drive strategy for how antenna moves between targets
-        ant_x.req.drive_strategy(drive_strategy)
-        # Set the antenna target (both scanning and tracking antennas have the same target)
-        ant_x.req.target(target)
+    # Set the drive strategy for how antenna moves between targets
+    all_ants.req.drive_strategy(drive_strategy)
+    # Set the antenna target (both scanning and tracking antennas have the same target)
+    all_ants.req.target(target)
 
     # Provide target to k7_writer, which will put it in data file (do this *before* changing compound scan ID...)
     ff.dbe.req.k7w_target(target)
@@ -451,27 +400,22 @@ def holography_scan(ff, track_ants, scan_ants, target, num_scans=3, scan_duratio
         if ff.dbe.sensor.capturing.get_value() == '0':
             ff.dbe.req.capture_start()
         # Set up scans for scanning antennas
-        for ant_x in scan_ants:
-            if scan_in_azimuth:
-                ant_x.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
-            else:
-                ant_x.req.scan_asym(scan[0], scan[1], scan[0], -scan[1], scan_duration)
+        if scan_in_azimuth:
+            scan_ants.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
+        else:
+            scan_ants.req.scan_asym(scan[0], scan[1], scan[0], -scan[1], scan_duration)
         # Send scanning antennas to start of next scan, and tracking antennas to target itself
-        for ant_x in scan_ants + track_ants:
-            ant_x.req.mode("POINT")
+        all_ants.req.mode("POINT")
         # Wait until they are all in position (with 5 minute timeout)
-        for ant_x in scan_ants + track_ants:
-            ant_x.wait("lock", True, 300)
+        all_ants.wait("lock", True, 300)
 
         print "Starting scan %d of %d" % (scan_count + 1, len(scan_starts))
         # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
         ff.dbe.req.k7w_scan_id(2*scan_count + 1, "scan")
         # Start scanning the scanning antennas (tracking antennas keep tracking in the background)
-        for ant_x in scan_ants:
-            ant_x.req.mode("SCAN")
+        scan_ants.req.mode("SCAN")
         # Wait until they are all finished scanning (with 5 minute timeout)
-        for ant_x in scan_ants:
-            ant_x.wait("scan_status", "after", 300)
+        scan_ants.wait("scan_status", "after", 300)
 
 def shutdown(ff):
     """Stop data capturing to shut down observation.
