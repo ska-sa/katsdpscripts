@@ -58,13 +58,13 @@ if __name__ == "__main__":
     usage = "usage: %prog [options]"
     parser = OptionParser(usage=usage)
 
-    parser.add_option('-r', '--rfe', dest='rfe', type="string", default="rfe", metavar='RFE',
+    parser.add_option('-r', '--rfe7', dest='rfe7', type="string", default="rfe7", metavar='RFE7',
                       help='Name of RFE proxy to attach to (default="%default") as per the configuration file')
     parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                       help='Telescope configuration file to use in conf directory (default="%default")')
-    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_rf_only", metavar='SELECTED',
+    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',
                       help='Selected configuration to use (default="%default")')
-    parser.add_option('-f', '--filter', dest='filter', type='string', default='rfe31', metavar='FILTER',
+    parser.add_option('-f', '--filter', dest='filter', type='string', default='rfe7', metavar='FILTER',
                       help='Filter on sensors to print (default="%default")')
     parser.add_option('-p', '--period', dest='period', type='float', default='500', metavar='PERIOD',
                       help='Refresh period in milliseconds (default="%default")')
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
 
     ff = ffui.tbuild(opts.ini_file, opts.selected_config)
-    rfe  = ff.__dict__[opts.rfe] # Lookup rfe key in ff dictionary
+    rfe7  = ff.__dict__[opts.rfe7] # Lookup rfe key in ff dictionary
 
     state = ["|","/","-","\\"]
     period_count = 0
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         clrscr()
         stdout_redirect()
         try:
-            rfe.req.device_list()
+            rfe7.req.device_list()
         finally:
             s = stdout_restore()
             sys.stdout.write("Number of devices "+s)
@@ -92,9 +92,9 @@ if __name__ == "__main__":
             print s
             print "Name".ljust(45),"Value".ljust(15)
             if opts.filter.startswith("all"):
-                sens = rfe.list_sensors(tuple=True)
+                sens = rfe7.list_sensors(tuple=True)
             else:
-                sens = rfe.list_sensors(opts.filter,tuple=True)
+                sens = rfe7.list_sensors(opts.filter,tuple=True)
             #Set strategies for these or do a get_value ?
             for s in sens:
                 name = s[0]
