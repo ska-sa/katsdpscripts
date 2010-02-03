@@ -132,8 +132,8 @@ def track(ff, ants, target, duration=20.0, compscan_id=0, drive_strategy="longes
     ants : :class:`ffuilib.Array` object
         Antenna or list of antennas that will perform tracks or scans, as an
         Array object containing antenna devices
-    target : string
-        Target to track, as description string
+    target : :class:`katpoint.Target` object or string
+        Target to track, as an object or description string
     duration : float, optional
         Minimum duration of track, in seconds
     compscan_id : integer, optional
@@ -145,6 +145,8 @@ def track(ff, ants, target, duration=20.0, compscan_id=0, drive_strategy="longes
         the target sets.
 
     """
+    # Turn target object into description string (or use string as is)
+    target = getattr(target, 'description', target)
     # Set the drive strategy for how antenna moves between targets
     ants.req.drive_strategy(drive_strategy)
     # Set the antenna target
@@ -222,8 +224,8 @@ def raster_scan(ff, ants, target, num_scans=3, scan_duration=20.0,
     ants : :class:`ffuilib.Array` object
         Antenna or list of antennas that will perform tracks or scans, as an
         Array object containing antenna devices
-    target : string
-        Target to scan across, as description string
+    target : :class:`katpoint.Target` object or string
+        Target to scan across, as an object or description string
     num_scans : integer, optional
         Number of scans across target (an odd number is better, as this will
         scan directly over the source during the middle scan)
@@ -256,6 +258,8 @@ def raster_scan(ff, ants, target, num_scans=3, scan_duration=20.0,
     qualitative scan for any position on the celestial sphere.
 
     """
+    # Turn target object into description string (or use string as is)
+    target = getattr(target, 'description', target)
     # Set the drive strategy for how antenna moves between targets
     ants.req.drive_strategy(drive_strategy)
     # Set the antenna target
@@ -346,8 +350,8 @@ def holography_scan(ff, all_ants, scan_ants, target, num_scans=3, scan_duration=
     scan_ants : :class:`ffuilib.Array` object
         Antenna or list of antennas that will scan across target, as an Array
         object containing antenna devices
-    target : string
-        Target to scan across or track, as description string
+    target : :class:`katpoint.Target` object or string
+        Target to scan across or track, as an object or description string
     num_scans : integer, optional
         Number of scans across target (an odd number is better, as this will
         scan directly over the source during the middle scan)
@@ -371,6 +375,8 @@ def holography_scan(ff, all_ants, scan_ants, target, num_scans=3, scan_duration=
         thereby saving time.
 
     """
+    # Turn target object into description string (or use string as is)
+    target = getattr(target, 'description', target)
     # Set the drive strategy for how antenna moves between targets
     all_ants.req.drive_strategy(drive_strategy)
     # Set the antenna target (both scanning and tracking antennas have the same target)
