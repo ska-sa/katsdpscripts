@@ -119,7 +119,7 @@ if __name__ == "__main__":
     files = ff.dbe.req.k7w_get_current_files(tuple=True)[1][2]
     print "Data captured to",files
     time.sleep(2)
-    ff.dbe.req.capture_stop("stream")
+    ff.dbe.req.capture_stop()
     ff.disconnect()
 
 # now augment the hdf5 file with metadata (pointing info etc):
