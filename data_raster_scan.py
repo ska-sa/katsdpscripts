@@ -56,27 +56,24 @@ if __name__ == "__main__":
     time.sleep(0.5)
     # cleanup any existing experiment
 
-    ff.dbe.req.k7w_target(tgt)
-    ff.dbe.req.target(tgt)
-    # let the data collector know the current target
-    ff.dbe.req.k7w_output_directory(ffui.defaults.ff_directories["data"])
+    # Start with a clean state, by stopping the DBE
+    ff.dbe.req.capture_stop()
+
+    # Set data output directory (typically on ff-dc machine)
+    ff.dbe.req.k7w_output_directory("/var/kat/data")
+    # Tell k7_writer to write the selected baselines to HDF5 files
+    baselines = [1, 2, 3]
+    ff.dbe.req.k7w_baseline_mask(*baselines)
     ff.dbe.req.k7w_write_hdf5(1)
-    ff.dbe.req.k7w_capture_start()
 
-    ff.dbe.req.dbe_packet_count(900)
-    # stream 10 minutes of data or until stop issued
-    ff.dbe.req.dbe_dump_rate(1)
-    # correlator dump rate set to 1 Hz
-    ff.dbe.req.dbe_capture_destination("stream","127.0.0.1:7010")
-    # create a new data source labelled "stream". Send data to localhost on port 7010
-    ff.dbe.req.dbe_capture_start("stream")
-    # start emitting data on stream "stream"
-
-###    for ant_x in ants:
-###        ant_x.sensor.pos_actual_scan_azim.register_listener(ff.dbe.req.dbe_pointing_az, 1.5)
-###        ant_x.sensor.pos_actual_scan_elev.register_listener(ff.dbe.req.dbe_pointing_el, 1.5)
-###        # when the sensor value changes send an update to the listening function. Rate limited to 0.5 second updates.
-
+    # This is a precaution to prevent bad timestamps from the correlator
+    ff.dbe.req.dbe_sync_now()
+    # The DBE proxy needs to know the dump rate as well as the effective LO freq, which is used for fringe stopping (eventually)
+    dump_rate = 1.0
+    centre_freq = 1800
+    effective_lo_freq = (centre_freq - 200.0) * 1e6
+    ff.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+    ff.dbe.req.capture_start()
 
     scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
     # raster scan
@@ -122,8 +119,7 @@ if __name__ == "__main__":
     files = ff.dbe.req.k7w_get_current_files(tuple=True)[1][2]
     print "Data captured to",files
     time.sleep(2)
-    ff.dbe.req.dbe_capture_stop("stream")
-    ff.dbe.req.k7w_capture_stop()
+    ff.dbe.req.capture_stop("stream")
     ff.disconnect()
 
 # now augment the hdf5 file with metadata (pointing info etc):
