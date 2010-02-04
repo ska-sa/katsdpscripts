@@ -41,6 +41,7 @@ if opts.printonly:
         print "Compound scan", compscan_id, "will observe", target.name
         compscan_id += 1
         start_time += 120.0
+    ff.disconnect()
 else:
     try:
         # The real experiment
