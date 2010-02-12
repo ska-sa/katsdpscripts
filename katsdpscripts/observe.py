@@ -30,16 +30,19 @@ class CaptureSession(object):
     ----------
     ff : :class:`utility.FFHost` object
         Fringe Finder connection object associated with this experiment
+    experiment_id : string
+        Experiment ID, a unique string used to link the data files of an
+        experiment together with blog entries, etc.
+    observer : string
+        Name of person doing the observation
+    description : string
+        Short description of the purpose of the capturing session
     ants : :class:`Array` or :class:`FFDevice` object, or list, or string
         Antennas that will participate in the capturing session, as an Array
         object containing antenna devices, or a single antenna device or a
         list of antenna devices, or a string of comma-separated antenna
         names, or the string 'all' for all antennas controlled via the
         Fringe Finder connection associated with this session
-    observer : string
-        Name of person doing the observation
-    description : string
-        Short description of the purpose of the capturing session
     centre_freq : float, optional
         RF centre frequency, in MHz
     dump_rate : float, optional
@@ -51,20 +54,11 @@ class CaptureSession(object):
         If antenna with a specified name is not found on FF connection object
 
     """
-    def __init__(self, ff, ants, observer, description, centre_freq=1800.0, dump_rate=1.0):
+    def __init__(self, ff, experiment_id, observer, description, ants,
+                 centre_freq=1800.0, dump_rate=1.0):
         self.ff = ff
         self.ants = ants = self.subarray(ants)
-        # Create list of baselines, based on the selected antennas
-        # (1 = ant1-ant1 autocorr, 2 = ant1-ant2 cross-corr, 3 = ant2-ant2 autocorr)
-        # This determines which HDF5 files are created
-        if ff.ant1 in ants.devs and ff.ant2 in ants.devs:
-            baselines = [1, 2, 3]
-        elif ff.ant1 in ants.devs and ff.ant2 not in ants.devs:
-            baselines = [1]
-        elif ff.ant1 not in ants.devs and ff.ant2 in ants.devs:
-            baselines = [3]
-        else:
-            baselines = []
+        self.experiment_id = experiment_id
 
         # Start with a clean state, by stopping the DBE
         ff.dbe.req.capture_stop()
@@ -75,15 +69,24 @@ class CaptureSession(object):
 
         # Set data output directory (typically on ff-dc machine)
         ff.dbe.req.k7w_output_directory("/var/kat/data")
-        # Tell k7_writer to write the selected baselines to HDF5 files
-        ff.dbe.req.k7w_baseline_mask(*baselines)
+        # Enable output to HDF5 file, and set basic experimental info
         ff.dbe.req.k7w_write_hdf5(1)
+        ff.dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
         # This is a precaution to prevent bad timestamps from the correlator
         ff.dbe.req.dbe_sync_now()
         # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
-        # which is used for fringe stopping (eventually)
+        # which is used for fringe stopping (eventually). This sets the delay model and other
+        # correlator parameters, such as the dump rate, and instructs the correlator to pass
+        # its data to the k7writer daemon (set via configuration)
         ff.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+
+        print "New data capturing session"
+        print "--------------------------"
+        print "Experiment ID =", experiment_id
+        print "Observer =", observer
+        print "Description ='%s'" % description
+        print "RF centre frequency = %g MHz, dump rate = %g Hz" % (centre_freq, dump_rate)
 
     def __enter__(self):
         """Enter the data capturing session."""
@@ -596,3 +599,4 @@ class CaptureSession(object):
 
         # Stop the data capture (which closes the HDF5 file)
         ff.dbe.req.capture_stop()
+        print 'Ended data capturing session with experiment ID', self.experiment_id
