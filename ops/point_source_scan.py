@@ -19,14 +19,12 @@ parser.add_option('-s', '--selected_config', dest='selected_config', type="strin
 parser.add_option('-u', '--experiment_id', dest='experiment_id', type="string",
                   help='Experiment ID used to link various parts of experiment together (randomly generated UUID by default)')
 parser.add_option('-o', '--observer', dest='observer', type="string", help='Name of person doing the observation')
-parser.add_option('-d', '--description', dest='description', type="string", default="Raster scan",
+parser.add_option('-d', '--description', dest='description', type="string", default="Point source scan",
                   help='Description of observation (default="%default")')
 parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                   help="Comma-separated list of antennas to include in scan (e.g. 'ant1,ant2')," +
                        " or 'all' for all antennas - this MUST be specified (safety reasons)")
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
-                  help='Centre frequency, in MHz (default="%default")')
-parser.add_option('-t', '--target', dest='target', type="string", default='Takreem, azel, 20, 30',
                   help='Centre frequency, in MHz (default="%default")')
 (opts, args) = parser.parse_args()
 
@@ -50,7 +48,9 @@ pointing_sources = ff.sources.filter(tags='radec')
 
 # Create a data capturing session with the selected sub-array of antennas
 with CaptureSession(ff, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
-    # Do raster scan on target, designed to have equal spacing in azimuth and elevation, for a "classic" look
-    session.raster_scan(opts.target, num_scans=17, scan_duration=16, scan_extent=2, scan_spacing=0.125)
-    # Fire noise diode, to allow gain calibration
-    session.fire_noise_diode('coupler')
+    # Iterate through source list, picking the next one that is up
+    for target in pointing_sources.iterfilter(el_limit_deg=5):
+        # Do standard raster scan on target
+        session.raster_scan(target)
+        # Fire noise diode, to allow gain calibration
+        session.fire_noise_diode('coupler')

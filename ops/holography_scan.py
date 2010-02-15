@@ -1,24 +1,21 @@
 import katpoint
 import ffuilib
-import ffobserve
+from ffuilib import CaptureSession
+import uuid
 
 ff = ffuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
 
 cat = katpoint.Catalogue(file('/var/kat/conf/source_list.csv'), add_specials=False, antenna=ff.sources.antenna)
 cat.remove('Zenith')
 cat.add('Jupiter, special')
-scan_ants = ffuilib.Array('scan_ants', [ff.ant2])
 all_ants = ffuilib.Array('ants', [ff.ant1, ff.ant2])
+scan_ants = ffuilib.Array('scan_ants', [ff.ant2])
 
-ffobserve.setup(ff, all_ants)
-compscan_id = 0
-for target in cat.iterfilter(el_limit_deg=5):
-    if not target.name.endswith('A'):
-        continue
-    ffobserve.holography_scan(ff, all_ants, scan_ants, target.description, compscan_id=compscan_id)
-    compscan_id += 1
-    if compscan_id >= 10:
-        break
-ffobserve.shutdown(ff)
+with CaptureSession(ff, str(uuid.uuid4()), 'ffuser', 'Holography example', all_ants) as session:
 
-ff.disconnect()
+    for compscan, target in enumerate(cat.iterfilter(el_limit_deg=5)):
+        if not target.name.endswith('A'):
+            continue
+        session.holography_scan(scan_ants, target)
+        if compscan >= 10:
+            break

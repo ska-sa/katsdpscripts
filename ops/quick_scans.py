@@ -1,6 +1,7 @@
 import katpoint
 import ffuilib
-import ffobserve
+from ffuilib import CaptureSession
+import uuid
 
 ff = ffuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
 
@@ -8,11 +9,7 @@ cat = katpoint.Catalogue(file('/var/kat/conf/source_list.csv'), add_specials=Fal
 cat.remove('Zenith')
 cat.add('Jupiter, special')
 
-ffobserve.observation_setup(ff)
-compscan_id = 0
-for target in cat.iterfilter(el_limit_deg=5):
-    ffobserve.raster_scan(ff, target.description, 3, compscan_id=compscan_id)
-    compscan_id += 1
-ffobserve.observation_shutdown(ff)
+with CaptureSession(ff, str(uuid.uuid4()), 'ffuser', 'Quick scan example', ff.ants) as session:
 
-ff.disconnect()
+    for target in cat.iterfilter(el_limit_deg=5):
+        session.raster_scan(target)
