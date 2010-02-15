@@ -9,7 +9,7 @@ cat = katpoint.Catalogue(file('/var/kat/conf/source_list.csv'), add_specials=Fal
 cat.remove('Zenith')
 cat.add('Jupiter, special')
 
-with CaptureSession(ff, str(uuid.uuid4()), 'ffuser', 'Baseline calibration example', ff.ants) as session:
+with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'Baseline calibration example', ff.ants) as session:
 
     for target in cat.iterfilter(el_limit_deg=5):
         session.track(target, duration=60.0, drive_strategy='shortest-slew')

@@ -11,7 +11,7 @@ cat.add('Jupiter, special')
 all_ants = ffuilib.Array('ants', [ff.ant1, ff.ant2])
 scan_ants = ffuilib.Array('scan_ants', [ff.ant2])
 
-with CaptureSession(ff, str(uuid.uuid4()), 'ffuser', 'Holography example', all_ants) as session:
+with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'Holography example', all_ants) as session:
 
     for compscan, target in enumerate(cat.iterfilter(el_limit_deg=5)):
         if not target.name.endswith('A'):

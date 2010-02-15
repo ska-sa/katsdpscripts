@@ -14,7 +14,7 @@ targets = [
     katpoint.construct_azel_target(math.radians(0.0), math.radians(20.0)),
 ]
 
-with CaptureSession(ff, str(uuid.uuid4()), 'ffuser', 'RFI data collection', ff.ants) as session:
+with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'RFI data collection', ff.ants) as session:
 
     ff.dbe.req.k7w_write_raw(1)
 
