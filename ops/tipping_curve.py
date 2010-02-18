@@ -47,7 +47,7 @@ if opts.experiment_id is None:
 kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 
 # Create a data capturing session with the selected sub-array of antennas
-with CaptureSession(ff, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
     # Iterate through elevation angles
     for el in [2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90]:
         session.track('azel, %f, %f' % (opts.az, el), duration=15.0)

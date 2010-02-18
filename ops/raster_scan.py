@@ -10,7 +10,7 @@ import uuid
 
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
-parser = optparse.OptionParser(usage="usage: %prog [options]")
+parser = optparse.OptionParser(usage="%prog [options] <'target 1'> [<'target 2'> ...]")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
@@ -26,10 +26,11 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                        " or 'all' for all antennas - this MUST be specified (safety reasons)")
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
-parser.add_option('-t', '--target', dest='target', type="string", default='Takreem, azel, 20, 30',
-                  help='Centre frequency, in MHz (default="%default")')
 (opts, args) = parser.parse_args()
 
+if len(args) == 0:
+    print "Please specify at least one target argument (via name, e.g. 'Cygnus A' or description, e.g. 'azel, 20, 30')"
+    sys.exit(1)
 # Various non-optional options...
 if opts.ants is None:
     print 'Please specify the antennas to use via -a option (yes, this is a non-optional option...)'
@@ -45,12 +46,27 @@ if opts.experiment_id is None:
 # This connects to all the proxies and devices and queries their commands and sensors
 kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 
-# Specify pointing calibrator catalogue (currently picks all radec sources from the standard list)
-pointing_sources = kat.sources.filter(tags='radec')
+# Look up target names in catalogue, and keep target description strings as is
+targets = []
+for arg in args:
+    # With no comma in the target string, assume it's the name of a target to be looked up in the standard catalogue
+    if arg.find(',') < 0:
+        target = kat.sources[arg]
+        if target is None:
+            print "Unknown source '%s', skipping it" % (arg,)
+        else:
+            targets.append(target)
+    else:
+        # Assume the argument is a target description string
+        targets.append(arg)
+if len(targets) == 0:
+    print "No known targets found"
+    sys.exit(1)
 
 # Create a data capturing session with the selected sub-array of antennas
-with CaptureSession(ff, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
-    # Do raster scan on target, designed to have equal spacing in azimuth and elevation, for a "classic" look
-    session.raster_scan(opts.target, num_scans=17, scan_duration=16, scan_extent=2, scan_spacing=0.125)
-    # Fire noise diode, to allow gain calibration
-    session.fire_noise_diode('coupler')
+with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+    for target in targets:
+        # Do raster scan on target, designed to have equal spacing in azimuth and elevation, for a "classic" look
+        session.raster_scan(target, num_scans=17, scan_duration=16, scan_extent=2, scan_spacing=0.125)
+        # Fire noise diode, to allow gain calibration
+        session.fire_noise_diode('coupler')
