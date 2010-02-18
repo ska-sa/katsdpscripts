@@ -17,7 +17,7 @@ import math
 
 import katpoint
 
-# Build Fringe Finder configuration, as specified in user-facing config file
+# Build KAT configuration, as specified in user-facing config file
 # The specific configuration is one that runs locally with DBE simulator included
 # This connects to all the proxies and devices and queries their commands and sensors
 # TODO: check that the pointing sources are configured!!

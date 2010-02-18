@@ -23,7 +23,7 @@ if opts.ants is None:
     print 'Please specify the antennas to use via -a option (yes, this is a non-optional option..., -h for help)'
     sys.exit(1)
 
-# Build Fringe Finder configuration, as specified in user-facing config file
+# Build KAT configuration, as specified in user-facing config file
 # This connects to all the proxies and devices and queries their commands and sensors
 kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 

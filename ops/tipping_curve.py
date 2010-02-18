@@ -42,7 +42,7 @@ if opts.experiment_id is None:
     # Generate unique string via RFC 4122 version 1
     opts.experiment_id = str(uuid.uuid1())
 
-# Build Fringe Finder configuration, as specified in user-facing config file
+# Build KAT configuration, as specified in user-facing config file
 # This connects to all the proxies and devices and queries their commands and sensors
 kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 

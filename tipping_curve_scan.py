@@ -5,7 +5,7 @@ import katuilib
 import time
 import numpy as np
 
-# Build Fringe Finder configuration, as specified in user-facing config file
+# Build KAT configuration, as specified in user-facing config file
 # The specific configuration is one that runs locally with DBE simulator included
 # This connects to all the proxies and devices and queries their commands and sensors
 kat = katuilib.tbuild('cfg-local.ini', 'local_ff')

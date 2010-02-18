@@ -1,4 +1,4 @@
-"""Set of useful routines to do standard observations with Fringe Finder."""
+"""Set of useful routines to do standard observations with KAT."""
 
 import numpy as np
 import time
@@ -43,7 +43,7 @@ class CaptureSession(object):
     Parameters
     ----------
     kat : :class:`utility.KATHost` object
-        Fringe Finder connection object associated with this experiment
+        KAT connection object associated with this experiment
     experiment_id : string
         Experiment ID, a unique string used to link the data files of an
         experiment together with blog entries, etc.
@@ -56,7 +56,7 @@ class CaptureSession(object):
         object containing antenna devices, or a single antenna device or a
         list of antenna devices, or a string of comma-separated antenna
         names, or the string 'all' for all antennas controlled via the
-        Fringe Finder connection associated with this session
+        KAT connection associated with this session
     centre_freq : float, optional
         RF centre frequency, in MHz
     dump_rate : float, optional
@@ -121,7 +121,7 @@ class CaptureSession(object):
             Antennas specified by an Array object containing antenna devices, or
             a single antenna device or a list of antenna devices, or a string of
             comma-separated antenna names, or the string 'all' for all antennas
-            controlled via the Fringe Finder connection associated with this
+            controlled via the KAT connection associated with this
             session
 
         Returns

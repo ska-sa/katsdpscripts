@@ -3,7 +3,7 @@
 #
 # This modifies checkCalcServer (checkcalc.c) as part of the check.
 #
-# Also check the fringe rates of first fringes on Fringe Finder.
+# Also check the fringe rates of first fringes on KAT.
 #
 # Ludwig Schwardt
 # 1 December 2009
@@ -79,10 +79,10 @@ print 'Delay error = %g ns (%g %%)' % ((geom_delay - delay_calc) * 1e9,
 print 'Delay rate error = %g sec / sec (%g %%)' % (delay_rate - delay_rate_calc,
                                                    100 * (delay_rate / delay_rate_calc - 1.0))
 
-# Next, try some Fringe Finder specific settings
+# Next, try some KAT specific settings
 ################################################
 
-# Pick Fringe Finder antennas 1 and 2 as Stations A and B, respectively
+# Pick KAT antennas 1 and 2 as Stations A and B, respectively
 ref_lla = '-30:43:17.34, 21:24:38.46, 1038.0'
 ant_a = katpoint.construct_antenna('FF1, %s, 12.0, 18.4, -8.7, 0.0' % ref_lla)
 ant_b = katpoint.construct_antenna('FF2, %s, 12.0, 86.2, 25.5, 0.0' % ref_lla)
@@ -229,7 +229,7 @@ def jinc(x):
     j[nonzero_x] = 2 * sp.j1(np.pi * x[nonzero_x]) / (np.pi * x[nonzero_x])
     return j
 
-# Use Fringe Finder antennas 1 and 2
+# Use KAT antennas 1 and 2
 ref_lla = '-30:43:17.34, 21:24:38.46, 1038.0'
 ant1 = katpoint.construct_antenna('FF1, %s, 12.0, 18.4, -8.7, 0.0' % ref_lla)
 ant2 = katpoint.construct_antenna('FF2, %s, 12.0, 86.2, 25.5, 0.0' % ref_lla)
