@@ -1,21 +1,21 @@
 import katpoint
-import ffuilib
-from ffuilib import CaptureSession
+import katuilib
+from katuilib import CaptureSession
 import uuid
 import time
 
-ff = ffuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
+kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
 
 with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'Noise diode testing',
-                    ff.ants, centre_freq=1822, dump_rate=512.0 / 1000.0):
+                    kat.ants, centre_freq=1822, dump_rate=512.0 / 1000.0):
 
-    ff.peds.req.rfe3_rfe15_noise_source_on("coupler", 1, "now", 1, 10240, 0.5)
+    kat.peds.req.rfe3_rfe15_noise_source_on("coupler", 1, "now", 1, 10240, 0.5)
 
-    ff.ants.req.target(ff.sources["Zenith"].description)
-    ff.ants.req.mode("POINT")
-    ff.ants.wait("lock", True, 300)
+    kat.ants.req.target(kat.sources["Zenith"].description)
+    kat.ants.req.mode("POINT")
+    kat.ants.wait("lock", True, 300)
 
-    ff.dbe.req.capture_start()
+    kat.dbe.req.capture_start()
 
     # let the capture run for approximately 1 hour
     time.sleep(60.0 * 60)

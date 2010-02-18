@@ -4,15 +4,15 @@ import scape
 import pylab as pl
 import os
 import sys
-import ffuilib as ffui
+import katuilib as katui
 
 data_file = ""
-p = os.listdir(ffui.defaults.ff_directories["data"])
+p = os.listdir(katui.defaults.kat_directories["data"])
 # p.sort(reverse=True)
 while p:
     x = p.pop() # pops off the bottom of the list
     if x.endswith("001.h5"):
-        data_file = ffui.defaults.ff_directories["data"] + "/" + x
+        data_file = katui.defaults.kat_directories["data"] + "/" + x
         break
 
 print "Reducing data file",data_file

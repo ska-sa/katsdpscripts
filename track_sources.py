@@ -1,13 +1,13 @@
 #!/usr/bin/python
 # Track sources all around the sky (mostly to keep tourists or antennas amused)
 
-import ffuilib
+import katuilib
 from optparse import OptionParser
 import sys
 import time
 
 # Parse command-line options that allow the defaults to be overridden
-# Default FF configuration is *local*, to prevent inadvertent use of the real hardware
+# Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
 parser = OptionParser(usage="usage: %prog [options]")
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
@@ -25,14 +25,14 @@ if opts.ants is None:
 
 # Build Fringe Finder configuration, as specified in user-facing config file
 # This connects to all the proxies and devices and queries their commands and sensors
-ff = ffuilib.tbuild(opts.ini_file, opts.selected_config)
+kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 
 # Create a list of the specified antenna devices, and complain if they are not found
 if opts.ants.strip() == 'all':
-    ants = ff.ants
+    ants = kat.ants
 else:
     try:
-        ants = ffuilib.Array('ants', [getattr(ff, ant_x.strip()) for ant_x in opts.ants.split(",")])
+        ants = katuilib.Array('ants', [getattr(ff, ant_x.strip()) for ant_x in opts.ants.split(",")])
     except AttributeError:
         raise ValueError("Antenna '%s' not found" % ant_x)
 
@@ -46,7 +46,7 @@ ants.req.drive_strategy("shortest-slew")
 
 # get sources from catalogue that are in specified elevation range. Antenna will get
 # as close as possible to targets which are out of drivable range.
-cat = ff.sources
+cat = kat.sources
 # remove some very strong sources
 cat.remove('Sun')
 cat.remove('AFRISTAR')
@@ -90,4 +90,4 @@ finally:
     # exit
     print "setting drive-strategy back to the default"
     ants.req.drive_strategy("longest-track") # set back to the default
-    ff.disconnect()
+    kat.disconnect()

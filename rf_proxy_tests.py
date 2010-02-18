@@ -1,18 +1,18 @@
-import ffuilib as ffui
+import katuilib as katui
 # An example script for accessing and controlling RF device and pedX devices: Cryo, RFE3, RFE5, RFE7
 
-ff = ffui.tbuild("cfg-local.ini", "local_ff")
+kat = katui.tbuild("cfg-local.ini", "local_ff")
 
 ##################################
 #Add rf and pedX proxy tests here
 ##################################
 
-rfe7 = ff.__dict__["rfe7"] # Lookup rfe7 key in ff dictionary
-ped1 = ff.__dict__["ped1"] # Lookup ped1 key in ff dictionary
-ped2 = ff.__dict__["ped2"] # Lookup ped2 key in ff dictionary
+rfe7 = kat.__dict__["rfe7"] # Lookup rfe7 key in kat dictionary
+ped1 = kat.__dict__["ped1"] # Lookup ped1 key in kat dictionary
+ped2 = kat.__dict__["ped2"] # Lookup ped2 key in kat dictionary
 
 print "".ljust(50,"=")
-print "ACCESS THROUGH ffuilib - SENSORS"
+print "ACCESS THROUGH katuilib - SENSORS"
 print "".ljust(50,"=")
 
 # List specific sensor
@@ -25,12 +25,12 @@ ped1.list_sensors("rfe3",strategy=True)
 sens_list = ped2.list_sensors(filter="cryo", tuple=True)
 
 print "".ljust(50,"=")
-print "ACCESS THROUGH ffuilib - REQUESTS"
+print "ACCESS THROUGH katuilib - REQUESTS"
 print "".ljust(50,"=")
 
 # List all
-ff.ped1.req.sensor_list()
-# ff.peds.req.sensor_list()
+kat.ped1.req.sensor_list()
+# kat.peds.req.sensor_list()
 
 # Requests filtered, and returned in tuple
 ped1.list_requests("noise")
@@ -41,7 +41,7 @@ ped1.list_requests(filter="lna", tuple=True)
 # req_list = rfe.list_requests(filter="lna", tuple=True)
 
 print "".ljust(50,"=")
-print "ACCESS THROUGH ffuilib - STRATEGIES"
+print "ACCESS THROUGH katuilib - STRATEGIES"
 print "".ljust(50,"=")
 
 # Set all cryo1 sensors to periodic 2000
@@ -61,9 +61,9 @@ print "".ljust(50,"=")
 
 # katcp - request help
 ped1.req.help()
-# ff.peds.req.help()
+# kat.peds.req.help()
 ped1.req.help("sensor-value")
-# ff.peds.req.help("sensor-value")
+# kat.peds.req.help("sensor-value")
 
 print "".ljust(50,"=")
 print "katcp - SENSOR LIST"
@@ -98,7 +98,7 @@ print "".ljust(50,"=")
 
 # Switch all on
 ped1.req.rfe3_psu_on(1)
-# ff.peds.req.rfe3_psu_on(1) # To Check
+# kat.peds.req.rfe3_psu_on(1) # To Check
 # rfe.req.rfe3_psu_on("all",1)
 
 # Switch specific instance off
@@ -131,5 +131,5 @@ ped1.req.log_level("cryo")
 ped1.req.log_level("cryo", "warn")
 
 # exit
-ff.disconnect()
+kat.disconnect()
 

@@ -1,13 +1,13 @@
 import katpoint
-import ffuilib
-from ffuilib import CaptureSession
+import katuilib
+from katuilib import CaptureSession
 
 import uuid
 from optparse import OptionParser
 import sys
 
 # Parse command-line options that allow the defaults to be overridden
-# Default FF configuration is *local*, to prevent inadvertent use of the real hardware
+# Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
 parser = OptionParser(usage="usage: %prog [options]")
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
@@ -36,13 +36,13 @@ if opts.experiment_id is None:
     # Generate unique string via RFC 4122 version 1
     opts.experiment_id = str(uuid.uuid1())
 
-ff = ffuilib.tbuild(opts.ini_file, opts.selected_config)
+kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 
 # Prune the standard catalogue to only contain sources that are good for baseline calibration
 great_sources = ['3C123', 'Taurus A', 'Orion A', 'Hydra A', '3C273', 'Virgo A', 'Centaurus A', 'Pictoris A']
 good_sources =  ['3C48', '3C84', 'J0408-6545', 'J0522-3627', '3C161', 'J1819-6345', 'J1939-6342', '3C433', 'J2253+1608']
-good_cat = katpoint.Catalogue([ff.sources[src] for src in great_sources + good_sources],
-                              add_specials=False, antenna=ff.sources.antenna)
+good_cat = katpoint.Catalogue([kat.sources[src] for src in great_sources + good_sources],
+                              add_specials=False, antenna=kat.sources.antenna)
 
 start_time = katpoint.Timestamp()
 

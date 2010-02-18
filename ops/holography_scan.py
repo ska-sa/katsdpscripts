@@ -1,15 +1,15 @@
 import katpoint
-import ffuilib
-from ffuilib import CaptureSession
+import katuilib
+from katuilib import CaptureSession
 import uuid
 
-ff = ffuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
+kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
 
-cat = katpoint.Catalogue(file('/var/kat/conf/source_list.csv'), add_specials=False, antenna=ff.sources.antenna)
+cat = katpoint.Catalogue(file('/var/kat/conf/source_list.csv'), add_specials=False, antenna=kat.sources.antenna)
 cat.remove('Zenith')
 cat.add('Jupiter, special')
-all_ants = ffuilib.Array('ants', [ff.ant1, ff.ant2])
-scan_ants = ffuilib.Array('scan_ants', [ff.ant2])
+all_ants = katuilib.Array('ants', [kat.ant1, kat.ant2])
+scan_ants = katuilib.Array('scan_ants', [kat.ant2])
 
 with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'Holography example', all_ants) as session:
 

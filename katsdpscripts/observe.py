@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 from .array import Array
-from .katcp_client import FFDevice
+from .katcp_client import KATDevice
 
 # Ripped from katpoint.construct_target, to avoid extra dependencies
 def preferred_name(description):
@@ -42,7 +42,7 @@ class CaptureSession(object):
 
     Parameters
     ----------
-    ff : :class:`utility.FFHost` object
+    kat : :class:`utility.KATHost` object
         Fringe Finder connection object associated with this experiment
     experiment_id : string
         Experiment ID, a unique string used to link the data files of an
@@ -51,7 +51,7 @@ class CaptureSession(object):
         Name of person doing the observation
     description : string
         Short description of the purpose of the capturing session
-    ants : :class:`Array` or :class:`FFDevice` object, or list, or string
+    ants : :class:`Array` or :class:`KATDevice` object, or list, or string
         Antennas that will participate in the capturing session, as an Array
         object containing antenna devices, or a single antenna device or a
         list of antenna devices, or a string of comma-separated antenna
@@ -65,35 +65,35 @@ class CaptureSession(object):
     Raises
     ------
     ValueError
-        If antenna with a specified name is not found on FF connection object
+        If antenna with a specified name is not found on KAT connection object
 
     """
-    def __init__(self, ff, experiment_id, observer, description, ants,
+    def __init__(self, kat, experiment_id, observer, description, ants,
                  centre_freq=1800.0, dump_rate=1.0):
-        self.ff = ff
+        self.kat = kat
         self.ants = ants = self.subarray(ants)
         self.experiment_id = experiment_id
 
         # Start with a clean state, by stopping the DBE
-        ff.dbe.req.capture_stop()
+        kat.dbe.req.capture_stop()
 
         # Set centre frequency in RFE stage 7
-        ff.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
+        kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
         effective_lo_freq = (centre_freq - 200.0) * 1e6
 
         # Set data output directory (typically on ff-dc machine)
-        ff.dbe.req.k7w_output_directory("/var/kat/data")
+        kat.dbe.req.k7w_output_directory("/var/kat/data")
         # Enable output to HDF5 file, and set basic experimental info
-        ff.dbe.req.k7w_write_hdf5(1)
-        ff.dbe.req.k7w_experiment_info(experiment_id, observer, description)
+        kat.dbe.req.k7w_write_hdf5(1)
+        kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
         # This is a precaution to prevent bad timestamps from the correlator
-        ff.dbe.req.dbe_sync_now()
+        kat.dbe.req.dbe_sync_now()
         # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
         # which is used for fringe stopping (eventually). This sets the delay model and other
         # correlator parameters, such as the dump rate, and instructs the correlator to pass
         # its data to the k7writer daemon (set via configuration)
-        ff.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+        kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
 
         print "New data capturing session"
         print "--------------------------"
@@ -117,7 +117,7 @@ class CaptureSession(object):
 
         Parameters
         ----------
-        ants : :class:`Array` or :class:`FFDevice` object, or list, or string
+        ants : :class:`Array` or :class:`KATDevice` object, or list, or string
             Antennas specified by an Array object containing antenna devices, or
             a single antenna device or a list of antenna devices, or a string of
             comma-separated antenna names, or the string 'all' for all antennas
@@ -132,21 +132,21 @@ class CaptureSession(object):
         Raises
         ------
         ValueError
-            If antenna with a specified name is not found on FF connection object
+            If antenna with a specified name is not found on KAT connection object
 
         """
         if isinstance(ants, Array):
             return ants
-        elif isinstance(ants, FFDevice):
+        elif isinstance(ants, KATDevice):
             return Array('ants', [ants])
         elif isinstance(ants, basestring):
             if ants.strip() == 'all':
-                return self.ff.ants
+                return self.kat.ants
             else:
                 try:
-                    return Array('ants', [getattr(self.ff, ant.strip()) for ant in ants.split(',')])
+                    return Array('ants', [getattr(self.kat, ant.strip()) for ant in ants.split(',')])
                 except AttributeError:
-                    raise ValueError("Antenna '%s' not found (i.e. no ff.%s exists)" % (ant, ant))
+                    raise ValueError("Antenna '%s' not found (i.e. no kat.%s exists)" % (ant, ant))
         else:
             # The default assumes that *ants* is a list of antenna devices
             return Array('ants', ants)
@@ -178,19 +178,19 @@ class CaptureSession(object):
             Duration for which diode is switched off, in seconds
 
         """
-        # Create reference to FF object and antennas, as this allows easy copy-and-pasting from this function
-        ff, ants = self.ff, self.ants
+        # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
+        kat, ants = self.kat, self.ants
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
-        pedestals = Array('peds', [getattr(ff, 'ped' + ant.name[3:]) for ant in ants.devs])
+        pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
         print "Firing '%s' noise diode" % (diode,)
         # Create a new Scan group in HDF5 file, with 'cal' label
-        ff.dbe.req.k7w_new_scan('cal')
+        kat.dbe.req.k7w_new_scan('cal')
         # Switch noise diode on on all antennas
         pedestals.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
         # If we haven't yet, start recording data from the correlator
-        if ff.dbe.sensor.capturing.get_value() == '0':
-            ff.dbe.req.capture_start()
+        if kat.dbe.sensor.capturing.get_value() == '0':
+            kat.dbe.req.capture_start()
         time.sleep(on_duration)
         # Switch noise diode off on all antennas
         pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
@@ -232,8 +232,8 @@ class CaptureSession(object):
             Label for compound scan, usually a single computer-parseable word
 
         """
-        # Create reference to FF object and antennas, as this allows easy copy-and-pasting from this function
-        ff, ants = self.ff, self.ants
+        # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
+        kat, ants = self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
@@ -242,14 +242,14 @@ class CaptureSession(object):
         # Set the antenna target (antennas will already move there if in mode 'POINT')
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
-        ff.dbe.req.target(target)
+        kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates a Scan group with label 'slew'
-        ff.dbe.req.k7w_new_compound_scan(target, label, 'slew')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew')
 
         print "Slewing to target '%s'" % (preferred_name(target),)
         # If we haven't yet, start recording data from the correlator
-        if ff.dbe.sensor.capturing.get_value() == '0':
-            ff.dbe.req.capture_start()
+        if kat.dbe.sensor.capturing.get_value() == '0':
+            kat.dbe.req.capture_start()
         # Start moving each antenna to the target
         ants.req.mode('POINT')
         # Wait until they are all in position (with 5 minute timeout)
@@ -257,7 +257,7 @@ class CaptureSession(object):
 
         print "Tracking target '%s'" % (preferred_name(target),)
         # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
-        ff.dbe.req.k7w_new_scan('scan')
+        kat.dbe.req.k7w_new_scan('scan')
         # Do nothing else for the duration of the track
         time.sleep(duration)
 
@@ -320,8 +320,8 @@ class CaptureSession(object):
         qualitative scan for any position on the celestial sphere.
 
         """
-        # Create reference to FF object and antennas, as this allows easy copy-and-pasting from this function
-        ff, ants = self.ff, self.ants
+        # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
+        kat, ants = self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
@@ -330,14 +330,14 @@ class CaptureSession(object):
         # Set the antenna target
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
-        ff.dbe.req.target(target)
+        kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates a Scan group with label 'slew'
-        ff.dbe.req.k7w_new_compound_scan(target, label, 'slew')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew')
 
         print "Slewing to start of scan across target '%s'" % (preferred_name(target),)
         # If we haven't yet, start recording data from the correlator
-        if ff.dbe.sensor.capturing.get_value() == '0':
-            ff.dbe.req.capture_start()
+        if kat.dbe.sensor.capturing.get_value() == '0':
+            kat.dbe.req.capture_start()
         # Move each antenna to the start position of the scan
         if scan_in_azimuth:
             ants.req.scan_asym(start, 0.0, end, 0.0, duration)
@@ -349,7 +349,7 @@ class CaptureSession(object):
 
         print "Starting scan across target '%s'" % (preferred_name(target),)
         # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
-        ff.dbe.req.k7w_new_scan('scan')
+        kat.dbe.req.k7w_new_scan('scan')
         # Start scanning the antennas
         ants.req.mode('SCAN')
         # Wait until they are all finished scanning (with 5 minute timeout)
@@ -425,8 +425,8 @@ class CaptureSession(object):
         qualitative scan for any position on the celestial sphere.
 
         """
-        # Create reference to FF object and antennas, as this allows easy copy-and-pasting from this function
-        ff, ants = self.ff, self.ants
+        # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
+        kat, ants = self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
@@ -435,9 +435,9 @@ class CaptureSession(object):
         # Set the antenna target
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
-        ff.dbe.req.target(target)
+        kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates a Scan group with label 'slew'
-        ff.dbe.req.k7w_new_compound_scan(target, label, 'slew')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew')
 
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
@@ -453,10 +453,10 @@ class CaptureSession(object):
                                                                         preferred_name(target))
             # Create a new Scan group in HDF5 file, with 'slew' label (not necessary the first time)
             if scan_count > 0:
-                ff.dbe.req.k7w_new_scan('slew')
+                kat.dbe.req.k7w_new_scan('slew')
             # If we haven't yet, start recording data from the correlator
-            if ff.dbe.sensor.capturing.get_value() == '0':
-                ff.dbe.req.capture_start()
+            if kat.dbe.sensor.capturing.get_value() == '0':
+                kat.dbe.req.capture_start()
             # Move each antenna to the start position of the next scan
             if scan_in_azimuth:
                 ants.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
@@ -468,7 +468,7 @@ class CaptureSession(object):
 
             print "Starting scan %d of %d on target '%s'" % (scan_count + 1, len(scan_starts), preferred_name(target))
             # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
-            ff.dbe.req.k7w_new_scan('scan')
+            kat.dbe.req.k7w_new_scan('scan')
             # Start scanning the antennas
             ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
@@ -507,7 +507,7 @@ class CaptureSession(object):
 
         Parameters
         ----------
-        scan_ants : :class:`Array` or :class:`FFDevice` object, or list or string
+        scan_ants : :class:`Array` or :class:`KATDevice` object, or list or string
             Antennas that will scan across the target, as an Array object
             containing antenna devices, or a single antenna device or a list of
             antenna devices, or a string of comma-separated antenna names
@@ -542,8 +542,8 @@ class CaptureSession(object):
             is not a proper subset of all antennas given during setup
 
         """
-        # Create reference to FF object and antennas, as this allows easy copy-and-pasting from this function
-        ff, all_ants = self.ff, self.ants
+        # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
+        kat, all_ants = self.kat, self.ants
         scan_ants = self.subarray(scan_ants)
         # Verify that scan_ants is a proper subset of all_ants
         if not set(scan_ants.devs).issubset(set(all_ants.devs)):
@@ -558,9 +558,9 @@ class CaptureSession(object):
         # Set the antenna target (both scanning and tracking antennas have the same target)
         all_ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
-        ff.dbe.req.target(target)
+        kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates a Scan group with label 'slew'
-        ff.dbe.req.k7w_new_compound_scan(target, label, 'slew')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew')
 
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
@@ -576,10 +576,10 @@ class CaptureSession(object):
                                                                         preferred_name(target))
             # Create a new Scan group in HDF5 file, with 'slew' label (not necessary the first time)
             if scan_count > 0:
-                ff.dbe.req.k7w_new_scan('slew')
+                kat.dbe.req.k7w_new_scan('slew')
             # If we haven't yet, start recording data from the correlator
-            if ff.dbe.sensor.capturing.get_value() == '0':
-                ff.dbe.req.capture_start()
+            if kat.dbe.sensor.capturing.get_value() == '0':
+                kat.dbe.req.capture_start()
             # Set up scans for scanning antennas
             if scan_in_azimuth:
                 scan_ants.req.scan_asym(scan[0], scan[1], -scan[0], scan[1], scan_duration)
@@ -592,7 +592,7 @@ class CaptureSession(object):
 
             print "Starting scan %d of %d on target '%s'" % (scan_count + 1, len(scan_starts), preferred_name(target))
             # Start a new Scan group in the HDF5 file, this time labelled as a proper 'scan'
-            ff.dbe.req.k7w_new_scan('scan')
+            kat.dbe.req.k7w_new_scan('scan')
             # Start scanning the scanning antennas (tracking antennas keep tracking in the background)
             scan_ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
@@ -605,12 +605,12 @@ class CaptureSession(object):
         last action.
 
         """
-        # Create reference to FF object, as this allows easy copy-and-pasting from this function
-        ff = self.ff
+        # Create reference to KAT object, as this allows easy copy-and-pasting from this function
+        kat = self.kat
         # Obtain the names of the files currently being written to
-        files = ff.dbe.req.k7w_get_current_files(tuple=True)[1][2]
+        files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
         print 'Scans complete, data captured to', files
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
-        ff.dbe.req.capture_stop()
+        kat.dbe.req.capture_stop()
         print 'Ended data capturing session with experiment ID', self.experiment_id

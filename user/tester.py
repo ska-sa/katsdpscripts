@@ -21,9 +21,9 @@ def configure_dbe (packet_count, dump_rate, destination, name):
     """
 
     try:
-        ff.dbe.req.dbe_packet_count(packet_count)
-        ff.dbe.req.dbe_dump_rate(dump_rate)
-        ff.dbe.req.capture_start(name)
+        kat.dbe.req.dbe_packet_count(packet_count)
+        kat.dbe.req.dbe_dump_rate(dump_rate)
+        kat.dbe.req.capture_start(name)
         return True
     except Exception, err:
         print "configure_dbe failed -->",err
@@ -47,8 +47,8 @@ def noise_coupler_on (period, duty_cycle):
     """
 
     try:
-        ff.ped1.req.rfe3_rfe15_noise_source_on("coupler", 1, "now", 1, period, duty_cycle)
-        ff.ped2.req.rfe3_rfe15_noise_source_on("coupler", 1, "now", 1, period, duty_cycle)
+        kat.ped1.req.rfe3_rfe15_noise_source_on("coupler", 1, "now", 1, period, duty_cycle)
+        kat.ped2.req.rfe3_rfe15_noise_source_on("coupler", 1, "now", 1, period, duty_cycle)
         return True
     except Exception, err:
         print "noise_coupler_on failed -->",err

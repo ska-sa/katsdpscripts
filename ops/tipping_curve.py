@@ -1,15 +1,15 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-import ffuilib
-from ffuilib import CaptureSession
+import katuilib
+from katuilib import CaptureSession
 
 import optparse
 import sys
 import uuid
 
 # Parse command-line options that allow the defaults to be overridden
-# Default FF configuration is *local*, to prevent inadvertent use of the real hardware
+# Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
 parser = optparse.OptionParser(usage="usage: %prog [options]")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
@@ -44,7 +44,7 @@ if opts.experiment_id is None:
 
 # Build Fringe Finder configuration, as specified in user-facing config file
 # This connects to all the proxies and devices and queries their commands and sensors
-ff = ffuilib.tbuild(opts.ini_file, opts.selected_config)
+kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 
 # Create a data capturing session with the selected sub-array of antennas
 with CaptureSession(ff, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:

@@ -16,7 +16,7 @@
 # and signal display server: ~/svnDS/code/ffinder/trunk/src/streaming/sdisp/ffsocket.py
 # (kat-launch.py and ffsocket.py use the defaults: -i cfg-local.ini -s local_ff)
 
-import ffuilib as ffui
+import katuilib as katui
 import time
 from optparse import OptionParser
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     (opts, args) = parser.parse_args()
 
 
-    ff = ffui.tbuild(opts.ini_file, opts.selected_config)
+    kat = katui.tbuild(opts.ini_file, opts.selected_config)
     # make fringe fingder connections
 
     tgt = 'Takreem,azel,20,30'
@@ -45,35 +45,35 @@ if __name__ == "__main__":
     ants = []
     print "====================Including antennas - ",
     for ant_x in opts.ants.split(","):
-        ant = eval("ff."+ant_x)
+        ant = eval("kat."+ant_x)
         ants.append(ant)
         print ant.name,
     print
 
-    ff.dbe.req.dbe_capture_stop()
+    kat.dbe.req.dbe_capture_stop()
     for ant_x in ants:
         ant_x.req.mode("STOP")
     time.sleep(0.5)
     # cleanup any existing experiment
 
     # Start with a clean state, by stopping the DBE
-    ff.dbe.req.capture_stop()
+    kat.dbe.req.capture_stop()
 
     # Set data output directory (typically on ff-dc machine)
-    ff.dbe.req.k7w_output_directory("/var/kat/data")
+    kat.dbe.req.k7w_output_directory("/var/kat/data")
     # Tell k7_writer to write the selected baselines to HDF5 files
     baselines = [1, 2, 3]
-    ff.dbe.req.k7w_baseline_mask(*baselines)
-    ff.dbe.req.k7w_write_hdf5(1)
+    kat.dbe.req.k7w_baseline_mask(*baselines)
+    kat.dbe.req.k7w_write_hdf5(1)
 
     # This is a precaution to prevent bad timestamps from the correlator
-    ff.dbe.req.dbe_sync_now()
+    kat.dbe.req.dbe_sync_now()
     # The DBE proxy needs to know the dump rate as well as the effective LO freq, which is used for fringe stopping (eventually)
     dump_rate = 1.0
     centre_freq = 1800
     effective_lo_freq = (centre_freq - 200.0) * 1e6
-    ff.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
-    ff.dbe.req.capture_start()
+    kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+    kat.dbe.req.capture_start()
 
     scans = [ (-2,0.5) , (2,0) , (-2,-0.5) ]
     # raster scan
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         ant_x.wait("lock",True,300)
 
     try:
-        ff.dbe.req.k7w_compound_scan_id(1)
+        kat.dbe.req.k7w_compound_scan_id(1)
     except RuntimeError, err:
         print "  k7w compund scan failed (", err, " )"
 
@@ -105,22 +105,22 @@ if __name__ == "__main__":
         for ant_x in ants:
             ant_x.wait("lock",True,300)
 
-        ff.dbe.req.k7w_scan_id(scan_count,"scan")
+        kat.dbe.req.k7w_scan_id(scan_count,"scan")
         # mark this section as valid scan data
         for ant_x in ants:
             ant_x.req.mode("SCAN")
         for ant_x in ants:
             ant_x.wait("scan_status","after",300)
-        ff.dbe.req.k7w_scan_id(scan_count+1,"slew")
+        kat.dbe.req.k7w_scan_id(scan_count+1,"slew")
         # slewing to next raster pointg
         scan_count += 2
     print "Scan complete."
 
-    files = ff.dbe.req.k7w_get_current_files(tuple=True)[1][2]
+    files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
     print "Data captured to",files
     time.sleep(2)
-    ff.dbe.req.capture_stop()
-    ff.disconnect()
+    kat.dbe.req.capture_stop()
+    kat.disconnect()
 
 # now augment the hdf5 file with metadata (pointing info etc):
 #   ~/svnDS/code/ffinder/trunk/src/streaming/k7augment/augment.py -d /var/kat/data -f [xxx.h5]

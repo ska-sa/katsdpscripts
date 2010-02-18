@@ -7,10 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scape
 from katpoint import rad2deg
-import ffuilib as ffui
+import katuilib as katui
 
 # Default data directory
-data_dir = ffui.defaults.ff_directories["data"]
+data_dir = katui.defaults.kat_directories["data"]
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage='%prog <data file>',

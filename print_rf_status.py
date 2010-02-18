@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Print out the status (mode, lock, pointing etc...) for the specified antenna
 
-import ffuilib as ffui
+import katuilib as katui
 import time
 import sys
 from optparse import OptionParser
@@ -71,8 +71,8 @@ if __name__ == "__main__":
     (opts, args) = parser.parse_args()
 
 
-    ff = ffui.tbuild(opts.ini_file, opts.selected_config)
-    rfe7  = ff.__dict__[opts.rfe7] # Lookup rfe key in ff dictionary
+    kat = katui.tbuild(opts.ini_file, opts.selected_config)
+    rfe7  = kat.__dict__[opts.rfe7] # Lookup rfe key in kat dictionary
 
     state = ["|","/","-","\\"]
     period_count = 0
@@ -109,9 +109,9 @@ if __name__ == "__main__":
     except Exception,err:
         stdout_restore()
         print "\nError: Disconnecting... (",err,")"
-        ff.disconnect()
+        kat.disconnect()
     except KeyboardInterrupt:
         stdout_restore()
         print "\nDisconnecting..."
-        ff.disconnect()
+        kat.disconnect()
     print "Done."

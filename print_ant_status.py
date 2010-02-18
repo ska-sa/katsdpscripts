@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Print out the status (mode, lock, pointing etc...) for the specified antenna
 
-import ffuilib as ffui
+import katuilib as katui
 import time
 import sys
 from optparse import OptionParser
@@ -19,8 +19,8 @@ if __name__ == "__main__":
                       help='selected configuration from INI-FILE (default=%default)')
     (opts, args) = parser.parse_args()
 
-    ff = ffui.tbuild(opts.ini_file,opts.selected_config)
-    ant  = ff.__dict__[opts.ant] # some Simon magic
+    kat = katui.tbuild(opts.ini_file,opts.selected_config)
+    ant  = kat.__dict__[opts.ant] # some Simon magic
 
     state = ["|","/","-","\\"]
     period_count = 0
@@ -46,8 +46,8 @@ if __name__ == "__main__":
             time.sleep(0.5)
     except Exception,err:
         print "Error: Disconnecting... (",err,")"
-        ff.disconnect()
+        kat.disconnect()
     except KeyboardInterrupt:
         print "\nDisconnecting..."
-        ff.disconnect()
+        kat.disconnect()
     print "Done."

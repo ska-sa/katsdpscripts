@@ -14,7 +14,7 @@
 # python print_sensors.py -x rfe -f lna
 
 
-import ffuilib as ffui
+import katuilib as katui
 import time
 import sys
 import select
@@ -256,8 +256,8 @@ if __name__ == "__main__":
     (opts, args) = parser.parse_args()
 
 
-    ff = ffui.tbuild(opts.ini_file, opts.selected_config)
-    proxy  = ff.__dict__[opts.proxy] # Lookup proxy key in ff dictionary
+    kat = katui.tbuild(opts.ini_file, opts.selected_config)
+    proxy  = kat.__dict__[opts.proxy] # Lookup proxy key in kat dictionary
 
     if opts.filter.startswith("all"):
         if opts.override.startswith("1"):
@@ -334,14 +334,14 @@ if __name__ == "__main__":
             elif c == 'q' or c == 'Q':
                 stdout_restore()
                 print "\nDisconnecting..."
-                ff.disconnect()
+                kat.disconnect()
 
     except Exception,err:
         stdout_restore()
         print "\nError: Disconnecting... (",err,")"
-        ff.disconnect()
+        kat.disconnect()
     except KeyboardInterrupt:
         stdout_restore()
         print "\nDisconnecting..."
-        ff.disconnect()
+        kat.disconnect()
     print "Done."
