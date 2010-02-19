@@ -4,7 +4,7 @@ from katuilib import CaptureSession
 import uuid
 import math
 
-kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
+kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
 
 targets = [
     kat.sources["Fornax A"],
@@ -14,7 +14,7 @@ targets = [
     katpoint.construct_azel_target(math.radians(0.0), math.radians(20.0)),
 ]
 
-with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'RFI data collection', kat.ants) as session:
+with CaptureSession(kat, str(uuid.uuid1()), 'ffuser', 'RFI data collection', kat.ants) as session:
 
     kat.dbe.req.k7w_write_raw(1)
 

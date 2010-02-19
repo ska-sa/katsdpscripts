@@ -81,7 +81,7 @@ if opts.printonly:
 
 else:
     # The real experiment: Create a data capturing session with the selected sub-array of antennas
-    with CaptureSession(ff, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+    with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
         # While experiment time is not up
         while (opts.max_time <= 0) or (katpoint.Timestamp() - start_time < opts.max_time):
             for target in baseline_sources.iterfilter(el_limit_deg=5):

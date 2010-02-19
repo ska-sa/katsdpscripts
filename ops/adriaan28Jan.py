@@ -3,7 +3,7 @@
 
 import katuilib
 
-kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
+kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
 
 lo1_freq = 6022
 centre_freq = lo1_freq - 4200.0

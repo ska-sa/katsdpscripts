@@ -6,7 +6,7 @@ import katuilib
 from katuilib import CaptureSession
 import uuid
 
-kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
+kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
 
 cat = katpoint.Catalogue(file('/var/kat/conf/source_list.csv'), add_specials=False, antenna=kat.sources.antenna)
 cat.remove('Zenith')
@@ -14,7 +14,7 @@ cat.add('Jupiter, special')
 all_ants = katuilib.Array('ants', [kat.ant1, kat.ant2])
 scan_ants = katuilib.Array('scan_ants', [kat.ant2])
 
-with CaptureSession(ff, str(uuid.uuid1()), 'ffuser', 'Holography example', all_ants) as session:
+with CaptureSession(kat, str(uuid.uuid1()), 'ffuser', 'Holography example', all_ants) as session:
 
     for compscan, target in enumerate(cat.iterfilter(el_limit_deg=5)):
         if not target.name.endswith('A'):
