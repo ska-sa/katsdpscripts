@@ -1,3 +1,6 @@
+# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
+from __future__ import with_statement
+
 import katpoint
 import katuilib
 from katuilib import CaptureSession

@@ -70,3 +70,13 @@ with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, op
         session.raster_scan(target, num_scans=17, scan_duration=16, scan_extent=2, scan_spacing=0.125)
         # Fire noise diode, to allow gain calibration
         session.fire_noise_diode('coupler')
+
+# WORKAROUND BEWARE
+# Don't disconnect for IPython, but disconnect when run via standard Python
+# Without this disconnect, the script currently hangs here when run from the command line
+try:
+    import IPython
+    if IPython.ipapi.get() is None:
+        kat.disconnect()
+except ImportError:
+    kat.disconnect()
