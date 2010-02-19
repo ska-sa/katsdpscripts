@@ -28,8 +28,8 @@ parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", defau
                   help='Centre frequency, in MHz (default="%default")')
 parser.add_option('-p', '--printonly', dest='printonly', action="store_true", default=False,
                   help="Do not actually observe, but display which sources will be scanned (default=%default)")
-parser.add_option('-m', '--max_time', dest='max_time', type="float", default=-1.0,
-                  help="Time limit on experiment, in seconds (default=no limit)")
+parser.add_option('-m', '--min_time', dest='min_time', type="float", default=-1.0,
+                  help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 (opts, args) = parser.parse_args()
 
 if opts.ants is None:
@@ -65,27 +65,45 @@ if opts.printonly:
     az = ants.devs[0].sensor.pos_actual_scan_azim.get_value()
     el = ants.devs[0].sensor.pos_actual_scan_elev.get_value()
     prev_target = katpoint.construct_azel_target(az, el)
-    # Only list targets that will be visited
-    for compscan, target in enumerate(baseline_sources.iterfilter(el_limit_deg=5, timestamp=current_time)):
-        print "At about %s, antennas will start slewing to '%s'" % (current_time.local(), target.name)
-        # Assume 1 deg/s slew rate on average -> add time to slew from previous target to new one
-        current_time += 1.0 * katpoint.rad2deg(target.separation(prev_target))
-        print "At about %s, baseline track (compound scan %d) will start on '%s'" % \
-              (current_time.local(), compscan, target.name)
-        # Do track of 120 seconds, and also allow one second of overhead per scan
-        current_time += 120.0 + 1.0
-        prev_target = target
-        if (opts.max_time > 0) and (current_time - start_time >= opts.max_time):
-            break
+    # Keep going until the time is up
+    keep_going, compscan = True, 0
+    while keep_going:
+        # Iterate through baseline sources that are up
+        for target in baseline_sources.iterfilter(el_limit_deg=5, timestamp=current_time):
+            print "At about %s, antennas will start slewing to '%s'" % (current_time.local(), target.name)
+            # Assume 1 deg/s slew rate on average -> add time to slew from previous target to new one
+            current_time += 1.0 * katpoint.rad2deg(target.separation(prev_target))
+            print "At about %s, baseline track (compound scan %d) will start on '%s'" % \
+                  (current_time.local(), compscan, target.name)
+            # Do track of 120 seconds, and also allow one second of overhead per scan
+            current_time += 120.0 + 1.0
+            prev_target = target
+            compscan += 1
+            # The default is to do only one iteration through source list
+            if opts.min_time <= 0.0:
+                keep_going = False
+            # If the time is up, stop immediately
+            elif current_time - start_time >= opts.min_time:
+                keep_going = False
+                break
     print "Experiment finished at about", current_time.local()
 
 else:
     # The real experiment: Create a data capturing session with the selected sub-array of antennas
     with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
-        # While experiment time is not up
-        while (opts.max_time <= 0) or (katpoint.Timestamp() - start_time < opts.max_time):
+        # Keep going until the time is up
+        keep_going = True
+        while keep_going:
+            # Iterate through baseline sources that are up
             for target in baseline_sources.iterfilter(el_limit_deg=5):
                 session.track(target, duration=120.0, drive_strategy='longest-track')
+                # The default is to do only one iteration through source list
+                if opts.min_time <= 0.0:
+                    keep_going = False
+                # If the time is up, stop immediately
+                elif katpoint.Timestamp() - start_time >= opts.min_time:
+                    keep_going = False
+                    break
 
 # WORKAROUND BEWARE
 # Don't disconnect for IPython, but disconnect when run via standard Python
