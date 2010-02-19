@@ -20,6 +20,46 @@ def preferred_name(description):
         except ValueError:
             return names[0]
 
+def ant_array(kat, ants, name='ants'):
+    """Create sub-array of antennas from flexible specification.
+
+    Parameters
+    ----------
+    kat : :class:`utility.KATHost` object
+        KAT connection object
+    ants : :class:`Array` or :class:`KATDevice` object, or list, or string
+        Antennas specified by an Array object containing antenna devices, or
+        a single antenna device or a list of antenna devices, or a string of
+        comma-separated antenna names, or the string 'all' for all antennas
+        controlled via the KAT connection associated with this session
+
+    Returns
+    -------
+    array : :class:`Array` object
+        Array object containing selected antenna devices
+
+    Raises
+    ------
+    ValueError
+        If antenna with a specified name is not found on KAT connection object
+
+    """
+    if isinstance(ants, Array):
+        return ants
+    elif isinstance(ants, KATDevice):
+        return Array(name, [ants])
+    elif isinstance(ants, basestring):
+        if ants.strip() == 'all':
+            return kat.ants
+        else:
+            try:
+                return Array(name, [getattr(kat, ant.strip()) for ant in ants.split(',')])
+            except AttributeError:
+                raise ValueError("Antenna '%s' not found (i.e. no kat.%s exists)" % (ant, ant))
+    else:
+        # The default assumes that *ants* is a list of antenna devices
+        return Array(name, ants)
+
 class CaptureSession(object):
     """Context manager that encapsulates a single data capturing session.
 
@@ -71,7 +111,7 @@ class CaptureSession(object):
     def __init__(self, kat, experiment_id, observer, description, ants,
                  centre_freq=1800.0, dump_rate=1.0):
         self.kat = kat
-        self.ants = ants = self.subarray(ants)
+        self.ants = ants = ant_array(kat, ants)
         self.experiment_id = experiment_id
 
         # Start with a clean state, by stopping the DBE
@@ -111,45 +151,6 @@ class CaptureSession(object):
         self.shutdown()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
-
-    def subarray(self, ants):
-        """Create sub-array of antennas from flexible specification.
-
-        Parameters
-        ----------
-        ants : :class:`Array` or :class:`KATDevice` object, or list, or string
-            Antennas specified by an Array object containing antenna devices, or
-            a single antenna device or a list of antenna devices, or a string of
-            comma-separated antenna names, or the string 'all' for all antennas
-            controlled via the KAT connection associated with this
-            session
-
-        Returns
-        -------
-        array : :class:`Array` object
-            Array object containing selected antenna devices
-
-        Raises
-        ------
-        ValueError
-            If antenna with a specified name is not found on KAT connection object
-
-        """
-        if isinstance(ants, Array):
-            return ants
-        elif isinstance(ants, KATDevice):
-            return Array('ants', [ants])
-        elif isinstance(ants, basestring):
-            if ants.strip() == 'all':
-                return self.kat.ants
-            else:
-                try:
-                    return Array('ants', [getattr(self.kat, ant.strip()) for ant in ants.split(',')])
-                except AttributeError:
-                    raise ValueError("Antenna '%s' not found (i.e. no kat.%s exists)" % (ant, ant))
-        else:
-            # The default assumes that *ants* is a list of antenna devices
-            return Array('ants', ants)
 
     def fire_noise_diode(self, diode='pin', on_duration=5.0, off_duration=5.0):
         """Switch noise diode on and off.
@@ -544,7 +545,7 @@ class CaptureSession(object):
         """
         # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
         kat, all_ants = self.kat, self.ants
-        scan_ants = self.subarray(scan_ants)
+        scan_ants = ant_array(kat, scan_ants, 'scan_ants')
         # Verify that scan_ants is a proper subset of all_ants
         if not set(scan_ants.devs).issubset(set(all_ants.devs)):
             raise ValueError('Scanning antenna not found in full antenna list given during setup()')
