@@ -58,6 +58,7 @@ else:
     pointing_sources = kat.sources.filter(tags='radec')
 
 start_time = katpoint.Timestamp()
+targets_observed = []
 
 if opts.print_only:
     current_time = katpoint.Timestamp(start_time)
@@ -79,6 +80,7 @@ if opts.print_only:
             # Standard raster scan is 3 scans of 20 seconds each, with 2 slews of about 2 seconds in between scans,
             # followed by 10 seconds of noise diode on/off. Also allow one second of overhead per scan.
             current_time += 3 * 20.0 + 2 * 2.0 + 10.0 + 8 * 1.0
+            targets_observed.append(target.name)
             prev_target = target
             compscan += 1
             # The default is to do only one iteration through source list
@@ -88,7 +90,8 @@ if opts.print_only:
             elif current_time - start_time >= opts.min_time:
                 keep_going = False
                 break
-    print "Experiment finished at about", current_time.local()
+    print "Experiment to finish at about", current_time.local()
+    print "Targets observed :", len(targets_observed), " (",len(set(targets_observed))," unique )"
 
 else:
     # The real experiment: Create a data capturing session with the selected sub-array of antennas
@@ -100,6 +103,7 @@ else:
             for target in pointing_sources.iterfilter(el_limit_deg=5):
                 # Do standard raster scan on target
                 session.raster_scan(target)
+                targets_observed.append(target.name)
                 # Fire noise diode, to allow gain calibration
                 session.fire_noise_diode('coupler')
                 # The default is to do only one iteration through source list
@@ -109,6 +113,8 @@ else:
                 elif katpoint.Timestamp() - start_time >= opts.min_time:
                     keep_going = False
                     break
+
+        print "Targets observed :", len(targets_observed), " (",len(set(targets_observed))," unique )"
 
 # WORKAROUND BEWARE
 # Don't disconnect for IPython, but disconnect when run via standard Python

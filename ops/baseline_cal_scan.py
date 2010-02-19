@@ -57,6 +57,7 @@ else:
     baseline_sources.add([kat.sources[src] for src in great_sources + good_sources])
 
 start_time = katpoint.Timestamp()
+targets_observed = []
 
 if opts.printonly:
     current_time = katpoint.Timestamp(start_time)
@@ -77,6 +78,7 @@ if opts.printonly:
                   (current_time.local(), compscan, target.name)
             # Do track of 120 seconds, and also allow one second of overhead per scan
             current_time += 120.0 + 1.0
+            targets_observed.append(target.name)
             prev_target = target
             compscan += 1
             # The default is to do only one iteration through source list
@@ -86,7 +88,8 @@ if opts.printonly:
             elif current_time - start_time >= opts.min_time:
                 keep_going = False
                 break
-    print "Experiment finished at about", current_time.local()
+    print "Experiment to finish at about", current_time.local()
+    print "Targets observed :", len(targets_observed), " (",len(set(targets_observed))," unique )"
 
 else:
     # The real experiment: Create a data capturing session with the selected sub-array of antennas
@@ -97,6 +100,7 @@ else:
             # Iterate through baseline sources that are up
             for target in baseline_sources.iterfilter(el_limit_deg=5):
                 session.track(target, duration=120.0, drive_strategy='longest-track')
+                targets_observed.append(target.name)
                 # The default is to do only one iteration through source list
                 if opts.min_time <= 0.0:
                     keep_going = False
@@ -104,6 +108,8 @@ else:
                 elif katpoint.Timestamp() - start_time >= opts.min_time:
                     keep_going = False
                     break
+
+        print "Targets observed :", len(targets_observed), " (",len(set(targets_observed))," unique )"
 
 # WORKAROUND BEWARE
 # Don't disconnect for IPython, but disconnect when run via standard Python
