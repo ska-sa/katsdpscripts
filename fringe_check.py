@@ -30,13 +30,13 @@ ut1_offset = 0.2818
 t = t + ut1_offset
 
 # Station A used to be the centre of the Earth (also reference position?)
-ant_a = katpoint.construct_antenna('EC, 0, 0, -6378137.0, 0.0')
+ant_a = katpoint.Antenna('EC, 0, 0, -6378137.0, 0.0')
 # Station B is Kitt Peak VLBA antenna
 kp_lla = katpoint.ecef_to_lla(-1995678.4969, -5037317.8209, 3357328.0825)
 kp_lat, kp_long, kp_alt = katpoint.rad2deg(kp_lla[0]), katpoint.rad2deg(kp_lla[1]), kp_lla[2]
-ant_b = katpoint.construct_antenna('KP, %.16f, %.16f, %.16f, 25.0, 0, 0, 0' % (kp_lat, kp_long, kp_alt))
+ant_b = katpoint.Antenna('KP, %.16f, %.16f, %.16f, 25.0, 0 0 0' % (kp_lat, kp_long, kp_alt))
 # Station A is an imaginary antenna close to Kitt Peak (south-east of it)
-ant_a = katpoint.construct_antenna('RF, %.16f, %.16f, %.16f, 25.0, 63.336, -63.336, 0' % (kp_lat, kp_long, kp_alt))
+ant_a = katpoint.Antenna('RF, %.16f, %.16f, %.16f, 25.0, 63.336 -63.336 0' % (kp_lat, kp_long, kp_alt))
 a_lla = (ant_a.observer.lat, ant_a.observer.long, ant_a.observer.elevation)
 ##### Calculate ECEF coords - add these to checkcalc.c as Station A x, y, z coords
 a_ecef = katpoint.lla_to_ecef(*a_lla)
@@ -61,7 +61,7 @@ def azel_to_enu(az, el):
     return np.array([sin_az * cos_el, cos_az * cos_el, sin_el])
 
 # Assume Antenna A is the array reference position - baseline is minus offset of ant A
-baseline_m = - np.array(ant_a.offset)
+baseline_m = - np.array(ant_a.position_enu)
 # Get geometric delay from direct dot product
 source_vec = azel_to_enu(az_b, el_b)
 geom_delay = - np.dot(baseline_m, source_vec) / katpoint.lightspeed
@@ -84,8 +84,8 @@ print 'Delay rate error = %g sec / sec (%g %%)' % (delay_rate - delay_rate_calc,
 
 # Pick KAT antennas 1 and 2 as Stations A and B, respectively
 ref_lla = '-30:43:17.34, 21:24:38.46, 1038.0'
-ant_a = katpoint.construct_antenna('FF1, %s, 12.0, 18.4, -8.7, 0.0' % ref_lla)
-ant_b = katpoint.construct_antenna('FF2, %s, 12.0, 86.2, 25.5, 0.0' % ref_lla)
+ant_a = katpoint.Antenna('FF1, %s, 12.0, 18.4 -8.7 0.0' % ref_lla)
+ant_b = katpoint.Antenna('FF2, %s, 12.0, 86.2 25.5 0.0' % ref_lla)
 ##### Calculate ECEF coords - add these to checkcalc.c as Station A and B x, y, z coords
 a_lla = (ant_a.observer.lat, ant_a.observer.long, ant_a.observer.elevation)
 a_ecef = katpoint.lla_to_ecef(*a_lla)
@@ -231,8 +231,8 @@ def jinc(x):
 
 # Use KAT antennas 1 and 2
 ref_lla = '-30:43:17.34, 21:24:38.46, 1038.0'
-ant1 = katpoint.construct_antenna('FF1, %s, 12.0, 18.4, -8.7, 0.0' % ref_lla)
-ant2 = katpoint.construct_antenna('FF2, %s, 12.0, 86.2, 25.5, 0.0' % ref_lla)
+ant1 = katpoint.Antenna('FF1, %s, 12.0, 18.4 -8.7 0.0' % ref_lla)
+ant2 = katpoint.Antenna('FF2, %s, 12.0, 86.2 25.5 0.0' % ref_lla)
 
 # Channel frequencies
 band_center = 1822.

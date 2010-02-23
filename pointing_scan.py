@@ -42,7 +42,7 @@ elmin = 2.0
 elmax = 88.0
 
 # Pointing calibrator catalogue (create manually here for now with initial tests - load from file later)
-ant = katpoint.construct_antenna('KAT-7, -30:43:16.71, 21:24:35.86, 1055, 12.0')
+ant = katpoint.Antenna('KAT-7, -30:43:16.71, 21:24:35.86, 1055, 12.0')
 cat = katpoint.Catalogue(add_specials=False,antenna=ant)
 cat.add('Takreem-17+70,azel,-17,70.0')
 cat.add('Takreem+10+20,azel,10,20')
