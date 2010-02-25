@@ -49,7 +49,7 @@ if len(datasets) == 0:
 
 for dataset in datasets:
     try:
-        f = h5py.File(dataset)
+        f = h5py.File(dataset, 'r')
         filesize = os.path.getsize(dataset) / 1e6
 
         # All h5 files have at least compscans, scans, targets and timestamps
