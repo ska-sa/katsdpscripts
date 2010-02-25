@@ -50,7 +50,7 @@ if len(datasets) == 0:
 for dataset in datasets:
     try:
         f = h5py.File(dataset)
-        filesize = os.path.getsize(dataset) / 1e9
+        filesize = os.path.getsize(dataset) / 1e6
 
         # All h5 files have at least compscans, scans, targets and timestamps
         compscans = f['Scans']
@@ -79,11 +79,11 @@ for dataset in datasets:
             ants = [f['Antennas'][ant].attrs['description'].partition(',')[0] for ant in f['Antennas']]
             centre_freq = f['Correlator'].attrs['center_frequency_hz'] / 1e6
             dump_rate = f['Correlator'].attrs['dump_rate_hz']
-            print "%s: %s, %s, %s MHz, %2d compscans, %3d scans, %4d samples, %d chans, %s, %.3f GB" % \
+            print "%s: %s, %s, %s MHz, %2d compscans, %3d scans, %4d samples, %d chans, %s, %.1f MB" % \
                   (dataset, start, ' '.join(ants), centre_freq, num_compscans,
                    num_scans, num_samples, num_chans, target, filesize)
         else:
-            print "%s: %s, UNAUGMENTED, %2d compscans, %3d scans, %4d samples, %d chans, %s, %.3f GB" % \
+            print "%s: %s, UNAUGMENTED, %2d compscans, %3d scans, %4d samples, %d chans, %s, %.1f MB" % \
                   (dataset, start, num_compscans, num_scans, num_samples, num_chans, target, filesize)
     except h5py.H5Error, e:
         print "%s: Error reading file (bad format?): %s" % (dataset, e)
