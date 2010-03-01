@@ -4,7 +4,7 @@
 # and ends with a reduced beamfitted plot in scape :)
 
 echo "Running raster scan..."
-~/scripts/data_raster_scan.py
+~/scripts/simscan_verbose.py
 echo "Staging data file..."
 /usr/local/bin/augment4.py
 echo "Reducing raster scan..."
