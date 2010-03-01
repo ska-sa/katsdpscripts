@@ -5,7 +5,7 @@ import katuilib as katui
 import numpy as np
 import pylab
 
-kat = katui.tbuild("cfg-local.ini","local_ant_only")
+kat = katui.tbuild("cfg-local.ini","local_ff")
  # make fringe fingder connections
 
 kat.ant2.req.target_azel(20.31,30.45)
