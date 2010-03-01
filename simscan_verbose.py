@@ -1,7 +1,9 @@
 #!/usr/bin/python
+#
 # Raster scan across a simulated target producing scan data for signal displays and loading into scape.
+#
 # This script is basically a cut and paste from some of the underlying functionality provided by
-# katuilb's observe.py in order to show how scripts can also be created using the lower-level
+# katuilib's observe.py in order to show how scripts can also be created using the lower-level
 # functionality if more explicit control is needed. Usually, it is much simpler to use observe.py
 # (see simscan.py script, for example, which does much the same as this script).
 
@@ -27,7 +29,7 @@ observer = 'nobody'
 description = 'data raster scan using simulated target'
 centre_freq=1800.0
 dump_rate=1.0
-target = 'Takreem,azel,20,30' # if change, also update in line kat.dbe.req.dbe_test_target()
+target = 'Takreem,azel,20,30' # if simulation target is changed, also update in line kat.dbe.req.dbe_test_target()
 num_scans=3
 scan_duration=20.0
 scan_extent=4.0
@@ -44,6 +46,10 @@ try:
 
     # create an array using the specified antennas
     ants = katuilib.Array("ants", [getattr(kat, ant.strip()) for ant in opts.ants.split(',')])
+
+    ########################################################################################
+    ########## The following lines correspond to CaptureSession.__init__ function ##########
+    ########################################################################################
 
     # Start with a clean state, by stopping the DBE
     kat.dbe.req.capture_stop()
@@ -73,6 +79,10 @@ try:
     print "Description ='%s'" % description
     print "RF centre frequency = %g MHz, dump rate = %g Hz" % (centre_freq, dump_rate)
 
+    ###########################################################################################
+    ########## The following lines correspond to CaptureSession.raster_scan function ##########
+    ###########################################################################################
+
     # Set the drive strategy for how antenna moves between targets
     ants.req.drive_strategy(drive_strategy)
     # Set the antenna target
@@ -80,12 +90,14 @@ try:
     # Provide target to the DBE proxy, which will use it as delay-tracking center
     kat.dbe.req.target(target)
 
-    # tell the dbe sim to make a test target at specified az and el
-    kat.dbe.req.dbe_test_target(20,30,100)
-
-    # tell the dbe simulator where the antenna is so that is can generate target flux at the right time
+    ########## SIMULATOR-SPECIFIC LINES ##########
+    # Comment out the following 3 lines to run this script on the real hardware
+    # Tell the DBE simulator to make a test target at specified az and el
+    kat.dbe.req.dbe_test_target(20, 30, 100)
+    # Tell the DBE simulator where the antenna is so that is can generate target flux at the right time
     kat.ant1.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.5)
     kat.ant1.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.5)
+    ##############################################
 
     # Create new CompoundScan group in HDF5 file, which automatically also creates a Scan group with label 'slew'
     kat.dbe.req.k7w_new_compound_scan(target, label, 'slew')
@@ -124,13 +136,14 @@ try:
         # Wait until they are all finished scanning (with 5 minute timeout)
         ants.wait('scan_status', 'after', 300)
 
+    ########################################################################################
+    ########## The following lines correspond to CaptureSession.shutdown function ##########
+    ########################################################################################
+
     # Obtain the names of the files currently being written to
     files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
     print 'Scans complete, data captured to', files
 
-except Exception, e:
-    print "Exception: ", e
-    print 'Exception caught: attempting to exit cleanly...'
 finally:
     if built_kat:
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
