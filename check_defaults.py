@@ -83,7 +83,7 @@ lab_default_set = [ # structure is list of tuples with (command to access sensor
 ]
 
 
-def check_sensors(ff,defaults):
+def check_sensors(kat,defaults):
     # check current system setting and compare with defaults as specified above
     print "%s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Default Value".ljust(25))
     current_vals = []
@@ -99,7 +99,7 @@ def check_sensors(ff,defaults):
 
     return
 
-def reset_defaults(ff,defaults):
+def reset_defaults(kat,defaults):
     # reset system to default setting as specified by commands above
     for i in range(len(defaults)):
         eval(defaults[i][2])
@@ -144,19 +144,19 @@ if __name__ == "__main__":
         built_kat = True
 
         print "Checking current settings....."
-        check_sensors(ff,defaults)
+        check_sensors(kat,defaults)
 
         if opts.reset:
             print "\nResetting to default settings..."
-            reset_defaults(ff,defaults)
+            reset_defaults(kat,defaults)
             print "\nRechecking settings...."
             time.sleep(1.5) # wait a little time for sensor to update
-            check_sensors(ff,defaults)
+            check_sensors(kat,defaults)
 
     except Exception, e:
         print "Exception: ", e
         print 'Exception caught: attempting to exit cleanly...'
     finally:
-        if built_ff: kat.disconnect()
+        if built_kat: kat.disconnect()
 
 
