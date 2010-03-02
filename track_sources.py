@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Track sources all around the sky (mostly to keep tourists or antennas amused)
+# Track sources all around the sky for a few seconds each without recording data (mostly to keep tourists or antennas amused).
 
 import katuilib
 from optparse import OptionParser
@@ -8,7 +8,10 @@ import time
 
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
-parser = OptionParser(usage="usage: %prog [options]")
+parser = OptionParser(usage="usage: %prog [options]\n\n"+
+                            "Track sources all around the sky for a few seconds each without recording data\n"+
+                            "(mostly to keep tourists or antennas amused). Uses the standard catalogue.\n"+
+                            "Excludes the extremely strong sources (Sun, Afristar).")
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
 parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',
@@ -47,7 +50,7 @@ ants.req.drive_strategy("shortest-slew")
 # get sources from catalogue that are in specified elevation range. Antenna will get
 # as close as possible to targets which are out of drivable range.
 cat = kat.sources
-# remove some very strong sources
+# remove some very strong sources so as not to saturate equipment deliberately.
 cat.remove('Sun')
 cat.remove('AFRISTAR')
 
