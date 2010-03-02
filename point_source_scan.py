@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# Perform mini (Zorro) raster scans across (point) sources from a catalogue for pointing model fits and gain curve calculation.
+
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
@@ -11,7 +14,10 @@ import uuid
 
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
-parser = optparse.OptionParser(usage="%prog [options] [<catalogue file>]")
+parser = optparse.OptionParser(usage="%prog [options] [<catalogue files>]\n\n"+
+                                     "Perform mini (Zorro) raster scans across (point) sources for pointing model fits\n"+
+                                     "and gain curve calculation. Use the specified catalogue(s) or the default.\n"+
+                                     "This script is aimed at fast scans across a large range of sources.")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
@@ -28,7 +34,7 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
 parser.add_option('-p', '--print_only', dest='print_only', action="store_true", default=False,
-                  help="Do not actually observe, but display which sources will be scanned (default=%default)")
+                  help="Do not actually observe, but display which sources will be scanned, plus predicted end time (default=%default)")
 parser.add_option('-m', '--min_time', dest='min_time', type="float", default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 (opts, args) = parser.parse_args()

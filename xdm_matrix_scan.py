@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Raster scan across a target producing scan data for signal displays and loading into scape
+# Test script used for XDM. Raster scan across a target producing scan data for signal displays and loading into scape
 
 # Startup in different terminals:
 

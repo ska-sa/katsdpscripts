@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# Write raw data packets from correlator to disk (not HDF5 file). Used for RFI mitigation code testing.
+
 import katpoint
 import katuilib
 from katuilib import CaptureSession

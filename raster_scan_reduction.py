@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Reduces raster scan data and plots using scape. Data must be local
+# Reduces raster scan data and plots using scape. Data must be local.
 
 import scape
 import pylab as pl

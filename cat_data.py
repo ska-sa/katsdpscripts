@@ -1,7 +1,5 @@
 #! /usr/bin/python
-#
-# Script that summarises the internals of an HDF5 data file (or a directory
-# of files). This works on both augmented and unaugmented files.
+# Summarize the internals of an HDF5 data file (or a directory of files). This works on both augmented and unaugmented files.
 #
 # Ludwig Schwardt
 # 22 January 2010

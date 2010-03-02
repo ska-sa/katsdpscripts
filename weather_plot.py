@@ -1,8 +1,11 @@
 #!/usr/bin/env python
+# Produce an animated plot of wind speed and direction. Control-C to quit.
+
 import time
 import numpy as np
 import matplotlib
 import random
+import sys
 import datetime
 matplotlib.use('TkAgg')
 
@@ -57,8 +60,12 @@ def animate():
         ax.xaxis.set_major_formatter(ticker.FuncFormatter(format_date))
         fig.canvas.draw()
         #fig.canvas.blit(ax.bbox)
-        time.sleep(1)
-
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            print "Cancelled by user. Disconnecting..."
+            enviro.disconnect()
+            sys.exit(0)
 win = fig.canvas.manager.window
 fig.autofmt_xdate()
 fig.canvas.manager.window.after(100, animate)

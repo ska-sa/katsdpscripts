@@ -1,11 +1,13 @@
 #!/usr/bin/python
-# check the system against the expected default values and optionally reset to these defaults.
+# Check the system against the expected default values and optionally reset to these defaults.
 
-import katuilib as katui
 from optparse import OptionParser
-from ansi import col
 import time
 import sys
+
+import katuilib
+from katuilib.ansi import col
+
 
 karoo_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
@@ -140,7 +142,7 @@ if __name__ == "__main__":
             print 'Unknown defaults set specified', opt.defaults
             sys.exit()
 
-        kat = katui.tbuild(opts.ini_file, opts.selected_config)
+        kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
         built_kat = True
 
         print "Checking current settings....."

@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# Perform tipping curve scan for a specified azimuth position.
+
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
@@ -10,7 +13,8 @@ import uuid
 
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
-parser = optparse.OptionParser(usage="usage: %prog [options]")
+parser = optparse.OptionParser(usage="usage: %prog [options]\n\n"+
+                                     "Perform tipping curve scan for a specified azimuth position.")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')

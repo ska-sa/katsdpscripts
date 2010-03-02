@@ -1,16 +1,17 @@
-# Small test script to generate some simulated target signal data using the dbe simulator.
+#!/usr/bin/python
+# Raster scan across a simulated DBE target producing scan data for signal displays and loading into scape (using CaptureSession).
 
 from __future__ import with_statement
 
 import katuilib
 import uuid
 
-target = 'jastgt,azel,20,40'
+target = 'Takreem,azel,20,30'
 
 with katuilib.tbuild('cfg-local.ini', 'local_ff_2dish') as kat:
 
     # tell the dbe sim to make a test target at specfied az and el
-    kat.dbe.req.dbe_test_target(20,40,100)
+    kat.dbe.req.dbe_test_target(20,30,100)
 
     # tell the dbe simulator where the antenna is so that is can generate target flux at the right time
     kat.ant1.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.5)

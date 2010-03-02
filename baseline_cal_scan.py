@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# Track various point sources as specified in a catalogue for the purpose of baseline calibration.
+
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
@@ -11,7 +14,10 @@ import sys
 
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
-parser = OptionParser(usage="%prog [options] [<catalogue file>]")
+parser = OptionParser(usage="%prog [options] [<catalogue files>]\n\n" +
+                            "Track various point sources from the specified catalogue file(s), or use the default catalogue\n" +
+                            "if none is specified. This is useful for baseline (antenna location) calibration. Remember to\n" +
+                            "specify the observer and antenna options, as these are non-optional...")
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
 parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',
@@ -27,7 +33,7 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
 parser.add_option('-p', '--printonly', dest='printonly', action="store_true", default=False,
-                  help="Do not actually observe, but display which sources will be scanned (default=%default)")
+                  help="Do not actually observe, but display which sources will be scanned, plus predicted end time (default=%default)")
 parser.add_option('-m', '--min_time', dest='min_time', type="float", default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 (opts, args) = parser.parse_args()

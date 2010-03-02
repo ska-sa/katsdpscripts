@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# Fire noise diode while at zenith and record the data.
+
 import katpoint
 import katuilib
 from katuilib import CaptureSession

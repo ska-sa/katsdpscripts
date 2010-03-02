@@ -1,4 +1,4 @@
-#
+#!/usr/bin/python
 # Compare simplistic delay calculation to that of CalcServer 1.1.
 #
 # This modifies checkCalcServer (checkcalc.c) as part of the check.

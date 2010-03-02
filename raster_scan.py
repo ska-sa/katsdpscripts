@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# Perform large raster scan on specified target(s). Mostly used for beam pattern mapping.
+
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
@@ -10,7 +13,9 @@ import uuid
 
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
-parser = optparse.OptionParser(usage="%prog [options] <'target 1'> [<'target 2'> ...]")
+parser = optparse.OptionParser(usage="%prog [options] <'target 1'> [<'target 2'> ...]\n\n"+
+                                     "Perform large raster scan across one or more sources. Mostly used for\n"+
+                                     "beam pattern mapping and on-the-fly mapping.")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')

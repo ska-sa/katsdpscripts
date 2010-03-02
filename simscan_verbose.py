@@ -1,6 +1,5 @@
 #!/usr/bin/python
-#
-# Raster scan across a simulated target producing scan data for signal displays and loading into scape.
+# Raster scan across a simulated DBE target producing scan data for signal displays and loading into scape (non CaptureSession version).
 #
 # This script is basically a cut and paste from some of the underlying functionality provided by
 # katuilib's observe.py in order to show how scripts can also be created using the lower-level
