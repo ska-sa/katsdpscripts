@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Drive antenna to two targets and then make a pointing error plot
+# Drive antenna to two targets and then make a pointing error plot. An example of sensors and plotting.
 
 import katuilib as katui
 import numpy as np

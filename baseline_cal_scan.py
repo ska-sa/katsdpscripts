@@ -34,7 +34,7 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
 # Experiment-specific options
-parser.add_option('-p', '--printonly', dest='printonly', action="store_true", default=False,
+parser.add_option('-p', '--print_only', dest='print_only', action="store_true", default=False,
                   help="Do not actually observe, but display which sources will be scanned, "+
                        "plus predicted end time (default=%default)")
 parser.add_option('-m', '--min_time', dest='min_time', type="float", default=-1.0,
@@ -69,7 +69,7 @@ else:
 start_time = katpoint.Timestamp()
 targets_observed = []
 
-if opts.printonly:
+if opts.print_only:
     current_time = katpoint.Timestamp(start_time)
     # Find out where first antenna is currently pointing (assume all antennas point there)
     ants = katuilib.observe.ant_array(kat, opts.ants)
