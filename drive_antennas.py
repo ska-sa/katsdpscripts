@@ -11,14 +11,15 @@ import time
 parser = OptionParser(usage="usage: %prog [options]\n\n"+
                             "Track sources all around the sky for a few seconds each without recording data\n"+
                             "(mostly to keep tourists or antennas amused). Uses the standard catalogue,\n"+
-                            "but excludes the extremely strong sources (Sun, Afristar).")
+                            "but excludes the extremely strong sources (Sun, Afristar). Some options\n"+
+                            "are **required.")
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
 parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',
                   help='Selected configuration to use (default="%default")')
 parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                   help="Comma-separated list of antennas to include in scan (e.g. 'ant1,ant2')," +
-                       " or 'all' for all antennas - this MUST be specified (safety reasons)")
+                       " or 'all' for all antennas (**required - safety reasons)")
 (opts, args) = parser.parse_args()
 
 # Force antennas to be specified to sensitise the user to what will physically move
@@ -35,7 +36,7 @@ if opts.ants.strip() == 'all':
     ants = kat.ants
 else:
     try:
-        ants = katuilib.Array('ants', [getattr(ff, ant_x.strip()) for ant_x in opts.ants.split(",")])
+        ants = katuilib.Array('ants', [getattr(kat, ant_x.strip()) for ant_x in opts.ants.split(",")])
     except AttributeError:
         raise ValueError("Antenna '%s' not found" % ant_x)
 
