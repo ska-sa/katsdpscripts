@@ -610,7 +610,7 @@ class CaptureSession(object):
         kat = self.kat
         # Obtain the names of the files currently being written to
         files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
-        print 'Scans complete, data captured to', files
+        print 'Scans complete, data captured to', [f.replace('writing','unaugmented') for f in files]
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         kat.dbe.req.capture_stop()
