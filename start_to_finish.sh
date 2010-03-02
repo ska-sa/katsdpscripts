@@ -6,4 +6,4 @@ echo "Running raster scan..."
 echo "Staging data file..."
 /usr/local/bin/augment4.py
 echo "Reducing raster scan..."
-~/scripts/data_raster_reduction.py
+~/scripts/raster_scan_reduction.py

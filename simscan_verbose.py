@@ -25,7 +25,7 @@ parser.add_option('-a', '--ants', dest='ants', type="string", default="ant1,ant2
 
 experiment_id = str(uuid.uuid1()) # generate a unique experiment ID
 observer = 'nobody'
-description = 'data raster scan using simulated target'
+description = 'Sim target raster scan example (verbose)'
 centre_freq=1800.0
 dump_rate=1.0
 target = 'Takreem,azel,20,30' # if simulation target is changed, also update in line kat.dbe.req.dbe_test_target()

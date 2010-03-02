@@ -10,8 +10,8 @@ import time
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
 parser = OptionParser(usage="usage: %prog [options]\n\n"+
                             "Track sources all around the sky for a few seconds each without recording data\n"+
-                            "(mostly to keep tourists or antennas amused). Uses the standard catalogue.\n"+
-                            "Excludes the extremely strong sources (Sun, Afristar).")
+                            "(mostly to keep tourists or antennas amused). Uses the standard catalogue,\n"+
+                            "but excludes the extremely strong sources (Sun, Afristar).")
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
 parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',

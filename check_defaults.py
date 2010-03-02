@@ -110,12 +110,12 @@ def reset_defaults(kat,defaults):
 if __name__ == "__main__":
 
     usage = "usage: %prog [options]"
-    description = "check the system against the expected default values and optionally reset to these defaults."
+    description = "Check the system against the expected default values and optionally reset to these defaults."
     parser = OptionParser(usage=usage)
 
-    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="", metavar='INI',
+    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                       help='Telescope configuration file to use in conf directory (default="%default")')
-    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="", metavar='SELECTED',
+    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',
                       help='Selected configuration to use (default="%default")')
     parser.add_option('-d', '--defaults_set', dest='defaults_set', type="string", default="karoo", metavar='DEFAULTS',
                       help='Selected defaults set config to use - karoo|karoo1|karoo2|lab (default="%default")')

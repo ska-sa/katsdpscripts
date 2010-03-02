@@ -17,5 +17,5 @@ with katuilib.tbuild('cfg-local.ini', 'local_ff_2dish') as kat:
     kat.ant1.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.5)
     kat.ant1.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.5)
 
-    with katuilib.CaptureSession(kat, str(uuid.uuid1()), 'ffuser', 'Sim target scans example', kat.ants) as session:
+    with katuilib.CaptureSession(kat, str(uuid.uuid1()), 'nobody', 'Sim target raster scan example', kat.ants) as session:
         session.raster_scan(target, scan_duration=20.0)
