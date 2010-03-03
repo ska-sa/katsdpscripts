@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # Reduces tipping curve data. Data must be local.
 
+# TODO: update this for the latest scape
+
 import os
 import optparse
 import numpy as np

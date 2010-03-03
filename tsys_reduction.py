@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # Reduces Tsys scan data. Data must be local.
 
+# TODO: update this for the latest scape
+
 import os
 import optparse
 import matplotlib.pyplot as plt
