@@ -43,7 +43,7 @@ a_ecef = katpoint.lla_to_ecef(*a_lla)
 ##### Set axis offsets of both stations = 0.0 in checkcalc.c
 
 # Source is the first millisecond pulsar, PSR B1937+21
-target = katpoint.construct_target('PSR B1937+21, radec J2000, 19:39:38.560210, 21:34:59.141000')
+target = katpoint.Target('PSR B1937+21, radec J2000, 19:39:38.560210, 21:34:59.141000')
 az_a, el_a = target.azel(t, ant_a)
 az_b, el_b = target.azel(t, ant_b)
 
@@ -105,7 +105,7 @@ ut1_offset = 0.2820
 t = t + ut1_offset
 
 ##### Source is Orion A - insert in checkcalc.c
-target = katpoint.construct_target('J0535-0523 | *Orion A | OriA | M42, radec J2000, 5:35:17.3, -5:23:28.0')
+target = katpoint.Target('J0535-0523 | *Orion A | OriA | M42, radec J2000, 5:35:17.3, -5:23:28.0')
 az_a, el_a = target.azel(t, ant_a)
 az_b, el_b = target.azel(t, ant_b)
 
@@ -134,7 +134,7 @@ print 'Fringe period = %g s' % (fringe_period,)
 
 # We choose the Moon...
 t = katpoint.Timestamp('2009-12-01 17:27:00')
-target = katpoint.construct_target('Moon, special')
+target = katpoint.Target('Moon, special')
 az_a, el_a = target.azel(t, ant_a)
 az_b, el_b = target.azel(t, ant_b)
 # Get geometric delay from direct dot product
@@ -144,7 +144,7 @@ fringe_period = 1.0 / ((1.5 - (350 - 256)/512.*0.4) * 1e9 * delay_rate)
 
 # And the Sun...
 t = katpoint.Timestamp('2009-12-01 17:00:00')
-target = katpoint.construct_target('Sun, special')
+target = katpoint.Target('Sun, special')
 az_a, el_a = target.azel(t, ant_a)
 az_b, el_b = target.azel(t, ant_b)
 # Get geometric delay from direct dot product
@@ -246,7 +246,7 @@ lambdas = katpoint.lightspeed / (freqs[channels] * 1e6)
 t = np.array([katpoint.Timestamp('2009-12-10 06:19:40.579')]) + np.linspace(0, 2700., 2700.)
 
 # Set up the Sun as target
-target = katpoint.construct_target('Sun, special')
+target = katpoint.Target('Sun, special')
 # Angular diameter of the Sun (about 32 arcminutes), in radians
 diam = katpoint.deg2rad(32.0 / 60.0)
 

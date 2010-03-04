@@ -12,7 +12,7 @@ import sys
 import time
 import glob
 
-# Ripped from katpoint.construct_target, to avoid extra dependencies
+# Ripped from katpoint.construct_target_params, to avoid extra dependencies
 def preferred_name(description):
     fields = [s.strip() for s in description.split(',')]
     # Extract preferred name from name list (starred or first entry)
