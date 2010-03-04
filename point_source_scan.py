@@ -34,7 +34,8 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                        " or 'all' for all antennas (**required - safety reasons)")
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
-
+parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_false", default=True,
+                  help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
 # Experiment-specific options
 parser.add_option('-p', '--print_only', dest='print_only', action="store_true", default=False,
                   help="Do not actually observe, but display which sources will be scanned, "+
@@ -105,7 +106,8 @@ if opts.print_only:
 
 else:
     # The real experiment: Create a data capturing session with the selected sub-array of antennas
-    with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+    with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
+                        opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
         # Keep going until the time is up
         keep_going = True
         while keep_going:

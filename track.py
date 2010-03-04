@@ -31,6 +31,8 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                        " or 'all' for all antennas (**required - safety reasons)")
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
+parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_false", default=True,
+                  help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
 # Experiment-specific options
 parser.add_option('-t', '--track_duration', dest='track_duration', type="int", default=60,
                   help='Length of time to track each source, in integer secs (default="%default")')
@@ -73,7 +75,8 @@ if len(targets) == 0:
     sys.exit(1)
 
 # Create a data capturing session with the selected sub-array of antennas
-with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
+                    opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
     for target in targets:
         # Track target
         session.track(target, duration=opts.track_duration, drive_strategy='longest-track', label='track')

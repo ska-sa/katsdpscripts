@@ -31,6 +31,8 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                        " or 'all' for all antennas (**required - safety reasons)")
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
+parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_false", default=True,
+                  help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
 # Experiment-specific options
 parser.add_option('-z', '--az', dest='az', type="float", default=168.0,
                   help='Azimuth angle along which to do tipping curve, in degrees (default="%default")')
@@ -53,7 +55,8 @@ if opts.experiment_id is None:
 kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
 
 # Create a data capturing session with the selected sub-array of antennas
-with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
+                    opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
     # Iterate through elevation angles
     for el in [2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90]:
         session.track('azel, %f, %f' % (opts.az, el), duration=15.0)
