@@ -1,25 +1,33 @@
 #! /usr/bin/python
-#
 # Baseline calibration for a single baseline.
 #
 # Ludwig Schwardt
 # 25 January 2010
 #
 
-import numpy as np
 import optparse
+import time
+import sys
+
+import numpy as np
 import matplotlib.pyplot as plt
 
 import scape
 import katpoint
-import time
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage="%prog [options] <data file>")
+parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAy',
+                  help="Baseline to calibrate (e.g. 'A1A2'), default is first interferometric baseline in file")
 (opts, args) = parser.parse_args()
 
+if len(args) < 1:
+    print 'Please specify the data file to reduce'
+    sys.exit(1)
+
 # Load data set
-d = scape.DataSet(args[0], baseline='A1A2')
+print 'Loading baseline', opts.baseline, 'from data file', args[0]
+d = scape.DataSet(args[0], baseline=opts.baseline)
 # Discard 'slew' scans and channels outside the Fringe Finder band
 d = d.select(labelkeep='scan', freqkeep=range(100, 420), copy=True)
 time_origin = np.min([scan.timestamps.min() for scan in d.scans])

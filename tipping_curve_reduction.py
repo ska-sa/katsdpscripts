@@ -1,8 +1,9 @@
 #!/usr/bin/python
-# Reduces tipping curve data
+# Reduces tipping curve data and plots tipping curve.
 
 import sys
 import optparse
+import re
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,20 +13,18 @@ from katpoint import rad2deg
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage='%prog [options] <data file>',
-                               description='This reduces a tipping curve in data file.')
-parser.add_option('-a', '--antenna', dest='ant', type="int", metavar='ANTENNA', default=1,
-                  help="Antenna for which to do tipping curve (default is first antenna in data file)")
+                               description='This reduces a data file to produce a tipping curve plot.')
+parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAx',
+                  help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 (opts, args) = parser.parse_args()
 
 if len(args) < 1:
     print 'Please specify the data file to reduce'
     sys.exit(1)
-# Use given data file
-data_file = args[0]
 
 # Load data set
-print 'Reducing data file', data_file
-d = scape.DataSet(data_file, baseline='A1A1')
+print 'Loading baseline', opts.baseline, 'from data file', args[0]
+d = scape.DataSet(args[0], baseline=opts.baseline)
 # Use noise diode firings to calibrate data from raw counts to temperature
 d.convert_power_to_temperature()
 # Only keep main scans (discard slew and cal scans) and restrict frequency band to Fringe Finder band
@@ -66,7 +65,7 @@ plt.figure(1)
 plt.clf()
 plot_tipping_curve('HH', 'b')
 plot_tipping_curve('VV', 'r')
-plt.title('Tipping curve')
+plt.title('Tipping curve for antenna %s' % (d.antenna.name,))
 plt.legend()
 
 # Display plots - this should be called ONLY ONCE, at the VERY END of the script
