@@ -1,6 +1,6 @@
 #! /usr/bin/python
-#
 # Example script that fits gain curve to point source scan data product.
+#
 # First run the analyse_point_source_scans.py script to generate the data file
 # that serves as input to this script.
 #

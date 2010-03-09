@@ -1,10 +1,10 @@
 #!/usr/bin/python
+# Example script that uses scape to reduce data consisting of scans across multiple point sources.
 #
-# Example script that uses scape to reduce data consisting of scans across
-# multiple point sources. This can be used to determine gain curves, tipping
-# curves and pointing models. The user can interactively observe reduction
-# results and discard bad data. The end product is a file containing pointing,
-# fitted beam parameters, baseline height and weather measurements, etc.
+# This can be used to determine gain curves, tipping curves and pointing models.
+# The user can interactively observe reduction results and discard bad data. The
+# end product is a file containing pointing, fitted beam parameters, baseline
+# height and weather measurements, etc.
 #
 # Ludwig Schwardt
 # 13 July 2009
@@ -30,14 +30,13 @@ parser = optparse.OptionParser(usage="%prog [options] <directories or files>",
                                             which allows the user to inspect results and discard bad scans. \
                                             By default all datasets in the current directory and all \
                                             subdirectories are processed.")
-parser.set_defaults(catfilename='source_list.csv', pmfilename='pointing_model.csv', outfilebase='point_source_scans')
 parser.add_option("-b", "--batch", dest="batch", action="store_true",
                   help="True if processing is to be done in batch mode without user interaction")
-parser.add_option("-c", "--catalogue", dest="catfilename", type="string",
+parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='source_list.csv',
                   help="Name of optional source catalogue file used to override XDM FITS targets")
-parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string",
+parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='pointing_model.csv',
                   help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
-parser.add_option("-o", "--output", dest="outfilebase", type="string",
+parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
 
 (options, args) = parser.parse_args()

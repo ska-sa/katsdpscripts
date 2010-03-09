@@ -27,7 +27,7 @@ def preferred_name(description):
             return names[0]
 
 # Parse command-line options and arguments
-parser = optparse.OptionParser(usage="%prog [options] <directories or files>")
+parser = optparse.OptionParser(usage="%prog [<directories or files>]")
 (opts, args) = parser.parse_args()
 if len(args) < 1:
     args = ['.']

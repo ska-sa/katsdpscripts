@@ -14,9 +14,9 @@ import uuid
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
 parser = optparse.OptionParser(usage="%prog [options] <'target 1'> [<'target 2'> ...]",
-                               description="Perform large raster scan across one or more sources. Mostly used for " +
-                                           "beam pattern mapping and on-the-fly mapping. Some options are " +
-                                           "**required**.")
+                               description="Perform large raster scan across one or more sources. Mostly used for \
+                                            beam pattern mapping and on-the-fly mapping. Some options are \
+                                            **required**.")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')

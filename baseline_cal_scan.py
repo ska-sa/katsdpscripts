@@ -15,10 +15,10 @@ import sys
 # Parse command-line options that allow the defaults to be overridden
 # Default KAT configuration is *local*, to prevent inadvertent use of the real hardware
 parser = OptionParser(usage="%prog [options] [<catalogue files>]",
-                      description="Track various point sources from the specified catalogue file(s), or use the " +
-                                  "default catalogue if none is specified. This is useful for baseline (antenna " +
-                                  "location) calibration. Remember to specify the observer and antenna options, " +
-                                  "as these are **required**.")
+                      description="Track various point sources from the specified catalogue file(s), or use the \
+                                   default catalogue if none is specified. This is useful for baseline (antenna \
+                                   location) calibration. Remember to specify the observer and antenna options, \
+                                   as these are **required**.")
 # Generic options
 parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
                   help='Telescope configuration file to use in conf directory (default="%default")')
