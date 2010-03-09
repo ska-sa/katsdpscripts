@@ -154,6 +154,15 @@ class CaptureSession(object):
         logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
                     (centre_freq, dump_rate, record_slews))
 
+        # If the DBE is simulated, it will have position update commands
+        if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
+            first_ant = ants.devs[0]
+            # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
+            # The minimum time between position updates is just a little less than the standard (az, el) sensor period
+            first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
+            first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
+            logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+
     def __enter__(self):
         """Enter the data capturing session."""
         return self
