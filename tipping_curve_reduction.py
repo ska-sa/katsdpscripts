@@ -37,14 +37,12 @@ def plot_tipping_curve(pol, color='b'):
     """Calculate and plot tipping curve for polarisation *pol* in color *color*."""
     # First extract total power in each scan (both mean and standard deviation)
     power_stats = [scape.stats.mu_sigma(s.pol(pol)[:, 0]) for s in d.scans]
-    power_mu, power_sigma = np.array([s[0] for s in power_stats]), np.array([s[1] for s in power_stats])
-    # Extract elevation angle from target associated with scan, in degrees
-    scan_el = np.array([rad2deg(s.compscan.target.azel()[1]) for s in d.scans])
-    # Pick lowest mean power at each unique elevation angle as Tsys estimate for that elevation
-    elevation = np.unique(scan_el)
-    # Use masked array to select subarray from power_mu while preserving original indices
-    lowest_power_ind = [np.ma.masked_array(power_mu, scan_el != el).argmin() for el in elevation]
-    tipping_mu, tipping_sigma = power_mu[lowest_power_ind], power_sigma[lowest_power_ind]
+    tipping_mu, tipping_sigma = np.array([s[0] for s in power_stats]), np.array([s[1] for s in power_stats])
+    # Extract elevation angle from (azel) target associated with scan, in degrees
+    elevation = np.array([rad2deg(s.compscan.target.azel()[1]) for s in d.scans])
+    # Sort data in the order of ascending elevation
+    sort_ind = elevation.argsort()
+    elevation, tipping_mu, tipping_sigma = elevation[sort_ind], tipping_mu[sort_ind], tipping_sigma[sort_ind]
 
     # Plot Tsys as a function of elevation, aka 'tipping curve' aka 'sky dip'
     plt.errorbar(elevation, tipping_mu, tipping_sigma, ecolor=color, color=color, capsize=6)
