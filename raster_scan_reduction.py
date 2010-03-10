@@ -1,50 +1,41 @@
 #!/usr/bin/python
-# Reduces raster scan data and plots using scape. Data must be local.
+# Reduces and plots raster scan data using scape.
 
 import scape
-import pylab as pl
-import os
+import matplotlib.pyplot as plt
 import sys
-import katuilib as katui
-from optparse import OptionParser
+import optparse
 
-parser = OptionParser(usage="%prog [options] [<data file>]\n\n" +
-                            "Reduces raster scan data and plots using scape. Use specified file or latest local data file.")
+parser = optparse.OptionParser(usage="%prog [options] <data file>",
+                               description="Reduces and plots raster scan data in given file using scape.")
+parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAx',
+                  help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 (opts, args) = parser.parse_args()
 
-if len(args) > 0:
-    data_file = args[0]
-else:
-    # get latest file from data dir
-    data_file = ""
-    p = os.listdir(katui.defaults.kat_directories["data"])
-    # p.sort(reverse=True)
-    while p:
-        x = p.pop() # pops off the bottom of the list
-        if x.endswith(".h5"):
-            data_file = katui.defaults.kat_directories["data"] + "/" + x
-            break
+if len(args) < 1:
+    print 'Please specify the data file to reduce'
+    sys.exit(1)
 
-print "Reducing data file",data_file
+# Load data set
+print 'Loading baseline', opts.baseline, 'from data file', args[0]
+d = scape.DataSet(args[0], baseline=opts.baseline)
+d = d.select(labelkeep='scan')
 
-d = scape.DataSet(data_file)
-d = d.select(labelkeep="scan")
-
-pl.figure()
-pl.title("Compound scan in time - pre averaging and fitting")
+plt.figure()
+plt.title('Compound scan in time - pre averaging and fitting')
 scape.plot_compound_scan_in_time(d.compscans[0])
 
 d.average()
 d.fit_beams_and_baselines()
 
-pl.figure()
-pl.title("Compound scan on target with fitted beam")
+plt.figure()
+plt.title('Compound scan on target with fitted beam')
 scape.plot_compound_scan_on_target(d.compscans[0])
 
-pl.figure()
-pl.title("Compound scan in time - post averaging and fitting")
+plt.figure()
+plt.title('Compound scan in time - post averaging and fitting')
 scape.plot_compound_scan_in_time(d.compscans[0])
 
-pl.show()
-raw_input("Hit enter to finish.")
-sys.exit()
+# Display plots - this should be called ONLY ONCE, at the VERY END of the script
+# The script stops here until you close the plots...
+plt.show()
