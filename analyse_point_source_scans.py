@@ -23,13 +23,15 @@ import matplotlib.widgets as widgets
 import scape
 import katpoint
 
-# Parse command-line options and arguments
-parser = optparse.OptionParser(usage="%prog [options] <directories or files>",
+# Parse command-line opts and arguments
+parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
                                description="This processes one or more datasets (FITS or HDF5) and extracts \
                                             fitted beam parameters from them. It runs interactively by default, \
                                             which allows the user to inspect results and discard bad scans. \
                                             By default all datasets in the current directory and all \
                                             subdirectories are processed.")
+parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAx',
+                  help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", dest="batch", action="store_true",
                   help="True if processing is to be done in batch mode without user interaction")
 parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='source_list.csv',
@@ -39,27 +41,27 @@ parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", de
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
 
-(options, args) = parser.parse_args()
+(opts, args) = parser.parse_args()
 if len(args) < 1:
     args = ['.']
 
 # Set up logging: logging everything (DEBUG & above), both to console and file
 logger = logging.root
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler(options.outfilebase + '.log', 'w')
+fh = logging.FileHandler(opts.outfilebase + '.log', 'w')
 fh.setLevel(logging.DEBUG)
 fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
 logger.addHandler(fh)
 
 # Load catalogue used to convert ACSM targets to katpoint ones (only needed for XDM data files)
 try:
-    cat = katpoint.Catalogue(file(options.catfilename), add_specials=False)
+    cat = katpoint.Catalogue(file(opts.catfilename), add_specials=False)
 except IOError:
     cat = None
 # Load old pointing model parameters (useful if it is not in data file, like on XDM)
 try:
-    pm = file(options.pmfilename).readline().strip()
-    logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), options.pmfilename))
+    pm = file(opts.pmfilename).readline().strip()
+    logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pmfilename))
 except IOError:
     pm = None
 
@@ -91,11 +93,11 @@ def dataset_name(filename):
         if dirs[0] == '.':
             dirs.pop(0)
         if len(dirs) > 2:
-            name = '%s_%s' % tuple(dirs[-3:-1])
+            return '%s_%s' % tuple(dirs[-3:-1])
         else:
-            name = '%s' % (dirs[0],)
+            return '%s' % (dirs[0],)
     else:
-        name = os.path.splitext(os.path.basename(filename))[0]
+        return os.path.splitext(os.path.basename(filename))[0]
 
 def load_reduce(index):
     """Load data set and do data reduction on data set level, storing beam fits per compound scan."""
@@ -104,7 +106,7 @@ def load_reduce(index):
 
     filename = datasets[index]
     logger.info("Loading dataset '%s'" % (filename,))
-    current_dataset = scape.DataSet(filename, catalogue=cat)
+    current_dataset = scape.DataSet(filename, catalogue=cat, baseline=opts.baseline)
 
     # Skip data set if antenna differs from the first antenna found, or no scans found
     if antenna is None or (antenna.name == current_dataset.antenna.name):
@@ -176,7 +178,7 @@ def next_load_reduce_plot(fig=None):
             dataset_index += 1
         # If there are no more data sets, save output data to file and exit
         if dataset_index >= len(datasets):
-            f = file(options.outfilebase + '.csv', 'w')
+            f = file(opts.outfilebase + '.csv', 'w')
             f.write('# antenna = %s\n' % antenna.description)
             f.write('dataset, target, timestamp_ut, azimuth, elevation, delta_azimuth, delta_elevation, data_unit, ' +
                     'beam_height_I, beam_width_I, baseline_height_I, refined_I, beam_height_HH, beam_width_HH, ' +
@@ -191,7 +193,7 @@ def next_load_reduce_plot(fig=None):
         loaded = load_reduce(dataset_index)
         name = dataset_name(datasets[dataset_index])
         if not loaded:
-            if not options.batch:
+            if not opts.batch:
                 ax1.clear()
                 ax1.set_title("%s - data set skipped" % name, size='medium')
                 ax2.clear()
@@ -262,7 +264,7 @@ def next_load_reduce_plot(fig=None):
         offset_azel = np.array([np.nan, np.nan])
 
     # Display compound scan
-    if not options.batch:
+    if not opts.batch:
         (ax1, ax2), info = fig.axes[:2], fig.texts[0]
         ax1.clear()
         scape.plot_compound_scan_in_time(compscan, ax=ax1)
@@ -282,7 +284,7 @@ def next_load_reduce_plot(fig=None):
         plt.draw()
 
     # If beam is marked as invalid, discard scan only if in batch mode (otherwise discard button has to do it)
-    if not compscan.beam or (options.batch and not compscan.beam.is_valid):
+    if not compscan.beam or (opts.batch and not compscan.beam.is_valid):
         output_data.append(None)
     else:
         output_data.append([name, compscan.target.name, katpoint.Timestamp(middle_time),
@@ -293,7 +295,7 @@ def next_load_reduce_plot(fig=None):
 ### BATCH MODE ###
 
 # This will cycle through all data sets and stop when done
-if options.batch:
+if opts.batch:
     while True:
         next_load_reduce_plot()
 
@@ -340,4 +342,6 @@ done_button.on_clicked(done_callback)
 
 # Start off the processing
 next_load_reduce_plot(fig)
+# Display plots - this should be called ONLY ONCE, at the VERY END of the script
+# The script stops here until you close the plots...
 plt.show()
