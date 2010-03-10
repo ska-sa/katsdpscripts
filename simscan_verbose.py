@@ -94,8 +94,8 @@ try:
     # Tell the DBE simulator to make a test target at specified az and el
     kat.dbe.req.dbe_test_target(20, 30, 100)
     # Tell the DBE simulator where the antenna is so that is can generate target flux at the right time
-    kat.ant1.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.5)
-    kat.ant1.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.5)
+    kat.ant1.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
+    kat.ant1.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
     ##############################################
 
     # Create new CompoundScan group in HDF5 file, which automatically also creates a Scan group with label 'slew'
