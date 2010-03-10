@@ -185,4 +185,6 @@ for ax_ind, ax in enumerate(plt.figure(3).axes):
     ax.set_ylim([ylimits[ax_ind, :].min(), ylimits[ax_ind, :].max()])
 
 # Hand over control to the main GUI loop
+# Display plots - this should be called ONLY ONCE, at the VERY END of the script
+# The script stops here until you close the plots...
 plt.show()

@@ -338,4 +338,6 @@ quiver_scale_slider.on_changed(quiver_scale_callback)
 
 # Start off the processing and hand over control to the main GUI loop
 update(fig)
+# Display plots - this should be called ONLY ONCE, at the VERY END of the script
+# The script stops here until you close the plots...
 plt.show()

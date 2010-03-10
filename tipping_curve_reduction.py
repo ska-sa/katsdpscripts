@@ -69,4 +69,5 @@ plt.title('Tipping curve for antenna %s' % (d.antenna.name,))
 plt.legend()
 
 # Display plots - this should be called ONLY ONCE, at the VERY END of the script
+# The script stops here until you close the plots...
 plt.show()

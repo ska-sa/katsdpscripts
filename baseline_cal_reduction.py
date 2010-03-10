@@ -197,4 +197,6 @@ plt.title('Fringes after stopping')
 # plt.xlabel('Time (s), since %s' % time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time_origin)))
 # plt.ylabel('Delay (seconds)')
 
+# Display plots - this should be called ONLY ONCE, at the VERY END of the script
+# The script stops here until you close the plots...
 plt.show()
