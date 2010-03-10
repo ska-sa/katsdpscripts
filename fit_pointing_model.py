@@ -73,7 +73,7 @@ formats[[fields.index(name) for name in string_fields if name in fields]] = data
 # Convert to heterogeneous record array
 data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
 # Load antenna description string from first line of file and construct antenna object from it
-antenna = katpoint.Antenna(file(filename).readline().strip().split('=')[1])
+antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
 if old_model is None:
     old_model = antenna.pointing_model
 
