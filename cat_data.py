@@ -19,12 +19,19 @@ def preferred_name(description):
     names = [s.strip() for s in fields[0].split('|')]
     if len(names) == 0:
         return ''
-    else:
-        try:
-            ind = [name.startswith('*') for name in names].index(True)
-            return names[ind][1:]
-        except ValueError:
-            return names[0]
+    first_word = names[0].split(' ')[0]
+    if first_word in ('azel', 'radec'):
+        return first_word
+    if first_word == 'xephem':
+        edb_string = fields[-1].replace('~', ',')
+        edb_name_field = edb_string.partition(',')[0]
+        edb_names = [name.strip() for name in edb_name_field.split('|')]
+        return edb_names[0]
+    try:
+        ind = [name.startswith('*') for name in names].index(True)
+        return names[ind][1:]
+    except ValueError:
+        return names[0]
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage="%prog [<directories or files>]")
