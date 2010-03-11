@@ -7,8 +7,9 @@ import numpy as np
 
 from .array import Array
 from .katcp_client import KATDevice
-# Use default logger for now
-from .defaults import logger
+
+# Use default logger for now (but make sure logs are also displayed during interactive sessions)
+logger = logging.getLogger("ffLogger")
 
 # Ripped from katpoint.construct_target_params, to avoid extra dependencies
 def preferred_name(description):
