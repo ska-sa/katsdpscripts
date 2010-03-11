@@ -8,8 +8,9 @@ import sys
 import katuilib
 from katuilib.ansi import col
 
-
-karoo_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+# Dictionary containing multiple sets of default settings, identified by name
+defaults_set = {
+'karoo' : [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
 ("kat.ped2.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped2.req.log_level('cryo', 'fatal')"),
 ("kat.ped1.sensor.rfe3_psu_on.get_value()", 1, "kat.ped1.req.rfe3_psu_on(1)"),
@@ -34,9 +35,9 @@ karoo_default_set = [ # structure is list of tuples with (command to access sens
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(2,'h',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(2,'v',1)"),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_orx_powerswitch(1,1)"),
-]
+],
 
-karoo1_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+'karoo1' : [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
 ("kat.ped1.sensor.rfe3_psu_on.get_value()", 1, "kat.ped1.req.rfe3_psu_on(1)"),
 ("kat.ped1.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped1.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
@@ -50,9 +51,9 @@ karoo1_default_set = [ # structure is list of tuples with (command to access sen
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(1,'h',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(1,'v',1)"),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_orx_powerswitch(1,1)"),
-]
+],
 
-karoo2_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+'karoo2' : [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.ped2.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped2.req.log_level('cryo', 'fatal')"),
 ("kat.ped2.sensor.rfe3_psu_on.get_value()", 1, "kat.ped2.req.rfe3_psu_on(1)"),
 ("kat.ped2.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped2.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
@@ -66,9 +67,9 @@ karoo2_default_set = [ # structure is list of tuples with (command to access sen
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(2,'h',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(2,'v',1)"),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_orx_powerswitch(1,1)"),
-]
+],
 
-lab_default_set = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+'lab' : [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
 ("kat.ped1.sensor.rfe3_psu_on.get_value()", 1, "kat.ped1.req.rfe3_psu_on(1)"),
 ("kat.ped1.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped1.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
@@ -82,10 +83,10 @@ lab_default_set = [ # structure is list of tuples with (command to access sensor
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(1,'h',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(1,'v',1)"),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_orx_powerswitch(1,1)"),
-]
+]}
 
 
-def check_sensors(kat,defaults):
+def check_sensors(kat, defaults):
     # check current system setting and compare with defaults as specified above
     print "%s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Default Value".ljust(25))
     current_vals = []
@@ -99,66 +100,47 @@ def check_sensors(kat,defaults):
         except:
             print "Could not check", str(defaults[i])
 
-    return
-
-def reset_defaults(kat,defaults):
+def reset_defaults(kat, defaults):
     # reset system to default setting as specified by commands above
     for i in range(len(defaults)):
         eval(defaults[i][2])
-    return
 
 if __name__ == "__main__":
 
-    usage = "usage: %prog [options]"
-    description = "Check the system against the expected default values and optionally reset to these defaults."
-    parser = OptionParser(usage=usage)
+    parser = OptionParser(usage="%prog [options]",
+                          description="Check the system against the expected default values and optionally reset to these defaults.")
 
-    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", default="cfg-local.ini", metavar='INI',
-                      help='Telescope configuration file to use in conf directory (default="%default")')
-    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", default="local_ff", metavar='SELECTED',
-                      help='Selected configuration to use (default="%default")')
+    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", metavar='INI', help='Telescope configuration ' +
+                      'file to use in conf directory (by default reuses existing connection, or falls back to cfg-local.ini)')
+    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", metavar='SELECTED',
+                      help='Selected configuration to use (by default reuses existing connection, or falls back to local_ff)')
     parser.add_option('-d', '--defaults_set', dest='defaults_set', type="string", default="karoo", metavar='DEFAULTS',
-                      help='Selected defaults set config to use - karoo|karoo1|karoo2|lab (default="%default")')
-    parser.add_option('-r', '--reset', dest='reset', action='store_true',default=False,
-                      help='Reset system to default values, if include this switch (default="%default")')
+                      help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
+    parser.add_option('-r', '--reset', dest='reset', action='store_true', default=False,
+                      help='Reset system to default values, if this switch is included (default="%default")')
     (opts, args) = parser.parse_args()
 
-    built_kat = False
-
     try:
-        if opts.ini_file == "" or opts.selected_config == "":
-            print "Please specify ini file and selected config (-h for help)."
-            sys.exit()
+        defaults = defaults_set[opts.defaults_set]
+    except KeyError:
+        print "Unknown defaults set '%s', expected one of %s" % (opts.defaults_set, defaults_set.keys())
+        sys.exit()
 
-        if opts.defaults_set == "karoo":
-            defaults = karoo_default_set
-        elif opts.defaults_set == "karoo1":
-            defaults = karoo1_default_set
-        elif opts.defaults_set == "karoo2":
-            defaults = karoo2_default_set
-        elif opts.defaults_set == 'lab':
-            defaults = lab_default_set
-        else:
-            print 'Unknown defaults set specified', opt.defaults
-            sys.exit()
-
+    # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
+    # This connects to all the proxies and devices and queries their commands and sensors
+    try:
         kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
-        built_kat = True
+    # Fall back to *local* configuration to prevent inadvertent use of the real hardware
+    except ValueError:
+        kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
+    print "\nUsing KAT connection with configuration: %s\n" % (kat.get_config(),)
 
-        print "Checking current settings....."
-        check_sensors(kat,defaults)
+    print "Checking current settings....."
+    check_sensors(kat,defaults)
 
-        if opts.reset:
-            print "\nResetting to default settings..."
-            reset_defaults(kat,defaults)
-            print "\nRechecking settings...."
-            time.sleep(1.5) # wait a little time for sensor to update
-            check_sensors(kat,defaults)
-
-    except Exception, e:
-        print "Exception: ", e
-        print 'Exception caught: attempting to exit cleanly...'
-    finally:
-        if built_kat: kat.disconnect()
-
-
+    if opts.reset:
+        print "\nResetting to default settings..."
+        reset_defaults(kat, defaults)
+        print "\nRechecking settings...."
+        time.sleep(1.5) # wait a little time for sensor to update
+        check_sensors(kat, defaults)
