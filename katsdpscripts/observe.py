@@ -146,8 +146,6 @@ class CaptureSession(object):
         kat.dbe.req.k7w_write_hdf5(1)
         kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
-        # This is a precaution to prevent bad timestamps from the correlator
-        kat.dbe.req.dbe_sync_now()
         # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
         # which is used for fringe stopping (eventually). This sets the delay model and other
         # correlator parameters, such as the dump rate, and instructs the correlator to pass
