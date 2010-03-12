@@ -207,7 +207,7 @@ class CaptureSession(object):
 
         """
         # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
-        kat, ants = self.kat, self.ants
+        kat, ants, record_slews = self.kat, self.ants, self.record_slews
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
@@ -226,7 +226,7 @@ class CaptureSession(object):
         pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
         time.sleep(off_duration)
         # If slews are not to be recorded, pause the file output again afterwards
-        if not self.record_slews:
+        if not record_slews:
             kat.dbe.req.k7w_write_hdf5(0)
 
     def track(self, target, duration=20.0, drive_strategy='longest-track', label='track'):
@@ -266,7 +266,7 @@ class CaptureSession(object):
 
         """
         # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
-        kat, ants = self.kat, self.ants
+        kat, ants, record_slews = self.kat, self.ants, self.record_slews
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
@@ -277,11 +277,11 @@ class CaptureSession(object):
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
-        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if self.record_slews else 'scan')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if record_slews else 'scan')
 
         logger.info("Slewing to target '%s'" % (preferred_name(target),))
         # If we haven't yet, start recording data from the correlator if slews are recorded (which creates data file)
-        if self.record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
+        if record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
             kat.dbe.req.capture_start()
         # Start moving each antenna to the target
         ants.req.mode('POINT')
@@ -289,7 +289,7 @@ class CaptureSession(object):
         ants.wait('lock', True, 300)
 
         logger.info("Tracking target '%s'" % (preferred_name(target),))
-        if not self.record_slews:
+        if not record_slews:
             # Unpause HDF5 file output (or create data file and start recording)
             kat.dbe.req.k7w_write_hdf5(1)
             if kat.dbe.sensor.capturing.get_value() == '0':
@@ -300,7 +300,7 @@ class CaptureSession(object):
         # Do nothing else for the duration of the track
         time.sleep(duration)
         # If slews are not to be recorded, pause the file output again directly after track
-        if not self.record_slews:
+        if not record_slews:
             kat.dbe.req.k7w_write_hdf5(0)
 
     def scan(self, target, duration=20.0, start=-2.0, end=2.0, scan_in_azimuth=True,
@@ -363,7 +363,7 @@ class CaptureSession(object):
 
         """
         # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
-        kat, ants = self.kat, self.ants
+        kat, ants, record_slews = self.kat, self.ants, self.record_slews
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
@@ -374,11 +374,11 @@ class CaptureSession(object):
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
-        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if self.record_slews else 'scan')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if record_slews else 'scan')
 
         logger.info("Slewing to start of scan across target '%s'" % (preferred_name(target),))
         # If we haven't yet, start recording data from the correlator if slews are recorded (which creates data file)
-        if self.record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
+        if record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
             kat.dbe.req.capture_start()
         # Move each antenna to the start position of the scan
         if scan_in_azimuth:
@@ -390,7 +390,7 @@ class CaptureSession(object):
         ants.wait('lock', True, 300)
 
         logger.info("Starting scan across target '%s'" % (preferred_name(target),))
-        if not self.record_slews:
+        if not record_slews:
             # Unpause HDF5 file output (or create data file and start recording)
             kat.dbe.req.k7w_write_hdf5(1)
             if kat.dbe.sensor.capturing.get_value() == '0':
@@ -403,7 +403,7 @@ class CaptureSession(object):
         # Wait until they are all finished scanning (with 5 minute timeout)
         ants.wait('scan_status', 'after', 300)
         # If slews are not to be recorded, pause the file output again directly after scan
-        if not self.record_slews:
+        if not record_slews:
             kat.dbe.req.k7w_write_hdf5(0)
 
     def raster_scan(self, target, num_scans=3, scan_duration=20.0,
@@ -477,7 +477,7 @@ class CaptureSession(object):
 
         """
         # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
-        kat, ants = self.kat, self.ants
+        kat, ants, record_slews = self.kat, self.ants, self.record_slews
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
@@ -488,7 +488,7 @@ class CaptureSession(object):
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
-        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if self.record_slews else 'scan')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if record_slews else 'scan')
 
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
@@ -502,7 +502,7 @@ class CaptureSession(object):
 
             logger.info("Slewing to start of scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
-            if self.record_slews:
+            if record_slews:
                 # Create a new Scan group in HDF5 file, with 'slew' label (not necessary the first time)
                 if scan_count > 0:
                     kat.dbe.req.k7w_new_scan('slew')
@@ -520,19 +520,19 @@ class CaptureSession(object):
 
             logger.info("Starting scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
-            if self.record_slews or (scan_count > 0):
+            if record_slews or (scan_count > 0):
                 # Start a new Scan group in the HDF5 file, labelled as a proper 'scan'
                 kat.dbe.req.k7w_new_scan('scan')
             # Unpause HDF5 file output (or create data file and start recording if not done yet)
             kat.dbe.req.k7w_write_hdf5(1)
-            if not self.record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
+            if not record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
                 kat.dbe.req.capture_start()
             # Start scanning the antennas
             ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
             ants.wait('scan_status', 'after', 300)
             # If slews are not to be recorded, pause the file output again directly after the scan
-            if not self.record_slews:
+            if not record_slews:
                 kat.dbe.req.k7w_write_hdf5(0)
 
     def holography_scan(self, scan_ants, target, num_scans=3, scan_duration=20.0,
@@ -604,7 +604,7 @@ class CaptureSession(object):
 
         """
         # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
-        kat, all_ants = self.kat, self.ants
+        kat, all_ants, record_slews = self.kat, self.ants, self.record_slews
         scan_ants = ant_array(kat, scan_ants, 'scan_ants')
         # Verify that scan_ants is a proper subset of all_ants
         if not set(scan_ants.devs).issubset(set(all_ants.devs)):
@@ -621,7 +621,7 @@ class CaptureSession(object):
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
-        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if self.record_slews else 'scan')
+        kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if record_slews else 'scan')
 
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
@@ -635,7 +635,7 @@ class CaptureSession(object):
 
             logger.info("Slewing to start of scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
-            if self.record_slews:
+            if record_slews:
                 # Create a new Scan group in HDF5 file, with 'slew' label (not necessary the first time)
                 if scan_count > 0:
                     kat.dbe.req.k7w_new_scan('slew')
@@ -654,19 +654,19 @@ class CaptureSession(object):
 
             logger.info("Starting scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
-            if self.record_slews or (scan_count > 0):
+            if record_slews or (scan_count > 0):
                 # Start a new Scan group in the HDF5 file, labelled as a proper 'scan'
                 kat.dbe.req.k7w_new_scan('scan')
             # Unpause HDF5 file output (or create data file and start recording if not done yet)
             kat.dbe.req.k7w_write_hdf5(1)
-            if not self.record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
+            if not record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
                 kat.dbe.req.capture_start()
             # Start scanning the scanning antennas (tracking antennas keep tracking in the background)
             scan_ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
             scan_ants.wait('scan_status', 'after', 300)
             # If slews are not to be recorded, pause the file output again directly after the scan
-            if not self.record_slews:
+            if not record_slews:
                 kat.dbe.req.k7w_write_hdf5(0)
 
     def shutdown(self):
