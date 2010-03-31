@@ -19,6 +19,8 @@ import katpoint
 parser = optparse.OptionParser(usage="%prog [options] <data file>")
 parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAy',
                   help="Baseline to calibrate (e.g. 'A1A2'), default is first interferometric baseline in file")
+parser.add_option('-p', '--pol', dest='pol', type="string", metavar='POL', default='HH',
+                  help="Polarisation term to use ('HH' or 'VV'), default is %default")
 (opts, args) = parser.parse_args()
 
 if len(args) < 1:
@@ -48,7 +50,7 @@ for scan in d.scans:
     # Pick antenna 1 as reference antenna -> correlation product XY* means we
     # actually measure phase(antenna1) - phase(antenna2), therefore flip the sign.
     # Also divide by channel frequency difference, which correctly handles gaps in frequency coverage.
-    phase_diff_per_MHz = np.diff(-np.angle(scan.pol('HH')), axis=1) / np.abs(np.diff(d.freqs))
+    phase_diff_per_MHz = np.diff(-np.angle(scan.pol(opts.pol)), axis=1) / np.abs(np.diff(d.freqs))
     # Convert to a delay in seconds
     delay = phase_diff_per_MHz / 1e6 / (-2.0 * np.pi)
     # Raw delay is calculated as an intermediate step for display only - wrap this to primary interval
@@ -95,6 +97,9 @@ cable_lightspeed = katpoint.lightspeed / 1.4
 cable_length_diff = augmented_baseline[3] * cable_lightspeed
 sigma_cable_length_diff = sigma_augmented_baseline[3] * cable_lightspeed
 
+# First guesses of cable lengths, from cfgdet-array.ini
+old_cable_length = {'ant1': 95.5, 'ant2': 108.8, 'ant3': 95.5 + 50, 'ant4': 95.5 + 70}
+
 # Stop the fringes (make a copy of the data first)
 d2 = d.select(copy=True)
 fitted_delay_per_scan = []
@@ -102,10 +107,10 @@ for n, scan in enumerate(d2.scans):
     # Store fitted delay and other delays with corresponding timestamps, to allow compacted plot
     fitted_delay = np.dot(augmented_baseline, augmented_targetdir_per_scan[n])
     fitted_delay_per_scan.append(fitted_delay)
-    # Stop the fringes (remember that HH phase is antenna1 - antenna2, need to *add* fitted delay to fix it)
+    # Stop the fringes (remember that vis phase is antenna1 - antenna2, need to *add* fitted delay to fix it)
     scan.data[:,:,0] *= np.exp(2j * np.pi * np.outer(fitted_delay, d2.freqs * 1e6))
 old_baseline = d.antenna.baseline_toward(d.antenna2)
-old_cable_length_diff = 13.3
+old_cable_length_diff = old_cable_length[d.antenna2.name] - old_cable_length[d.antenna.name]
 old_receiver_delay = old_cable_length_diff / cable_lightspeed
 labels = [str(n) for n in xrange(len(d2.scans))]
 
