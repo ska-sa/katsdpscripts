@@ -38,6 +38,8 @@ parser.add_option('-r', '--dump_rate', dest='dump_rate', type="float", default=1
 parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_false", default=True,
                   help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
 # Experiment-specific options
+parser.add_option('-e', '--scan_in_elevation', dest='scan_in_elevation', action="store_true", default=False,
+                  help="Scan in elevation rather than aximuth, (default=%default)")
 parser.add_option('-p', '--print_only', dest='print_only', action="store_true", default=False,
                   help="Do not actually observe, but display which sources will be scanned, "+
                        "plus predicted end time (default=%default)")
@@ -76,6 +78,9 @@ else:
 
 start_time = katpoint.Timestamp()
 targets_observed = []
+
+scan_in_azimuth = True
+if opts.scan_in_elevation: scan_in_azimuth = False
 
 if opts.print_only:
     current_time = katpoint.Timestamp(start_time)
@@ -119,7 +124,7 @@ else:
             # Iterate through source list, picking the next one that is up
             for target in pointing_sources.iterfilter(el_limit_deg=5):
                 # Do standard raster scan on target
-                session.raster_scan(target)
+                session.raster_scan(target, scan_in_azimuth=scan_in_azimuth)
                 targets_observed.append(target.name)
                 # Fire noise diode, to allow gain calibration
                 session.fire_noise_diode('coupler')
