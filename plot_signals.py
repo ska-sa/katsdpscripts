@@ -28,9 +28,14 @@
 #pa2.add_plot('ap34m',ap34m)
 #pa2.animate_all()
 
+
+import katuilib
+kat.dh.stop_sdisp()
+kat.dh.start_sdisp()
+
 pa3  = katuilib.data.PlotAnimator()
-tp4 = kat.dh.sd.plot_time_series('mag',[0,1,8,9],end_time=-300)
-ph6 = kat.dh.sd.plot_time_series('phase',[(1,2,'VV'),(1,3,'VV'),(1,4,'VV'),(2,3,'VV'),(2,4,'VV'),(3,4,'VV')],start_channel=300,stop_channel=301,end_time=-300,scale='linear')
+tp4 = kat.dh.sd.plot_time_series('mag',[0,1,8,9],end_time=-500,scale='linear',start_channel=10,stop_channel=500)
+ph6 = kat.dh.sd.plot_time_series('phase',[(1,2,'VV'),(1,3,'VV'),(1,4,'VV'),(2,3,'VV'),(2,4,'VV'),(3,4,'VV')],start_channel=300,stop_channel=301,end_time=-500,scale='linear')
 pa3.add_plot('tp4',tp4)
 pa3.add_plot('ph6',ph6)
 pa3.animate_all()
