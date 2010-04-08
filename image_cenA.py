@@ -36,7 +36,7 @@ parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_fa
 # Experiment-specific options
 parser.add_option('-t', '--track_duration', dest='track_duration', type="int", default=60*15,
                   help='Length of time to track each segment of the mosaic, in integer secs (default="%default")')
-parser.add_option('-c', '--cal_duration', dest='cal_duration', type='int', default=60, help='Length of time to spend on the cal source (default="%default")')
+parser.add_option('-c', '--cal_duration', dest='cal_duration', type='int', default=60*3, help='Length of time to spend on the cal source (default="%default")')
 parser.add_option('-m', '--mosaic', dest='mosaic', action="store_true", default=False, help='Do a 3 pixel N/S mosaic. Only really useful for CenA')
 
 (opts, args) = parser.parse_args()
@@ -99,9 +99,9 @@ else:
 # Create a data capturing session with the selected sub-array of antennas
 with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
                              opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
-    while tgt.azel()[1] > 0.57:
+    while tgt.azel()[1] > 0.57/2.0:
          # observe the calibrator(s)
-        for cal in [x for x in calibrators if x.azel()[1] > 0.57]:
+        for cal in [x for x in calibrators if x.azel()[1] > 0.57/2.0]:
             print "Observing calibrator"
             session.track(cal, duration=opts.cal_duration, drive_strategy='longest-track', label='cal_source')
             session.fire_noise_diode('coupler')
