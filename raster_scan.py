@@ -33,6 +33,10 @@ parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", defau
                   help='Centre frequency, in MHz (default="%default")')
 parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_false", default=True,
                   help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
+parser.add_option('-p', '--scan_spacing', dest='scan_spacing', type="float", default=0.125,
+                  help='Separation between scans, in degrees (default="%default")')
+parser.add_option('-x', '--scan_extent', dest='scan_extent', type="int", default=2,
+                  help='Length of each scan, in degrees (default="%default")')
 
 (opts, args) = parser.parse_args()
 
@@ -81,6 +85,11 @@ with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.descri
                              opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
     for target in targets:
         # Do raster scan on target, designed to have equal spacing in azimuth and elevation, for a "classic" look
-        session.raster_scan(target, num_scans=17, scan_duration=16, scan_extent=2, scan_spacing=0.125)
+        scan_extent = opts.scan_extent
+        scan_spacing = opts.scan_spacing
+        scan_duration = int(scan_extent/scan_spacing)
+        num_scans = scan_duration + 1
+
+        session.raster_scan(target, num_scans=num_scans, scan_duration=scan_duration, scan_extent=scan_extent, scan_spacing=scan_spacing)
         # Fire noise diode, to allow gain calibration
         session.fire_noise_diode('coupler')
