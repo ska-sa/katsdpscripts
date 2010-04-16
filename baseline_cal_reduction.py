@@ -108,7 +108,7 @@ for n, scan in enumerate(d2.scans):
     fitted_delay = np.dot(augmented_baseline, augmented_targetdir_per_scan[n])
     fitted_delay_per_scan.append(fitted_delay)
     # Stop the fringes (remember that vis phase is antenna1 - antenna2, need to *add* fitted delay to fix it)
-    scan.data[:,:,0] *= np.exp(2j * np.pi * np.outer(fitted_delay, d2.freqs * 1e6))
+    scan.data[:, :, (0 if opts.pol == 'HH' else 1)] *= np.exp(2j * np.pi * np.outer(fitted_delay, d2.freqs * 1e6))
 old_baseline = d.antenna.baseline_toward(d.antenna2)
 old_cable_length_diff = old_cable_length[d.antenna2.name] - old_cable_length[d.antenna.name]
 old_receiver_delay = old_cable_length_diff / cable_lightspeed
