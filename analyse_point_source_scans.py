@@ -55,7 +55,7 @@ logger.addHandler(fh)
 
 # Load catalogue used to convert ACSM targets to katpoint ones (only needed for XDM data files)
 try:
-    cat = katpoint.Catalogue(file(opts.catfilename), add_specials=False)
+    cat = katpoint.Catalogue(file(opts.catfilename))
 except IOError:
     cat = None
 # Load old pointing model parameters (useful if it is not in data file, like on XDM)
@@ -81,7 +81,7 @@ if len(datasets) == 0:
 dataset_index = compscan_index = 0
 # Remember current data set (useful when iterating through multiple compscans inside the set)
 current_dataset = None
-channel_freqs = []
+unaveraged_dataset = None
 beam_data = [[] for dataset in datasets]
 output_data = []
 antenna = None
@@ -102,7 +102,7 @@ def dataset_name(filename):
 def load_reduce(index):
     """Load data set and do data reduction on data set level, storing beam fits per compound scan."""
     # Global variables that will be modified inside this function
-    global current_dataset, channel_freqs, beam_data, antenna
+    global unaveraged_dataset, current_dataset, beam_data, antenna
 
     filename = datasets[index]
     logger.info("Loading dataset '%s'" % (filename,))
@@ -122,12 +122,12 @@ def load_reduce(index):
     if pm is not None:
         antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
 
-    # Standard reduction
-    current_dataset = current_dataset.select(freqkeep=current_dataset.channel_select)
-    current_dataset.convert_power_to_temperature()
+    # Standard reduction for XDM, more hard-coded version for FF / KAT-7
+    current_dataset = current_dataset.select(freqkeep=np.arange(100,400))
+    #current_dataset.convert_power_to_temperature()
     current_dataset = current_dataset.select(labelkeep='scan', copy=False)
-    # Save original channel frequencies before averaging
-    channel_freqs = current_dataset.freqs
+    # Make a copy of the dataset before averaging the channels so that we keep the spectral information
+    unaveraged_dataset = current_dataset.select(copy=True)
     current_dataset.average()
 
     # First fit HH and VV data, and extract beam and baseline heights and refined scan count
@@ -203,12 +203,13 @@ def next_load_reduce_plot(fig=None):
 
     # Select current compound scan and related beam data
     compscan = current_dataset.compscans[compscan_index - compscans_in_previous_datasets]
+    unaveraged_compscan = unaveraged_dataset.compscans[compscan_index - compscans_in_previous_datasets]
     name = dataset_name(datasets[dataset_index])
     beam_params = beam_data[dataset_index][compscan_index - compscans_in_previous_datasets].tolist()
     beam_height_I, baseline_height_I = beam_params[0], beam_params[2]
 
     # Calculate average target flux over entire band
-    flux_spectrum = [compscan.target.flux_density(freq) for freq in channel_freqs]
+    flux_spectrum = [compscan.target.flux_density(freq) for freq in unaveraged_dataset.freqs]
     average_flux = np.mean([flux for flux in flux_spectrum if flux])
 
     # Obtain middle timestamp of compound scan, where all pointing calculations are done
@@ -265,7 +266,7 @@ def next_load_reduce_plot(fig=None):
 
     # Display compound scan
     if not opts.batch:
-        (ax1, ax2), info = fig.axes[:2], fig.texts[0]
+        (ax1, ax2, ax3), info = fig.axes[:3], fig.texts[0]
         ax1.clear()
         scape.plot_compound_scan_in_time(compscan, ax=ax1)
         ax1.set_title("%s '%s'\nazel=(%.1f, %.1f) deg, offset=(%.1f, %.1f) arcmin" %
@@ -274,6 +275,8 @@ def next_load_reduce_plot(fig=None):
         ax1.set_ylabel('Total power (%s)' % current_dataset.data_unit)
         ax2.clear()
         scape.plot_compound_scan_on_target(compscan, ax=ax2)
+        ax3.clear()
+        scape.plot_xyz(unaveraged_compscan, 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
         if compscan.beam:
             info.set_text("Beamwidth = %.1f' (expected %.1f')\nBeam height = %.1f %s\nBaseline height = %.1f %s" %
                           (60. * katpoint.rad2deg(compscan.beam.width),
@@ -305,20 +308,34 @@ if opts.batch:
 plt.ion()
 fig = plt.figure(1)
 plt.clf()
-plt.subplot(211)
-plt.subplot(212)
-plt.subplots_adjust(bottom=0.2)
+plt.subplot(311)
+plt.subplot(312)
+plt.subplot(313)
+plt.subplots_adjust(bottom=0.2, hspace=0.25)
 plt.figtext(0.05, 0.05, '', va='bottom', ha='left')
+
 # Create buttons and their callbacks
+spectrogram_button = widgets.Button(plt.axes([0.37, 0.05, 0.1, 0.075]), 'Spectrogram')
+def spectrogram_callback(event):
+    plt.figure(2)
+    plt.clf()
+    compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
+    unaveraged_compscan = unaveraged_dataset.compscans[compscan_index - compscans_in_previous_datasets]
+    ax1 = scape.plot_xyz(unaveraged_compscan, 'time', 'freq', 'amp', power_in_dB=True)
+    ax1.set_title(unaveraged_compscan.target.name, size='medium')
+spectrogram_button.on_clicked(spectrogram_callback)
+
 keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
 def keep_callback(event):
     next_load_reduce_plot(fig)
 keep_button.on_clicked(keep_callback)
+
 discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
 def discard_callback(event):
     output_data[-1] = None
     next_load_reduce_plot(fig)
 discard_button.on_clicked(discard_callback)
+
 back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
 def back_callback(event):
     global dataset_index, compscan_index
@@ -332,6 +349,7 @@ def back_callback(event):
         output_data.pop()
         next_load_reduce_plot(fig)
 back_button.on_clicked(back_callback)
+
 done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
 def done_callback(event):
     global dataset_index, compscan_index
