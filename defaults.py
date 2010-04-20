@@ -100,7 +100,10 @@ def check_sensors(kat, defaults):
 def reset_defaults(kat, defaults):
     # reset system to default setting as specified by commands above
     for i in range(len(defaults)):
-        eval(defaults[i][2])
+        try:
+            eval(defaults[i][2])
+        except Exception, err:
+            print "Cannot set - ",str(defaults[1][2]),"ERROR :",str(err)
 
 if __name__ == "__main__":
 
