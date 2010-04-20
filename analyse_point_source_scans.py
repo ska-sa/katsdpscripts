@@ -36,10 +36,14 @@ parser.add_option("-b", "--batch", dest="batch", action="store_true",
                   help="True if processing is to be done in batch mode without user interaction")
 parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='source_list.csv',
                   help="Name of optional source catalogue file used to override XDM FITS targets")
+parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
+                  help="Name of optional directory containing noise diode model files")
 parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='pointing_model.csv',
                   help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
+parser.add_option("-s", "--plot_spectrum", dest="plot_spectrum", action="store_true",
+                  help="Includes spectral plot if true")
 
 (opts, args) = parser.parse_args()
 if len(args) < 1:
@@ -123,8 +127,27 @@ def load_reduce(index):
         antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
 
     # Standard reduction for XDM, more hard-coded version for FF / KAT-7
-    current_dataset = current_dataset.select(freqkeep=np.arange(100,400))
-    #current_dataset.convert_power_to_temperature()
+    if antenna.name == 'XDM':
+        current_dataset = current_dataset.select(freqkeep=current_dataset.channel_select)
+        current_dataset.convert_power_to_temperature()
+    else:
+        # Hard-code the FF frequency band
+        current_dataset = current_dataset.select(freqkeep=np.arange(95, 425))
+        # If noise diode models are supplied, insert them into data set before converting to temperature
+        if antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
+            try:
+                nd_hpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sH_coupler.txt' % (antenna.name[3],))
+                nd_vpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sV_coupler.txt' % (antenna.name[3],))
+                logger.info("Loading noise diode model '%s'" % (nd_hpol_file,))
+                nd_hpol = np.loadtxt(nd_hpol_file, delimiter=',')
+                logger.info("Loading noise diode model '%s'" % (nd_vpol_file,))
+                nd_vpol = np.loadtxt(nd_vpol_file, delimiter=',')
+                nd_hpol[:, 0] /= 1e6
+                nd_vpol[:, 0] /= 1e6
+                current_dataset.nd_model = scape.gaincal.NoiseDiodeModel(nd_hpol, nd_vpol, std_temp=0.04)
+                current_dataset.convert_power_to_temperature()
+            except IOError:
+                logger.warning('Could not load noise diode model files, should be named T_nd_A1H_coupler.txt etc.')
     current_dataset = current_dataset.select(labelkeep='scan', copy=False)
     # Make a copy of the dataset before averaging the channels so that we keep the spectral information
     unaveraged_dataset = current_dataset.select(copy=True)
@@ -197,6 +220,8 @@ def next_load_reduce_plot(fig=None):
                 ax1.clear()
                 ax1.set_title("%s - data set skipped" % name, size='medium')
                 ax2.clear()
+                if opts.plot_spectrum:
+                    ax3.clear()
                 plt.draw()
             return
         compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
@@ -266,22 +291,29 @@ def next_load_reduce_plot(fig=None):
 
     # Display compound scan
     if not opts.batch:
-        (ax1, ax2, ax3), info = fig.axes[:3], fig.texts[0]
+        if opts.plot_spectrum:
+            (ax1, ax2, ax3), info = fig.axes[:3], fig.texts[0]
+        else:
+            (ax1, ax2), info = fig.axes[:2], fig.texts[0]
         ax1.clear()
         scape.plot_compound_scan_in_time(compscan, ax=ax1)
-        ax1.set_title("%s '%s'\nazel=(%.1f, %.1f) deg, offset=(%.1f, %.1f) arcmin" %
-                      (name, compscan.target.name, requested_azel[0], requested_azel[1],
+        ax1.set_title("%s %s '%s'\nazel=(%.1f, %.1f) deg, offset=(%.1f, %.1f) arcmin" %
+                      (name, antenna.name, compscan.target.name, requested_azel[0], requested_azel[1],
                        60. * offset_azel[0], 60. * offset_azel[1]), size='medium')
         ax1.set_ylabel('Total power (%s)' % current_dataset.data_unit)
         ax2.clear()
         scape.plot_compound_scan_on_target(compscan, ax=ax2)
-        ax3.clear()
-        scape.plot_xyz(unaveraged_compscan, 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
+        if opts.plot_spectrum:
+            ax3.clear()
+            scape.plot_xyz(unaveraged_compscan, 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
         if compscan.beam:
-            info.set_text("Beamwidth = %.1f' (expected %.1f')\nBeam height = %.1f %s\nBaseline height = %.1f %s" %
+            info.set_text(("Beamwidth = %.1f' (expected %.1f')\nBeam height = %.1f %s\n" +
+                           "HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %.1f %s") %
                           (60. * katpoint.rad2deg(compscan.beam.width),
                            60. * katpoint.rad2deg(compscan.beam.expected_width),
-                           beam_height_I, current_dataset.data_unit, baseline_height_I, current_dataset.data_unit))
+                           beam_height_I, current_dataset.data_unit,
+                           average_flux / beam_params[4], average_flux / beam_params[8], current_dataset.data_unit,
+                           baseline_height_I, current_dataset.data_unit))
         else:
             info.set_text("No beam\nBaseline height = %.2f %s" % (baseline_height_I, current_dataset.data_unit))
         plt.draw()
@@ -308,9 +340,13 @@ if opts.batch:
 plt.ion()
 fig = plt.figure(1)
 plt.clf()
-plt.subplot(311)
-plt.subplot(312)
-plt.subplot(313)
+if opts.plot_spectrum:
+    plt.subplot(311)
+    plt.subplot(312)
+    plt.subplot(313)
+else:
+    plt.subplot(211)
+    plt.subplot(212)
 plt.subplots_adjust(bottom=0.2, hspace=0.25)
 plt.figtext(0.05, 0.05, '', va='bottom', ha='left')
 
@@ -321,8 +357,8 @@ def spectrogram_callback(event):
     plt.clf()
     compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
     unaveraged_compscan = unaveraged_dataset.compscans[compscan_index - compscans_in_previous_datasets]
-    ax1 = scape.plot_xyz(unaveraged_compscan, 'time', 'freq', 'amp', power_in_dB=True)
-    ax1.set_title(unaveraged_compscan.target.name, size='medium')
+    ax = scape.plot_xyz(unaveraged_compscan, 'time', 'freq', 'amp', power_in_dB=True)
+    ax.set_title(unaveraged_compscan.target.name, size='medium')
 spectrogram_button.on_clicked(spectrogram_callback)
 
 keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
