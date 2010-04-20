@@ -132,7 +132,7 @@ def load_reduce(index):
         current_dataset.convert_power_to_temperature()
     else:
         # Hard-code the FF frequency band
-        current_dataset = current_dataset.select(freqkeep=np.arange(95, 425))
+        current_dataset = current_dataset.select(freqkeep=range(90, 425))
         # If noise diode models are supplied, insert them into data set before converting to temperature
         if antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
             try:

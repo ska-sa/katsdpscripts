@@ -4,6 +4,8 @@
 import sys
 import optparse
 import re
+import os.path
+import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,24 +13,51 @@ import matplotlib.pyplot as plt
 import scape
 from katpoint import rad2deg
 
+# Set up logging: logging everything (DEBUG & above), both to console and file
+logger = logging.root
+logger.setLevel(logging.DEBUG)
+
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This reduces a data file to produce a tipping curve plot.')
 parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAx',
                   help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
+parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
+                  help="Name of optional directory containing noise diode model files")
 (opts, args) = parser.parse_args()
 
 if len(args) < 1:
-    print 'Please specify the data file to reduce'
+    logger.error('Please specify the data file to reduce')
     sys.exit(1)
 
 # Load data set
-print 'Loading baseline', opts.baseline, 'from data file', args[0]
+logger.info("Loading baseline '%s' from data file '%s'" % (opts.baseline, args[0]))
 d = scape.DataSet(args[0], baseline=opts.baseline)
-# Use noise diode firings to calibrate data from raw counts to temperature
-d.convert_power_to_temperature()
-# Only keep main scans (discard slew and cal scans) and restrict frequency band to Fringe Finder band
-d = d.select(labelkeep='scan', freqkeep=range(90, 425))
+# Standard reduction for XDM, more hard-coded version for FF / KAT-7
+# Restrict frequency band and use noise diode firings to calibrate data from raw counts to temperature
+if d.antenna.name == 'XDM':
+    d = d.select(freqkeep=d.channel_select)
+    d.convert_power_to_temperature()
+else:
+    # Hard-code the FF frequency band
+    d = d.select(freqkeep=range(90, 425))
+    # If noise diode models are supplied, insert them into data set before converting to temperature
+    if d.antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
+        try:
+            nd_hpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sH_coupler.txt' % (d.antenna.name[3],))
+            nd_vpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sV_coupler.txt' % (d.antenna.name[3],))
+            logger.info("Loading noise diode model '%s'" % (nd_hpol_file,))
+            nd_hpol = np.loadtxt(nd_hpol_file, delimiter=',')
+            logger.info("Loading noise diode model '%s'" % (nd_vpol_file,))
+            nd_vpol = np.loadtxt(nd_vpol_file, delimiter=',')
+            nd_hpol[:, 0] /= 1e6
+            nd_vpol[:, 0] /= 1e6
+            d.nd_model = scape.gaincal.NoiseDiodeModel(nd_hpol, nd_vpol, std_temp=0.04)
+            d.convert_power_to_temperature()
+        except IOError:
+            logger.warning('Could not load noise diode model files, should be named T_nd_A1H_coupler.txt etc.')
+# Only keep main scans (discard slew and cal scans)
+d = d.select(labelkeep='scan', copy=False)
 # Average all frequency channels into one band
 d.average()
 

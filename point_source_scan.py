@@ -39,7 +39,7 @@ parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_fa
                   help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
 # Experiment-specific options
 parser.add_option('-e', '--scan_in_elevation', dest='scan_in_elevation', action="store_true", default=False,
-                  help="Scan in elevation rather than aximuth, (default=%default)")
+                  help="Scan in elevation rather than in azimuth, (default=%default)")
 parser.add_option('-p', '--print_only', dest='print_only', action="store_true", default=False,
                   help="Do not actually observe, but display which sources will be scanned, "+
                        "plus predicted end time (default=%default)")
@@ -79,9 +79,6 @@ else:
 start_time = katpoint.Timestamp()
 targets_observed = []
 
-scan_in_azimuth = True
-if opts.scan_in_elevation: scan_in_azimuth = False
-
 if opts.print_only:
     current_time = katpoint.Timestamp(start_time)
     # Find out where first antenna is currently pointing (assume all antennas point there)
@@ -99,9 +96,9 @@ if opts.print_only:
             current_time += 1.0 * katpoint.rad2deg(target.separation(prev_target))
             print "At about %s, point source scan (compound scan %d) will start on '%s'" % \
                   (current_time.local(), compscan, target.name)
-            # Standard raster scan is 3 scans of 20 seconds each, with 2 slews of about 2 seconds in between scans,
-            # followed by 10 seconds of noise diode on/off. Also allow one second of overhead per scan.
-            current_time += 3 * 20.0 + 2 * 2.0 + 10.0 + 8 * 1.0
+            # Standard raster scan is 5 scans of 30 seconds each, with 4 slews of about 2 seconds in between scans,
+            # followed by 20 seconds of noise diode on/off. Also allow one second of overhead per scan.
+            current_time += 5 * 30.0 + 4 * 2.0 + 20.0 + 10 * 1.0
             targets_observed.append(target.name)
             prev_target = target
             compscan += 1
@@ -124,10 +121,11 @@ else:
             # Iterate through source list, picking the next one that is up
             for target in pointing_sources.iterfilter(el_limit_deg=5):
                 # Do standard raster scan on target
-                session.raster_scan(target, scan_in_azimuth=scan_in_azimuth)
+                session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0, scan_spacing=0.25,
+                                    scan_in_azimuth=not opts.scan_in_elevation)
                 targets_observed.append(target.name)
                 # Fire noise diode, to allow gain calibration
-                session.fire_noise_diode('coupler')
+                session.fire_noise_diode('coupler', on_duration=10, off_duration=10)
                 # The default is to do only one iteration through source list
                 if opts.min_time <= 0.0:
                     keep_going = False

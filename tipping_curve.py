@@ -64,4 +64,4 @@ with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.descri
     # Iterate through elevation angles
     for el in [2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90]:
         session.track('azel, %f, %f' % (opts.az, el), duration=15.0)
-        session.fire_noise_diode('coupler')
+        session.fire_noise_diode('coupler', on_duration=10, off_duration=10)
