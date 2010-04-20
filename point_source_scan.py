@@ -98,7 +98,11 @@ if opts.print_only:
                   (current_time.local(), compscan, target.name)
             # Standard raster scan is 5 scans of 30 seconds each, with 4 slews of about 2 seconds in between scans,
             # followed by 20 seconds of noise diode on/off. Also allow one second of overhead per scan.
-            current_time += 5 * 30.0 + 4 * 2.0 + 20.0 + 10 * 1.0
+            if target.flux_density(opts.centre_freq) > 25.0:
+                current_time += 5 * 30.0 + 4 * 2.0 + 20.0 + 10 * 1.0
+            else:
+                # Weaker targets get longer-duration scans
+                current_time += 5 * 60.0 + 4 * 2.0 + 20.0 + 10 * 1.0
             targets_observed.append(target.name)
             prev_target = target
             compscan += 1
@@ -120,9 +124,13 @@ else:
         while keep_going:
             # Iterate through source list, picking the next one that is up
             for target in pointing_sources.iterfilter(el_limit_deg=5):
-                # Do standard raster scan on target
-                session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0, scan_spacing=0.25,
-                                    scan_in_azimuth=not opts.scan_in_elevation)
+                # Do different raster scan on strong and weak targets
+                if target.flux_density(opts.centre_freq) > 25.0:
+                    session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
+                                        scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation)
+                else:
+                    session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
+                                        scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation)
                 targets_observed.append(target.name)
                 # Fire noise diode, to allow gain calibration
                 session.fire_noise_diode('coupler', on_duration=10, off_duration=10)
