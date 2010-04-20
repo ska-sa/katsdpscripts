@@ -179,7 +179,7 @@ class CaptureSession(object):
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
-    def fire_noise_diode(self, diode='pin', on_duration=5.0, off_duration=5.0):
+    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0):
         """Switch noise diode on and off.
 
         This starts a new scan and switches the selected noise diode on and off
@@ -303,7 +303,7 @@ class CaptureSession(object):
         if not record_slews:
             kat.dbe.req.k7w_write_hdf5(0)
 
-    def scan(self, target, duration=20.0, start=-2.0, end=2.0, scan_in_azimuth=True,
+    def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
              drive_strategy='shortest-slew', label='scan'):
         """Scan across a target.
 
@@ -406,8 +406,8 @@ class CaptureSession(object):
         if not record_slews:
             kat.dbe.req.k7w_write_hdf5(0)
 
-    def raster_scan(self, target, num_scans=3, scan_duration=20.0,
-                    scan_extent=4.0, scan_spacing=0.5, scan_in_azimuth=True,
+    def raster_scan(self, target, num_scans=3, scan_duration=30.0,
+                    scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
                     drive_strategy='shortest-slew', label='raster'):
         """Perform raster scan on target.
 
@@ -535,8 +535,8 @@ class CaptureSession(object):
             if not record_slews:
                 kat.dbe.req.k7w_write_hdf5(0)
 
-    def holography_scan(self, scan_ants, target, num_scans=3, scan_duration=20.0,
-                        scan_extent=4.0, scan_spacing=0.5, scan_in_azimuth=True,
+    def holography_scan(self, scan_ants, target, num_scans=3, scan_duration=30.0,
+                        scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
                         drive_strategy='shortest-slew', label='holo'):
         """Perform holography scan on target.
 
