@@ -40,6 +40,8 @@ parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
                   help="Name of optional directory containing noise diode model files")
 parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='pointing_model.csv',
                   help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
+parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='90,424',
+                  help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
 parser.add_option("-s", "--plot_spectrum", dest="plot_spectrum", action="store_true",
@@ -90,6 +92,10 @@ beam_data = [[] for dataset in datasets]
 output_data = []
 antenna = None
 
+# frequency channels to keep
+start_freq_channel = int(opts.freq_keep.split(',')[0])
+end_freq_channel = int(opts.freq_keep.split(',')[1])
+
 def dataset_name(filename):
     """Convert filename to more compact data set name."""
     if filename.endswith('.fits'):
@@ -132,7 +138,7 @@ def load_reduce(index):
         current_dataset.convert_power_to_temperature()
     else:
         # Hard-code the FF frequency band
-        current_dataset = current_dataset.select(freqkeep=range(90, 425))
+        current_dataset = current_dataset.select(freqkeep=range(start_freq_channel, end_freq_channel+1))
         # If noise diode models are supplied, insert them into data set before converting to temperature
         if antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
             try:
