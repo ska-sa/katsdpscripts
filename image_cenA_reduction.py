@@ -40,6 +40,7 @@ nd[3].fit(a4v[:, 0], a4v[:, 1])
 
 # Open data file
 f = h5py.File('1270070695.h5', 'r')
+#f = h5py.File('1269988536.h5', 'r')
 
 # Updated antennas after baseline calibration
 new_ants = {'Antenna1' : ('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 25.119 -8.944 0.083, , 1.22', 478.041e-9),
@@ -406,7 +407,7 @@ for compscan in f['Scans']:
         continue
     compscan_group = f['Scans'][compscan]
     target = katpoint.Target(compscan_group.attrs['target'])
-    if target.name != cenA_N.name:
+    if target.name != cenA.name:
         continue
     # Get 'scan' scan
     scan_group = compscan_group['Scan1']
