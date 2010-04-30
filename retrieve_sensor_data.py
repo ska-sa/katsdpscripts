@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # Retrieve sensor data as CSV files or as plots.
 
-"""Retrieve sensor data from a central monitor archive.
-   """
+"""Retrieve sensor data from a central monitor archive."""
 
 from katuilib.katcp_client import KATBaseSensor
 from katuilib.data import AnimatableSensorPlot
@@ -13,6 +12,35 @@ import urllib2
 import sys
 import re
 import os
+
+
+HOWTO = \
+"""By default data is written out to .csv files. One
+of -l (list), -d (show dates) or -p (plot) may be given
+to perform other tasks.
+
+Sensor names are cached in sensor_names.csv to avoid
+having to trawl the monitoring store each time for a list
+of known sensors.
+
+Examples
+--------
+
+# Find out what sensors named anc.enviro.air are in the store
+$ ./retrieve_sensor_data.py -l 'anc.enviro.air'
+
+# Find out what dates sensor information is available over
+$ ./retrieve_sensor_data.py -d 'anc.enviro.air'
+
+# Plot temperature and pressure over a given date range
+$ ./retrieve_sensor_data.py -p --start 2010-01-01 --end 2010-02-01 \\
+ anc.enviro.air.pressure anc.enviro.air.temperature
+
+# Download same data to .csv files in current folder
+$ ./retrieve_sensor_data.py --start 2010-01-01 --end 2010-02-01 \\
+ anc.enviro.air.pressure anc.enviro.air.temperature
+"""
+
 
 # known central monitor URLS
 
@@ -48,6 +76,9 @@ parser.add_option('--cache', dest='sensor_cache', type="string", metavar='SENSOR
                   help="File to cache sensor names in [%default].")
 parser.add_option('--title', dest='title', type="string", metavar='PLOT_TITLE', default=None,
                   help="Title for graph; only useful when using -p [%default].")
+parser.add_option('--howto', dest='howto', action="store_true", metavar='HOWTO',
+                  help="Print out a HOWTO and exit.")
+
 
 class CentralStore(object):
     """Access to a central monitoring store.
@@ -144,6 +175,10 @@ def parse_date(datestr, formats=None):
 def main():
     """Main script."""
     (opts, args) = parser.parse_args()
+
+    if opts.howto:
+        print HOWTO
+        return 1
 
     if not args:
         print "No sensor expression given."
