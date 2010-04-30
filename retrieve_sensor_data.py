@@ -23,6 +23,9 @@ Sensor names are cached in sensor_names.csv to avoid
 having to trawl the monitoring store each time for a list
 of known sensors.
 
+The start and end times may be formatted as either 'YYYY-MM-DD'
+or 'YYYY-MM-DD HH:MM'.
+
 Examples
 --------
 
