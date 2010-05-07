@@ -9,6 +9,7 @@ import re
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 import h5py
 import katpoint
@@ -47,6 +48,11 @@ new_ants = {'Antenna1' : ('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 25.119 -
             'Antenna2' : ('ant2, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 90.315 26.648 -0.067, , 1.22', 545.235e-9),
             'Antenna3' : ('ant3, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 3.989 26.925 -0.006, , 1.22', 669.900e-9),
             'Antenna4' : ('ant4, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -21.600 25.500 0.000, , 1.22', 772.868e-9)}
+# ... after some more adjustment (threshold = 0.05 mostly)
+# new_ants = {'Antenna1' : ('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 25.102 -8.920 0.191, , 1.22', 478.276e-9),
+#             'Antenna2' : ('ant2, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 90.310 26.741 0.140, , 1.22', 545.632e-9),
+#             'Antenna3' : ('ant3, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 3.989 26.922 0.012, , 1.22', 669.913e-9),
+#             'Antenna4' : ('ant4, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -21.600 25.500 0.000, , 1.22', 772.868e-9)}
 
 # Create antenna objects based on updated baseline cal (swapping antennas 1 and 2 relative to the data)
 ant_names = ['Antenna2', 'Antenna1', 'Antenna3', 'Antenna4']
@@ -78,6 +84,10 @@ for ant_index, ant in enumerate(f['Antennas']):
         scan_group = f['Scans'][compscan]['Scan2']
         # Extract autocorr data of given antenna
         data = scan_group['data'][str(autocorr[ant_index])].real[:, first_chan:one_past_last_chan]
+        # # Quick RFI check
+        # if data.max() > 2.1 * data.mean():
+        #     print 'Variation too large (%g) in %s' % (data.max() / data.mean(), scan_group.name)
+        #     continue
         # Segments are hard-coded to ignore transitions and time offset - noise diode sensor not used, as Antenna 2 has a broken one
         off_segment, on_segment = [0] + range(8, min(data.shape[0], 30)), [3, 4, 5]
         # Calculate mean and standard deviation of the *averaged* power data in the two segments.
@@ -113,12 +123,16 @@ for compscan in f['Scans']:
     if target.name != far_cal.name:
         continue
     # Get 'scan' scan
-    scan_group = compscan_group['Scan1']
+    scan_group = compscan_group['Scan1'] if len(compscan_group) == 3 else compscan_group['Scan0']
     # Convert from millisecs to secs since Unix epoch, and be sure to use float64 to preserve digits
     # Also move correlator data timestamps from start of each sample to the middle
     timestamps = scan_group['timestamps'].value.astype(np.float64) / 1000.0 + 0.5 * sample_period
+    # # Use autocorr to throw out RFI-corrupted data
+    # vis_auto = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in autocorr]).real
+    # if vis_auto.max() > 1.4 * vis_auto.mean():
+    #     print 'Variation too large (%g) in %s' % (vis_auto.max() / vis_auto.mean(), scan_group.name)
+    #     continue
     # Extract visibilities and uvw coordinates
-    vis_auto = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in autocorr]).real
     vis_cross = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in crosscorr]).transpose(1, 2, 0)
     orig_cal_vis_samples.append(vis_cross.copy())
     uvw = np.zeros((3, len(timestamps), len(wavelengths), len(crosscorr)))
@@ -258,10 +272,15 @@ for compscan in f['Scans']:
     if target.name != far_cal.name and target.name != close_cal.name:
         continue
     # Get 'scan' scan
-    scan_group = compscan_group['Scan1']
+    scan_group = compscan_group['Scan1'] if len(compscan_group) == 3 else compscan_group['Scan0']
     # Convert from millisecs to secs since Unix epoch, and be sure to use float64 to preserve digits
     # Also move correlator data timestamps from start of each sample to the middle
     timestamps = scan_group['timestamps'].value.astype(np.float64) / 1000.0 + 0.5 * sample_period
+    # # Use autocorr to throw out RFI-corrupted data
+    # vis_auto = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in autocorr]).real
+    # if vis_auto.max() > 1.4 * vis_auto.mean():
+    #     print 'Variation too large (%g) in %s' % (vis_auto.max() / vis_auto.mean(), scan_group.name)
+    #     continue
     # Extract visibilities and uvw coordinates
     vis_cross = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in crosscorr]).transpose(1, 2, 0)
     uvw = np.zeros((3, len(timestamps), len(wavelengths), len(crosscorr)))
@@ -414,6 +433,11 @@ for compscan in f['Scans']:
     # Convert from millisecs to secs since Unix epoch, and be sure to use float64 to preserve digits
     # Also move correlator data timestamps from start of each sample to the middle
     timestamps = scan_group['timestamps'].value.astype(np.float64) / 1000.0 + 0.5 * sample_period
+    # # Use autocorr to throw out RFI-corrupted data
+    # vis_auto = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in autocorr]).real
+    # if vis_auto.max() > 1.4 * vis_auto.mean():
+    #     print 'Variation too large (%g) in %s' % (vis_auto.max() / vis_auto.mean(), scan_group.name)
+    #     continue
     # Extract visibilities and uvw coordinates
     vis_cross = np.array([scan_group['data'].value[str(index)][:, first_chan:one_past_last_chan] for index in crosscorr]).transpose(1, 2, 0)
     uvw = np.zeros((3, len(timestamps), len(wavelengths), len(crosscorr)))
@@ -499,18 +523,31 @@ phi = np.exp(1j * 2 * np.pi * np.dot(np.column_stack([u_samples, v_samples]), lm
 #del phi_angle
 # Desired number of pixels (the sparsity level m of the signal)
 num_components = 20
-vis_snr_dB = 10
+vis_snr_dB = 20
 # Pick a more sensible threshold in the case of noiseless data
 effective_snr_dB = min(vis_snr_dB, 40.0)
 res_thresh = 1.0 / np.sqrt(1.0 + 10 ** (effective_snr_dB / 10.0))
 
+# Set up CLEAN boxes around main peaks
+mask = (dirty_image > 0.3 * dirty_image.max()).ravel()
+
 # Clean the image
 from compsense.greedy_pos import omp
-omp_sources = omp(A=phi, y=vis_samples, S=num_components, resThresh=res_thresh)
+masked_comps = omp(A=phi[:, mask], y=vis_samples, S=num_components, resThresh=res_thresh)
+clean_components = np.zeros(phi.shape[1])
+clean_components[mask] = masked_comps
+clean_components = clean_components.reshape(image_size, image_size)
 #from compsense.minl1_pos_customkkt import regls_qp
 #bp_sources = regls_qp(A=phi_real, y=np.hstack([vis_samples.real.astype(np.float64), vis_samples.imag.astype(np.float64)]),
 #                      gamma=1.0)
-clean_components = omp_sources.reshape(image_size, image_size)
+
+# Create residual image
+residual_vis = vis_samples - np.dot(phi[:, mask], masked_comps)
+residual_image = np.zeros((image_size, image_size), dtype='double')
+for u, v, vis in zip(u_samples, v_samples, residual_vis):
+    arg = 2*np.pi*(u*l_image + v*m_image)
+    residual_image += np.abs(vis) * np.cos(arg - np.angle(vis))
+residual_image *= n_image / len(residual_vis)
 
 # Create restoring beam from inner part of dirty beam (very beam-specific for middle cenA target!)
 restoring_beam = dirty_beam[20:45, 25:38].copy()
@@ -572,10 +609,42 @@ ax.set_xlim(ax.get_xlim()[::-1])
 
 plt.figure(17)
 plt.clf()
-plt.imshow(clean_image, origin='lower', interpolation='bicubic', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
+plt.imshow(clean_image + residual_image, origin='lower', interpolation='bicubic', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
 plt.xlabel('l (arcmins)')
 plt.ylabel('m (arcmins)')
-plt.title('Clean image of Cen A at 1820 MHz')
+#plt.title('Clean image of Cen A at 1820 MHz')
+plt.title('Interferometric image of Centaurus A')
 plt.axis('image')
 ax = plt.gca()
 ax.set_xlim(ax.get_xlim()[::-1])
+ax.images[0].set_cmap(mpl.cm.gist_heat)
+# Plot beam ellipse
+# bmaj, bmin, bpa = 14.0 * image_grid_step * arcmins, 8.6 * image_grid_step * arcmins, 6.5
+# gap = 0.1
+# maxwidth = (1.0 + 1.0 * gap) * max(bmaj, bmin)
+# xlim, ylim = ax.get_xlim(), ax.get_ylim()
+# corner = (xlim[0], ylim[1])
+# axisdir = ((np.diff(xlim) / np.abs(np.diff(xlim)))[0],
+#            (np.diff(ylim) / np.abs(np.diff(ylim)))[0])
+# beamCenter = (corner[0] + axisdir[0] * maxwidth / 2.0,
+#               corner[1] - axisdir[1] * maxwidth / 2.0)
+# cornerClosestToOrigin = (corner[0] + axisdir[0] * maxwidth,
+#                          corner[1] - axisdir[1] * maxwidth)
+# beamBorder = mpl.patches.Rectangle(cornerClosestToOrigin, maxwidth,
+#                                    maxwidth, ec='k', fc='w', zorder=4)
+# beamEll = mpl.patches.Ellipse(beamCenter, bmaj, bmin, 90.0 - bpa,
+#                               ec='k', fc='0.3', zorder=5)
+# ax.add_patch(beamBorder)
+# ax.add_patch(beamEll)
+
+# plt.figure(18)
+# plt.clf()
+# levels = np.array([30, 40, 50, 60, 70, 80, 90, 100])
+# cfs = plt.contourf(l_plot, m_plot, clean_image * 100 / clean_image.max(), levels, norm=mpl.colors.LogNorm(20.1, 101.0))
+# cs = plt.contour(l_plot, m_plot, clean_image * 100 / clean_image.max(), levels, colors='k')
+# plt.xlabel('l (arcmins)')
+# plt.ylabel('m (arcmins)')
+# plt.title('Clean image of Cen A at 1820 MHz')
+# plt.axis('image')
+# ax = plt.gca()
+# ax.set_xlim(ax.get_xlim()[::-1])
