@@ -17,10 +17,12 @@ import katpoint
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage="%prog [options] <data file>")
-parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAy',
+parser.add_option('-a', '--baseline', dest='baseline', type='string', metavar='BASELINE', default='AxAy',
                   help="Baseline to calibrate (e.g. 'A1A2'), default is first interferometric baseline in file")
-parser.add_option('-p', '--pol', dest='pol', type="string", metavar='POL', default='HH',
+parser.add_option('-p', '--pol', dest='pol', type='string', metavar='POL', default='HH',
                   help="Polarisation term to use ('HH' or 'VV'), default is %default")
+parser.add_option('-s', '--max-sigma', dest='max_sigma', type='float', default=0.05,
+                  help="Threshold on std deviation of normalised group delay, default is %default")
 (opts, args) = parser.parse_args()
 
 if len(args) < 1:
@@ -81,6 +83,10 @@ sigma_delay[sigma_delay < 1e-5 * max_sigma_delay] = 1e-5 * max_sigma_delay
 A = augmented_targetdir / sigma_delay
 # Measurement vector, containing weighted observed delays
 b = group_delay / sigma_delay
+# Throw out data points with standard deviations above the given threshold
+A = A[:, sigma_delay < opts.max_sigma * max_sigma_delay]
+b = b[sigma_delay < opts.max_sigma * max_sigma_delay]
+print 'Fitting 4 parameters to %d data points (discarded %d)...' % (len(b), len(sigma_delay) - len(b))
 # Solve linear least-squares problem using SVD (see NRinC, 2nd ed, Eq. 15.4.17)
 U, s, Vt = np.linalg.svd(A.transpose(), full_matrices=False)
 augmented_baseline = np.dot(Vt.T, np.dot(U.T, b) / s)
