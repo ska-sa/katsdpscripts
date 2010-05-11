@@ -5,10 +5,12 @@
 
 from katuilib.katcp_client import KATBaseSensor
 from katuilib.data import AnimatableSensorPlot
+import katcp
 import calendar
 import datetime
 import optparse
 import urllib2
+import urlparse
 import sys
 import re
 import os
@@ -79,6 +81,8 @@ parser.add_option('--cache', dest='sensor_cache', type="string", metavar='SENSOR
                   help="File to cache sensor names in [%default].")
 parser.add_option('--title', dest='title', type="string", metavar='PLOT_TITLE', default=None,
                   help="Title for graph; only useful when using -p [%default].")
+parser.add_option('--legend-loc', dest='legend_loc', type="int", metavar='LEGEND_LOC', default=0,
+                  help="Matplotlib legend loc parameter; used to position legend; only useful when using -p [%default].")
 parser.add_option('--howto', dest='howto', action="store_true", metavar='HOWTO',
                   help="Print out a HOWTO and exit.")
 
@@ -100,6 +104,7 @@ class CentralStore(object):
         if not self.url.endswith('/'):
             self.url += '/'
         self._sensor_names = self._load_cache()
+        self._sensor_types = set(katcp.Sensor.SENSOR_TYPE_LOOKUP.keys())
 
     def _load_cache(self):
         """Load sensor names from cache."""
@@ -117,13 +122,17 @@ class CentralStore(object):
             cache_file.write("\n")
         cache_file.close()
 
-    def _list_folder(self, url, ending='/'):
+    def _list_folder(self, url, ending=''):
         """Return the sub-folders or files of a URL that have a given ending."""
         folder = urllib2.urlopen(url)
-        ntail = len(ending)
         try:
-            subfolders = [href[:-ntail] for href in re.findall(r"href=\"([^\"]*)\"", folder.read()) \
-                          if not href.startswith('/') and href.endswith(ending)]
+            subfolders = []
+            for href in re.findall(r"href=\"([^\"]*)\"", folder.read()):
+                href = href.strip()
+                abs_url = urlparse.urljoin(url, href)
+                if not abs_url.startswith(url) or not href.endswith(ending):
+                    continue
+                subfolders.append(href)
         finally:
             folder.close()
         return subfolders
@@ -136,7 +145,7 @@ class CentralStore(object):
         # find proxies (folder) and sensor names (sub-folders)
         sensor_names = []
         for folder in self._list_folder(self.url):
-            sensor_names.extend("%s.%s" % (folder, child) for child in self._list_folder("%s%s" % (self.url, folder)))
+            sensor_names.extend("%s.%s" % (folder, child) for child in self._list_folder("%s%s/" % (self.url, folder)))
 
         self._save_cache(sensor_names)
         return sensor_names
@@ -149,9 +158,15 @@ class CentralStore(object):
         if not csv_files:
             return
         latest = csv_files[0]
-        header = urllib2.urlopen("%s%s/%s/%s.csv" % (self.url, parent_name, sensor_name, latest)).readline()
+        header = urllib2.urlopen("%s%s/%s/%s" % (self.url, parent_name, sensor_name, latest)).readline()
         parts = [part.strip() for part in header.split(',')]
-        description, stype, units = parts[1:4]
+        types = [i for i, part in enumerate(parts) if part in self._sensor_types]
+        if len(types) != 1:
+            raise ValueError("Couldn't determine type of sensor %r from header %r" % (name, parts))
+        type_index = types[0]
+        description = ", ".join(parts[1:type_index])
+        stype = parts[type_index]
+        units = parts[type_index+1]
         return KATBaseSensor(parent_name, sensor_name, description, units, stype, central_monitor_url=self.url)
 
 
@@ -273,7 +288,7 @@ def main():
 
     if opts.plot_graph:
         import matplotlib.pyplot as plt
-        ap = AnimatableSensorPlot(title=title, source="stored", start_time=start_s, end_time=end_s)
+        ap = AnimatableSensorPlot(title=title, source="stored", start_time=start_s, end_time=end_s, legend_loc=opts.legend_loc)
         for sensor in sensors:
             ap.add_sensor(sensor)
         ap.show()
