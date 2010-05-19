@@ -39,7 +39,7 @@ parser.set_defaults(pmfilename='pointing_model.csv', outfilename='pointing_model
 parser.add_option("-b", "--batch", dest="batch", action="store_true",
                   help="True if processing is to be done in batch mode without user interaction")
 parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string",
-                  help="Name of optional file containing old pointing model")
+                  help="Name of optional file containing old pointing model (only needed for XDM)")
 parser.add_option("-o", "--output", dest="outfilename", type="string",
                   help="Name of output file containing new pointing model")
 
@@ -74,6 +74,7 @@ formats[[fields.index(name) for name in string_fields if name in fields]] = data
 data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
 # Load antenna description string from first line of file and construct antenna object from it
 antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
+# Use the pointing model contained in antenna object as the old model (if not overridden by file)
 if old_model is None:
     old_model = antenna.pointing_model
 
@@ -87,7 +88,7 @@ unique_targets = np.unique(targets).tolist()
 target_indices = np.array([unique_targets.index(t) for t in targets])
 current_target = 0
 selected_target = target_indices == current_target
-fwhm_beamwidth = 1.178 * katpoint.lightspeed / (data['frequency'][0] * 1e6) / antenna.diameter
+fwhm_beamwidth = antenna.beamwidth * katpoint.lightspeed / (data['frequency'][0] * 1e6) / antenna.diameter
 beam_radius_arcmin = rad2deg(fwhm_beamwidth) * 60. / 2
 
 # Previous residual error and sky RMS
@@ -119,6 +120,10 @@ else:
 enabled_params = np.tile(False, num_params)
 enabled_params[default_enabled] = True
 enabled_params = enabled_params.tolist()
+# For display purposes, throw out unused parameters P2 and P10
+display_params = range(num_params)
+display_params.pop(9)
+display_params.pop(1)
 
 # Provide access to new residuals
 residual_az, residual_el = None, None
@@ -148,8 +153,8 @@ def update(fig=None):
         fig.texts[3].set_text("target sky rms = %.3f'" % target_sky_rms)
         fig.texts[-1].set_text(unique_targets[current_target])
         # Update model parameter strings
-        for p in xrange(num_params):
-            fig.texts[p + 4].set_text(new_model.param_str(p + 1) if enabled_params[p] else '')
+        for p, param in enumerate(display_params):
+            fig.texts[p + 4].set_text(new_model.param_str(param + 1) if enabled_params[param] else '')
         daz_az, del_az, daz_el, del_el, quiver, before, after = fig.axes[:7]
         # Update quiver plot
         quiver_theta[:] = np.pi / 2. - az[:, np.newaxis] - quiver_scale * np.outer(residual_az, line_sweep)
@@ -252,7 +257,7 @@ ax1.set_yticks(deg2rad(np.arange(0., 90., 10.)))
 # Axes to contain before/after residual plot
 ax2 = plt.axes([0.5, 0.1, 0.25, 0.25], polar=True)
 ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(arcmin_formatter))
-ax2.plot([0, 2 * np.pi], [beam_radius_arcmin, beam_radius_arcmin], '--k')
+ax2.axhline(beam_radius_arcmin, color='k')
 ax2.plot(np.arctan2(old_res_y, old_res_x), old_abs_sky_error, 'ob')
 ax2.plot(np.arctan2(old_res_y, old_res_x)[selected_target], old_abs_sky_error[selected_target], 'or')
 ax2.set_ylim(0, 2 * beam_radius_arcmin)
@@ -263,7 +268,7 @@ plt.figtext(0.625, 0.04, "target sky rms = %.3f'" % (old_sky_rms,), ha='center',
 
 ax3 = plt.axes([0.75, 0.1, 0.25, 0.25], polar=True)
 ax3.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(arcmin_formatter))
-ax3.plot([0, 2 * np.pi], [beam_radius_arcmin, beam_radius_arcmin], '--k')
+ax3.axhline(beam_radius_arcmin, color='k')
 ax3.plot(np.arctan2(old_res_y, old_res_x), old_abs_sky_error, 'ob')
 ax3.plot(np.arctan2(old_res_y, old_res_x)[selected_target], old_abs_sky_error[selected_target], 'or')
 ax3.set_ylim(0, 2 * beam_radius_arcmin)
@@ -289,22 +294,23 @@ param_button_color = ['0.65', '0.0']
 param_button_weight = ['normal', 'bold']
 def setup_param_button(p):
     """Set up individual parameter toggle button."""
-    param_button = mpl.widgets.Button(plt.axes([0.02, 0.94 - (0.85 + p * 0.9) / num_params,
-                                                0.03, 0.85 / num_params]), 'P%d' % (p + 1,))
-    plt.figtext(0.06, 0.94 - (0.5 * 0.85 + p * 0.9) / num_params, '', va='center')
-    state = enabled_params[p]
+    param = display_params[p]
+    param_button = mpl.widgets.Button(plt.axes([0.02, 0.94 - (0.85 + p * 0.9) / len(display_params),
+                                                0.03, 0.85 / len(display_params)]), 'P%d' % (param + 1,))
+    plt.figtext(0.06, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), '', va='center')
+    state = enabled_params[param]
     param_button.label.set_color(param_button_color[state])
     param_button.label.set_weight(param_button_weight[state])
     def toggle_param_callback(event):
-        state = not enabled_params[p]
-        enabled_params[p] = state
+        state = not enabled_params[param]
+        enabled_params[param] = state
         param_button.label.set_color(param_button_color[state])
         param_button.label.set_weight(param_button_weight[state])
         save_button.color = (0.85, 0, 0)
         save_button.hovercolor = (0.95, 0, 0)
         update(fig)
     param_button.on_clicked(toggle_param_callback)
-param_buttons = [setup_param_button(p) for p in xrange(num_params)]
+param_buttons = [setup_param_button(p) for p in xrange(len(display_params))]
 plt.figtext(0.05, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 
 # Create target selector buttons and related text (title + target string)
