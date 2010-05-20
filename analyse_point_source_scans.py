@@ -212,9 +212,9 @@ def next_load_reduce_plot(fig=None):
             f.write('dataset, target, timestamp_ut, azimuth, elevation, delta_azimuth, delta_elevation, data_unit, ' +
                     'beam_height_I, beam_width_I, baseline_height_I, refined_I, beam_height_HH, beam_width_HH, ' +
                     'baseline_height_HH, refined_HH, beam_height_VV, beam_width_VV, baseline_height_VV, refined_VV, ' +
-                    'frequency, flux, temperature, pressure, humidity, wind_speed, wind_direction\n')
+                    'frequency, flux, temperature, pressure, humidity, wind_speed\n')
             f.writelines([(('%s, %s, %s, %.7f, %.7f, %.7f, %.7f, %s, %.7f, %.7f, %.7f, %d, %.7f, %.7f, %.7f, %d, ' +
-                            '%.7f, %.7f, %.7f, %d, %.7f, %.4f, %.2f, %.2f, %.2f, %.2f, %.2f\n') % tuple(p))
+                            '%.7f, %.7f, %.7f, %d, %.7f, %.4f, %.2f, %.2f, %.2f, %.2f\n') % tuple(p))
                           for p in output_data if p])
             f.close()
             sys.exit(0)
@@ -243,37 +243,26 @@ def next_load_reduce_plot(fig=None):
     flux_spectrum = [compscan.target.flux_density(freq) for freq in unaveraged_dataset.freqs]
     average_flux = np.mean([flux for flux in flux_spectrum if flux])
 
-    # Obtain middle timestamp of compound scan, where all pointing calculations are done
-    middle_time = np.median(np.hstack([scan.timestamps for scan in compscan.scans]), axis=None)
-    # Obtain average environmental data
-    temperature = np.mean(current_dataset.enviro['temperature']['value']
-                          if 'temperature' in current_dataset.enviro else [])
-    pressure = np.mean(current_dataset.enviro['pressure']['value'] if 'pressure' in current_dataset.enviro else [])
-    humidity = np.mean(current_dataset.enviro['humidity']['value'] if 'humidity' in current_dataset.enviro else [])
-    if 'wind_speed' in current_dataset.enviro and 'wind_direction' in current_dataset.enviro:
-        wind_speed = current_dataset.enviro['wind_speed']
-        wind_direction = current_dataset.enviro['wind_direction']
-        interp = scape.fitting.PiecewisePolynomial1DFit(max_degree=1)
-        interp.fit(wind_speed['timestamp'], wind_speed['value'])
-        wind_speed = interp(wind_direction['timestamp'])
-        wind_direction = katpoint.deg2rad(wind_direction['value'])
-        wind_n, wind_e = np.mean(wind_speed * np.cos(wind_direction)), np.mean(wind_speed * np.sin(wind_direction))
-        wind_speed, wind_direction = np.sqrt(wind_n ** 2 + wind_e ** 2), katpoint.rad2deg(np.arctan2(wind_e, wind_n))
-    else:
-        wind_speed = wind_direction = np.nan
-    # Defaults if all else fails
-    if np.isnan(temperature):
-        temperature = 35.0
-    if np.isnan(pressure):
-        pressure = 950.0
-    if np.isnan(humidity):
-        humidity = 15.0
-    if np.isnan(wind_speed):
-        wind_speed = 0.0
-    if np.isnan(wind_direction):
-        wind_direction = 0.0
+    # Interpolate environmental sensor data
+    def interp_sensor(quantity, default):
+        try:
+            sensor = current_dataset.enviro[quantity]
+        except KeyError:
+            return (lambda times: default)
+        else:
+            interp = scape.fitting.PiecewisePolynomial1DFit(max_degree=0)
+            interp.fit(sensor['timestamp'], sensor['value'])
+            return interp
+    # Obtain environmental data averaged across the compound scan
+    compscan_times = np.hstack([scan.timestamps for scan in compscan.scans])
+    temperature = np.mean(interp_sensor('temperature', 35.0)(compscan_times))
+    pressure = np.mean(interp_sensor('pressure', 950.0)(compscan_times))
+    humidity = np.mean(interp_sensor('humidity', 15.0)(compscan_times))
+    wind_speed = np.mean(interp_sensor('wind_speed', 0.0)(compscan_times))
 
     # Calculate pointing offset
+    # Obtain middle timestamp of compound scan, where all pointing calculations are done
+    middle_time = np.median(compscan_times, axis=None)
     # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
     requested_azel = compscan.target.azel(middle_time)
     # Correct for refraction, which becomes the requested value at input of pointing model
@@ -331,7 +320,7 @@ def next_load_reduce_plot(fig=None):
         output_data.append([name, compscan.target.name, katpoint.Timestamp(middle_time),
                             requested_azel[0], requested_azel[1], offset_azel[0], offset_azel[1],
                             current_dataset.data_unit] + beam_params + [current_dataset.freqs.mean(),
-                            average_flux, temperature, pressure, humidity, wind_speed, wind_direction])
+                            average_flux, temperature, pressure, humidity, wind_speed])
 
 ### BATCH MODE ###
 
