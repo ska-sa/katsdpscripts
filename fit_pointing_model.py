@@ -100,7 +100,16 @@ if old_model:
 old_residual_xel = old_residual_az * np.cos(el)
 old_res_x, old_res_y = rad2deg(old_residual_xel) * 60., rad2deg(old_residual_el) * 60.
 old_abs_sky_error = np.sqrt(old_res_x * old_res_x + old_res_y * old_res_y)
+###### On the calculation of all-sky RMS #####
+# Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
+# They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
+# standard deviation of sigma
+# The absolute sky error (== Euclidean length of 2-dim error vector) then has a Rayleigh distribution
+# The RMS sky error has a mean value of sqrt(2) * sigma, since each squared error term is the sum of
+# two squared Gaussian random values, each with an expected value of sigma^2.
 old_sky_rms = np.sqrt(np.mean(old_abs_sky_error ** 2))
+# A more robust estimate of the RMS sky error is obtained via the median of the Rayleigh distribution,
+# which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
 old_sky_rms = np.median(old_abs_sky_error) * np.sqrt(2. / np.log(4.))
 
 # Data structure for quiver lines, consisting of arc coords and NaNs for the gaps between lines
@@ -154,7 +163,7 @@ def update(fig=None):
         fig.texts[-1].set_text(unique_targets[current_target])
         # Update model parameter strings
         for p, param in enumerate(display_params):
-            fig.texts[p + 4].set_text(new_model.param_str(param + 1) if enabled_params[param] else '')
+            fig.texts[p + 4].set_text(new_model.param_str(param + 1, '%.3e') if enabled_params[param] else '')
         daz_az, del_az, daz_el, del_el, quiver, before, after = fig.axes[:7]
         # Update quiver plot
         quiver_theta[:] = np.pi / 2. - az[:, np.newaxis] - quiver_scale * np.outer(residual_az, line_sweep)
@@ -171,9 +180,12 @@ def update(fig=None):
         daz_el.lines[2].set_data(rad2deg(el[selected_target]), residual_xel[selected_target])
         del_el.lines[1].set_ydata(residual_el)
         del_el.lines[2].set_data(rad2deg(el[selected_target]), residual_el[selected_target])
-        before.lines[2].set_data(np.arctan2(old_res_y, old_res_x)[selected_target], old_abs_sky_error[selected_target])
-        after.lines[1].set_data(np.arctan2(res_y, res_x), abs_sky_error)
-        after.lines[2].set_data(np.arctan2(res_y, res_x)[selected_target], abs_sky_error[selected_target])
+        before.lines[1].set_data(np.arctan2(old_res_y, old_res_x)[selected_target], old_abs_sky_error[selected_target])
+        after.lines[0].set_data(np.arctan2(res_y, res_x), abs_sky_error)
+        after.lines[1].set_data(np.arctan2(res_y, res_x)[selected_target], abs_sky_error[selected_target])
+        max_sky_error = max(abs_sky_error.max(), old_abs_sky_error.max())
+        before.set_ylim(0, 1.2 * max_sky_error)
+        after.set_ylim(0, 1.2 * max_sky_error)
         # Redraw all plots
         plt.draw()
 
@@ -197,7 +209,7 @@ plt.ion()
 fig = plt.figure(1)
 plt.clf()
 # Axes to contain detail residual plots - initialise plots with old residuals
-plt.axes([0.15, 0.74, 0.3, 0.2])
+plt.axes([0.22, 0.74, 0.23, 0.2])
 plt.axhline(0, color='k')
 plt.plot(rad2deg(az), old_residual_xel, 'ob')
 plt.plot(rad2deg(az[selected_target]), old_residual_xel[selected_target], 'or')
@@ -208,7 +220,7 @@ plt.yticks([])
 plt.ylabel('Cross-EL offset')
 plt.title('RESIDUALS')
 
-plt.axes([0.15, 0.54, 0.3, 0.2])
+plt.axes([0.22, 0.54, 0.23, 0.2])
 plt.axhline(0, color='k')
 plt.plot(rad2deg(az), old_residual_el, 'ob')
 plt.plot(rad2deg(az[selected_target]), old_residual_el[selected_target], 'or')
@@ -218,7 +230,7 @@ plt.xlabel('Azimuth (deg)')
 plt.yticks([])
 plt.ylabel('EL offset')
 
-plt.axes([0.15, 0.26, 0.3, 0.2])
+plt.axes([0.22, 0.26, 0.23, 0.2])
 plt.axhline(0, color='k')
 plt.plot(rad2deg(el), old_residual_xel, 'ob')
 plt.plot(rad2deg(el[selected_target]), old_residual_xel[selected_target], 'or')
@@ -228,7 +240,7 @@ plt.xticks([])
 plt.yticks([])
 plt.ylabel('Cross-EL offset')
 
-plt.axes([0.15, 0.06, 0.3, 0.2])
+plt.axes([0.22, 0.06, 0.23, 0.2])
 plt.axhline(0, color='k')
 plt.plot(rad2deg(el), old_residual_el, 'ob')
 plt.plot(rad2deg(el[selected_target]), old_residual_el[selected_target], 'or')
@@ -257,23 +269,19 @@ ax1.set_yticks(deg2rad(np.arange(0., 90., 10.)))
 # Axes to contain before/after residual plot
 ax2 = plt.axes([0.5, 0.1, 0.25, 0.25], polar=True)
 ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(arcmin_formatter))
-ax2.axhline(beam_radius_arcmin, color='k')
 ax2.plot(np.arctan2(old_res_y, old_res_x), old_abs_sky_error, 'ob')
 ax2.plot(np.arctan2(old_res_y, old_res_x)[selected_target], old_abs_sky_error[selected_target], 'or')
-ax2.set_ylim(0, 2 * beam_radius_arcmin)
 ax2.set_xticklabels([])
-plt.title('BEFORE')
+plt.title('OLD')
 plt.figtext(0.625, 0.07, "all sky rms = %.3f'" % (old_sky_rms,), ha='center', va='bottom')
 plt.figtext(0.625, 0.04, "target sky rms = %.3f'" % (old_sky_rms,), ha='center', va='bottom')
 
 ax3 = plt.axes([0.75, 0.1, 0.25, 0.25], polar=True)
 ax3.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(arcmin_formatter))
-ax3.axhline(beam_radius_arcmin, color='k')
 ax3.plot(np.arctan2(old_res_y, old_res_x), old_abs_sky_error, 'ob')
 ax3.plot(np.arctan2(old_res_y, old_res_x)[selected_target], old_abs_sky_error[selected_target], 'or')
-ax3.set_ylim(0, 2 * beam_radius_arcmin)
 ax3.set_xticklabels([])
-plt.title('AFTER')
+plt.title('NEW')
 plt.figtext(0.875, 0.07, "all sky rms = %.3f'" % (old_sky_rms,), ha='center', va='bottom')
 plt.figtext(0.875, 0.04, "target sky rms = %.3f'" % (old_sky_rms,), ha='center', va='bottom')
 
@@ -295,9 +303,9 @@ param_button_weight = ['normal', 'bold']
 def setup_param_button(p):
     """Set up individual parameter toggle button."""
     param = display_params[p]
-    param_button = mpl.widgets.Button(plt.axes([0.02, 0.94 - (0.85 + p * 0.9) / len(display_params),
+    param_button = mpl.widgets.Button(plt.axes([0.09, 0.94 - (0.85 + p * 0.9) / len(display_params),
                                                 0.03, 0.85 / len(display_params)]), 'P%d' % (param + 1,))
-    plt.figtext(0.06, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), '', va='center')
+    plt.figtext(0.19, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), '', ha='right', va='center')
     state = enabled_params[param]
     param_button.label.set_color(param_button_color[state])
     param_button.label.set_weight(param_button_weight[state])
@@ -311,7 +319,14 @@ def setup_param_button(p):
         update(fig)
     param_button.on_clicked(toggle_param_callback)
 param_buttons = [setup_param_button(p) for p in xrange(len(display_params))]
-plt.figtext(0.05, 0.95, 'MODEL', ha='center', va='bottom', size='large')
+
+# Add old pointing model and labels
+plt.figtext(0.053, 0.95, 'OLD', ha='center', va='bottom', size='large')
+plt.figtext(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
+plt.figtext(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
+for p, param in enumerate(display_params):
+    param_str = old_model.param_str(param + 1, '%.3e') if old_model.params[param] else ''
+    plt.figtext(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), param_str, ha='right', va='center')
 
 # Create target selector buttons and related text (title + target string)
 plt.figtext(0.55, 0.95, 'TARGET', ha='center', va='bottom', size='large')
