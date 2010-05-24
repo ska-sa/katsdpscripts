@@ -41,7 +41,9 @@ def plot_horizon(xyz_data, xyz_titles, az_lims, el_lims, pow_lims):
     power_db_pos = mlab.griddata(azimuth, elevation, power_db, az_pos, el_pos)
 
     cs = plt.contour(az_pos, el_pos, power_db_pos, pow_levels)
-    plt.contourf(az_pos, el_pos, power_db_pos, pow_levels, antialiased=True)
+    #cs = plt.contour(el_pos, az_pos, power_db_pos, pow_levels)
+    plt.contourf(az_pos,el_pos, power_db_pos, pow_levels, antialiased=True)
+    #plt.contourf(el_pos, az_pos, power_db_pos, pow_levels, antialiased=True)
     plt.colorbar(cs, ticks=pow_ticks)
 
     plt.xlim(az_min, az_max)
@@ -105,9 +107,11 @@ def main():
     azimuth, elevation, power_hh_db, power_vv_db = [], [], [], []
     for s in d.scans:
         azimuth.extend(scape.stats.angle_wrap(rad2deg(s.pointing['az']) + opts.azshift, period=360.0) - opts.azshift)
+        #azimuth.extend(rad2deg(s.pointing['az']))
         elevation.extend(rad2deg(s.pointing['el']))
         power_hh_db.extend(10.0 * np.log10(s.pol('HH')[:,0]))
         power_vv_db.extend(10.0 * np.log10(s.pol('VV')[:,0]))
+
     assert len(azimuth) == len(elevation) == len(power_hh_db), len(power_vv_db)
     print "Contour plotting horizon from %d points ..." % len(azimuth)
 
@@ -119,12 +123,13 @@ def main():
     hh_data = (azimuth, elevation, power_hh_db)
     hh_titles = ('Azimuth (deg)', 'Elevation (deg)', 'Power (dB) for %s HH' % (opts.baseline,))
     vv_data = (azimuth, elevation, power_vv_db)
+    print vv_data
     vv_titles = ('Azimuth (deg)', 'Elevation (deg)', 'Power (dB) for %s VV' % (opts.baseline,))
     az_max, az_min = np.ceil(max(azimuth)), np.floor(min(azimuth))
     el_max, el_min = np.ceil(max(elevation)), np.floor(min(elevation))
     pow_max, pow_min = max([max(power_hh_db), max(power_vv_db)]), min([min(power_hh_db), min(power_vv_db)])
     az_mid = (az_max + az_min) / 2.0
-
+    el_mid = (el_max + el_min)/2.0
     if opts.split:
         plt.subplot(4, 1, 1)
         plot_horizon(hh_data, hh_titles, (az_min, az_mid), (el_min, el_max), (pow_min, pow_max))

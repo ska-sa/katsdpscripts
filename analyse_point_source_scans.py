@@ -321,7 +321,7 @@ def next_load_reduce_plot(fig=None):
                             requested_azel[0], requested_azel[1], offset_azel[0], offset_azel[1],
                             current_dataset.data_unit] + beam_params + [current_dataset.freqs.mean(),
                             average_flux, temperature, pressure, humidity, wind_speed])
-
+    print output_data
 ### BATCH MODE ###
 
 # This will cycle through all data sets and stop when done

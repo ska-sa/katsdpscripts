@@ -31,6 +31,10 @@ parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
                        " or 'all' for all antennas - this MUST be specified (safety reasons)")
 parser.add_option('-f', '--centre_freq', dest='centre_freq', type="float", default=1822.0,
                   help='Centre frequency, in MHz (default="%default")')
+parser.add_option("-z", "--az", dest="az", type="string", default='0,360',
+                 help='Azimuth angle along which to do horizom mask, in degrees (default="%default")')
+parser.add_option('-e', '--el', dest='el', type="float", default=10.0,
+                help='elevation angle along which to do horizon mask, in degrees (default="%default")')
 # Experiment-specific options
 (opts, args) = parser.parse_args()
 
@@ -48,10 +52,15 @@ if opts.experiment_id is None:
 # Build KAT configuration, as specified in user-facing config file
 # This connects to all the proxies and devices and queries their commands and sensors
 kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
-azimuth_angle = np.arange(-180,180,0.5)
+start_azim = int(opts.az.split(',')[0])
+stop_azim = int(opts.az.split(',')[1])
+azim_size = np.abs(stop_azim - start_azim)
+scan_duration = azim_size/1.0 # scan at one degree per second
+center_azim = (stop_azim + start_azim)/2.0
+offset = np.abs(stop_azim)
+
 with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
     # Iterate through azimuth and elevation angles
-    for az in azimuth_angle:
-        for el in [4.5, 5.5]:
-            session.scan('azel,%f,%f' % (az,el), duration=20.0, scan_in_azimuth = False)
-            session.fire_noise_diode('coupler')
+    for el in [opts.el]:
+        session.scan('azel,%f,%f' % (center_azim,el),duration=scan_duration,scan_in_azimuth = True, start=-offset,end=offset)
+        session.fire_noise_diode('coupler')

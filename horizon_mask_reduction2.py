@@ -108,7 +108,7 @@ def main():
     el_max, el_min = np.ceil(max(elevation)), np.floor(min(elevation))
     pow_max, pow_min = max([max(power_db)]), min([min(power_db)])
     az_mid = (az_max + az_min) / 2.0
-
+    el_mid = (el_max + el_min)/2.0
     if opts.split:
         plt.subplot(2, 1, 1)
         plot_horizon(data, titles, (az_min, az_mid), (el_min, el_max), (pow_min, pow_max))
