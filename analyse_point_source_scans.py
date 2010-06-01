@@ -36,16 +36,16 @@ parser.add_option("-b", "--batch", dest="batch", action="store_true",
                   help="True if processing is to be done in batch mode without user interaction")
 parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='source_list.csv',
                   help="Name of optional source catalogue file used to override XDM FITS targets")
-parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
-                  help="Name of optional directory containing noise diode model files")
-parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='pointing_model.csv',
-                  help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
 parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='90,424',
                   help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
+parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
+                  help="Name of optional directory containing noise diode model files")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
+parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='pointing_model.csv',
+                  help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
 parser.add_option("-s", "--plot_spectrum", dest="plot_spectrum", action="store_true",
-                  help="Includes spectral plot if true")
+                  help="True to include spectral plot")
 
 (opts, args) = parser.parse_args()
 if len(args) < 1:
@@ -125,8 +125,8 @@ def load_reduce(index):
         logger.warning('Data set has different antenna (expected "%s", found "%s"), skipping data set' %
                        (antenna.name, current_dataset.antenna.name))
         return False
-    if len(current_dataset.compscans) == 0:
-        logger.warning('No scan data found, skipping data set')
+    if len(current_dataset.compscans) == 0 or len(current_dataset.scans) == 0:
+        logger.warning('No scans found in file, skipping data set')
         return False
     # Override pointing model if it is specified
     if pm is not None:
@@ -158,6 +158,9 @@ def load_reduce(index):
     # Make a copy of the dataset before averaging the channels so that we keep the spectral information
     unaveraged_dataset = current_dataset.select(copy=True)
     current_dataset.average()
+    if len(current_dataset.compscans) == 0 or len(current_dataset.scans) == 0:
+        logger.warning('No scans left after standard reduction, skipping data set (no scans labelled "scan", perhaps?)')
+        return False
 
     # First fit HH and VV data, and extract beam and baseline heights and refined scan count
     current_dataset.fit_beams_and_baselines(pol='HH', circular_beam=False)
@@ -195,6 +198,12 @@ def next_load_reduce_plot(fig=None):
     """Load and reduce next data set, update the plots in given figure and store output data."""
     # Global variables that will be modified inside this function
     global dataset_index, compscan_index, output_data
+    # Extract plot axes
+    if not opts.batch:
+        if opts.plot_spectrum:
+            (ax1, ax2, ax3), info = fig.axes[:3], fig.texts[0]
+        else:
+            (ax1, ax2), info = fig.axes[:2], fig.texts[0]
     # Total number of compound scans in data sets prior to the current one
     compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
     # Move to next compound scan
@@ -286,10 +295,6 @@ def next_load_reduce_plot(fig=None):
 
     # Display compound scan
     if not opts.batch:
-        if opts.plot_spectrum:
-            (ax1, ax2, ax3), info = fig.axes[:3], fig.texts[0]
-        else:
-            (ax1, ax2), info = fig.axes[:2], fig.texts[0]
         ax1.clear()
         scape.plot_compound_scan_in_time(compscan, ax=ax1)
         ax1.set_title("%s %s '%s'\nazel=(%.1f, %.1f) deg, offset=(%.1f, %.1f) arcmin" %
@@ -363,7 +368,8 @@ keep_button.on_clicked(keep_callback)
 
 discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
 def discard_callback(event):
-    output_data[-1] = None
+    if len(output_data) > 0:
+        output_data[-1] = None
     next_load_reduce_plot(fig)
 discard_button.on_clicked(discard_callback)
 
