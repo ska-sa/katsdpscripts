@@ -34,15 +34,17 @@ parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='B
                   help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", dest="batch", action="store_true",
                   help="True if processing is to be done in batch mode without user interaction")
-parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='source_list.csv',
+parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='',
                   help="Name of optional source catalogue file used to override XDM FITS targets")
 parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='90,424',
                   help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
+parser.add_option("-k", "--keep", dest="keepfilename", type="string", default='',
+                  help="Name of optional CSV file used to select compound scans from datasets (implies batch mode)")
 parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
                   help="Name of optional directory containing noise diode model files")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
-parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='pointing_model.csv',
+parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='',
                   help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
 parser.add_option("-s", "--plot_spectrum", dest="plot_spectrum", action="store_true",
                   help="True to include spectral plot")
@@ -60,16 +62,37 @@ fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
 logger.addHandler(fh)
 
 # Load catalogue used to convert ACSM targets to katpoint ones (only needed for XDM data files)
-try:
+cat = None
+if opts.catfilename:
     cat = katpoint.Catalogue(file(opts.catfilename))
-except IOError:
-    cat = None
-# Load old pointing model parameters (useful if it is not in data file, like on XDM)
-try:
+    logger.debug("Loaded catalogue with %d source(s) from '%s'" % (len(cat.targets), opts.catfilename))
+# Load old pointing model parameters (useful if it is not in data file, like on XDM and early KAT-7)
+pm = None
+if opts.pmfilename:
     pm = file(opts.pmfilename).readline().strip()
     logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pmfilename))
-except IOError:
-    pm = None
+# Load old CSV file used to select compound scans from datasets
+keep_scans = keep_datasets = None
+if opts.keepfilename:
+    ant_name = katpoint.Antenna(file(opts.keepfilename).readline().strip().partition('=')[2]).name
+    try:
+        data = np.loadtxt(opts.keepfilename, dtype='string', comments='#', delimiter=', ')
+    except ValueError:
+        raise ValueError("CSV file '%s' contains rows with a different number of columns/commas" % opts.keepfilename)
+    try:
+        fields = data[0].tolist()
+        id_fields = [fields.index('dataset'), fields.index('target'), fields.index('timestamp_ut')]
+    except (IndexError, ValueError):
+        raise ValueError("CSV file '%s' do not have the expected columns" % opts.keepfilename)
+    keep_scans = set([ant_name + ' ' + ' '.join(line) for line in data[1:, id_fields]])
+    keep_datasets = set(data[1:, id_fields[0]])
+    # Switch to batch mode if CSV file is given
+    opts.batch = True
+    logger.debug("Loaded CSV file '%s' containing %d dataset(s) and %d compscan(s)" %
+                 (opts.keepfilename, len(keep_datasets), len(keep_scans)))
+# Frequency channels to keep
+start_freq_channel = int(opts.freq_keep.split(',')[0])
+end_freq_channel = int(opts.freq_keep.split(',')[1])
 
 # Find all data sets (HDF5 or FITS) mentioned, and add them to datasets
 datasets = []
@@ -92,10 +115,6 @@ beam_data = [[] for dataset in datasets]
 output_data = []
 antenna = None
 
-# frequency channels to keep
-start_freq_channel = int(opts.freq_keep.split(',')[0])
-end_freq_channel = int(opts.freq_keep.split(',')[1])
-
 def dataset_name(filename):
     """Convert filename to more compact data set name."""
     if filename.endswith('.fits'):
@@ -115,6 +134,10 @@ def load_reduce(index):
     global unaveraged_dataset, current_dataset, beam_data, antenna
 
     filename = datasets[index]
+    # Avoid loading the data set if it does not appear in specified CSV file
+    if keep_datasets and dataset_name(filename) not in keep_datasets:
+        logger.info("Skipping dataset '%s' (based on CSV file)" % (filename,))
+        return False
     logger.info("Loading dataset '%s'" % (filename,))
     current_dataset = scape.DataSet(filename, catalogue=cat, baseline=opts.baseline)
 
@@ -318,15 +341,23 @@ def next_load_reduce_plot(fig=None):
             info.set_text("No beam\nBaseline height = %.2f %s" % (baseline_height_I, current_dataset.data_unit))
         plt.draw()
 
-    # If beam is marked as invalid, discard scan only if in batch mode (otherwise discard button has to do it)
-    if not compscan.beam or (opts.batch and not compscan.beam.is_valid):
-        output_data.append(None)
+    # If list of scans to keep are provided, follow it religiously
+    if keep_scans:
+        # Look up compscan identity in list of compscans to keep (if provided)
+        compscan_key = ' '.join([antenna.name, name, compscan.target.name, str(katpoint.Timestamp(middle_time))])
+        keep_compscan = compscan_key in keep_scans
+        logger.info("%s compscan '%s' (based on CSV file)" % ('Keeping' if keep_compscan else 'Skipping', compscan_key))
     else:
+        # If beam is marked as invalid, discard scan only if in batch mode (otherwise discard button has to do it)
+        keep_compscan = compscan.beam and (not opts.batch or compscan.beam.is_valid)
+    if keep_compscan:
         output_data.append([name, compscan.target.name, katpoint.Timestamp(middle_time),
                             requested_azel[0], requested_azel[1], offset_azel[0], offset_azel[1],
                             current_dataset.data_unit] + beam_params + [current_dataset.freqs.mean(),
                             average_flux, temperature, pressure, humidity, wind_speed])
-    print output_data
+    else:
+        output_data.append(None)
+
 ### BATCH MODE ###
 
 # This will cycle through all data sets and stop when done
