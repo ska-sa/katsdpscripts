@@ -90,6 +90,7 @@ with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.descri
         scan_duration = int(scan_extent/scan_spacing)
         num_scans = scan_duration + 1
 
-        session.raster_scan(target, num_scans=num_scans, scan_duration=scan_duration, scan_extent=scan_extent, scan_spacing=scan_spacing)
+        session.raster_scan(target, num_scans=num_scans, scan_duration=scan_duration,
+                            scan_extent=scan_extent, scan_spacing=scan_spacing, drive_strategy='longest-track')
         # Fire noise diode, to allow gain calibration
         session.fire_noise_diode('coupler')
