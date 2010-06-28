@@ -84,8 +84,11 @@ Jy = 1e-26
 # Therefore, the effective area Ae = 2 k Tant / S / Jy = 2 k G / Jy = eff A.
 # First get theoretical gain achievable if dish is 100% efficient, about A / 2761 [K / Jy]
 gain_ideal = A * Jy / (2.0 * boltzmann_k)
-# Atmospheric attenuation is modelled as G = G0 exp(-tau airmass), where tau is the optical depth
-# or *zenith opacity*, and airmass is assumed to be
+# Atmospheric attenuation is modelled as G = G0 exp(-tau airmass), where tau is the optical depth or
+# *zenith opacity*, and airmass is given below as a function of elevation angle (or zenith angle z) as sec(z).
+# A more accurate airmass calculation that takes into account the curvature of Earth and troposphere is given by
+#     X(z) = -0.0045 + 1.00672 sec(z) - 0.002234 sec(z)^2 - 0.0006247 sec(z)^3
+# for X(z) <= 5.2 (i.e. elevation angles below 11 degrees). (from K. Rohlfs, Tools of Radio Astronomy, 1986)
 airmass = 1.0 / np.sin(katpoint.deg2rad(elev))
 # Grid on which to evaluate fitted atmospheric models
 elev_grid = np.arange(3.0, 90.0, 0.5)
