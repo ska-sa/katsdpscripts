@@ -3,7 +3,7 @@
 
 import katuilib
 
-kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff_4ants')
+kat = katuilib.tbuild('cfg-karoo.ini', 'karoo_ff')
 
 print "Stowing all dishes"
 kat.ants.req.target_azel(0.0, 90.0)
