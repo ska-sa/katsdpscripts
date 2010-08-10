@@ -40,7 +40,7 @@ if d.antenna.name == 'XDM':
     d.convert_power_to_temperature()
 else:
     # Hard-code the FF frequency band
-    d = d.select(freqkeep=range(90, 425))
+    d = d.select(freqkeep=range(100, 400))
     # If noise diode models are supplied, insert them into data set before converting to temperature
     if d.antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
         try:
@@ -53,7 +53,7 @@ else:
             nd_hpol[:, 0] /= 1e6
             nd_vpol[:, 0] /= 1e6
             d.nd_model = scape.gaincal.NoiseDiodeModel(nd_hpol, nd_vpol, std_temp=0.04)
-            d.convert_power_to_temperature()
+            d.convert_power_to_temperature(min_duration=6)
         except IOError:
             logger.warning('Could not load noise diode model files, should be named T_nd_A1H_coupler.txt etc.')
 # Only keep main scans (discard slew and cal scans)
@@ -90,7 +90,7 @@ def plot_tipping_curve(pol, color='b'):
         plt.ylabel('Raw power (counts)')
 
 # Calculate and plot tipping curves
-plt.figure(1)
+plt.figure(3)
 plt.clf()
 plot_tipping_curve('HH', 'b')
 plot_tipping_curve('VV', 'r')
