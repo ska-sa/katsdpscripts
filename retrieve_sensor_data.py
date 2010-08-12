@@ -230,7 +230,7 @@ def main():
     if opts.title is None:
         title = "Sensor data from %s" % (opts.cm_url)
     else:
-        title = title
+        title = opts.title
 
     sensor_names = cm.sensor_names()
     matching_names = set()
