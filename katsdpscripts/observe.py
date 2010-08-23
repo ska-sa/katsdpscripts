@@ -2,6 +2,7 @@
 
 import time
 import logging
+import sys
 
 import numpy as np
 
@@ -129,53 +130,93 @@ class CaptureSession(object):
     """
     def __init__(self, kat, experiment_id, observer, description, ants,
                  centre_freq=1800.0, dump_rate=1.0, record_slews=True):
-        self.kat = kat
-        self.ants = ants = ant_array(kat, ants)
-        self.experiment_id = experiment_id
-        self.record_slews = record_slews
 
-        # Start with a clean state, by stopping the DBE
-        kat.dbe.req.capture_stop()
+        try:
+            self.kat = kat
 
-        # Set centre frequency in RFE stage 7
-        kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
-        effective_lo_freq = (centre_freq - 200.0) * 1e6
-
-        # Set data output directory (typically on ff-dc machine)
-        kat.dbe.req.k7w_output_directory("/var/kat/data")
-        # Enable output to HDF5 file (takes effect on capture_start only), and set basic experimental info
-        kat.dbe.req.k7w_write_hdf5(1)
-        kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
-
-        # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
-        # which is used for fringe stopping (eventually). This sets the delay model and other
-        # correlator parameters, such as the dump rate, and instructs the correlator to pass
-        # its data to the k7writer daemon (set via configuration)
-        kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
-
-        logger.info("New data capturing session")
-        logger.info("--------------------------")
-        logger.info("Experiment ID = %s" % (experiment_id,))
-        logger.info("Observer = %s" % (observer,))
-        logger.info("Description ='%s'" % description)
-        logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
-                    (centre_freq, dump_rate, record_slews))
-
-        # If the DBE is simulated, it will have position update commands
-        if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
-            first_ant = ants.devs[0]
-            # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
-            # The minimum time between position updates is just a little less than the standard (az, el) sensor period
-            first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
-            first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
-            logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+            self.output_msg("New data capturing session")
+            #Log the activity parameters
+            try:
+                kat.cfg.req.set_script_param("script-status",  "CaptureSession initialising")
+                kat.cfg.req.set_script_param("script-starttime",  "")
+                kat.cfg.req.set_script_param("script-endtime",  "")
+                kat.cfg.req.set_script_param("script-name", sys.argv[0])
+                kat.cfg.req.set_script_param("script-experiment-id", experiment_id)
+                kat.cfg.req.set_script_param("script-observer", observer)
+                kat.cfg.req.set_script_param("script-description", description)
+                kat.cfg.req.set_script_param("script-rf-params",  "Freq=%g MHz, Dump rate=%g Hz, Deep slews=%s" %  (centre_freq, dump_rate, record_slews))
+            except:
+                #Make sure observe script does not rely on cfgmgr !!!
+                pass
+            
+            logger.info("------------------------")
+            logger.info("Experiment ID = %s" % (experiment_id,))
+            logger.info("Observer = %s" % (observer,))
+            logger.info("Description ='%s'" % description)
+            logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
+                        (centre_freq, dump_rate, record_slews))
+    
+    
+            self.ants = ants = ant_array(kat, ants)
+            self.experiment_id = experiment_id
+            self.record_slews = record_slews
+    
+            # Start with a clean state, by stopping the DBE
+            kat.dbe.req.capture_stop()
+    
+            # Set centre frequency in RFE stage 7
+            kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
+            effective_lo_freq = (centre_freq - 200.0) * 1e6
+    
+            # Set data output directory (typically on ff-dc machine)
+            kat.dbe.req.k7w_output_directory("/var/kat/data")
+            # Enable output to HDF5 file (takes effect on capture_start only), and set basic experimental info
+            kat.dbe.req.k7w_write_hdf5(1)
+            kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
+    
+            # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
+            # which is used for fringe stopping (eventually). This sets the delay model and other
+            # correlator parameters, such as the dump rate, and instructs the correlator to pass
+            # its data to the k7writer daemon (set via configuration)
+            kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+            
+    
+             # If the DBE is simulated, it will have position update commands
+            if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
+                first_ant = ants.devs[0]
+                # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
+                # The minimum time between position updates is just a little less than the standard (az, el) sensor period
+                first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
+                first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
+                logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+    
+            try: kat.cfg.req.set_script_param("script-status",  "CaptureSession initialised")
+            except: pass
+    
+        except Exception, e:
+            s = "CaptureSession - failed to initialise (%s)" % (e)
+            self.output_msg(s, logging.ERROR)
+            
+            
+    def output_msg (self, msg, level=logging.INFO):
+        logger.log(level, msg)
+        try: self.kat.cfg.req.activity_log("observe", msg)
+        except: pass
 
     def __enter__(self):
         """Enter the data capturing session."""
+        try:
+            self.kat.cfg.req.set_script_param("script-status",  "session entered")
+            self.kat.cfg.req.set_script_param("script-starttime",  time.asctime())
+        except: pass
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
+        try:
+            self.kat.cfg.req.set_script_param("script-status",  "session exiting")
+            self.kat.cfg.req.set_script_param("script-endtime",  time.asctime())
+        except: pass
         self.shutdown()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
@@ -212,7 +253,8 @@ class CaptureSession(object):
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
-        logger.info("Firing '%s' noise diode" % (diode,))
+        self.output_msg("fire_noise_diode: '%s'" % (diode,))
+
         # Create a new Scan group in HDF5 file, with 'cal' label
         kat.dbe.req.k7w_new_scan('cal')
         # Switch noise diode on on all antennas
@@ -280,7 +322,8 @@ class CaptureSession(object):
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if record_slews else 'scan')
 
-        logger.info("Slewing to target '%s'" % (preferred_name(target),))
+        self.output_msg("track: slewing to target '%s'" % (preferred_name(target),))
+
         # If we haven't yet, start recording data from the correlator if slews are recorded (which creates data file)
         if record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
             kat.dbe.req.capture_start()
@@ -289,7 +332,8 @@ class CaptureSession(object):
         # Wait until they are all in position (with 5 minute timeout)
         ants.wait('lock', True, 300)
 
-        logger.info("Tracking target '%s'" % (preferred_name(target),))
+        self.output_msg("Tracking target '%s'" % (preferred_name(target),))
+        
         if not record_slews:
             # Unpause HDF5 file output (or create data file and start recording)
             kat.dbe.req.k7w_write_hdf5(1)
@@ -377,7 +421,9 @@ class CaptureSession(object):
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         kat.dbe.req.k7w_new_compound_scan(target, label, 'slew' if record_slews else 'scan')
 
-        logger.info("Slewing to start of scan across target '%s'" % (preferred_name(target),))
+
+        self.output_msg("scan : slewing to start of scan across target '%s'" % (preferred_name(target),))
+        
         # If we haven't yet, start recording data from the correlator if slews are recorded (which creates data file)
         if record_slews and (kat.dbe.sensor.capturing.get_value() == '0'):
             kat.dbe.req.capture_start()
@@ -390,7 +436,8 @@ class CaptureSession(object):
         # Wait until they are all in position (with 5 minute timeout)
         ants.wait('lock', True, 300)
 
-        logger.info("Starting scan across target '%s'" % (preferred_name(target),))
+        output_msg("scan: Starting scan across target '%s'" % (preferred_name(target),))
+        
         if not record_slews:
             # Unpause HDF5 file output (or create data file and start recording)
             kat.dbe.req.k7w_write_hdf5(1)
@@ -501,7 +548,7 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            logger.info("Slewing to start of scan %d of %d on target '%s'" %
+            self.output_msg("raster_scan: Slewing to start of scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
             if record_slews:
                 # Create a new Scan group in HDF5 file, with 'slew' label (not necessary the first time)
@@ -519,7 +566,7 @@ class CaptureSession(object):
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
 
-            logger.info("Starting scan %d of %d on target '%s'" %
+            self.output_msg("raster_scan: Starting scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
             if record_slews or (scan_count > 0):
                 # Start a new Scan group in the HDF5 file, labelled as a proper 'scan'
@@ -634,7 +681,7 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            logger.info("Slewing to start of scan %d of %d on target '%s'" %
+            self.output_msg("holography_scan: Slewing to start of scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
             if record_slews:
                 # Create a new Scan group in HDF5 file, with 'slew' label (not necessary the first time)
@@ -653,7 +700,7 @@ class CaptureSession(object):
             # Wait until they are all in position (with 5 minute timeout)
             all_ants.wait('lock', True, 300)
 
-            logger.info("Starting scan %d of %d on target '%s'" %
+            self.output_msg("holography_scan: Starting scan %d of %d on target '%s'" %
                         (scan_count + 1, len(scan_starts), preferred_name(target)))
             if record_slews or (scan_count > 0):
                 # Start a new Scan group in the HDF5 file, labelled as a proper 'scan'
@@ -681,8 +728,12 @@ class CaptureSession(object):
         kat = self.kat
         # Obtain the names of the files currently being written to
         files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
-        logger.info('Scans complete, data captured to %s' % ([f.replace('writing','unaugmented') for f in files],))
+        self.output_msg('shutdown: Scans complete, data captured to %s' % ([f.replace('writing','unaugmented') for f in files],))
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         kat.dbe.req.capture_stop()
-        logger.info('Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        self.output_msg('shutdown: Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        
+        try: kat.cfg.req.set_script_param("script-status",  "session shutdown")
+        except: pass
+        
