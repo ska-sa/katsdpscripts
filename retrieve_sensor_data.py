@@ -305,7 +305,7 @@ def main():
 
     if True:
         for sensor in sensors:
-            dump_file = "%s.%s.csv" % (sensor.name, sensor.parent_name)
+            dump_file = "%s.%s.csv" % (sensor.parent_name, sensor.name)
             sensor.get_stored_history(start_time=start_s, end_time=end_s, dump_file=dump_file, select=False)
         return
 
