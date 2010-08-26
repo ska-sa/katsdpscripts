@@ -51,7 +51,7 @@ $ ./retrieve_sensor_data.py --start 2010-01-01 --end 2010-02-01 \\
 
 CM_URLS = {
     'lab': 'http://ff-proxy.lab.kat.ac.za/central_monitoring/',
-    'lab_karoo_archive': 'http://ff-dc.lab.kat.ac.za/raw_site_ffarchive/central_monitoring/',
+    'lab_karoo_archive': 'http://ff-dc.lab.kat.ac.za/karoo_archive_cpt/central_monitoring/',
     'sim': 'http://ff-sim.lab.kat.ac.za/central_monitoring/',
     'karoo': 'http://ff-proxy.karoo.kat.ac.za/central_monitoring/',
 }
@@ -124,11 +124,19 @@ class CentralStore(object):
 
     def _list_folder(self, url, ending=''):
         """Return the sub-folders or files of a URL that have a given ending."""
-        folder = urllib2.urlopen(url)
+        try:
+            folder = urllib2.urlopen(url)
+        except urllib2.HTTPError, e:
+            raise RuntimeError("Could not read folder %r [%r]" % (url, e))
         try:
             subfolders = []
             for href in re.findall(r"href=\"([^\"]*)\"", folder.read()):
                 href = href.strip()
+                href = href.rstrip("/")
+                if href.startswith('?') or href.endswith('.log') or not href:
+                    # skip empty paths, Apaches sorting queries and log files (what are these
+                    # doing in the karoo monitoring store?!)
+                    continue
                 abs_url = urlparse.urljoin(url, href)
                 if not abs_url.startswith(url) or not href.endswith(ending):
                     continue
