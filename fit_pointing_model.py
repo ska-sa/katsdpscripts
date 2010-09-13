@@ -204,6 +204,18 @@ def angle_formatter(x, pos=None):
 def arcmin_formatter(x, pos=None):
     return "%g'" % x
 
+# List of colors used to represent different targets in scatter plots
+scatter_colors = ('b', 'r', 'g', 'k', 'c', 'm', 'y')
+target_colors = np.tile(scatter_colors, 1 + len(unique_targets) // len(scatter_colors))[:len(unique_targets)]
+# Quantity loosely related to the declination of the source
+north = (np.pi / 2. - el) / (np.pi / 2.) * np.cos(az)
+pseudo_dec = -np.ones(len(unique_targets))
+for n, ind in enumerate(target_indices):
+    if north[n] > pseudo_dec[ind]:
+        pseudo_dec[ind] = north[n]
+north_to_south = np.flipud(np.argsort(pseudo_dec))
+target_colors = target_colors[north_to_south][target_indices]
+
 # Set up figure with buttons
 plt.ion()
 fig = plt.figure(1)
