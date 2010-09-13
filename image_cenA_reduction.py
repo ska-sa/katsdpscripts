@@ -161,6 +161,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-100, 100, -100, 100])
+plt.figtext(0.5, 0.92, '3C273 visibilities for channel %d (all times)' % (50 + first_chan,), ha='center')
 
 plt.figure(2)
 plt.clf()
@@ -172,6 +173,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-100, 100, -100, 100])
+plt.figtext(0.5, 0.92, '3C273 visibilities for time sample 30 (all channels)', ha='center')
 
 plt.figure(3)
 plt.clf()
@@ -183,6 +185,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-2, 2, -2, 2])
+plt.figtext(0.5, 0.92, '3C273 visibilities for channel %d (all times)' % (50 + first_chan,), ha='center')
 
 plt.figure(4)
 plt.clf()
@@ -194,6 +197,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-2, 2, -2, 2])
+plt.figtext(0.5, 0.92, '3C273 visibilities for time sample 30 (all channels)', ha='center')
 
 # Assume the last antenna (antenna 4) is the reference antenna
 full_params = np.zeros(8)
@@ -252,6 +256,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-80, 80, -80, 80])
+plt.figtext(0.5, 0.92, '3C273 visibilities for channel %d (all times)' % (50 + first_chan,), ha='center')
 
 plt.figure(6)
 plt.clf()
@@ -263,6 +268,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-80, 80, -80, 80])
+plt.figtext(0.5, 0.92, '3C273 visibilities for time sample 30 (all channels)', ha='center')
 
 # Assemble visibility data and uvw coordinates for all calibrators, and average it to a single frequency band
 all_cal_vis_samples, cal_source, all_cal_times = [], [], []
@@ -317,6 +323,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-60, 60, -60, 60])
+plt.figtext(0.5, 0.92, 'Frequency-averaged visibilities of calibrators (all times)', ha='center')
 
 # Average each solution interval as well, to get rid of the bubbles associated with antenna 1 in the previous figure
 gain_cal_vis = np.array([vis.mean(axis=0) for vis in all_cal_vis_samples])
@@ -374,14 +381,14 @@ for n in range(4):
     plt.plot(plot_times - gain_times[0], amp_interps[n](plot_times), 'k')
     plt.plot(gain_times - gain_times[0], np.abs(ant_gains[n]), 'o', label='ant%d' % (n + 1))
 plt.xlabel('Time since start (seconds)')
-plt.ylabel('Gain amplitude')
+plt.title('Gain amplitude')
 plt.legend(loc='upper left')
 plt.subplot(122)
 for n in range(4):
     plt.plot(plot_times - gain_times[0], katpoint.rad2deg(scape.stats.angle_wrap(phase_interps[n](plot_times))), 'k')
     plt.plot(gain_times - gain_times[0], katpoint.rad2deg(np.angle(ant_gains[n])), 'o', label='ant%d' % (n + 1))
 plt.xlabel('Time since start (seconds)')
-plt.ylabel('Gain phase (degrees)')
+plt.title('Gain phase (degrees)')
 plt.legend(loc='lower left')
 
 # Apply both bandpass and gain calibration to cal source visibilities
@@ -406,6 +413,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-80, 80, -80, 80])
+plt.figtext(0.5, 0.92, '3C273 visibilities for channel %d (all times)' % (50 + first_chan,), ha='center')
 
 plt.figure(10)
 plt.clf()
@@ -417,6 +425,7 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-80, 80, -80, 80])
+plt.figtext(0.5, 0.92, '3C273 visibilities for time sample 30 (all channels)', ha='center')
 
 # Assemble visibility data and uvw coordinates for imaging target
 vis_samples_per_scan, uvw_samples_per_scan = [], []
@@ -486,10 +495,12 @@ for n, index in enumerate(crosscorr):
     plt.title('%d-%d' % (antA + 1, antB + 1))
     plt.axis('image')
     plt.axis([-200, 200, -200, 200])
+plt.figtext(0.5, 0.92, 'Calibrated Cen A visibilities averaged in coarse bins', ha='center')
 
 plt.figure(12)
 plt.clf()
 plt.plot(uvdist, np.abs(vis_samples), 'o')
+plt.title('Calibrated Cen A visibilities averaged in coarse bins')
 plt.xlabel('UV distance (lambda)')
 plt.ylabel('Visibility amplitude (Jy)')
 
@@ -574,7 +585,7 @@ plt.clf()
 plt.plot(u_samples, v_samples, '.', markersize=1)
 plt.xlabel('u (lambda)')
 plt.ylabel('v (lambda)')
-plt.title('UV coverage')
+plt.title('UV coverage for Cen A target')
 plt.axis('equal')
 
 plt.figure(14)
@@ -582,7 +593,7 @@ plt.clf()
 plt.imshow(dirty_beam, origin='lower', interpolation='bicubic', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
 plt.xlabel('l (arcmins)')
 plt.ylabel('m (arcmins)')
-plt.title('Dirty beam')
+plt.title('Dirty beam for Cen A')
 plt.axis('image')
 ax = plt.gca()
 ax.set_xlim(ax.get_xlim()[::-1])
@@ -612,8 +623,8 @@ plt.clf()
 plt.imshow(clean_image + residual_image, origin='lower', interpolation='bicubic', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
 plt.xlabel('l (arcmins)')
 plt.ylabel('m (arcmins)')
-#plt.title('Clean image of Cen A at 1820 MHz')
-plt.title('Interferometric image of Centaurus A')
+plt.title('Clean image of Cen A at 1820 MHz')
+#plt.title('Interferometric image of Centaurus A')
 plt.axis('image')
 ax = plt.gca()
 ax.set_xlim(ax.get_xlim()[::-1])
