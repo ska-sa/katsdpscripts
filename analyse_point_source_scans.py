@@ -18,8 +18,6 @@ import optparse
 import glob
 
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.widgets as widgets
 
 import scape
 import katpoint
@@ -94,6 +92,11 @@ if opts.keepfilename:
 # Frequency channels to keep
 start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
+
+# Only import matplotlib if not in batch mode
+if not opts.batch:
+    import matplotlib.pyplot as plt
+    import matplotlib.widgets as widgets
 
 # Find all data sets (HDF5 or FITS) mentioned, and add them to datasets
 datasets = []
@@ -249,8 +252,9 @@ def next_load_reduce_plot(fig=None):
                             '%.7f, %.7f, %.7f, %d, %.7f, %.4f, %.2f, %.2f, %.2f, %.2f\n') % tuple(p))
                           for p in output_data if p])
             f.close()
-            plt.close('all')
-            return
+            if not opts.batch:
+                plt.close('all')
+            return False
         # Load next data set
         loaded = load_reduce(dataset_index)
         name = dataset_name(datasets[dataset_index])
@@ -262,7 +266,7 @@ def next_load_reduce_plot(fig=None):
                 if opts.plot_spectrum:
                     ax3.clear()
                 plt.draw()
-            return
+            return True
         compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
 
     # Select current compound scan and related beam data
@@ -359,112 +363,115 @@ def next_load_reduce_plot(fig=None):
     else:
         output_data.append(None)
 
+    # Indicate that more data is to come
+    return True
+
 ### BATCH MODE ###
 
 # This will cycle through all data sets and stop when done
 if opts.batch:
-    while True:
-        next_load_reduce_plot()
+    while next_load_reduce_plot():
+        pass
 
 ### INTERACTIVE MODE ###
-
-# Set up figure with buttons
-plt.ion()
-fig = plt.figure(1)
-plt.clf()
-if opts.plot_spectrum:
-    plt.subplot(311)
-    plt.subplot(312)
-    plt.subplot(313)
 else:
-    plt.subplot(211)
-    plt.subplot(212)
-plt.subplots_adjust(bottom=0.2, hspace=0.25)
-plt.figtext(0.05, 0.05, '', va='bottom', ha='left')
+    # Set up figure with buttons
+    plt.ion()
+    fig = plt.figure(1)
+    plt.clf()
+    if opts.plot_spectrum:
+        plt.subplot(311)
+        plt.subplot(312)
+        plt.subplot(313)
+    else:
+        plt.subplot(211)
+        plt.subplot(212)
+    plt.subplots_adjust(bottom=0.2, hspace=0.25)
+    plt.figtext(0.05, 0.05, '', va='bottom', ha='left')
 
-# Make button context manager that disables buttons during processing and re-enables it afterwards
-class DisableButtons(object):
-    def __init__(self):
-        """Start with empty button list."""
-        self.buttons = []
-    def append(self, button):
-        """Add button to list."""
-        self.buttons.append(button)
-    def __enter__(self):
-        """Disable buttons on entry."""
-        if plt.fignum_exists(1):
-            for button in self.buttons:
-                button.eventson = False
-                button.hovercolor = '0.85'
-                button.label.set_color('gray')
-            plt.draw()
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Re-enable buttons on exit."""
-        if plt.fignum_exists(1):
-            for button in self.buttons:
-                button.eventson = True
-                button.hovercolor = '0.95'
-                button.label.set_color('k')
-            plt.draw()
-all_buttons = DisableButtons()
+    # Make button context manager that disables buttons during processing and re-enables it afterwards
+    class DisableButtons(object):
+        def __init__(self):
+            """Start with empty button list."""
+            self.buttons = []
+        def append(self, button):
+            """Add button to list."""
+            self.buttons.append(button)
+        def __enter__(self):
+            """Disable buttons on entry."""
+            if plt.fignum_exists(1):
+                for button in self.buttons:
+                    button.eventson = False
+                    button.hovercolor = '0.85'
+                    button.label.set_color('gray')
+                plt.draw()
+        def __exit__(self, exc_type, exc_value, traceback):
+            """Re-enable buttons on exit."""
+            if plt.fignum_exists(1):
+                for button in self.buttons:
+                    button.eventson = True
+                    button.hovercolor = '0.95'
+                    button.label.set_color('k')
+                plt.draw()
+    all_buttons = DisableButtons()
 
-# Create buttons and their callbacks
-spectrogram_button = widgets.Button(plt.axes([0.37, 0.05, 0.1, 0.075]), 'Spectrogram')
-def spectrogram_callback(event):
-    with all_buttons:
-        plt.figure(2)
-        plt.clf()
-        compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
-        unaveraged_compscan = unaveraged_dataset.compscans[compscan_index - compscans_in_previous_datasets]
-        ax = scape.plot_xyz(unaveraged_compscan, 'time', 'freq', 'amp', power_in_dB=True)
-        ax.set_title(unaveraged_compscan.target.name, size='medium')
-spectrogram_button.on_clicked(spectrogram_callback)
-all_buttons.append(spectrogram_button)
+    # Create buttons and their callbacks
+    spectrogram_button = widgets.Button(plt.axes([0.37, 0.05, 0.1, 0.075]), 'Spectrogram')
+    def spectrogram_callback(event):
+        with all_buttons:
+            plt.figure(2)
+            plt.clf()
+            compscans_in_previous_datasets = np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int)
+            unaveraged_compscan = unaveraged_dataset.compscans[compscan_index - compscans_in_previous_datasets]
+            ax = scape.plot_xyz(unaveraged_compscan, 'time', 'freq', 'amp', power_in_dB=True)
+            ax.set_title(unaveraged_compscan.target.name, size='medium')
+    spectrogram_button.on_clicked(spectrogram_callback)
+    all_buttons.append(spectrogram_button)
 
-keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
-def keep_callback(event):
-    with all_buttons:
-        next_load_reduce_plot(fig)
-keep_button.on_clicked(keep_callback)
-all_buttons.append(keep_button)
-
-discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
-def discard_callback(event):
-    with all_buttons:
-        if len(output_data) > 0:
-            output_data[-1] = None
-        next_load_reduce_plot(fig)
-discard_button.on_clicked(discard_callback)
-all_buttons.append(discard_button)
-
-back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
-def back_callback(event):
-    with all_buttons:
-        global dataset_index, compscan_index
-        # Ignore back button unless there are two compscans in the pipeline
-        if compscan_index > 0:
-            compscan_index -= 2
-            # Go back to previous data sets until the previous good compound scan is found
-            while compscan_index < np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int):
-                dataset_index -= 1
-            output_data.pop()
-            output_data.pop()
+    keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
+    def keep_callback(event):
+        with all_buttons:
             next_load_reduce_plot(fig)
-back_button.on_clicked(back_callback)
-all_buttons.append(back_button)
+    keep_button.on_clicked(keep_callback)
+    all_buttons.append(keep_button)
 
-done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
-def done_callback(event):
-    with all_buttons:
-        global dataset_index, compscan_index
-        compscan_index = np.inf
-        dataset_index = len(datasets)
-        next_load_reduce_plot(fig)
-done_button.on_clicked(done_callback)
-all_buttons.append(done_button)
+    discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
+    def discard_callback(event):
+        with all_buttons:
+            if len(output_data) > 0:
+                output_data[-1] = None
+            next_load_reduce_plot(fig)
+    discard_button.on_clicked(discard_callback)
+    all_buttons.append(discard_button)
 
-# Start off the processing
-next_load_reduce_plot(fig)
-# Display plots - this should be called ONLY ONCE, at the VERY END of the script
-# The script stops here until you close the plots...
-plt.show()
+    back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
+    def back_callback(event):
+        with all_buttons:
+            global dataset_index, compscan_index
+            # Ignore back button unless there are two compscans in the pipeline
+            if compscan_index > 0:
+                compscan_index -= 2
+                # Go back to previous data sets until the previous good compound scan is found
+                while compscan_index < np.sum([len(bd) for bd in beam_data[:dataset_index]], dtype=np.int):
+                    dataset_index -= 1
+                output_data.pop()
+                output_data.pop()
+                next_load_reduce_plot(fig)
+    back_button.on_clicked(back_callback)
+    all_buttons.append(back_button)
+
+    done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
+    def done_callback(event):
+        with all_buttons:
+            global dataset_index, compscan_index
+            compscan_index = np.inf
+            dataset_index = len(datasets)
+            next_load_reduce_plot(fig)
+    done_button.on_clicked(done_callback)
+    all_buttons.append(done_button)
+
+    # Start off the processing
+    next_load_reduce_plot(fig)
+    # Display plots - this should be called ONLY ONCE, at the VERY END of the script
+    # The script stops here until you close the plots...
+    plt.show()
