@@ -76,23 +76,39 @@ for scan in d.scans:
 ra = katpoint.rad2deg(np.hstack(ra) - d.compscans[0].beam.center[0])
 dec = katpoint.rad2deg(np.hstack(dec) - d.compscans[0].beam.center[1])
 power = np.hstack([scan.pol('I').squeeze() - scan.baseline(scan.timestamps) for scan in d.scans if scan.baseline])
-power = np.abs(power) * 100.0 / power.max()
+power = np.abs(power)
 
 # Grid the raster scan to projected plane
+min_num_pixels = 201
 interp = scape.fitting.Delaunay2DScatterFit(default_val=0.0, jitter=True)
 interp.fit([ra, dec], power)
-grid_ra = np.linspace(ra.min(), ra.max(), 201)
-grid_dec = np.linspace(dec.min(), dec.max(), 201)
+ra_range, dec_range = ra.max() - ra.min(), dec.max() - dec.min()
+# Use a square pixel size in projected plane
+pixel_size = min(ra_range, dec_range) / min_num_pixels
+grid_ra = np.arange(ra.min(), ra.max(), pixel_size)
+grid_dec = np.arange(dec.min(), dec.max(), pixel_size)
 mesh_ra, mesh_dec = np.meshgrid(grid_ra, grid_dec)
 mesh = np.vstack((mesh_ra.ravel(), mesh_dec.ravel()))
-smooth_power = interp(mesh).reshape(grid_ra.size, grid_dec.size)
+# This is already in transposed form, as contour plot expects (x => columns, y => rows)
+smooth_power = interp(mesh).reshape(grid_dec.size, grid_ra.size)
+smooth_rel_power = smooth_power * 100.0 / power.max()
+
+start_time = d.scans[0].timestamps[0]
+target_ra, target_dec = target.radec(start_time)
+x, y = grid_ra + katpoint.rad2deg(target_ra), grid_dec + katpoint.rad2deg(target_dec)
+scape.save_fits_image('CenA_1836MHz_ant1.fits', np.flipud(x), y, np.fliplr(smooth_power), target_name='Centaurus A',
+                      coord_system='radec', projection_type='ARC', data_unit=d.data_unit,
+                      freq_Hz=d.freqs[0] * 1e6, bandwidth_Hz=d.bandwidths[0] * 1e6, pol='I',
+                      observe_date=katpoint.Timestamp(start_time).to_string().replace(' ', 'T'),
+                      create_date=katpoint.Timestamp().to_string().replace(' ', 'T'),
+                      telescope='KAT-4', instrument='ant1', observer='schwardt', clobber=True)
 
 # Do contour plot
 plt.figure(1, figsize=(9.4, 9.1))
 plt.clf()
 levels = np.array([1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50, 70, 100])
-cfs = plt.contourf(grid_ra, grid_dec, smooth_power, levels, norm=mpl.colors.LogNorm(0.1, 101.0))
-cs = plt.contour(grid_ra, grid_dec, smooth_power, levels, colors='k')
+cfs = plt.contourf(grid_ra, grid_dec, smooth_rel_power, levels, norm=mpl.colors.LogNorm(0.1, 101.0))
+cs = plt.contour(grid_ra, grid_dec, smooth_rel_power, levels, colors='k')
 #plt.imshow(mpl.image.imread('cena_clean.png'), extent=[-0.25, 0.25, 0.25, -0.25], zorder=100)
 # Add rectangle indicating border of interferometric image
 plt.plot(0.25 * np.array([-1, -1, 1, 1, -1]), 0.25 * np.array([-1, 1, 1, -1, -1]), 'w')
@@ -143,7 +159,7 @@ except IOError:
 
 plt.figure(2)
 plt.clf()
-plt.imshow(np.fliplr(10*np.sqrt(smooth_power)), cmap='gray', origin='lower',
+plt.imshow(np.fliplr(10*np.sqrt(smooth_rel_power)), cmap='gray', origin='lower',
            extent=[grid_ra[-1], grid_ra[0], grid_dec[0], grid_dec[-1]])
 plt.imshow(moon, extent=[3.75, 3.25, 3.75, 4.25], origin='lower')
 plt.axis([4.25, -2.5, -4.75, 5])
