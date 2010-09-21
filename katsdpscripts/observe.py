@@ -136,11 +136,11 @@ class CaptureSession(object):
             self.output_msg("New data capturing session")
             # Log the activity parameters (if config manager is around)
             if hasattr(kat, 'cfg'):
-                kat.cfg.req.set_script_param("script-status", "session initialising")
+                kat.cfg.req.set_script_param("script-session-status", "initialising")
                 kat.cfg.req.set_script_param("script-starttime", "")
                 kat.cfg.req.set_script_param("script-endtime", "")
                 kat.cfg.req.set_script_param("script-name", sys.argv[0])
-#                kat.cfg.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
+                kat.cfg.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
                 kat.cfg.req.set_script_param("script-experiment-id", experiment_id)
                 kat.cfg.req.set_script_param("script-observer", observer)
                 kat.cfg.req.set_script_param("script-description", description)
@@ -186,7 +186,7 @@ class CaptureSession(object):
                 logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
 
             if hasattr(kat, 'cfg'):
-                kat.cfg.req.set_script_param("script-status", "session initialised")
+                kat.cfg.req.set_script_param("script-session-status", "initialised")
 
         except Exception, e:
             self.output_msg("CaptureSession failed to initialise (%s)" % (e,), logging.ERROR)
@@ -201,14 +201,14 @@ class CaptureSession(object):
     def __enter__(self):
         """Enter the data capturing session."""
         if hasattr(self.kat, 'cfg'):
-            self.kat.cfg.req.set_script_param("script-status", "session entered")
+            self.kat.cfg.req.set_script_param("script-session-status", "running")
             self.kat.cfg.req.set_script_param("script-starttime", time.asctime())
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
         if hasattr(self.kat, 'cfg'):
-            self.kat.cfg.req.set_script_param("script-status", "session exiting")
+            self.kat.cfg.req.set_script_param("script-session-status", "exiting")
             self.kat.cfg.req.set_script_param("script-endtime", time.asctime())
             if exc_value is not None:
                 self.output_msg('Session interrupted by exception (%s)' % (exc_value,), logging.ERROR)
@@ -734,4 +734,4 @@ class CaptureSession(object):
         kat.dbe.req.capture_stop()
         self.output_msg('shutdown: Ended data capturing session with experiment ID %s' % (self.experiment_id,))
         if hasattr(kat, 'cfg'):
-            kat.cfg.req.set_script_param("script-status", "session shutdown")
+            kat.cfg.req.set_script_param("script-session-status", "done")
