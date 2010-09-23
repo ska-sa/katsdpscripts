@@ -178,6 +178,10 @@ class CaptureSession(object):
         of the next proper scan. If False, the file output (but not the signal
         displays) is paused while the antennas slew, and the data file contains
         only proper scans.
+    nd_params : dict, optional
+        Dictionary containing parameters that control firing of the noise diode.
+        These parameters are in the form of keyword-value pairs, and matches the
+        parameters of the :meth:`fire_noise_diode` method.
 
     Raises
     ------
@@ -186,11 +190,13 @@ class CaptureSession(object):
 
     """
     def __init__(self, kat, experiment_id, observer, description, ants,
-                 centre_freq=1800.0, dump_rate=1.0, record_slews=True):
+                 centre_freq=1800.0, dump_rate=1.0, record_slews=True,
+                 nd_params={'diode' : 'pin', 'on_duration' : 10.0,
+                            'off_duration' : 10.0, 'period' : 180.}):
         try:
             self.kat = kat
 
-            self.output_msg("New data capturing session")
+            self.log("New data capturing session")
             # Log the activity parameters (if config manager is around)
             if hasattr(kat, 'cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialising")
@@ -213,6 +219,8 @@ class CaptureSession(object):
             self.ants = ants = ant_array(kat, ants)
             self.experiment_id = experiment_id
             self.record_slews = record_slews
+            self.nd_params = nd_params
+            self.last_nd_firing = 0.
 
             # Start with a clean state, by stopping the DBE
             kat.dbe.req.capture_stop()
@@ -246,14 +254,8 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-session-status", "initialised")
 
         except Exception, e:
-            self.output_msg("CaptureSession failed to initialise (%s)" % (e,), logging.ERROR)
+            self.log("CaptureSession failed to initialise (%s)" % (e,), logging.ERROR)
             raise
-
-    def output_msg(self, msg, level=logging.INFO):
-        """Log message with appropriate level, both to standard logging and activity log."""
-        logger.log(level, msg)
-        if hasattr(self.kat, 'cfg'):
-            self.kat.cfg.req.activity_log("observe", msg)
 
     def __enter__(self):
         """Enter the data capturing session."""
@@ -268,10 +270,16 @@ class CaptureSession(object):
             self.kat.cfg.req.set_script_param("script-session-status", "exiting")
             self.kat.cfg.req.set_script_param("script-endtime", time.asctime())
             if exc_value is not None:
-                self.output_msg('Session interrupted by exception (%s)' % (exc_value,), logging.ERROR)
+                self.log('Session interrupted by exception (%s)' % (exc_value,), logging.ERROR)
         self.shutdown()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
+
+    def log(self, msg, level=logging.INFO):
+        """Log message with appropriate level, both to standard logging and activity log."""
+        logger.log(level, msg)
+        if hasattr(self.kat, 'cfg'):
+            self.kat.cfg.req.activity_log("observe", msg)
 
     def start_scan(self, label, new_scan=True):
         """Set up start and shutdown of scan (the basic unit of an experiment).
@@ -297,7 +305,7 @@ class CaptureSession(object):
         """
         return CaptureScan(self.kat, label, self.record_slews, new_scan)
 
-    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, new_scan=True):
+    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=None, new_scan=True):
         """Switch noise diode on and off.
 
         This starts a new scan and switches the selected noise diode on and off
@@ -306,6 +314,11 @@ class CaptureSession(object):
         not changed. It therefore makes sense to fire the noise diode *after*
         a scan or track, when a target has already been loaded. The on and off
         durations can be specified.
+
+        Additionally, setting the *period* allows the noise diode to be fired on
+        a semi-regular basis. The diode will only be fired if more than *period*
+        seconds have elapsed since the last firing. If the *period* is *None*,
+        the diode is fired unconditionally.
 
         When the function returns, data will still be recorded to the HDF5 file.
         The specified *off_duration* is therefore a minimum value. Remember to
@@ -322,26 +335,41 @@ class CaptureSession(object):
             Minimum duration for which diode is switched on, in seconds
         off_duration : float, optional
             Minimum duration for which diode is switched off, in seconds
+        period : float or None, optional
+            Minimum time between noise diode firings, in seconds. (The maximum
+            time is determined by the duration of individual slews and scans,
+            which are considered atomic.) If None, fire diode unconditionally.
         new_scan : {True, False}, optional
             True to create new Scan group in HDF5 file (unnecessary for the
             first scan in a compound scan, necessary for the rest)
 
+        Returns
+        -------
+        fired : {True, False}
+            True if noise diode fired
+
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
+        # If period is specified, quit if it is not yet time to fire the noise diode
+        if period is not None and (time.time() - session.last_nd_firing) < period:
+            return False
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
-        session.output_msg("fire_noise_diode: Firing '%s' noise diode (on %g seconds, off %g seconds)" %
-                           (diode, on_duration, off_duration))
+        session.log("fire_noise_diode: Firing '%s' noise diode (on %g seconds, off %g seconds)" %
+                    (diode, on_duration, off_duration))
 
         with session.start_scan('cal', new_scan):
             # Switch noise diode on on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
             time.sleep(on_duration)
+            # Mark on -> off transition as last firing
+            session.last_nd_firing = time.time()
             # Switch noise diode off on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
             time.sleep(off_duration)
+        return True
 
     def track(self, target, duration=20.0, drive_strategy='longest-track', label='track'):
         """Track a target.
@@ -393,17 +421,23 @@ class CaptureSession(object):
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         kat.dbe.req.k7w_new_compound_scan(target, label, 'cal')
 
-        session.output_msg("track: Slewing to target '%s'" % (preferred_name(target),))
+        session.fire_noise_diode(new_scan=False, **session.nd_params)
+
+        session.log("track: Slewing to target '%s'" % (preferred_name(target),))
         with session.start_scan('slew'):
             # Start moving each antenna to the target
             ants.req.mode('POINT')
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
 
-        session.output_msg("track: Tracking target '%s'" % (preferred_name(target),))
+        session.fire_noise_diode(**session.nd_params)
+
+        session.log("track: Tracking target '%s'" % (preferred_name(target),))
         with session.start_scan('scan'):
             # Do nothing else for the duration of the track
             time.sleep(duration)
+
+        session.fire_noise_diode(**session.nd_params)
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
              drive_strategy='shortest-slew', label='scan'):
@@ -478,7 +512,9 @@ class CaptureSession(object):
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         kat.dbe.req.k7w_new_compound_scan(target, label, 'cal')
 
-        session.output_msg("scan: Slewing to start of scan across target '%s'" % (preferred_name(target),))
+        session.fire_noise_diode(new_scan=False, **session.nd_params)
+
+        session.log("scan: Slewing to start of scan across target '%s'" % (preferred_name(target),))
         with session.start_scan('slew'):
             # Move each antenna to the start position of the scan
             if scan_in_azimuth:
@@ -489,12 +525,16 @@ class CaptureSession(object):
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
 
-        session.output_msg("scan: Starting scan across target '%s'" % (preferred_name(target),))
+        session.fire_noise_diode(**session.nd_params)
+
+        session.log("scan: Starting scan across target '%s'" % (preferred_name(target),))
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
             ants.wait('scan_status', 'after', 300)
+
+        session.fire_noise_diode(**session.nd_params)
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0,
                     scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
@@ -580,6 +620,8 @@ class CaptureSession(object):
         # Create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         kat.dbe.req.k7w_new_compound_scan(target, label, 'cal')
 
+        session.fire_noise_diode(new_scan=False, **session.nd_params)
+
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
         scanning_coord = (scan_extent / 2.0) * (-1) ** scan_steps
@@ -590,8 +632,8 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            session.output_msg("raster_scan: Slewing to start of scan %d of %d on target '%s'" %
-                               (scan_count + 1, len(scan_starts), preferred_name(target)))
+            session.log("raster_scan: Slewing to start of scan %d of %d on target '%s'" %
+                        (scan_count + 1, len(scan_starts), preferred_name(target)))
             with session.start_scan('slew'):
                 # Move each antenna to the start position of the next scan
                 if scan_in_azimuth:
@@ -602,13 +644,17 @@ class CaptureSession(object):
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
 
-            session.output_msg("raster_scan: Starting scan %d of %d on target '%s'" %
-                               (scan_count + 1, len(scan_starts), preferred_name(target)))
+            session.fire_noise_diode(**session.nd_params)
+
+            session.log("raster_scan: Starting scan %d of %d on target '%s'" %
+                        (scan_count + 1, len(scan_starts), preferred_name(target)))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
                 # Wait until they are all finished scanning (with 5 minute timeout)
                 ants.wait('scan_status', 'after', 300)
+
+            session.fire_noise_diode(**session.nd_params)
 
     def shutdown(self):
         """Stop data capturing to shut down the session and close the data file.
@@ -621,11 +667,11 @@ class CaptureSession(object):
         session, kat = self, self.kat
         # Obtain the names of the files currently being written to
         files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
-        session.output_msg('shutdown: Scans complete, data captured to %s' %
-                           ([f.replace('writing', 'unaugmented') for f in files],))
+        files = [f.replace('writing', 'unaugmented') for f in files]
+        session.log('shutdown: Scans complete, data captured to %s' % (files,))
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         kat.dbe.req.capture_stop()
-        session.output_msg('shutdown: Ended data capturing session with experiment ID %s' % (session.experiment_id,))
+        session.log('shutdown: Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         if hasattr(kat, 'cfg'):
             kat.cfg.req.set_script_param("script-session-status", "done")
