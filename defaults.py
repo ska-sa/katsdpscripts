@@ -11,7 +11,7 @@ from katuilib.ansi import col
 # Default settings logically grouped in lists
 
 ped1 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
-("kat.ped1.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
+("kat.ped1.req.log_level('cryo')[1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
 ("kat.ped1.sensor.rfe3_psu_on.get_value()", 1, "kat.ped1.req.rfe3_psu_on(1)"),
 ("kat.ped1.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped1.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
 ("kat.ped1.sensor.rfe5_attenuator_horizontal.get_value()", 7.0, "kat.ped1.req.rfe5_attenuation('h',7.0)"),
@@ -21,7 +21,7 @@ ped1 = [ # structure is list of tuples with (command to access sensor value, def
 ]
 
 ped2 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
-("kat.ped2.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped2.req.log_level('cryo', 'fatal')"),
+("kat.ped2.req.log_level('cryo')[1]", "fatal", "kat.ped2.req.log_level('cryo', 'fatal')"),
 ("kat.ped2.sensor.rfe3_psu_on.get_value()", 1, "kat.ped2.req.rfe3_psu_on(1)"),
 ("kat.ped2.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped2.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
 ("kat.ped2.sensor.rfe5_attenuator_horizontal.get_value()", 7.0, "kat.ped2.req.rfe5_attenuation('h',7.0)"),
@@ -31,7 +31,7 @@ ped2 = [ # structure is list of tuples with (command to access sensor value, def
 ]
 
 ped3 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
-("kat.ped3.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped3.req.log_level('cryo', 'fatal')"),
+("kat.ped3.req.log_level('cryo')[1]", "fatal", "kat.ped3.req.log_level('cryo', 'fatal')"),
 ("kat.ped3.sensor.rfe3_psu_on.get_value()", 1, "kat.ped3.req.rfe3_psu_on(1)"),
 ("kat.ped3.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped3.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
 ("kat.ped3.sensor.rfe5_attenuator_horizontal.get_value()", 5.0, "kat.ped3.req.rfe5_attenuation('h',5.0)"),
@@ -41,7 +41,7 @@ ped3 = [ # structure is list of tuples with (command to access sensor value, def
 ]
 
 ped4 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
-("kat.ped4.req.log_level('cryo',tuple=True)[0][2][1]", "fatal", "kat.ped4.req.log_level('cryo', 'fatal')"),
+("kat.ped4.req.log_level('cryo')[1]", "fatal", "kat.ped4.req.log_level('cryo', 'fatal')"),
 ("kat.ped4.sensor.rfe3_psu_on.get_value()", 1, "kat.ped4.req.rfe3_psu_on(1)"),
 ("kat.ped4.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped4.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
 ("kat.ped4.sensor.rfe5_attenuator_horizontal.get_value()", 4.0, "kat.ped4.req.rfe5_attenuation('h',4.0)"),
