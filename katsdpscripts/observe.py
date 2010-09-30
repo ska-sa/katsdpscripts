@@ -11,10 +11,7 @@ import numpy as np
 
 from .array import Array
 from .katcp_client import KATDevice
-from .defaults import logger as base_logger
-
-# Use default logger for now (but make sure logs are also displayed during interactive sessions)
-logger = logging.getLogger("%s.observe" % base_logger.name)
+from .defaults import user_logger
 
 # Ripped from katpoint.construct_target_params, to avoid extra dependencies
 def preferred_name(description):
@@ -196,7 +193,7 @@ class CaptureSession(object):
         try:
             self.kat = kat
 
-            self.log("New data capturing session")
+            user_logger.info("New data capturing session")
             # Log the activity parameters (if config manager is around)
             if hasattr(kat, 'cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialising")
@@ -209,12 +206,12 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-description", description)
                 kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
                                                                  (centre_freq, dump_rate, record_slews))
-            logger.info("------------------------")
-            logger.info("Experiment ID = %s" % (experiment_id,))
-            logger.info("Observer = %s" % (observer,))
-            logger.info("Description ='%s'" % description)
-            logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
-                        (centre_freq, dump_rate, record_slews))
+            user_logger.info("--------------------------")
+            user_logger.info("Experiment ID = %s" % (experiment_id,))
+            user_logger.info("Observer = %s" % (observer,))
+            user_logger.info("Description ='%s'" % description)
+            user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
+                             (centre_freq, dump_rate, record_slews))
 
             self.ants = ants = ant_array(kat, ants)
             self.experiment_id = experiment_id
@@ -248,13 +245,13 @@ class CaptureSession(object):
                 # The minimum time between position updates is just a little less than the standard (az, el) sensor period
                 first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
                 first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
-                logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+                user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
 
             if hasattr(kat, 'cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialised")
 
         except Exception, e:
-            self.log("CaptureSession failed to initialise (%s)" % (e,), logging.ERROR)
+            user_logger.error("CaptureSession failed to initialise (%s)" % (e,))
             raise
 
     def __enter__(self):
@@ -270,16 +267,10 @@ class CaptureSession(object):
             self.kat.cfg.req.set_script_param("script-session-status", "exiting")
             self.kat.cfg.req.set_script_param("script-endtime", time.asctime())
             if exc_value is not None:
-                self.log('Session interrupted by exception (%s)' % (exc_value,), logging.ERROR)
+                user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
         self.shutdown()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
-
-    def log(self, msg, level=logging.INFO):
-        """Log message with appropriate level, both to standard logging and activity log."""
-        logger.log(level, msg)
-        if hasattr(self.kat, 'cfg'):
-            self.kat.cfg.req.activity_log("observe", msg)
 
     def start_scan(self, label, new_scan=True):
         """Set up start and shutdown of scan (the basic unit of an experiment).
@@ -357,8 +348,7 @@ class CaptureSession(object):
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
-        session.log("fire_noise_diode: Firing '%s' noise diode (on %g seconds, off %g seconds)" %
-                    (diode, on_duration, off_duration))
+        user_logger.info("Firing '%s' noise diode (on %g seconds, off %g seconds)" % (diode, on_duration, off_duration))
 
         with session.start_scan('cal', new_scan):
             # Switch noise diode on on all antennas
@@ -423,7 +413,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(new_scan=False, **session.nd_params)
 
-        session.log("track: Slewing to target '%s'" % (preferred_name(target),))
+        user_logger.info("Slewing to target '%s'" % (preferred_name(target),))
         with session.start_scan('slew'):
             # Start moving each antenna to the target
             ants.req.mode('POINT')
@@ -432,7 +422,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(**session.nd_params)
 
-        session.log("track: Tracking target '%s'" % (preferred_name(target),))
+        user_logger.info("Tracking target '%s'" % (preferred_name(target),))
         with session.start_scan('scan'):
             # Do nothing else for the duration of the track
             time.sleep(duration)
@@ -514,7 +504,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(new_scan=False, **session.nd_params)
 
-        session.log("scan: Slewing to start of scan across target '%s'" % (preferred_name(target),))
+        user_logger.info("Slewing to start of scan across target '%s'" % (preferred_name(target),))
         with session.start_scan('slew'):
             # Move each antenna to the start position of the scan
             if scan_in_azimuth:
@@ -527,7 +517,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(**session.nd_params)
 
-        session.log("scan: Starting scan across target '%s'" % (preferred_name(target),))
+        user_logger.info("Starting scan across target '%s'" % (preferred_name(target),))
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
@@ -632,8 +622,8 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            session.log("raster_scan: Slewing to start of scan %d of %d on target '%s'" %
-                        (scan_count + 1, len(scan_starts), preferred_name(target)))
+            user_logger.info("Slewing to start of scan %d of %d on target '%s'" %
+                             (scan_count + 1, len(scan_starts), preferred_name(target)))
             with session.start_scan('slew'):
                 # Move each antenna to the start position of the next scan
                 if scan_in_azimuth:
@@ -646,8 +636,8 @@ class CaptureSession(object):
 
             session.fire_noise_diode(**session.nd_params)
 
-            session.log("raster_scan: Starting scan %d of %d on target '%s'" %
-                        (scan_count + 1, len(scan_starts), preferred_name(target)))
+            user_logger.info("Starting scan %d of %d on target '%s'" %
+                             (scan_count + 1, len(scan_starts), preferred_name(target)))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
@@ -665,13 +655,13 @@ class CaptureSession(object):
         """
         # Create reference to session and KAT objects, as this allows easy copy-and-pasting from this function
         session, kat = self, self.kat
-        # Obtain the names of the files currently being written to
-        files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
-        files = [f.replace('writing', 'unaugmented') for f in files]
-        session.log('shutdown: Scans complete, data captured to %s' % (files,))
+        # Obtain the name of the file currently being written to
+        reply = kat.dbe.req.k7w_get_current_file()
+        outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
+        user_logger.info('Scans complete, data captured to %s' % (outfile,))
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         kat.dbe.req.capture_stop()
-        session.log('shutdown: Ended data capturing session with experiment ID %s' % (session.experiment_id,))
+        user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         if hasattr(kat, 'cfg'):
             kat.cfg.req.set_script_param("script-session-status", "done")

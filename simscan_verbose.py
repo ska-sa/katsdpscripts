@@ -159,9 +159,10 @@ try:
 ########## The following lines correspond to CaptureSession.shutdown function ##########
 ########################################################################################
 
-    # Obtain the names of the files currently being written to
-    files = kat.dbe.req.k7w_get_current_files(tuple=True)[1][2]
-    print 'Scans complete, data captured to %s' % ([f.replace('writing','unaugmented') for f in files],)
+    # Obtain the name of the file currently being written to
+    reply = kat.dbe.req.k7w_get_current_file()
+    outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
+    print 'Scans complete, data captured to %s' % (outfile,)
 
 finally:
     # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
