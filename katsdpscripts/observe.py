@@ -302,7 +302,7 @@ class CaptureSession(object):
         """
         return CaptureScan(self.kat, label, self.record_slews, new_scan)
 
-    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=None, new_scan=True):
+    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0, new_scan=True):
         """Switch noise diode on and off.
 
         This starts a new scan and switches the selected noise diode on and off
@@ -332,10 +332,11 @@ class CaptureSession(object):
             Minimum duration for which diode is switched on, in seconds
         off_duration : float, optional
             Minimum duration for which diode is switched off, in seconds
-        period : float or None, optional
+        period : float, optional
             Minimum time between noise diode firings, in seconds. (The maximum
             time is determined by the duration of individual slews and scans,
-            which are considered atomic.) If None, fire diode unconditionally.
+            which are considered atomic and won't be interrupted.) If 0, fire
+            diode unconditionally. If negative, don't fire diode at all.
         new_scan : {True, False}, optional
             True to create new Scan group in HDF5 file (unnecessary for the
             first scan in a compound scan, necessary for the rest)
@@ -348,8 +349,8 @@ class CaptureSession(object):
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
-        # If period is specified, quit if it is not yet time to fire the noise diode
-        if period is not None and (time.time() - session.last_nd_firing) < period:
+        # If period is non-negative, quit if it is not yet time to fire the noise diode
+        if period < 0.0 or (time.time() - session.last_nd_firing) < period:
             return False
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
