@@ -51,14 +51,14 @@ $ ./retrieve_sensor_data.py --start 2010-01-01 --end 2010-02-01 \\
 
 CM_URLS = {
     'lab': 'http://ff-proxy.lab.kat.ac.za/central_monitoring/',
-    'lab_karoo_archive': 'http://ff-dc.lab.kat.ac.za/karoo_archive_cpt/central_monitoring/',
+    'karoo_archive_cpt': 'http://ff-dc.lab.kat.ac.za/karoo_archive_cpt/central_monitoring/',
     'sim': 'http://ff-sim.lab.kat.ac.za/central_monitoring/',
     'karoo': 'http://ff-proxy.karoo.kat.ac.za/central_monitoring/',
 }
 
 CM_KEYS = list(sorted(CM_URLS.keys()))
 
-CM_DEFAULT = 'lab_karoo_archive'
+CM_DEFAULT = 'karoo_archive_cpt'
 
 
 # parser for command-line options and arguments
