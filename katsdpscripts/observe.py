@@ -10,6 +10,7 @@ import optparse
 import uuid
 
 import numpy as np
+import katpoint
 
 from .array import Array
 from .katcp_client import KATDevice
@@ -264,14 +265,16 @@ class CaptureSession(object):
         """Enter the data capturing session."""
         if hasattr(self.kat, 'cfg'):
             self.kat.cfg.req.set_script_param("script-session-status", "running")
-            self.kat.cfg.req.set_script_param("script-starttime", time.asctime())
+            self.kat.cfg.req.set_script_param("script-starttime",
+                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
         if hasattr(self.kat, 'cfg'):
             self.kat.cfg.req.set_script_param("script-session-status", "exiting")
-            self.kat.cfg.req.set_script_param("script-endtime", time.asctime())
+            self.kat.cfg.req.set_script_param("script-endtime",
+                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
             if exc_value is not None:
                 user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
         self.shutdown()
@@ -672,6 +675,185 @@ class CaptureSession(object):
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         if hasattr(kat, 'cfg'):
             kat.cfg.req.set_script_param("script-session-status", "done")
+
+
+class TimeSession(object):
+    """Fake CaptureSession object used to estimate the duration of an experiment."""
+    def __init__(self, kat, experiment_id, observer, description, ants,
+                 centre_freq=1800.0, dump_rate=1.0, record_slews=True,
+                 nd_params={'diode' : 'pin', 'on_duration' : 10.0,
+                            'off_duration' : 10.0, 'period' : 180.}, **kwargs):
+        self.start_time = time.time()
+        self.time = self.start_time
+        self.ants = []
+        for ant in ant_array(kat, ants).devs:
+            try:
+                self.ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),
+                                  ant.sensor.pos_actual_scan_azim.get_value(),
+                                  ant.sensor.pos_actual_scan_elev.get_value()))
+            except AttributeError:
+                pass
+        self.nd_params = nd_params
+        self.last_nd_firing = 0.
+        self.projection = ('ARC', 0., 0.)
+        self.realtime = None
+        self.realsleep = None
+        print "\nEstimating duration of experiment starting %s (nothing real will happen!)" % (self.time_str(),)
+        print "~~~~~~~~~~"
+        print "~ %s INFO     Experiment ID = %s" % (self.time_str(), experiment_id,)
+        print "~ %s INFO     Observer = %s" % (self.time_str(), observer,)
+        print "~ %s INFO     Description ='%s'" % (self.time_str(), description)
+        print "~ %s INFO     RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" % \
+              (self.time_str(), centre_freq, dump_rate, record_slews)
+
+    def __enter__(self):
+        """Start time estimate, overriding the time module."""
+        # Usurp time module functions that deal with the passage of real time, and connect them to session time instead
+        time = sys.modules['time']
+        self.realtime, self.realsleep = time.time, time.sleep
+        time.time = lambda: self.time
+        def simsleep(seconds):
+            self.time += seconds
+        time.sleep = simsleep
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Finish time estimate, restoring the time module."""
+        duration = self.time - self.start_time
+        if duration <= 100:
+            duration = '%d seconds' % (np.ceil(duration),)
+        elif duration <= 100 * 60:
+            duration = '%d minutes' % (np.ceil(duration / 60.),)
+        else:
+            duration = '%.1f hours' % (duration / 3600.,)
+        print "~~~~~~~~~~"
+        print "Experiment estimated to last %s until %s\n" % (duration, self.time_str())
+        # Restore time module functions
+        time = sys.modules['time']
+        time.time, time.sleep = self.realtime, self.realsleep
+        # Do not suppress any exceptions that occurred in the body of with-statement
+        return False
+
+    def time_str(self):
+        """Current session timestamp (in local timezone) as a string."""
+        return time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(self.time))
+
+    def azel(self, target, timestamp, antenna):
+        """Target (az, el) position in degrees (including offsets in degrees)."""
+        projection_type, x, y = self.projection
+        az, el = target.plane_to_sphere(katpoint.deg2rad(x), katpoint.deg2rad(y), timestamp, antenna, projection_type)
+        return katpoint.rad2deg(az), katpoint.rad2deg(el)
+
+    def teleport_to(self, target):
+        """Move antennas instantaneously onto target (or nearest point on horizon)."""
+        for m in range(len(self.ants)):
+            antenna = self.ants[m][0]
+            az, el = self.azel(target, self.time, antenna)
+            self.ants[m] = (antenna, az, max(el, 2.))
+
+    def slew_to(self, target, timeout=300.):
+        """Slew antennas to target (or nearest point on horizon), with timeout."""
+        slew_times = []
+        for ant, ant_az, ant_el in self.ants:
+            def estimate_slew(timestamp):
+                """Obtain instantaneous target position and estimate time to slew there."""
+                # Target position right now
+                az, el = self.azel(target, timestamp, ant)
+                # If target is below horizon, aim at closest point on horizon
+                az_dist, el_dist = np.abs(az - ant_az), np.abs(max(el, 2.) - ant_el)
+                # Ignore azimuth wraps and drive strategies
+                az_dist = az_dist if az_dist < 180. else 360. - az_dist
+                # Assume az speed of 2 deg/s, el speed of 1 deg/s and overhead of 1 second
+                slew_time = max(0.5 * az_dist, 1.0 * el_dist) + 1.0
+                return az, el, slew_time
+            # Initial estimate of slew time, based on a stationary target
+            az1, el1, slew_time = estimate_slew(self.time)
+            # Crude adjustment for target motion: chase target position for 2 iterations
+            az2, el2, slew_time = estimate_slew(self.time + slew_time)
+            az2, el2, slew_time = estimate_slew(self.time + slew_time)
+            # Ensure slew does not take longer than timeout
+            slew_time = min(slew_time, timeout)
+            # If source is below horizon, handle timeout and potential rise in that interval
+            if el2 < 2.:
+                # Position after timeout
+                az_after_timeout, el_after_timeout = self.azel(target, self.time + timeout, ant)
+                # If source is still down, slew time == timeout, else estimate rise time through linear interpolation
+                slew_time = (2. - el1) / (el_after_timeout - el1) * timeout if el_after_timeout > 2. else timeout
+                az2, el2 = self.azel(target, self.time + slew_time, ant)
+                el2 = max(el2, 2.)
+            slew_times.append(slew_time)
+#            print "%s slewing from (%.1f, %.1f) to (%.1f, %.1f) in %.1f seconds" % \
+#                  (ant.name, ant_az, ant_el, az2, el2, slew_time)
+        # The overall slew time is the max for all antennas - adjust current time to reflect the slew
+        self.time += np.max(slew_times)
+        # Blindly assume all antennas are on target (or on horizon) after this interval
+        self.teleport_to(target)
+
+    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0, new_scan=True):
+        """Estimate time taken to fire noise diode."""
+        if period < 0.0 or (self.time - self.last_nd_firing) < period:
+            return False
+        print "~ %s INFO     Firing '%s' noise diode (on %g seconds, off %g seconds)" % \
+              (self.time_str(), diode, on_duration, off_duration)
+        self.time += on_duration
+        self.last_nd_firing = self.time + 0.
+        self.time += off_duration
+        return True
+
+    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track'):
+        """Estimate time taken to perform track."""
+        target = target if hasattr(target, 'description') else katpoint.Target(target)
+        self.fire_noise_diode(new_scan=False, **self.nd_params)
+        print "~ %s INFO     Slewing to target '%s'" % (self.time_str(), target.name,)
+        self.slew_to(target)
+        self.fire_noise_diode(**self.nd_params)
+        print "~ %s INFO     Tracking target '%s'" % (self.time_str(), target.name,)
+        self.time += duration + 1.0
+        self.fire_noise_diode(**self.nd_params)
+        self.teleport_to(target)
+
+    def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
+             drive_strategy='shortest-slew', label='scan'):
+        """Estimate time taken to perform single linear scan."""
+        target = target if hasattr(target, 'description') else katpoint.Target(target)
+        self.fire_noise_diode(new_scan=False, **self.nd_params)
+        print "~ %s INFO     Slewing to start of scan across target '%s'" % (self.time_str(), target.name,)
+        self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
+        self.slew_to(target)
+        self.fire_noise_diode(**self.nd_params)
+        print "~ %s INFO     Starting scan across target '%s'" % (self.time_str(), target.name,)
+        # Assume antennas can keep up with target (and doesn't scan too fast either)
+        self.time += duration + 1.0
+        self.fire_noise_diode(**self.nd_params)
+        self.projection = ('ARC', end, 0.) if scan_in_azimuth else ('ARC', 0., end)
+        self.teleport_to(target)
+
+    def raster_scan(self, target, num_scans=3, scan_duration=30.0,
+                    scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
+                    drive_strategy='shortest-slew', label='raster'):
+        """Estimate time taken to perform raster scan."""
+        target = target if hasattr(target, 'description') else katpoint.Target(target)
+        self.fire_noise_diode(new_scan=False, **self.nd_params)
+        # Create start positions of each scan, based on scan parameters
+        scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
+        scanning_coord = (scan_extent / 2.0) * (-1) ** scan_steps
+        stepping_coord = scan_spacing * scan_steps
+        # These minus signs ensure that the first scan always starts at the top left of target
+        scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
+        # Iterate through the scans across the target
+        for scan_count, scan in enumerate(scan_starts):
+            print "~ %s INFO     Slewing to start of scan %d of %d on target '%s'" % \
+                  (self.time_str(), scan_count + 1, len(scan_starts), target.name)
+            self.projection = ('ARC', scan[0], scan[1])
+            self.slew_to(target)
+            self.fire_noise_diode(**self.nd_params)
+            print "~ %s INFO     Starting scan %d of %d on target '%s'" % \
+                  (self.time_str(), scan_count + 1, len(scan_starts), target.name)
+            # Assume antennas can keep up with target (and doesn't scan too fast either)
+            self.time += scan_duration + 1.0
+            self.fire_noise_diode(**self.nd_params)
+            self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
+            self.teleport_to(target)
 
 
 def standard_script_options(usage, description):
