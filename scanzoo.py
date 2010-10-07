@@ -6,6 +6,7 @@ from __future__ import with_statement
 import katuilib
 
 target = 'Takreem,azel,45,10'
+Session = katuilib.observe.CaptureSession
 
 with katuilib.tbuild() as kat:
 
@@ -13,7 +14,7 @@ with katuilib.tbuild() as kat:
     kat.dbe.req.dbe_test_target(45, 10, 100)
     nd_params = {'diode' : 'coupler', 'on_duration' : 3.0, 'off_duration' : 3.0, 'period' : 40.}
 
-    with katuilib.CaptureSession(kat, 'id', 'nobody', 'The scan zoo', kat.ants, 1822., 1., True, nd_params) as session:
+    with Session(kat, 'id', 'nobody', 'The scan zoo', kat.ants, 1822., 1., True, nd_params) as session:
         session.track(target, duration=5.0)
         session.fire_noise_diode('coupler', 5.0, 5.0)
         session.scan(target, duration=20.0)
