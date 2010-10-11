@@ -199,7 +199,7 @@ class CaptureSession(object):
 
             user_logger.info("New data capturing session")
             # Log the activity parameters (if config manager is around)
-            if hasattr(kat, 'cfg'):
+            if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialising")
                 kat.cfg.req.set_script_param("script-starttime", "")
                 kat.cfg.req.set_script_param("script-endtime", "")
@@ -251,7 +251,7 @@ class CaptureSession(object):
                 first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
                 user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
 
-            if hasattr(kat, 'cfg'):
+            if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialised")
 
         except Exception, e:
@@ -260,7 +260,7 @@ class CaptureSession(object):
 
     def __enter__(self):
         """Enter the data capturing session."""
-        if hasattr(self.kat, 'cfg'):
+        if self.kat.has_connected_device('cfg'):
             self.kat.cfg.req.set_script_param("script-session-status", "running")
             self.kat.cfg.req.set_script_param("script-starttime",
                                               time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
@@ -268,7 +268,7 @@ class CaptureSession(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
-        if hasattr(self.kat, 'cfg'):
+        if self.kat.has_connected_device('cfg'):
             self.kat.cfg.req.set_script_param("script-session-status", "exiting")
             self.kat.cfg.req.set_script_param("script-endtime",
                                               time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
@@ -277,6 +277,35 @@ class CaptureSession(object):
         self.shutdown()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
+
+    def on_target(self, target):
+        """Determine whether antennas are tracking a given target.
+
+        If all connected antennas in the sub-array participating in the session
+        have the given *target* as target and are locked in mode 'POINT', we
+        conclude that the array is on target.
+
+        Parameters
+        ----------
+        target : :class:`katpoint.Target` object or string
+            Target to check, as an object or description string
+
+        Returns
+        -------
+        on_target : {True, False}
+            True if antennas are tracking the given target
+
+        """
+        # Turn target object into description string (or use string as is)
+        target = getattr(target, 'description', target)
+        for ant in self.ants.devs:
+            if not ant.is_connected():
+                continue
+            if (ant.sensor.target.get_value() != target) or (ant.sensor.mode.get_value() != 'POINT') or \
+               (ant.sensor.lock.get_value() != '1'):
+                print ant.name, ant.sensor.target.get_value(), ant.sensor.mode.get_value(), ant.sensor.lock.get_value()
+                return False
+        return True
 
     def start_scan(self, label):
         """Set up start and shutdown of scan (the basic unit of an experiment).
@@ -407,6 +436,8 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
+        # Check if we are currently on the desired target
+        on_target = self.on_target(target)
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -428,16 +459,18 @@ class CaptureSession(object):
         else:
             session.fire_noise_diode(**session.nd_params)
 
-        user_logger.info("Slewing to target '%s'" % (preferred_name(target),))
-        with session.start_scan('slew'):
-            # Start moving each antenna to the target
-            ants.req.mode('POINT')
-            # Wait until they are all in position (with 5 minute timeout)
-            ants.wait('lock', True, 300)
+        # Avoid slewing if we are already on target
+        if not on_target:
+            user_logger.info("Slewing to target '%s'" % (preferred_name(target),))
+            with session.start_scan('slew'):
+                # Start moving each antenna to the target
+                ants.req.mode('POINT')
+                # Wait until they are all in position (with 5 minute timeout)
+                ants.wait('lock', True, 300)
 
-        session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(**session.nd_params)
 
-        user_logger.info("Tracking target '%s'" % (preferred_name(target),))
+        user_logger.info("Tracking target '%s' for %g seconds" % (preferred_name(target), duration))
         with session.start_scan('scan'):
             # Do nothing else for the duration of the track
             time.sleep(duration)
@@ -544,7 +577,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(**session.nd_params)
 
-        user_logger.info("Starting scan across target '%s'" % (preferred_name(target),))
+        user_logger.info("Scanning across target '%s' for %g seconds" % (preferred_name(target), duration))
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
@@ -662,7 +695,7 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            user_logger.info("Slewing to start of scan %d of %d on target '%s'" %
+            user_logger.info("Slewing to start of scan %d of %d across target '%s'" %
                              (scan_count + 1, len(scan_starts), preferred_name(target)))
             with session.start_scan('slew'):
                 # Move each antenna to the start position of the next scan
@@ -676,8 +709,8 @@ class CaptureSession(object):
 
             session.fire_noise_diode(**session.nd_params)
 
-            user_logger.info("Starting scan %d of %d on target '%s'" %
-                             (scan_count + 1, len(scan_starts), preferred_name(target)))
+            user_logger.info("Performing scan %d of %d across target '%s' for %g seconds" %
+                             (scan_count + 1, len(scan_starts), preferred_name(target), scan_duration))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
@@ -703,7 +736,7 @@ class CaptureSession(object):
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         kat.dbe.req.capture_stop()
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
-        if hasattr(kat, 'cfg'):
+        if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-session-status", "done")
 
 
@@ -719,6 +752,7 @@ class TimeSession(object):
         for ant in ant_array(kat, ants).devs:
             try:
                 self.ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),
+                                  ant.sensor.mode.get_value(),
                                   ant.sensor.pos_actual_scan_azim.get_value(),
                                   ant.sensor.pos_actual_scan_elev.get_value()))
             except AttributeError:
@@ -774,17 +808,17 @@ class TimeSession(object):
         az, el = target.plane_to_sphere(katpoint.deg2rad(x), katpoint.deg2rad(y), timestamp, antenna, projection_type)
         return katpoint.rad2deg(az), katpoint.rad2deg(el)
 
-    def _teleport_to(self, target):
+    def _teleport_to(self, target, mode='POINT'):
         """Move antennas instantaneously onto target (or nearest point on horizon)."""
         for m in range(len(self.ants)):
             antenna = self.ants[m][0]
             az, el = self._azel(target, self.time, antenna)
-            self.ants[m] = (antenna, az, max(el, 2.))
+            self.ants[m] = (antenna, mode, az, max(el, 2.))
 
-    def _slew_to(self, target, timeout=300.):
+    def _slew_to(self, target, mode='POINT', timeout=300.):
         """Slew antennas to target (or nearest point on horizon), with timeout."""
         slew_times = []
-        for ant, ant_az, ant_el in self.ants:
+        for ant, ant_mode, ant_az, ant_el in self.ants:
             def estimate_slew(timestamp):
                 """Obtain instantaneous target position and estimate time to slew there."""
                 # Target position right now
@@ -817,7 +851,16 @@ class TimeSession(object):
         # The overall slew time is the max for all antennas - adjust current time to reflect the slew
         self.time += np.max(slew_times)
         # Blindly assume all antennas are on target (or on horizon) after this interval
-        self._teleport_to(target)
+        self._teleport_to(target, mode)
+
+    def on_target(self, target):
+        """Determine whether antennas are tracking a given target."""
+        for antenna, mode, ant_az, ant_el in self.ants:
+            az, el = self._azel(target, self.time, antenna)
+            # Checking for lock and checking for target identity considered the same thing
+            if (az != ant_az) or (el != ant_el) or (mode != 'POINT'):
+                return False
+        return True
 
     def start_scan(self, label):
         """Starting scan has no major timing effect."""
@@ -838,9 +881,10 @@ class TimeSession(object):
         """Estimate time taken to perform track."""
         target = target if hasattr(target, 'description') else katpoint.Target(target)
         self.fire_noise_diode(label='', **self.nd_params)
-        print "~ %s INFO     Slewing to target '%s'" % (self._time_str(), target.name,)
-        self._slew_to(target)
-        self.fire_noise_diode(**self.nd_params)
+        if not self.on_target(target):
+            print "~ %s INFO     Slewing to target '%s'" % (self._time_str(), target.name,)
+            self._slew_to(target)
+            self.fire_noise_diode(**self.nd_params)
         print "~ %s INFO     Tracking target '%s'" % (self._time_str(), target.name,)
         self.time += duration + 1.0
         self.fire_noise_diode(**self.nd_params)
@@ -853,7 +897,7 @@ class TimeSession(object):
         self.fire_noise_diode(label='', **self.nd_params)
         print "~ %s INFO     Slewing to start of scan across target '%s'" % (self._time_str(), target.name,)
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
-        self._slew_to(target)
+        self._slew_to(target, mode='SCAN')
         self.fire_noise_diode(**self.nd_params)
         print "~ %s INFO     Starting scan across target '%s'" % (self._time_str(), target.name,)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
@@ -879,7 +923,7 @@ class TimeSession(object):
             print "~ %s INFO     Slewing to start of scan %d of %d on target '%s'" % \
                   (self._time_str(), scan_count + 1, len(scan_starts), target.name)
             self.projection = ('ARC', scan[0], scan[1])
-            self._slew_to(target)
+            self._slew_to(target, mode='SCAN')
             self.fire_noise_diode(**self.nd_params)
             print "~ %s INFO     Starting scan %d of %d on target '%s'" % \
                   (self._time_str(), scan_count + 1, len(scan_starts), target.name)
