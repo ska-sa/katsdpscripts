@@ -307,6 +307,65 @@ class CaptureSession(object):
                 return False
         return True
 
+    def target_visible(self, target, duration=0., timeout=300., horizon=2., operation='scan'):
+        """Check whether target is visible for given duration.
+
+        This checks whether the *target* is currently above the given *horizon*
+        and also above the horizon for the next *duration* seconds, taking into
+        account the *timeout* on slewing to the target. If the target is not
+        visible, an appropriate message is logged. The target location is not
+        very accurate, as it does not include refraction, and this is therefore
+        intended as a rough check only.
+
+        Parameters
+        ----------
+        target : :class:`katpoint.Target` object or string
+            Target to check, as an object or description string
+        duration : float, optional
+            Duration of observation of target, in seconds
+        timeout : float, optional
+            Timeout involved when antenna cannot reach the target
+        horizon : float, optional
+            Elevation limit serving as horizon, in degrees
+        operation : string, optional
+            Description of current observation, for use in warning message
+
+        Returns
+        -------
+        visible : {True, False}
+            True if target is visible from all antennas for entire duration
+
+        """
+        # Convert description string to target object, or keep object as is
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        horizon = katpoint.deg2rad(horizon)
+        # Include an average time to slew to the target (worst case about 90 seconds, so half that)
+        now = time.time() + 45.
+        average_el, visible_before, visible_after = [], [], []
+        for ant in self.ants.devs:
+            if not ant.is_connected():
+                continue
+            antenna = katpoint.Antenna(ant.sensor.observer.get_value())
+            az, el = target.azel(now, antenna)
+            average_el.append(katpoint.rad2deg(el))
+            # If not up yet, see if the target will pop out before the timeout
+            if el < horizon:
+                now += timeout
+                az, el = target.azel(now, antenna)
+            visible_before.append(el >= horizon)
+            # Check what happens at end of observation
+            az, el = target.azel(now + duration, antenna)
+            visible_after.append(el >= horizon)
+        if all(visible_before) and all(visible_after):
+            return True
+        always_invisible = any(~np.array(visible_before) & ~np.array(visible_after))
+        if always_invisible:
+            user_logger.warning("Target '%s' is never visible during %s (average elevation is %g degrees)" %
+                                (target.name, operation, np.mean(average_el)))
+        else:
+            user_logger.warning("Target '%s' will rise or set during %s" % (target.name, operation))
+        return False
+
     def start_scan(self, label):
         """Set up start and shutdown of scan (the basic unit of an experiment).
 
@@ -436,8 +495,9 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
-        # Check if we are currently on the desired target
+        # Check if we are currently on the desired target and whether the target will be visible
         on_target = self.on_target(target)
+        self.target_visible(target, duration, operation='track')
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -543,6 +603,8 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
+        # Check whether the target will be visible
+        self.target_visible(target, duration, operation='scan')
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -664,6 +726,11 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
+        # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
+        nd_time = session.nd_params['on_duration'] + session.nd_params['off_duration']
+        nd_time /= (max(session.nd_params['period'], scan_duration) / scan_duration)
+        # Check whether the target will be visible for entire duration of raster scan
+        self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -862,6 +929,35 @@ class TimeSession(object):
                 return False
         return True
 
+    def target_visible(self, target, duration=0., timeout=300., horizon=2., operation='scan'):
+        """Check whether target is visible for given duration."""
+        # Convert description string to target object, or keep object as is
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        horizon = katpoint.deg2rad(horizon)
+        # Include an average time to slew to the target (worst case about 90 seconds, so half that)
+        now = self.time + 45.
+        average_el, visible_before, visible_after = [], [], []
+        for antenna, mode, ant_az, ant_el in self.ants:
+            az, el = target.azel(now, antenna)
+            average_el.append(katpoint.rad2deg(el))
+            # If not up yet, see if the target will pop out before the timeout
+            if el < horizon:
+                now += timeout
+                az, el = target.azel(now, antenna)
+            visible_before.append(el >= horizon)
+            # Check what happens at end of observation
+            az, el = target.azel(now + duration, antenna)
+            visible_after.append(el >= horizon)
+        if all(visible_before) and all(visible_after):
+            return True
+        always_invisible = any(~np.array(visible_before) & ~np.array(visible_after))
+        if always_invisible:
+            print "~ %s WARNING  Target '%s' is never visible during %s (average elevation is %g degrees)" % \
+                  (self._time_str(), target.name, operation, np.mean(average_el))
+        else:
+            print "~ %s WARNING  Target '%s' will rise or set during %s" % (self._time_str(), target.name, operation)
+        return False
+
     def start_scan(self, label):
         """Starting scan has no major timing effect."""
         pass
@@ -880,6 +976,7 @@ class TimeSession(object):
     def track(self, target, duration=20.0, drive_strategy='longest-track', label='track'):
         """Estimate time taken to perform track."""
         target = target if hasattr(target, 'description') else katpoint.Target(target)
+        self.target_visible(target, duration, operation='track')
         self.fire_noise_diode(label='', **self.nd_params)
         if not self.on_target(target):
             print "~ %s INFO     Slewing to target '%s'" % (self._time_str(), target.name,)
@@ -894,6 +991,7 @@ class TimeSession(object):
              drive_strategy='shortest-slew', label='scan'):
         """Estimate time taken to perform single linear scan."""
         target = target if hasattr(target, 'description') else katpoint.Target(target)
+        self.target_visible(target, duration, operation='scan')
         self.fire_noise_diode(label='', **self.nd_params)
         print "~ %s INFO     Slewing to start of scan across target '%s'" % (self._time_str(), target.name,)
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
@@ -911,13 +1009,16 @@ class TimeSession(object):
                     drive_strategy='shortest-slew', label='raster'):
         """Estimate time taken to perform raster scan."""
         target = target if hasattr(target, 'description') else katpoint.Target(target)
-        self.fire_noise_diode(label='', **self.nd_params)
+        nd_time = self.nd_params['on_duration'] + self.nd_params['off_duration']
+        nd_time /= (max(self.nd_params['period'], scan_duration) / scan_duration)
+        self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
         scanning_coord = (scan_extent / 2.0) * (-1) ** scan_steps
         stepping_coord = scan_spacing * scan_steps
         # These minus signs ensure that the first scan always starts at the top left of target
         scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
+        self.fire_noise_diode(label='', **self.nd_params)
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
             print "~ %s INFO     Slewing to start of scan %d of %d on target '%s'" % \
