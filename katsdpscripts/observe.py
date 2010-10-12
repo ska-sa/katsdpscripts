@@ -1067,6 +1067,8 @@ def standard_script_options(usage, description):
                       help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
     parser.add_option('-n', '--nd_params', default='pin,10,10,180',
                       help='Noise diode parameters as "diode,on,off,period", in seconds (default="%default")')
+    parser.add_option('-y', '--dry_run', action='store_true', default=False,
+                      help="Do not actually observe, but display script actions at predicted times (default=%default)")
 
     return parser
 

@@ -4,7 +4,7 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, CaptureSession
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, CaptureSession, TimeSession
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target 1'> [<'target 2'> ...]",
@@ -30,8 +30,9 @@ with verify_and_connect(opts) as kat:
 
     targets = lookup_targets(kat, args)
 
-    # Create a data capturing session with the selected sub-array of antennas
-    with CaptureSession(kat, **vars(opts)) as session:
+    # Select either a CaptureSession for the real experiment, or a fake TimeSession
+    Session = TimeSession if opts.dry_run else CaptureSession
+    with Session(kat, **vars(opts)) as session:
         for target in targets:
             # Do raster scan on target, designed to have equal spacing in azimuth and elevation, for a "classic" look
             scan_extent = opts.scan_extent

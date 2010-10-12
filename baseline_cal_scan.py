@@ -16,9 +16,6 @@ parser = standard_script_options(usage="%prog [options] [<catalogue files>]",
                                               (antenna location) calibration. Remember to specify the observer and \
                                               antenna options, as these are **required**.")
 # Add experiment-specific options
-parser.add_option('-p', '--print_only', action='store_true', default=False,
-                  help="Do not actually observe, but display which sources will be scanned, "+
-                       "plus predicted end time (default=%default)")
 parser.add_option('-m', '--min_time', type='float', default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 # Set default value for any option (both standard and experiment-specific options)
@@ -41,7 +38,7 @@ with verify_and_connect(opts) as kat:
         baseline_sources.add([kat.sources[src] for src in great_sources + good_sources])
 
     # Select either a CaptureSession for the real experiment, or a fake TimeSession
-    Session = TimeSession if opts.print_only else CaptureSession
+    Session = TimeSession if opts.dry_run else CaptureSession
     with Session(kat, **vars(opts)) as session:
         start_time = time.time()
         targets_observed = []
