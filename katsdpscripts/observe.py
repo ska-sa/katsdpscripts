@@ -303,7 +303,6 @@ class CaptureSession(object):
                 continue
             if (ant.sensor.target.get_value() != target) or (ant.sensor.mode.get_value() != 'POINT') or \
                (ant.sensor.lock.get_value() != '1'):
-                print ant.name, ant.sensor.target.get_value(), ant.sensor.mode.get_value(), ant.sensor.lock.get_value()
                 return False
         return True
 
