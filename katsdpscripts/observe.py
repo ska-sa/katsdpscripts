@@ -965,7 +965,7 @@ class TimeSession(object):
         """Estimate time taken to fire noise diode."""
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
-        print "~ %s INFO     Firing '%s' noise diode (on %g seconds, off %g seconds)" % \
+        print "~ %s INFO     Firing '%s' noise diode (%g seconds on, %g seconds off)" % \
               (self._time_str(), diode, on_duration, off_duration)
         self.time += on_duration
         self.last_nd_firing = self.time + 0.
@@ -981,7 +981,7 @@ class TimeSession(object):
             print "~ %s INFO     Slewing to target '%s'" % (self._time_str(), target.name,)
             self._slew_to(target)
             self.fire_noise_diode(**self.nd_params)
-        print "~ %s INFO     Tracking target '%s'" % (self._time_str(), target.name,)
+        print "~ %s INFO     Tracking target '%s' for %g seconds" % (self._time_str(), target.name, duration)
         self.time += duration + 1.0
         self.fire_noise_diode(**self.nd_params)
         self._teleport_to(target)
@@ -996,7 +996,7 @@ class TimeSession(object):
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
         self._slew_to(target, mode='SCAN')
         self.fire_noise_diode(**self.nd_params)
-        print "~ %s INFO     Starting scan across target '%s'" % (self._time_str(), target.name,)
+        print "~ %s INFO     Scanning across target '%s' for %g seconds" % (self._time_str(), target.name, duration)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
         self.time += duration + 1.0
         self.fire_noise_diode(**self.nd_params)
@@ -1020,13 +1020,13 @@ class TimeSession(object):
         self.fire_noise_diode(label='', **self.nd_params)
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
-            print "~ %s INFO     Slewing to start of scan %d of %d on target '%s'" % \
+            print "~ %s INFO     Slewing to start of scan %d of %d across target '%s'" % \
                   (self._time_str(), scan_count + 1, len(scan_starts), target.name)
             self.projection = ('ARC', scan[0], scan[1])
             self._slew_to(target, mode='SCAN')
             self.fire_noise_diode(**self.nd_params)
-            print "~ %s INFO     Starting scan %d of %d on target '%s'" % \
-                  (self._time_str(), scan_count + 1, len(scan_starts), target.name)
+            print "~ %s INFO     Performing scan %d of %d across target '%s' for %g seconds" % \
+                  (self._time_str(), scan_count + 1, len(scan_starts), target.name, scan_duration)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
             self.time += scan_duration + 1.0
             self.fire_noise_diode(**self.nd_params)
