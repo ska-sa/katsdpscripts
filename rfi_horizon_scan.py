@@ -11,7 +11,8 @@ dump_rate = 1.0  # Hz
 target = 'azel, 45, 2.2'
 scan_duration = 360.0  # seconds
 
-with katuilib.CaptureSession(kat, experiment_id, observer, description, antennas, centre_freq, dump_rate) as session:
+with katuilib.CaptureSession(kat, experiment_id, observer, description, antennas) as session:
+    session.standard_setup(centre_freq, dump_rate)
     ants = session.ants
     ants.req.drive_strategy('longest-track')
     ants.req.target(target)

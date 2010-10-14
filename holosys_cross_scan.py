@@ -66,8 +66,11 @@ start_time = katpoint.Timestamp()
 targets_observed = []
 
 # The real experiment: Create a data capturing session with the selected sub-array of antennas
-with katuilib.BasicCaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
-                                  opts.ants, opts.record_slews) as session:
+with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
+                             opts.ants, opts.record_slews) as session:
+    # HACK DBE to accept target(target) and do nothing with it.
+    kat.dbe.req.target = lambda target: None
+
     # Keep going until the time is up
     keep_going = True
     while keep_going:

@@ -118,7 +118,8 @@ except ValueError:
     kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
 print "\nUsing KAT connection with configuration: %s\n" % (kat.get_config(),)
 
-with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq, opts.dump_rate) as session:
+with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants) as session:
+    session.standard_setup(opts.centre_freq, opts.dump_rate)
     ants = session.ants
     ants.req.drive_strategy('shortest-slew')
     for ant in ants.devs:

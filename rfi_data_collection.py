@@ -18,7 +18,7 @@ targets = [
 ]
 
 with CaptureSession(kat, str(uuid.uuid1()), 'ffuser', 'RFI data collection', kat.ants) as session:
-
+    session.standard_setup()
     kat.dbe.req.k7w_write_raw(1)
 
     for target in targets:

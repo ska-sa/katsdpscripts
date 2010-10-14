@@ -14,4 +14,5 @@ with katuilib.tbuild('cfg-local.ini', 'local_ff_2dish') as kat:
     kat.dbe.req.dbe_test_target(20,30,100)
 
     with katuilib.CaptureSession(kat, str(uuid.uuid1()), 'nobody', 'Sim target raster scan example', kat.ants) as session:
+        session.standard_setup()
         session.raster_scan(target, scan_duration=20.0)

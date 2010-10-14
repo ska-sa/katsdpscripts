@@ -55,7 +55,8 @@ azimuth_angle = np.arange(-180.0,181.0)
 elev_center = 8.5
 elev_offset = 6.5
 
-with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants) as session:
+    session.standard_setup(opts.centre_freq)
     # Iterate through azimuth and elevation angles
     for az in azimuth_angle:
         session.scan('azel, %f, %f' % (az,elev_center), duration=15.0,start=-elev_offset, end=elev_offset, scan_in_azimuth = False)

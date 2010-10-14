@@ -97,8 +97,8 @@ else:
     tgts.append(tgt)
 
 # Create a data capturing session with the selected sub-array of antennas
-with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
-                             opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
+with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.record_slews) as session:
+    session.standard_setup(opts.centre_freq)
     while tgt.azel()[1] > 0.57/2.0:
          # observe the calibrator(s)
         for cal in [x for x in calibrators if x.azel()[1] > 0.57/2.0]:

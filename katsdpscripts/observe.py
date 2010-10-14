@@ -138,11 +138,12 @@ class CaptureSession(object):
     multiple sessions. This object ensures that the capturing process is
     started and completed cleanly, even if exceptions occur during the session.
     It also provides canned routines for simple observations such as tracks,
-    single scans, raster scans and holography scans on a specific source.
+    single scans and raster scans on a specific source.
 
-    The initialisation of the session object selects a sub-array of antennas,
-    prepares the data capturing subsystem (DBE and k7writer) and sets the RFE7
-    LO frequency.
+    The initialisation of the session object selects a sub-array of antennas and
+    does basic preparation of the data capturing subsystem (k7writer). The setup
+    is usually completed by calling :meth:`standard_setup` on the instantiated
+    session object.
 
     The antenna specification *ants* do not have a default, which forces the
     user to specify them explicitly. This is for safety reasons, to remind
@@ -167,20 +168,12 @@ class CaptureSession(object):
         list of antenna devices, or a string of comma-separated antenna
         names, or the string 'all' for all antennas controlled via the
         KAT connection associated with this session
-    centre_freq : float, optional
-        RF centre frequency, in MHz
-    dump_rate : float, optional
-        Correlator dump rate, in Hz
     record_slews : {True, False}, optional
         If True, correlator data is recorded contiguously and the data file
         includes 'slew' scans which occur while the antennas slew to the start
         of the next proper scan. If False, the file output (but not the signal
         displays) is paused while the antennas slew, and the data file contains
         only proper scans.
-    nd_params : dict, optional
-        Dictionary containing parameters that control firing of the noise diode.
-        These parameters are in the form of keyword-value pairs, and matches the
-        parameters of the :meth:`fire_noise_diode` method.
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -190,33 +183,22 @@ class CaptureSession(object):
         If antenna with a specified name is not found on KAT connection object
 
     """
-    def __init__(self, kat, experiment_id, observer, description, ants,
-                 centre_freq=1800.0, dump_rate=1.0, record_slews=True,
-                 nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
+    def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, **kwargs):
         try:
             self.kat = kat
             self.experiment_id = experiment_id
             self.ants = ants = ant_array(kat, ants)
             self.record_slews = record_slews
-            self.nd_params = nd_params
+            self.nd_params = None
             self.last_nd_firing = 0.
 
+            user_logger.info("==========================")
             user_logger.info("New data capturing session")
             user_logger.info("--------------------------")
             user_logger.info("Experiment ID = %s" % (experiment_id,))
             user_logger.info("Observer = %s" % (observer,))
             user_logger.info("Description ='%s'" % description)
             user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants.devs]),))
-            user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
-                             (centre_freq, dump_rate, record_slews))
-            if nd_params['period'] > 0:
-                user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
-                                 (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
-            elif nd_params['period'] == 0:
-                user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
-                                 (nd_params['diode'], nd_params['on'], nd_params['off']))
-            else:
-                user_logger.info("Noise diode will not fire")
             # Log the activity parameters (if config manager is around)
             if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialising")
@@ -227,36 +209,15 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-experiment-id", experiment_id)
                 kat.cfg.req.set_script_param("script-observer", observer)
                 kat.cfg.req.set_script_param("script-description", description)
-                kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
-                                                                 (centre_freq, dump_rate, record_slews))
 
             # Start with a clean state, by stopping the DBE
             kat.dbe.req.capture_stop()
-
-            # Set centre frequency in RFE stage 7
-            kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
-            effective_lo_freq = (centre_freq - 200.0) * 1e6
 
             # Set data output directory (typically on ff-dc machine)
             kat.dbe.req.k7w_output_directory("/var/kat/data")
             # Enable output to HDF5 file (takes effect on capture_start only), and set basic experimental info
             kat.dbe.req.k7w_write_hdf5(1)
             kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
-
-            # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
-            # which is used for fringe stopping (eventually). This sets the delay model and other
-            # correlator parameters, such as the dump rate, and instructs the correlator to pass
-            # its data to the k7writer daemon (set via configuration)
-            kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
-
-             # If the DBE is simulated, it will have position update commands
-            if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
-                first_ant = ants.devs[0]
-                # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
-                # The minimum time between position updates is just a little less than the standard (az, el) sensor period
-                first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
-                first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
-                user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
 
             if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialised")
@@ -284,6 +245,68 @@ class CaptureSession(object):
         self.shutdown()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
+
+    def standard_setup(self, centre_freq=1800.0, dump_rate=1.0,
+                       nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
+        """Set up LO frequency, dump rate and noise diode parameters.
+
+        This performs basic setup of the LO frequency, dump rate and noise diode
+        parameters. It should usually be called as the first step in a new session
+        (unless the experiment has special requirements, such as holography).
+
+        Parameters
+        ----------
+        centre_freq : float, optional
+            RF centre frequency, in MHz
+        dump_rate : float, optional
+            Correlator dump rate, in Hz
+        nd_params : dict, optional
+            Dictionary containing parameters that control firing of the noise
+            diode. These parameters are in the form of keyword-value pairs, and
+            matches the parameters of the :meth:`fire_noise_diode` method.
+        kwargs : dict, optional
+            Ignore any other keyword arguments (simplifies passing options as dict)
+
+        """
+        # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
+        session, kat, ants = self, self.kat, self.ants
+
+        session.nd_params = nd_params
+
+        user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
+                         (centre_freq, dump_rate, session.record_slews))
+        if nd_params['period'] > 0:
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
+                             (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
+        elif nd_params['period'] == 0:
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
+                             (nd_params['diode'], nd_params['on'], nd_params['off']))
+        else:
+            user_logger.info("Noise diode will not fire")
+
+        # Log the activity parameters (if config manager is around)
+        if kat.has_connected_device('cfg'):
+            kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
+                                                             (centre_freq, dump_rate, session.record_slews))
+
+        # Set centre frequency in RFE stage 7
+        kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
+        effective_lo_freq = (centre_freq - 200.0) * 1e6
+        # The DBE proxy needs to know the dump period (in ms) as well as the effective LO freq,
+        # which is used for fringe stopping (eventually). This sets the delay model and other
+        # correlator parameters, such as the dump rate, and instructs the correlator to pass
+        # its data to the k7writer daemon (set via configuration)
+        kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+
+        # If the DBE is simulated, it will have position update commands
+        if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
+            first_ant = ants.devs[0]
+            # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
+            # The minimum time between position updates is just a little less than the standard (az, el) sensor period
+            first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
+            first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
+            user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+        user_logger.info("--------------------------")
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target.
@@ -511,11 +534,13 @@ class CaptureSession(object):
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
+        if session.nd_params is None:
+            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         # Check if we are currently on the desired target (saves a slewing step)
-        on_target = self.on_target(target)
+        on_target = session.on_target(target)
         if announce:
             user_logger.info("Initiating %g-second track on target '%s'" % (duration, preferred_name(target)))
-        self.target_visible(target, duration, operation='track')
+        session.target_visible(target, duration, operation='track')
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -624,10 +649,12 @@ class CaptureSession(object):
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
+        if session.nd_params is None:
+            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, preferred_name(target)))
         # Check whether the target will be visible
-        self.target_visible(target, duration, operation='scan')
+        session.target_visible(target, duration, operation='scan')
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -752,6 +779,8 @@ class CaptureSession(object):
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
+        if session.nd_params is None:
+            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
                              (num_scans, scan_duration, scan_extent, preferred_name(target)))
@@ -759,7 +788,7 @@ class CaptureSession(object):
         nd_time = session.nd_params['on'] + session.nd_params['off']
         nd_time /= (max(session.nd_params['period'], scan_duration) / scan_duration)
         # Check whether the target will be visible for entire duration of raster scan
-        self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
+        session.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -832,13 +861,12 @@ class CaptureSession(object):
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-session-status", "done")
+        user_logger.info("==========================")
 
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, experiment_id, observer, description, ants,
-                 centre_freq=1800.0, dump_rate=1.0, record_slews=True,
-                 nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
+    def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, **kwargs):
         self.start_time = time.time()
         self.time = self.start_time
         self.ants = []
@@ -850,27 +878,21 @@ class TimeSession(object):
                                   ant.sensor.pos_actual_scan_elev.get_value()))
             except AttributeError:
                 pass
-        self.nd_params = nd_params
+        self.experiment_id = experiment_id
+        self.record_slews = record_slews
+        self.nd_params = None
         self.last_nd_firing = 0.
         self.projection = ('ARC', 0., 0.)
         self.realtime = None
         self.realsleep = None
         print "\nEstimating duration of experiment starting %s (nothing real will happen!)" % (self._time_str(),)
-        print "~~~~~~~~~~"
+        print "~ %s INFO     ==========================" % (self._time_str(),)
+        print "~ %s INFO     New data capturing session" % (self._time_str(),)
+        print "~ %s INFO     --------------------------" % (self._time_str(),)
         print "~ %s INFO     Experiment ID = %s" % (self._time_str(), experiment_id,)
         print "~ %s INFO     Observer = %s" % (self._time_str(), observer,)
         print "~ %s INFO     Description ='%s'" % (self._time_str(), description)
         print "~ %s INFO     Antennas used = %s" % (self._time_str(), ' '.join([ant[0].name for ant in self.ants]))
-        print "~ %s INFO     RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" % \
-              (self._time_str(), centre_freq, dump_rate, record_slews)
-        if nd_params['period'] > 0:
-            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
-                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
-        elif nd_params['period'] == 0:
-            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
-                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'])
-        else:
-            print "~ %s INFO     Noise diode will not fire" % (self._time_str(),)
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
@@ -885,6 +907,7 @@ class TimeSession(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Finish time estimate, restoring the time module."""
+        self.shutdown()
         duration = self.time - self.start_time
         if duration <= 100:
             duration = '%d seconds' % (np.ceil(duration),)
@@ -892,7 +915,6 @@ class TimeSession(object):
             duration = '%d minutes' % (np.ceil(duration / 60.),)
         else:
             duration = '%.1f hours' % (duration / 3600.,)
-        print "~~~~~~~~~~"
         print "Experiment estimated to last %s until %s\n" % (duration, self._time_str())
         # Restore time module functions
         time = sys.modules['time']
@@ -955,6 +977,22 @@ class TimeSession(object):
         # Blindly assume all antennas are on target (or on horizon) after this interval
         self._teleport_to(target, mode)
 
+    def standard_setup(self, centre_freq=1800.0, dump_rate=1.0,
+                       nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
+        """Set up LO frequency, dump rate and noise diode parameters."""
+        self.nd_params = nd_params
+        print "~ %s INFO     RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" % \
+              (self._time_str(), centre_freq, dump_rate, self.record_slews)
+        if nd_params['period'] > 0:
+            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
+                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
+        elif nd_params['period'] == 0:
+            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
+                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'])
+        else:
+            print "~ %s INFO     Noise diode will not fire" % (self._time_str(),)
+        print "~ %s INFO     --------------------------" % (self._time_str(),)
+
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
         for antenna, mode, ant_az, ant_el in self.ants:
@@ -1013,6 +1051,8 @@ class TimeSession(object):
     def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
         """Estimate time taken to perform track."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        if self.nd_params is None:
+            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             print "~ %s INFO     Initiating %g-second track on target '%s'" % (self._time_str(), duration, target.name)
         self.target_visible(target, duration, operation='track')
@@ -1030,6 +1070,8 @@ class TimeSession(object):
              drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        if self.nd_params is None:
+            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             print "~ %s INFO     Initiating %g-second scan across target '%s'" % \
                   (self._time_str(), duration, target.name)
@@ -1051,6 +1093,8 @@ class TimeSession(object):
                     drive_strategy='shortest-slew', label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        if self.nd_params is None:
+            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             print "~ %s INFO     Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
                   (self._time_str(), num_scans, scan_duration, scan_extent, target.name)
@@ -1076,6 +1120,12 @@ class TimeSession(object):
             self.fire_noise_diode(announce=False, **self.nd_params)
             self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
             self._teleport_to(target)
+
+    def shutdown(self):
+        """Stop data capturing to shut down the session and close the data file."""
+        print '~ %s INFO     Scans complete, no data captured as this is a timing simulation...' % (self._time_str(),)
+        print '~ %s INFO     Ended data capturing session with experiment ID %s' % (self._time_str(), self.experiment_id)
+        print '~ %s INFO     ==========================' % (self._time_str(),)
 
 
 def standard_script_options(usage, description):

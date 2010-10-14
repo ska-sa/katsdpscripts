@@ -81,9 +81,8 @@ except:
     pass
 
 # The real experiment: Create a data capturing session with the selected sub-array of antennas
-with katuilib.BasicCaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
-                                  opts.ants, opts.record_slews) as session:
-
+with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
+                             opts.ants, opts.record_slews) as session:
     kat.dbe.req.capture_setup()
     kat.dbe.req.capture_start()
     kat.dbe.req.k7w_new_scan('slew')

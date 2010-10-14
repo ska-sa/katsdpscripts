@@ -59,8 +59,8 @@ except ValueError:
 print "\nUsing KAT connection with configuration: %s\n" % (kat.get_config(),)
 
 # Create a data capturing session with the selected sub-array of antennas
-with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
-                             opts.ants, opts.centre_freq, record_slews=opts.record_slews) as session:
+with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.record_slews) as session:
+    session.standard_setup(opts.centre_freq)
     # Iterate through elevation angles
     for el in [2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90]:
         session.track('azel, %f, %f' % (opts.az, el), duration=15.0)

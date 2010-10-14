@@ -32,6 +32,7 @@ with verify_and_connect(opts) as kat:
     # Select either a CaptureSession for the real experiment, or a fake TimeSession
     Session = TimeSession if opts.dry_run else CaptureSession
     with Session(kat, **vars(opts)) as session:
+        session.standard_setup(**vars(opts))
         for target in targets:
             target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
             user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name))

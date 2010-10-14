@@ -14,7 +14,8 @@ with katuilib.tbuild() as kat:
     kat.dbe.req.dbe_test_target(45, 10, 100)
     nd_params = {'diode' : 'coupler', 'on' : 3.0, 'off' : 3.0, 'period' : 40.}
 
-    with Session(kat, 'id', 'nobody', 'The scan zoo', kat.ants, 1822., 1., True, nd_params) as session:
+    with Session(kat, 'id', 'nobody', 'The scan zoo', kat.ants, True) as session:
+        session.standard_setup(1822., 1., nd_params)
         session.track(target, duration=5.0)
         session.fire_noise_diode('coupler', 5.0, 5.0)
         session.scan(target, duration=20.0)

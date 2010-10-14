@@ -59,7 +59,8 @@ scan_duration = azim_size/1.0 # scan at one degree per second
 center_azim = (stop_azim + start_azim)/2.0
 offset = np.abs(stop_azim)
 
-with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.centre_freq) as session:
+with CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants) as session:
+    session.standard_setup(opts.centre_freq)
     # Iterate through azimuth and elevation angles
     for el in [opts.el]:
         session.scan('azel,%f,%f' % (center_azim,el),duration=scan_duration,scan_in_azimuth = True, start=-offset,end=offset)

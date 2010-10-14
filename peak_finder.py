@@ -62,9 +62,7 @@ if kat.dh.sd is None:
     print "You need a running signal display session before calling this script..."
     sys.exit(1)
 # The real experiment: Create a data capturing session with the selected sub-array of antennas
-with katuilib.BasicCaptureSession(kat, opts.experiment_id, opts.observer, opts.description,
-                                  opts.ants, opts.record_slews) as session:
-
+with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.record_slews) as session:
     kat.dbe.req.k7w_write_hdf5(0)
     kat.dbe.req.capture_stop()
     kat.dbe.req.capture_setup()

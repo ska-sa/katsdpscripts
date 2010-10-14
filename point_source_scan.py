@@ -39,6 +39,7 @@ with verify_and_connect(opts) as kat:
     # Select either a CaptureSession for the real experiment, or a fake TimeSession
     Session = TimeSession if opts.dry_run else CaptureSession
     with Session(kat, **vars(opts)) as session:
+        session.standard_setup(**vars(opts))
         start_time = time.time()
         targets_observed = []
         # Keep going until the time is up

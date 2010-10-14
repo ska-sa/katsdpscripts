@@ -33,6 +33,7 @@ with verify_and_connect(opts) as kat:
     # Select either a CaptureSession for the real experiment, or a fake TimeSession
     Session = TimeSession if opts.dry_run else CaptureSession
     with Session(kat, **vars(opts)) as session:
+        session.standard_setup(**vars(opts))
         for target in targets:
             # Do raster scan on target, designed to have equal spacing in azimuth and elevation, for a "classic" look
             scan_extent = opts.scan_extent
