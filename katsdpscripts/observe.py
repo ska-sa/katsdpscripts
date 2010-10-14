@@ -199,16 +199,6 @@ class CaptureSession(object):
             user_logger.info("Observer = %s" % (observer,))
             user_logger.info("Description ='%s'" % description)
             user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants.devs]),))
-            # Log the activity parameters (if config manager is around)
-            if kat.has_connected_device('cfg'):
-                kat.cfg.req.set_script_param("script-session-status", "initialising")
-                kat.cfg.req.set_script_param("script-starttime", "")
-                kat.cfg.req.set_script_param("script-endtime", "")
-                kat.cfg.req.set_script_param("script-name", sys.argv[0])
-                kat.cfg.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
-                kat.cfg.req.set_script_param("script-experiment-id", experiment_id)
-                kat.cfg.req.set_script_param("script-observer", observer)
-                kat.cfg.req.set_script_param("script-description", description)
 
             # Start with a clean state, by stopping the DBE
             kat.dbe.req.capture_stop()
@@ -219,30 +209,30 @@ class CaptureSession(object):
             kat.dbe.req.k7w_write_hdf5(1)
             kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
+            # Log the activity parameters (if config manager is around)
             if kat.has_connected_device('cfg'):
-                kat.cfg.req.set_script_param("script-session-status", "initialised")
-
+                kat.cfg.req.set_script_param("script-starttime",
+                                             time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
+                kat.cfg.req.set_script_param("script-endtime", "")
+                kat.cfg.req.set_script_param("script-name", sys.argv[0])
+                kat.cfg.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
+                kat.cfg.req.set_script_param("script-experiment-id", experiment_id)
+                kat.cfg.req.set_script_param("script-observer", observer)
+                kat.cfg.req.set_script_param("script-description", description)
+                kat.cfg.req.set_script_param("script-status", "started")
         except Exception, e:
             user_logger.error("CaptureSession failed to initialise (%s)" % (e,))
             raise
 
     def __enter__(self):
         """Enter the data capturing session."""
-        if self.kat.has_connected_device('cfg'):
-            self.kat.cfg.req.set_script_param("script-session-status", "running")
-            self.kat.cfg.req.set_script_param("script-starttime",
-                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
-        if self.kat.has_connected_device('cfg'):
-            self.kat.cfg.req.set_script_param("script-session-status", "exiting")
-            self.kat.cfg.req.set_script_param("script-endtime",
-                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
-            if exc_value is not None:
-                user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
-        self.shutdown()
+        if exc_value is not None:
+            user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
+        self.end()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
@@ -283,7 +273,6 @@ class CaptureSession(object):
                              (nd_params['diode'], nd_params['on'], nd_params['off']))
         else:
             user_logger.info("Noise diode will not fire")
-
         # Log the activity parameters (if config manager is around)
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
@@ -841,8 +830,8 @@ class CaptureSession(object):
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
-    def shutdown(self):
-        """Stop data capturing to shut down the session and close the data file.
+    def end(self):
+        """End the session, which stops data capturing and closes the data file.
 
         This does not affect the antennas, which continue to perform their
         last action.
@@ -850,6 +839,7 @@ class CaptureSession(object):
         """
         # Create reference to session and KAT objects, as this allows easy copy-and-pasting from this function
         session, kat = self, self.kat
+
         # Obtain the name of the file currently being written to
         reply = kat.dbe.req.k7w_get_current_file()
         outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
@@ -859,7 +849,9 @@ class CaptureSession(object):
         kat.dbe.req.capture_stop()
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         if kat.has_connected_device('cfg'):
-            kat.cfg.req.set_script_param("script-session-status", "done")
+            kat.cfg.req.set_script_param("script-endtime",
+                                         time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
+            kat.cfg.req.set_script_param("script-status", "ended")
         user_logger.info("==========================")
 
 
@@ -883,8 +875,13 @@ class TimeSession(object):
         self.start_time = time.time()
         self.time = self.start_time
         self.projection = ('ARC', 0., 0.)
-        self.realtime = None
-        self.realsleep = None
+
+        # Usurp time module functions that deal with the passage of real time, and connect them to session time instead
+        self.realtime, self.realsleep = time.time, time.sleep
+        time.time = lambda: self.time
+        def simsleep(seconds):
+            self.time += seconds
+        time.sleep = simsleep
 
         print "\nEstimating duration of experiment starting %s (nothing real will happen!)" % (self._time_str(),)
         print "~ %s INFO     ==========================" % (self._time_str(),)
@@ -897,29 +894,11 @@ class TimeSession(object):
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
-        # Usurp time module functions that deal with the passage of real time, and connect them to session time instead
-        time = sys.modules['time']
-        self.realtime, self.realsleep = time.time, time.sleep
-        time.time = lambda: self.time
-        def simsleep(seconds):
-            self.time += seconds
-        time.sleep = simsleep
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Finish time estimate, restoring the time module."""
-        self.shutdown()
-        duration = self.time - self.start_time
-        if duration <= 100:
-            duration = '%d seconds' % (np.ceil(duration),)
-        elif duration <= 100 * 60:
-            duration = '%d minutes' % (np.ceil(duration / 60.),)
-        else:
-            duration = '%.1f hours' % (duration / 3600.,)
-        print "Experiment estimated to last %s until %s\n" % (duration, self._time_str())
-        # Restore time module functions
-        time = sys.modules['time']
-        time.time, time.sleep = self.realtime, self.realsleep
+        self.end()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
@@ -1122,11 +1101,21 @@ class TimeSession(object):
             self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
             self._teleport_to(target)
 
-    def shutdown(self):
+    def end(self):
         """Stop data capturing to shut down the session and close the data file."""
         print '~ %s INFO     Scans complete, no data captured as this is a timing simulation...' % (self._time_str(),)
         print '~ %s INFO     Ended data capturing session with experiment ID %s' % (self._time_str(), self.experiment_id)
         print '~ %s INFO     ==========================' % (self._time_str(),)
+        duration = self.time - self.start_time
+        if duration <= 100:
+            duration = '%d seconds' % (np.ceil(duration),)
+        elif duration <= 100 * 60:
+            duration = '%d minutes' % (np.ceil(duration / 60.),)
+        else:
+            duration = '%.1f hours' % (duration / 3600.,)
+        print "Experiment estimated to last %s until %s\n" % (duration, self._time_str())
+        # Restore time module functions
+        time.time, time.sleep = self.realtime, self.realsleep
 
 
 def standard_script_options(usage, description):
