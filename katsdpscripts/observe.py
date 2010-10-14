@@ -471,8 +471,7 @@ class CaptureSession(object):
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
         if announce:
-            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" %
-                             (diode, on, off))
+            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
 
         with session.start_scan(label):
             # Switch noise diode on on all antennas
@@ -867,8 +866,7 @@ class CaptureSession(object):
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
     def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, **kwargs):
-        self.start_time = time.time()
-        self.time = self.start_time
+        self.experiment_id = experiment_id
         self.ants = []
         for ant in ant_array(kat, ants).devs:
             try:
@@ -878,13 +876,16 @@ class TimeSession(object):
                                   ant.sensor.pos_actual_scan_elev.get_value()))
             except AttributeError:
                 pass
-        self.experiment_id = experiment_id
         self.record_slews = record_slews
         self.nd_params = None
         self.last_nd_firing = 0.
+
+        self.start_time = time.time()
+        self.time = self.start_time
         self.projection = ('ARC', 0., 0.)
         self.realtime = None
         self.realsleep = None
+
         print "\nEstimating duration of experiment starting %s (nothing real will happen!)" % (self._time_str(),)
         print "~ %s INFO     ==========================" % (self._time_str(),)
         print "~ %s INFO     New data capturing session" % (self._time_str(),)
@@ -1195,8 +1196,7 @@ def verify_and_connect(opts):
 
     # Verify noise diode parameters (should be 'string,number,number,number') and convert to dict
     try:
-        opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" %
-                              tuple(opts.nd_params.split(',')), {})
+        opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" % tuple(opts.nd_params.split(',')), {})
     except TypeError, NameError:
         raise ValueError("Noise diode parameters are incorrect (should be 'diode,on,off,period')")
     for key in ('on', 'off', 'period'):
