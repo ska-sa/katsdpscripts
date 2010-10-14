@@ -6,7 +6,8 @@ from __future__ import with_statement
 
 import time
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, CaptureSession, TimeSession
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, \
+                             CaptureSession, TimeSession, user_logger
 import katpoint
 
 # Set up standard script options
@@ -57,4 +58,4 @@ with verify_and_connect(opts) as kat:
                 elif time.time() - start_time >= opts.min_time:
                     keep_going = False
                     break
-        print "Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed)))
+        user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))

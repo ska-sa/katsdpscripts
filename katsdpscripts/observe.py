@@ -1117,7 +1117,7 @@ class TimeSession(object):
             duration = '%d minutes' % (np.ceil(duration / 60.),)
         else:
             duration = '%.1f hours' % (duration / 3600.,)
-        user_logger.info("Experiment estimated to last %s until now\n" % (duration,))
+        user_logger.info("Experiment estimated to last %s until this time\n" % (duration,))
         # Restore time module functions
         time.time, time.sleep = self.realtime, self.realsleep
         # Restore logging
