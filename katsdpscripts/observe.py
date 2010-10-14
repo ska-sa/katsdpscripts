@@ -181,7 +181,7 @@ class CaptureSession(object):
         Dictionary containing parameters that control firing of the noise diode.
         These parameters are in the form of keyword-value pairs, and matches the
         parameters of the :meth:`fire_noise_diode` method.
-    kwargs : dict
+    kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
     Raises
@@ -196,8 +196,29 @@ class CaptureSession(object):
                             'off_duration' : 10.0, 'period' : 180.}, **kwargs):
         try:
             self.kat = kat
+            self.experiment_id = experiment_id
+            self.ants = ants = ant_array(kat, ants)
+            self.record_slews = record_slews
+            self.nd_params = nd_params
+            self.last_nd_firing = 0.
 
             user_logger.info("New data capturing session")
+            user_logger.info("--------------------------")
+            user_logger.info("Experiment ID = %s" % (experiment_id,))
+            user_logger.info("Observer = %s" % (observer,))
+            user_logger.info("Description ='%s'" % description)
+            user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants.devs]),))
+            user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
+                             (centre_freq, dump_rate, record_slews))
+            if nd_params['period'] > 0:
+                user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
+                                 (nd_params['diode'], nd_params['on_duration'],
+                                  nd_params['off_duration'], nd_params['period']))
+            elif nd_params['period'] == 0:
+                user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
+                                 (nd_params['diode'], nd_params['on_duration'], nd_params['off_duration']))
+            else:
+                user_logger.info("Noise diode will not fire")
             # Log the activity parameters (if config manager is around)
             if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-session-status", "initialising")
@@ -210,18 +231,6 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-description", description)
                 kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
                                                                  (centre_freq, dump_rate, record_slews))
-            user_logger.info("--------------------------")
-            user_logger.info("Experiment ID = %s" % (experiment_id,))
-            user_logger.info("Observer = %s" % (observer,))
-            user_logger.info("Description ='%s'" % description)
-            user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
-                             (centre_freq, dump_rate, record_slews))
-
-            self.ants = ants = ant_array(kat, ants)
-            self.experiment_id = experiment_id
-            self.record_slews = record_slews
-            self.nd_params = nd_params
-            self.last_nd_firing = 0.
 
             # Start with a clean state, by stopping the DBE
             kat.dbe.req.capture_stop()
@@ -387,7 +396,8 @@ class CaptureSession(object):
         """
         return CaptureScan(self.kat, label, self.record_slews)
 
-    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0, label='cal'):
+    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0,
+                         label='cal', announce=True):
         """Switch noise diode on and off.
 
         This switches the selected noise diode on and off for all the antennas
@@ -420,9 +430,11 @@ class CaptureSession(object):
             time is determined by the duration of individual slews and scans,
             which are considered atomic and won't be interrupted.) If 0, fire
             diode unconditionally. If negative, don't fire diode at all.
-        label : string
+        label : string, optional
             Label for scan in HDF5 file, usually single computer-parseable word.
             If this is an empty string, do not create new Scan group in the file.
+        announce : {True, False}, optional
+            True if start of action should be announced, with details of settings
 
         Returns
         -------
@@ -438,7 +450,9 @@ class CaptureSession(object):
         # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
-        user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on_duration, off_duration))
+        if announce:
+            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" %
+                             (diode, on_duration, off_duration))
 
         with session.start_scan(label):
             # Switch noise diode on on all antennas
@@ -449,9 +463,12 @@ class CaptureSession(object):
             # Switch noise diode off on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
             time.sleep(off_duration)
+
+        user_logger.info('fired noise diode')
+
         return True
 
-    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track'):
+    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
         """Track a target.
 
         This tracks the specified target while recording data.
@@ -488,14 +505,19 @@ class CaptureSession(object):
             is an empty string and *target* matches the target of the current
             compound scan being written, do not create new CompoundScan group
             in the file.
+        announce : {True, False}, optional
+            True if start of action should be announced, with details of settings
 
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
-        # Check if we are currently on the desired target and whether the target will be visible
+
+        # Check if we are currently on the desired target (saves a slewing step)
         on_target = self.on_target(target)
+        if announce:
+            user_logger.info("Initiating %g-second track on target '%s'" % (duration, preferred_name(target)))
         self.target_visible(target, duration, operation='track')
 
         # Set the drive strategy for how antenna moves between targets
@@ -514,30 +536,30 @@ class CaptureSession(object):
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         if label:
             kat.dbe.req.k7w_new_compound_scan(target, label, 'cal')
-            session.fire_noise_diode(label='', **session.nd_params)
+            session.fire_noise_diode(label='', announce=False, **session.nd_params)
         else:
-            session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(announce=False, **session.nd_params)
 
         # Avoid slewing if we are already on target
         if not on_target:
-            user_logger.info("Slewing to target '%s'" % (preferred_name(target),))
             with session.start_scan('slew'):
                 # Start moving each antenna to the target
                 ants.req.mode('POINT')
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
+            user_logger.info('slewed onto target')
 
-            session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(announce=False, **session.nd_params)
 
-        user_logger.info("Tracking target '%s' for %g seconds" % (preferred_name(target), duration))
         with session.start_scan('scan'):
             # Do nothing else for the duration of the track
             time.sleep(duration)
+        user_logger.info('tracked target for %g seconds' % (duration,))
 
-        session.fire_noise_diode(**session.nd_params)
+        session.fire_noise_diode(announce=False, **session.nd_params)
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
-             drive_strategy='shortest-slew', label='scan'):
+             drive_strategy='shortest-slew', label='scan', announce=True):
         """Scan across a target.
 
         This scans across a target, either in azimuth or elevation (depending on
@@ -587,6 +609,8 @@ class CaptureSession(object):
             is an empty string and *target* matches the target of the current
             compound scan being written, do not create new CompoundScan group
             in the file.
+        announce : {True, False}, optional
+            True if start of action should be announced, with details of settings
 
         Notes
         -----
@@ -602,6 +626,9 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
+
+        if announce:
+            user_logger.info("Initiating %g-second scan across target '%s'" % (duration, preferred_name(target)))
         # Check whether the target will be visible
         self.target_visible(target, duration, operation='scan')
 
@@ -621,11 +648,10 @@ class CaptureSession(object):
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         if label:
             kat.dbe.req.k7w_new_compound_scan(target, label, 'cal')
-            session.fire_noise_diode(label='', **session.nd_params)
+            session.fire_noise_diode(label='', announce=False, **session.nd_params)
         else:
-            session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(announce=False, **session.nd_params)
 
-        user_logger.info("Slewing to start of scan across target '%s'" % (preferred_name(target),))
         with session.start_scan('slew'):
             # Move each antenna to the start position of the scan
             if scan_in_azimuth:
@@ -635,21 +661,22 @@ class CaptureSession(object):
             ants.req.mode('POINT')
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
+        user_logger.info('slewed to start of scan')
+        
+        session.fire_noise_diode(announce=False, **session.nd_params)
 
-        session.fire_noise_diode(**session.nd_params)
-
-        user_logger.info("Scanning across target '%s' for %g seconds" % (preferred_name(target), duration))
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
             ants.wait('scan_status', 'after', 300)
-
-        session.fire_noise_diode(**session.nd_params)
+        user_logger.info('scan complete')
+        
+        session.fire_noise_diode(announce=False, **session.nd_params)
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0,
                     scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
-                    drive_strategy='shortest-slew', label='raster'):
+                    drive_strategy='shortest-slew', label='raster', announce=True):
         """Perform raster scan on target.
 
         A *raster scan* is a series of scans across a target, scanning in either
@@ -710,6 +737,8 @@ class CaptureSession(object):
             is an empty string and *target* matches the target of the current
             compound scan being written, do not create new CompoundScan group
             in the file.
+        announce : {True, False}, optional
+            True if start of action should be announced, with details of settings
 
         Notes
         -----
@@ -725,6 +754,10 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
+
+        if announce:
+            user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
+                             (num_scans, scan_duration, scan_extent, preferred_name(target)))
         # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
         nd_time = session.nd_params['on_duration'] + session.nd_params['off_duration']
         nd_time /= (max(session.nd_params['period'], scan_duration) / scan_duration)
@@ -747,9 +780,9 @@ class CaptureSession(object):
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         if label:
             kat.dbe.req.k7w_new_compound_scan(target, label, 'cal')
-            session.fire_noise_diode(label='', **session.nd_params)
+            session.fire_noise_diode(label='', announce=False, **session.nd_params)
         else:
-            session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(announce=False, **session.nd_params)
 
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
@@ -761,8 +794,6 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            user_logger.info("Slewing to start of scan %d of %d across target '%s'" %
-                             (scan_count + 1, len(scan_starts), preferred_name(target)))
             with session.start_scan('slew'):
                 # Move each antenna to the start position of the next scan
                 if scan_in_azimuth:
@@ -772,18 +803,18 @@ class CaptureSession(object):
                 ants.req.mode('POINT')
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
+            user_logger.info('slewed to start of scan %d' % (scan_count,))
 
-            session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(announce=False, **session.nd_params)
 
-            user_logger.info("Performing scan %d of %d across target '%s' for %g seconds" %
-                             (scan_count + 1, len(scan_starts), preferred_name(target), scan_duration))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
                 # Wait until they are all finished scanning (with 5 minute timeout)
                 ants.wait('scan_status', 'after', 300)
+            user_logger.info('scan %d complete' % (scan_count,))
 
-            session.fire_noise_diode(**session.nd_params)
+            session.fire_noise_diode(announce=False, **session.nd_params)
 
     def shutdown(self):
         """Stop data capturing to shut down the session and close the data file.
@@ -833,8 +864,18 @@ class TimeSession(object):
         print "~ %s INFO     Experiment ID = %s" % (self._time_str(), experiment_id,)
         print "~ %s INFO     Observer = %s" % (self._time_str(), observer,)
         print "~ %s INFO     Description ='%s'" % (self._time_str(), description)
+        print "~ %s INFO     Antennas used = %s" % (self._time_str(), ' '.join([ant[0].name for ant in self.ants]))
         print "~ %s INFO     RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" % \
               (self._time_str(), centre_freq, dump_rate, record_slews)
+        if nd_params['period'] > 0:
+            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
+                  (self._time_str(), nd_params['diode'], nd_params['on_duration'], \
+                   nd_params['off_duration'], nd_params['period'])
+        elif nd_params['period'] == 0:
+            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
+                  (self._time_str(), nd_params['diode'], nd_params['on_duration'], nd_params['off_duration'])
+        else:
+            print "~ %s INFO     Noise diode will not fire" % (self._time_str(),)
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
@@ -961,53 +1002,64 @@ class TimeSession(object):
         """Starting scan has no major timing effect."""
         pass
 
-    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0, label='cal'):
+    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0,
+                         label='cal', announce=True):
         """Estimate time taken to fire noise diode."""
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
-        print "~ %s INFO     Firing '%s' noise diode (%g seconds on, %g seconds off)" % \
-              (self._time_str(), diode, on_duration, off_duration)
+        if announce:
+            print "~ %s INFO     Firing '%s' noise diode (%g seconds on, %g seconds off)" % \
+                  (self._time_str(), diode, on_duration, off_duration)
         self.time += on_duration
         self.last_nd_firing = self.time + 0.
         self.time += off_duration
+        print "~ %s INFO     fired noise diode" % (self._time_str(),)
         return True
 
-    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track'):
+    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
         """Estimate time taken to perform track."""
-        target = target if hasattr(target, 'description') else katpoint.Target(target)
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        if announce:
+            print "~ %s INFO     Initiating %g-second track on target '%s'" % (self._time_str(), duration, target.name)
         self.target_visible(target, duration, operation='track')
-        self.fire_noise_diode(label='', **self.nd_params)
+        self.fire_noise_diode(label='', announce=False, **self.nd_params)
         if not self.on_target(target):
-            print "~ %s INFO     Slewing to target '%s'" % (self._time_str(), target.name,)
             self._slew_to(target)
-            self.fire_noise_diode(**self.nd_params)
-        print "~ %s INFO     Tracking target '%s' for %g seconds" % (self._time_str(), target.name, duration)
+            print "~ %s INFO     slewed onto target" % (self._time_str(),)
+            self.fire_noise_diode(announce=False, **self.nd_params)
         self.time += duration + 1.0
-        self.fire_noise_diode(**self.nd_params)
+        print "~ %s INFO     tracked target for %g seconds" % (self._time_str(), duration)
+        self.fire_noise_diode(announce=False, **self.nd_params)
         self._teleport_to(target)
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
-             drive_strategy='shortest-slew', label='scan'):
+             drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
-        target = target if hasattr(target, 'description') else katpoint.Target(target)
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        if announce:
+            print "~ %s INFO     Initiating %g-second scan across target '%s'" % \
+                  (self._time_str(), duration, target.name)
         self.target_visible(target, duration, operation='scan')
-        self.fire_noise_diode(label='', **self.nd_params)
-        print "~ %s INFO     Slewing to start of scan across target '%s'" % (self._time_str(), target.name,)
+        self.fire_noise_diode(label='', announce=False, **self.nd_params)
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
         self._slew_to(target, mode='SCAN')
-        self.fire_noise_diode(**self.nd_params)
-        print "~ %s INFO     Scanning across target '%s' for %g seconds" % (self._time_str(), target.name, duration)
+        print "~ %s INFO     slewed to start of scan" % (self._time_str(),)
+        self.fire_noise_diode(announce=False, **self.nd_params)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
         self.time += duration + 1.0
-        self.fire_noise_diode(**self.nd_params)
+        print "~ %s INFO     scan complete" % (self._time_str(),)
+        self.fire_noise_diode(announce=False, **self.nd_params)
         self.projection = ('ARC', end, 0.) if scan_in_azimuth else ('ARC', 0., end)
         self._teleport_to(target)
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0,
                     scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
-                    drive_strategy='shortest-slew', label='raster'):
+                    drive_strategy='shortest-slew', label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
-        target = target if hasattr(target, 'description') else katpoint.Target(target)
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        if announce:
+            print "~ %s INFO     Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
+                  (self._time_str(), num_scans, scan_duration, scan_extent, target.name)
         nd_time = self.nd_params['on_duration'] + self.nd_params['off_duration']
         nd_time /= (max(self.nd_params['period'], scan_duration) / scan_duration)
         self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
@@ -1017,19 +1069,17 @@ class TimeSession(object):
         stepping_coord = scan_spacing * scan_steps
         # These minus signs ensure that the first scan always starts at the top left of target
         scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
-        self.fire_noise_diode(label='', **self.nd_params)
+        self.fire_noise_diode(label='', announce=False, **self.nd_params)
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
-            print "~ %s INFO     Slewing to start of scan %d of %d across target '%s'" % \
-                  (self._time_str(), scan_count + 1, len(scan_starts), target.name)
             self.projection = ('ARC', scan[0], scan[1])
             self._slew_to(target, mode='SCAN')
-            self.fire_noise_diode(**self.nd_params)
-            print "~ %s INFO     Performing scan %d of %d across target '%s' for %g seconds" % \
-                  (self._time_str(), scan_count + 1, len(scan_starts), target.name, scan_duration)
+            print '~ %s INFO     slewed to start of scan %d' % (self._time_str(), scan_count)
+            self.fire_noise_diode(announce=False, **self.nd_params)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
             self.time += scan_duration + 1.0
-            self.fire_noise_diode(**self.nd_params)
+            print '~ %s INFO     scan %d complete' % (self._time_str(), scan_count)
+            self.fire_noise_diode(announce=False, **self.nd_params)
             self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
             self._teleport_to(target)
 
