@@ -883,14 +883,24 @@ class TimeSession(object):
             self.time += seconds
         time.sleep = simsleep
 
-        print "\nEstimating duration of experiment starting %s (nothing real will happen!)" % (self._time_str(),)
-        print "~ %s INFO     ==========================" % (self._time_str(),)
-        print "~ %s INFO     New data capturing session" % (self._time_str(),)
-        print "~ %s INFO     --------------------------" % (self._time_str(),)
-        print "~ %s INFO     Experiment ID = %s" % (self._time_str(), experiment_id,)
-        print "~ %s INFO     Observer = %s" % (self._time_str(), observer,)
-        print "~ %s INFO     Description ='%s'" % (self._time_str(), description)
-        print "~ %s INFO     Antennas used = %s" % (self._time_str(), ' '.join([ant[0].name for ant in self.ants]))
+        # Modify logging so that only stream handlers are active and timestamps are prepended with a tilde
+        for handler in user_logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                form = handler.formatter
+                form.old_datefmt = form.datefmt
+                form.datefmt = '~ ' + (form.datefmt if form.datefmt else '%Y-%m-%d %H:%M:%S %Z')
+            else:
+                handler.old_level = handler.level
+                handler.setLevel(100)
+
+        user_logger.info('Estimating duration of experiment starting now (nothing real will happen!)')
+        user_logger.info('==========================')
+        user_logger.info('New data capturing session')
+        user_logger.info('--------------------------')
+        user_logger.info('Experiment ID = %s' % (experiment_id,))
+        user_logger.info('Observer = %s' % (observer,))
+        user_logger.info("Description ='%s'" % (description,))
+        user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self.ants]),))
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
@@ -901,10 +911,6 @@ class TimeSession(object):
         self.end()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
-
-    def _time_str(self):
-        """Current session timestamp (in local timezone) as a string."""
-        return time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(self.time))
 
     def _azel(self, target, timestamp, antenna):
         """Target (az, el) position in degrees (including offsets in degrees)."""
@@ -961,17 +967,17 @@ class TimeSession(object):
                        nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
         """Set up LO frequency, dump rate and noise diode parameters."""
         self.nd_params = nd_params
-        print "~ %s INFO     RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" % \
-              (self._time_str(), centre_freq, dump_rate, self.record_slews)
+        user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s' % \
+                         (centre_freq, dump_rate, self.record_slews))
         if nd_params['period'] > 0:
-            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
-                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
+                             (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
         elif nd_params['period'] == 0:
-            print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
-                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'])
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
+                             (nd_params['diode'], nd_params['on'], nd_params['off']))
         else:
-            print "~ %s INFO     Noise diode will not fire" % (self._time_str(),)
-        print "~ %s INFO     --------------------------" % (self._time_str(),)
+            user_logger.info('Noise diode will not fire')
+        user_logger.info('--------------------------')
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
@@ -1005,10 +1011,10 @@ class TimeSession(object):
             return True
         always_invisible = any(~np.array(visible_before) & ~np.array(visible_after))
         if always_invisible:
-            print "~ %s WARNING  Target '%s' is never visible during %s (average elevation is %g degrees)" % \
-                  (self._time_str(), target.name, operation, np.mean(average_el))
+            user_logger.warning("Target '%s' is never visible during %s (average elevation is %g degrees)" % \
+                                (target.name, operation, np.mean(average_el)))
         else:
-            print "~ %s WARNING  Target '%s' will rise or set during %s" % (self._time_str(), target.name, operation)
+            user_logger.warning("Target '%s' will rise or set during %s" % (target.name, operation))
         return False
 
     def start_scan(self, label):
@@ -1020,12 +1026,11 @@ class TimeSession(object):
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
         if announce:
-            print "~ %s INFO     Firing '%s' noise diode (%g seconds on, %g seconds off)" % \
-                  (self._time_str(), diode, on, off)
+            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
         self.time += on
         self.last_nd_firing = self.time + 0.
         self.time += off
-        print "~ %s INFO     fired noise diode" % (self._time_str(),)
+        user_logger.info('fired noise diode')
         return True
 
     def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
@@ -1034,15 +1039,15 @@ class TimeSession(object):
         if self.nd_params is None:
             raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
-            print "~ %s INFO     Initiating %g-second track on target '%s'" % (self._time_str(), duration, target.name)
+            user_logger.info("Initiating %g-second track on target '%s'" % (duration, target.name))
         self.target_visible(target, duration, operation='track')
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         if not self.on_target(target):
             self._slew_to(target)
-            print "~ %s INFO     slewed onto target" % (self._time_str(),)
+            user_logger.info('slewed onto target')
             self.fire_noise_diode(announce=False, **self.nd_params)
         self.time += duration + 1.0
-        print "~ %s INFO     tracked target for %g seconds" % (self._time_str(), duration)
+        user_logger.info('tracked target for %g seconds' % (duration,))
         self.fire_noise_diode(announce=False, **self.nd_params)
         self._teleport_to(target)
 
@@ -1053,17 +1058,16 @@ class TimeSession(object):
         if self.nd_params is None:
             raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
-            print "~ %s INFO     Initiating %g-second scan across target '%s'" % \
-                  (self._time_str(), duration, target.name)
+            user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
         self.target_visible(target, duration, operation='scan')
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
         self._slew_to(target, mode='SCAN')
-        print "~ %s INFO     slewed to start of scan" % (self._time_str(),)
+        user_logger.info('slewed to start of scan')
         self.fire_noise_diode(announce=False, **self.nd_params)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
         self.time += duration + 1.0
-        print "~ %s INFO     scan complete" % (self._time_str(),)
+        user_logger.info('scan complete')
         self.fire_noise_diode(announce=False, **self.nd_params)
         self.projection = ('ARC', end, 0.) if scan_in_azimuth else ('ARC', 0., end)
         self._teleport_to(target)
@@ -1076,8 +1080,8 @@ class TimeSession(object):
         if self.nd_params is None:
             raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
-            print "~ %s INFO     Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
-                  (self._time_str(), num_scans, scan_duration, scan_extent, target.name)
+            user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
+                             (num_scans, scan_duration, scan_extent, target.name))
         nd_time = self.nd_params['on'] + self.nd_params['off']
         nd_time /= (max(self.nd_params['period'], scan_duration) / scan_duration)
         self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
@@ -1092,20 +1096,20 @@ class TimeSession(object):
         for scan_count, scan in enumerate(scan_starts):
             self.projection = ('ARC', scan[0], scan[1])
             self._slew_to(target, mode='SCAN')
-            print '~ %s INFO     slewed to start of scan %d' % (self._time_str(), scan_count)
+            user_logger.info('slewed to start of scan %d' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
             self.time += scan_duration + 1.0
-            print '~ %s INFO     scan %d complete' % (self._time_str(), scan_count)
+            user_logger.info('scan %d complete' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
             self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
             self._teleport_to(target)
 
     def end(self):
         """Stop data capturing to shut down the session and close the data file."""
-        print '~ %s INFO     Scans complete, no data captured as this is a timing simulation...' % (self._time_str(),)
-        print '~ %s INFO     Ended data capturing session with experiment ID %s' % (self._time_str(), self.experiment_id)
-        print '~ %s INFO     ==========================' % (self._time_str(),)
+        user_logger.info('Scans complete, no data captured as this is a timing simulation...')
+        user_logger.info('Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        user_logger.info('==========================')
         duration = self.time - self.start_time
         if duration <= 100:
             duration = '%d seconds' % (np.ceil(duration),)
@@ -1113,9 +1117,17 @@ class TimeSession(object):
             duration = '%d minutes' % (np.ceil(duration / 60.),)
         else:
             duration = '%.1f hours' % (duration / 3600.,)
-        print "Experiment estimated to last %s until %s\n" % (duration, self._time_str())
+        user_logger.info("Experiment estimated to last %s until now\n" % (duration,))
         # Restore time module functions
         time.time, time.sleep = self.realtime, self.realsleep
+        # Restore logging
+        for handler in user_logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                handler.formatter.datefmt = handler.formatter.old_datefmt
+                del handler.formatter.old_datefmt
+            else:
+                handler.setLevel(handler.old_level)
+                del handler.old_level
 
 
 def standard_script_options(usage, description):
