@@ -12,7 +12,7 @@ with katuilib.tbuild() as kat:
 
     # Tell the DBE sim to make a test target at specfied az and el and with specified flux
     kat.dbe.req.dbe_test_target(45, 10, 100)
-    nd_params = {'diode' : 'coupler', 'on_duration' : 3.0, 'off_duration' : 3.0, 'period' : 40.}
+    nd_params = {'diode' : 'coupler', 'on' : 3.0, 'off' : 3.0, 'period' : 40.}
 
     with Session(kat, 'id', 'nobody', 'The scan zoo', kat.ants, 1822., 1., True, nd_params) as session:
         session.track(target, duration=5.0)

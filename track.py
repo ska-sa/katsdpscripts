@@ -5,6 +5,8 @@
 from __future__ import with_statement
 
 from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, CaptureSession, TimeSession
+from katuilib.defaults import user_logger
+import katpoint
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target 1'> [<'target 2'> ...]",
@@ -31,10 +33,12 @@ with verify_and_connect(opts) as kat:
     Session = TimeSession if opts.dry_run else CaptureSession
     with Session(kat, **vars(opts)) as session:
         for target in targets:
+            target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+            user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name))
             track_total = 0
             # Split the total track on one target into segments lasting as long as the noise diode period
             # This ensures the maximum number of noise diode firings
             while track_total < opts.track_duration:
                 next_track = min(opts.track_duration - track_total, opts.nd_params['period'])
-                session.track(target, duration=next_track, drive_strategy='longest-track', label='')
+                session.track(target, duration=next_track, drive_strategy='longest-track', label='', announce=False)
                 track_total += next_track

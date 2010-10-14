@@ -192,8 +192,7 @@ class CaptureSession(object):
     """
     def __init__(self, kat, experiment_id, observer, description, ants,
                  centre_freq=1800.0, dump_rate=1.0, record_slews=True,
-                 nd_params={'diode' : 'pin', 'on_duration' : 10.0,
-                            'off_duration' : 10.0, 'period' : 180.}, **kwargs):
+                 nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
         try:
             self.kat = kat
             self.experiment_id = experiment_id
@@ -212,11 +211,10 @@ class CaptureSession(object):
                              (centre_freq, dump_rate, record_slews))
             if nd_params['period'] > 0:
                 user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
-                                 (nd_params['diode'], nd_params['on_duration'],
-                                  nd_params['off_duration'], nd_params['period']))
+                                 (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
             elif nd_params['period'] == 0:
                 user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
-                                 (nd_params['diode'], nd_params['on_duration'], nd_params['off_duration']))
+                                 (nd_params['diode'], nd_params['on'], nd_params['off']))
             else:
                 user_logger.info("Noise diode will not fire")
             # Log the activity parameters (if config manager is around)
@@ -396,8 +394,7 @@ class CaptureSession(object):
         """
         return CaptureScan(self.kat, label, self.record_slews)
 
-    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0,
-                         label='cal', announce=True):
+    def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
         """Switch noise diode on and off.
 
         This switches the selected noise diode on and off for all the antennas
@@ -411,7 +408,7 @@ class CaptureSession(object):
         On the other hand, if *period* is negative it is not fired at all.
 
         When the function returns, data will still be recorded to the HDF5 file.
-        The specified *off_duration* is therefore a minimum value. Remember to
+        The specified *off* duration is therefore a minimum value. Remember to
         run :meth:`shutdown` to close the file and finally stop the observation
         (automatically done when this object is used in a with-statement)!
 
@@ -421,9 +418,9 @@ class CaptureSession(object):
             Noise diode source to use (pin diode is situated in feed horn and
             produces high-level signal, while coupler diode couples into
             electronics after the feed at a much lower level)
-        on_duration : float, optional
+        on : float, optional
             Minimum duration for which diode is switched on, in seconds
-        off_duration : float, optional
+        off : float, optional
             Minimum duration for which diode is switched off, in seconds
         period : float, optional
             Minimum time between noise diode firings, in seconds. (The maximum
@@ -452,17 +449,17 @@ class CaptureSession(object):
 
         if announce:
             user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" %
-                             (diode, on_duration, off_duration))
+                             (diode, on, off))
 
         with session.start_scan(label):
             # Switch noise diode on on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
-            time.sleep(on_duration)
+            time.sleep(on)
             # Mark on -> off transition as last firing
             session.last_nd_firing = time.time()
             # Switch noise diode off on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
-            time.sleep(off_duration)
+            time.sleep(off)
 
         user_logger.info('fired noise diode')
 
@@ -759,7 +756,7 @@ class CaptureSession(object):
             user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
                              (num_scans, scan_duration, scan_extent, preferred_name(target)))
         # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
-        nd_time = session.nd_params['on_duration'] + session.nd_params['off_duration']
+        nd_time = session.nd_params['on'] + session.nd_params['off']
         nd_time /= (max(session.nd_params['period'], scan_duration) / scan_duration)
         # Check whether the target will be visible for entire duration of raster scan
         self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
@@ -841,8 +838,7 @@ class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
     def __init__(self, kat, experiment_id, observer, description, ants,
                  centre_freq=1800.0, dump_rate=1.0, record_slews=True,
-                 nd_params={'diode' : 'pin', 'on_duration' : 10.0,
-                            'off_duration' : 10.0, 'period' : 180.}, **kwargs):
+                 nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
         self.start_time = time.time()
         self.time = self.start_time
         self.ants = []
@@ -869,11 +865,10 @@ class TimeSession(object):
               (self._time_str(), centre_freq, dump_rate, record_slews)
         if nd_params['period'] > 0:
             print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
-                  (self._time_str(), nd_params['diode'], nd_params['on_duration'], \
-                   nd_params['off_duration'], nd_params['period'])
+                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
         elif nd_params['period'] == 0:
             print "~ %s INFO     Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
-                  (self._time_str(), nd_params['diode'], nd_params['on_duration'], nd_params['off_duration'])
+                  (self._time_str(), nd_params['diode'], nd_params['on'], nd_params['off'])
         else:
             print "~ %s INFO     Noise diode will not fire" % (self._time_str(),)
 
@@ -1002,17 +997,16 @@ class TimeSession(object):
         """Starting scan has no major timing effect."""
         pass
 
-    def fire_noise_diode(self, diode='pin', on_duration=10.0, off_duration=10.0, period=0.0,
-                         label='cal', announce=True):
+    def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
         """Estimate time taken to fire noise diode."""
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
         if announce:
             print "~ %s INFO     Firing '%s' noise diode (%g seconds on, %g seconds off)" % \
-                  (self._time_str(), diode, on_duration, off_duration)
-        self.time += on_duration
+                  (self._time_str(), diode, on, off)
+        self.time += on
         self.last_nd_firing = self.time + 0.
-        self.time += off_duration
+        self.time += off
         print "~ %s INFO     fired noise diode" % (self._time_str(),)
         return True
 
@@ -1060,7 +1054,7 @@ class TimeSession(object):
         if announce:
             print "~ %s INFO     Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
                   (self._time_str(), num_scans, scan_duration, scan_extent, target.name)
-        nd_time = self.nd_params['on_duration'] + self.nd_params['off_duration']
+        nd_time = self.nd_params['on'] + self.nd_params['off']
         nd_time /= (max(self.nd_params['period'], scan_duration) / scan_duration)
         self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
         # Create start positions of each scan, based on scan parameters
@@ -1151,11 +1145,11 @@ def verify_and_connect(opts):
 
     # Verify noise diode parameters (should be 'string,number,number,number') and convert to dict
     try:
-        opts.nd_params = eval("{'diode':'%s', 'on_duration':%s, 'off_duration':%s, 'period':%s}" %
+        opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" %
                               tuple(opts.nd_params.split(',')), {})
     except TypeError, NameError:
         raise ValueError("Noise diode parameters are incorrect (should be 'diode,on,off,period')")
-    for key in ('on_duration', 'off_duration', 'period'):
+    for key in ('on', 'off', 'period'):
         if opts.nd_params[key] != float(opts.nd_params[key]):
             raise ValueError("Parameter nd_params['%s'] = %s (should be a number)" % (key, opts.nd_params[key]))
 

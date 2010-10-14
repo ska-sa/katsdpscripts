@@ -25,7 +25,7 @@ with katuilib.CaptureSession(kat, experiment_id, observer, description, antennas
     kat.dbe.req.capture_start()
     ants.req.mode('SCAN')
     ants.wait('scan_status', 'after', 300)
-#   session.fire_noise_diode(diode='coupler', on_duration=10.0, off_duration=10.0)
+#   session.fire_noise_diode(diode='coupler', on=10.0, off=10.0)
 
 # Post-processing example
 # import scape

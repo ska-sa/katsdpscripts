@@ -142,4 +142,4 @@ with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.descri
     kat.dbe.req.k7w_new_compound_scan(target_description, 'enu', 'scan')
     kat.dbe.req.capture_start()
     time.sleep(opts.duration)
-#   session.fire_noise_diode(diode='coupler', on_duration=10.0, off_duration=10.0)
+#   session.fire_noise_diode(diode='coupler', on=10.0, off=10.0)
