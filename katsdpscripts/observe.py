@@ -959,7 +959,7 @@ class TimeSession(object):
 #            print "%s slewing from (%.1f, %.1f) to (%.1f, %.1f) in %.1f seconds" % \
 #                  (ant.name, ant_az, ant_el, az2, el2, slew_time)
         # The overall slew time is the max for all antennas - adjust current time to reflect the slew
-        self.time += np.max(slew_times)
+        self.time += (np.max(slew_times) if len(slew_times) > 0 else 0.)
         # Blindly assume all antennas are on target (or on horizon) after this interval
         self._teleport_to(target, mode)
 
