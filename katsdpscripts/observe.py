@@ -189,7 +189,8 @@ class CaptureSession(object):
             self.experiment_id = experiment_id
             self.ants = ants = ant_array(kat, ants)
             self.record_slews = record_slews
-            self.nd_params = None
+            # By default, no noise diodes are fired
+            self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
 
             user_logger.info("==========================")
@@ -260,7 +261,6 @@ class CaptureSession(object):
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
-
         session.nd_params = nd_params
 
         user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
@@ -471,7 +471,6 @@ class CaptureSession(object):
             # Switch noise diode off on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
             time.sleep(off)
-
         user_logger.info('fired noise diode')
 
         return True
@@ -516,19 +515,24 @@ class CaptureSession(object):
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
+        Returns
+        -------
+        success : {True, False}
+            True if track was successfully completed
+
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
-        if session.nd_params is None:
-            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
-        # Check if we are currently on the desired target (saves a slewing step)
-        on_target = session.on_target(target)
         if announce:
             user_logger.info("Initiating %g-second track on target '%s'" % (duration, preferred_name(target)))
-        session.target_visible(target, duration, operation='track')
+        if not session.target_visible(target, duration, operation='track'):
+            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (preferred_name(target),))
+            return False
+        # Check if we are currently on the desired target (saves a slewing step)
+        on_target = session.on_target(target)
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -567,6 +571,7 @@ class CaptureSession(object):
         user_logger.info('tracked target for %g seconds' % (duration,))
 
         session.fire_noise_diode(announce=False, **session.nd_params)
+        return True
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
              drive_strategy='shortest-slew', label='scan', announce=True):
@@ -622,6 +627,11 @@ class CaptureSession(object):
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
+        Returns
+        -------
+        success : {True, False}
+            True if scan was successfully completed
+
         Notes
         -----
         Take note that scanning is done in a projection on the celestial sphere,
@@ -637,12 +647,11 @@ class CaptureSession(object):
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
-        if session.nd_params is None:
-            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, preferred_name(target)))
-        # Check whether the target will be visible
-        session.target_visible(target, duration, operation='scan')
+        if not session.target_visible(target, duration, operation='scan'):
+            user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (preferred_name(target),))
+            return False
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -685,6 +694,7 @@ class CaptureSession(object):
         user_logger.info('scan complete')
         
         session.fire_noise_diode(announce=False, **session.nd_params)
+        return True
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0,
                     scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
@@ -752,6 +762,11 @@ class CaptureSession(object):
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
+        Returns
+        -------
+        success : {True, False}
+            True if raster scan was successfully completed
+
         Notes
         -----
         Take note that scanning is done in a projection on the celestial sphere,
@@ -767,16 +782,18 @@ class CaptureSession(object):
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
 
-        if session.nd_params is None:
-            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
                              (num_scans, scan_duration, scan_extent, preferred_name(target)))
         # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
         nd_time = session.nd_params['on'] + session.nd_params['off']
-        nd_time /= (max(session.nd_params['period'], scan_duration) / scan_duration)
+        nd_time *= scan_duration / max(session.nd_params['period'], scan_duration)
+        nd_time = nd_time if session.nd_params['period'] >= 0 else 0.
         # Check whether the target will be visible for entire duration of raster scan
-        session.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
+        if not session.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan'):
+            user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" %
+                                (preferred_name(target),))
+            return False
 
         # Set the drive strategy for how antenna moves between targets
         ants.req.drive_strategy(drive_strategy)
@@ -830,6 +847,8 @@ class CaptureSession(object):
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
+        return True
+
     def end(self):
         """End the session, which stops data capturing and closes the data file.
 
@@ -869,7 +888,8 @@ class TimeSession(object):
             except AttributeError:
                 pass
         self.record_slews = record_slews
-        self.nd_params = None
+        # By default, no noise diodes are fired
+        self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
         self.last_nd_firing = 0.
 
         self.start_time = time.time()
@@ -1036,11 +1056,11 @@ class TimeSession(object):
     def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
         """Estimate time taken to perform track."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
-        if self.nd_params is None:
-            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating %g-second track on target '%s'" % (duration, target.name))
-        self.target_visible(target, duration, operation='track')
+        if not self.target_visible(target, duration, operation='track'):
+            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
+            return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         if not self.on_target(target):
             self._slew_to(target)
@@ -1050,16 +1070,17 @@ class TimeSession(object):
         user_logger.info('tracked target for %g seconds' % (duration,))
         self.fire_noise_diode(announce=False, **self.nd_params)
         self._teleport_to(target)
+        return True
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
              drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
-        if self.nd_params is None:
-            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
-        self.target_visible(target, duration, operation='scan')
+        if not self.target_visible(target, duration, operation='scan'):
+            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
+            return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
         self._slew_to(target, mode='SCAN')
@@ -1071,20 +1092,22 @@ class TimeSession(object):
         self.fire_noise_diode(announce=False, **self.nd_params)
         self.projection = ('ARC', end, 0.) if scan_in_azimuth else ('ARC', 0., end)
         self._teleport_to(target)
+        return True
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0,
                     scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
                     drive_strategy='shortest-slew', label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
-        if self.nd_params is None:
-            raise ValueError('No noise diode parameters set - please run session.standard_setup() first')
         if announce:
             user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
                              (num_scans, scan_duration, scan_extent, target.name))
         nd_time = self.nd_params['on'] + self.nd_params['off']
-        nd_time /= (max(self.nd_params['period'], scan_duration) / scan_duration)
-        self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan')
+        nd_time *= scan_duration / max(self.nd_params['period'], scan_duration)
+        nd_time = nd_time if self.nd_params['period'] >= 0 else 0.
+        if not self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan'):
+            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
+            return False
         # Create start positions of each scan, based on scan parameters
         scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
         scanning_coord = (scan_extent / 2.0) * (-1) ** scan_steps
@@ -1104,6 +1127,7 @@ class TimeSession(object):
             self.fire_noise_diode(announce=False, **self.nd_params)
             self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
             self._teleport_to(target)
+        return True
 
     def end(self):
         """Stop data capturing to shut down the session and close the data file."""
