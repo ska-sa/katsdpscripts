@@ -325,7 +325,7 @@ class CaptureSession(object):
                 return False
         return True
 
-    def target_visible(self, target, duration=0., timeout=300., horizon=2., operation='scan'):
+    def target_visible(self, target, duration=0., timeout=300., horizon=2.):
         """Check whether target is visible for given duration.
 
         This checks whether the *target* is currently above the given *horizon*
@@ -345,8 +345,6 @@ class CaptureSession(object):
             Timeout involved when antenna cannot reach the target
         horizon : float, optional
             Elevation limit serving as horizon, in degrees
-        operation : string, optional
-            Description of current observation, for use in warning message
 
         Returns
         -------
@@ -378,10 +376,10 @@ class CaptureSession(object):
             return True
         always_invisible = any(~np.array(visible_before) & ~np.array(visible_after))
         if always_invisible:
-            user_logger.warning("Target '%s' is never visible during %s (average elevation is %g degrees)" %
-                                (target.name, operation, np.mean(average_el)))
+            user_logger.warning("Target '%s' is never up during requested period (average elevation is %g degrees)" %
+                                (target.name, np.mean(average_el)))
         else:
-            user_logger.warning("Target '%s' will rise or set during %s" % (target.name, operation))
+            user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
     def start_scan(self, label):
@@ -528,7 +526,7 @@ class CaptureSession(object):
 
         if announce:
             user_logger.info("Initiating %g-second track on target '%s'" % (duration, preferred_name(target)))
-        if not session.target_visible(target, duration, operation='track'):
+        if not session.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (preferred_name(target),))
             return False
         # Check if we are currently on the desired target (saves a slewing step)
@@ -649,7 +647,7 @@ class CaptureSession(object):
 
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, preferred_name(target)))
-        if not session.target_visible(target, duration, operation='scan'):
+        if not session.target_visible(target, duration):
             user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (preferred_name(target),))
             return False
 
@@ -790,7 +788,7 @@ class CaptureSession(object):
         nd_time *= scan_duration / max(session.nd_params['period'], scan_duration)
         nd_time = nd_time if session.nd_params['period'] >= 0 else 0.
         # Check whether the target will be visible for entire duration of raster scan
-        if not session.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan'):
+        if not session.target_visible(target, (scan_duration + nd_time) * num_scans):
             user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" %
                                 (preferred_name(target),))
             return False
@@ -1031,10 +1029,10 @@ class TimeSession(object):
             return True
         always_invisible = any(~np.array(visible_before) & ~np.array(visible_after))
         if always_invisible:
-            user_logger.warning("Target '%s' is never visible during %s (average elevation is %g degrees)" % \
-                                (target.name, operation, np.mean(average_el)))
+            user_logger.warning("Target '%s' is never up during requested period (average elevation is %g degrees)" %
+                                (target.name, np.mean(average_el)))
         else:
-            user_logger.warning("Target '%s' will rise or set during %s" % (target.name, operation))
+            user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
     def start_scan(self, label):
@@ -1058,7 +1056,7 @@ class TimeSession(object):
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
             user_logger.info("Initiating %g-second track on target '%s'" % (duration, target.name))
-        if not self.target_visible(target, duration, operation='track'):
+        if not self.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
@@ -1078,7 +1076,7 @@ class TimeSession(object):
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
-        if not self.target_visible(target, duration, operation='scan'):
+        if not self.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
@@ -1105,7 +1103,7 @@ class TimeSession(object):
         nd_time = self.nd_params['on'] + self.nd_params['off']
         nd_time *= scan_duration / max(self.nd_params['period'], scan_duration)
         nd_time = nd_time if self.nd_params['period'] >= 0 else 0.
-        if not self.target_visible(target, (scan_duration + nd_time) * num_scans, operation='raster scan'):
+        if not self.target_visible(target, (scan_duration + nd_time) * num_scans):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
         # Create start positions of each scan, based on scan parameters
@@ -1170,23 +1168,23 @@ def standard_script_options(usage, description):
     """
     parser = optparse.OptionParser(usage=usage, description=description)
 
-    parser.add_option('-i', '--ini_file', help='System configuration file to use, relative to conf directory ' +
+    parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
                       '(default reuses existing connection, or falls back to systems/local.conf)')
-    parser.add_option('-u', '--experiment_id', help='Experiment ID used to link various parts of experiment ' +
+    parser.add_option('-u', '--experiment-id', help='Experiment ID used to link various parts of experiment ' +
                       'together (UUID generated by default)')
     parser.add_option('-o', '--observer', help='Name of person doing the observation (**required**)')
     parser.add_option('-d', '--description', default='No description.',
                       help='Description of observation (default="%default")')
     parser.add_option('-a', '--ants', metavar='ANTS', help="Comma-separated list of antennas to include " +
                       "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
-    parser.add_option('-f', '--centre_freq', type='float', default=1822.0,
+    parser.add_option('-f', '--centre-freq', type='float', default=1822.0,
                       help='Centre frequency, in MHz (default="%default")')
-    parser.add_option('-r', '--dump_rate', type="float", default=1.0, help='Dump rate, in Hz (default="%default")')
-    parser.add_option('-w', '--discard_slews', dest='record_slews', action="store_false", default=True,
+    parser.add_option('-r', '--dump-rate', type="float", default=1.0, help='Dump rate, in Hz (default="%default")')
+    parser.add_option('-w', '--discard-slews', dest='record_slews', action="store_false", default=True,
                       help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
-    parser.add_option('-n', '--nd_params', default='pin,10,10,180',
+    parser.add_option('-n', '--nd-params', default='pin,10,10,180',
                       help='Noise diode parameters as "diode,on,off,period", in seconds (default="%default")')
-    parser.add_option('-y', '--dry_run', action='store_true', default=False,
+    parser.add_option('-y', '--dry-run', action='store_true', default=False,
                       help="Do not actually observe, but display script actions at predicted times (default=%default)")
 
     return parser
@@ -1231,7 +1229,7 @@ def verify_and_connect(opts):
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = tbuild(opts.ini_file)
+        kat = tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
         kat = tbuild('systems/local.conf')
