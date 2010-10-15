@@ -4,8 +4,8 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, CaptureSession, TimeSession
-from katuilib.defaults import user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, \
+                             user_logger, CaptureSession, TimeSession
 import katpoint
 
 # Set up standard script options
@@ -33,13 +33,20 @@ with verify_and_connect(opts) as kat:
     Session = TimeSession if opts.dry_run else CaptureSession
     with Session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+
         for target in targets:
             target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
             user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name))
-            track_total = 0
+            if not session.target_visible(target, opts.track_duration):
+                user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
+                continue
+
             # Split the total track on one target into segments lasting as long as the noise diode period
             # This ensures the maximum number of noise diode firings
-            while track_total < opts.track_duration:
-                next_track = min(opts.track_duration - track_total, opts.nd_params['period'])
+            total_track_time = 0.
+            while total_track_time < opts.track_duration:
+                next_track = opts.track_duration - total_track_time
+                if opts.nd_params['period'] > 0:
+                    next_track = min(next_track, opts.nd_params['period'])
                 session.track(target, duration=next_track, drive_strategy='longest-track', label='', announce=False)
-                track_total += next_track
+                total_track_time += next_track
