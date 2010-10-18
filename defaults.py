@@ -109,14 +109,11 @@ if __name__ == "__main__":
 
     parser = OptionParser(usage="%prog [options]",
                           description="Check the system against the expected default values and optionally reset to these defaults.")
-
-    parser.add_option('-i', '--ini_file', dest='ini_file', type="string", metavar='INI', help='Telescope configuration ' +
-                      'file to use in conf directory (by default reuses existing connection, or falls back to cfg-local.ini)')
-    parser.add_option('-s', '--selected_config', dest='selected_config', type="string", metavar='SELECTED',
-                      help='Selected configuration to use (by default reuses existing connection, or falls back to local_ff)')
-    parser.add_option('-d', '--defaults_set', dest='defaults_set', type="string", default="karoo", metavar='DEFAULTS',
+    parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
+                      '(default reuses existing connection, or falls back to systems/local.conf)')
+    parser.add_option('-d', '--defaults_set', default="karoo", metavar='DEFAULTS',
                       help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
-    parser.add_option('-r', '--reset', dest='reset', action='store_true', default=False,
+    parser.add_option('-r', '--reset', action='store_true', default=False,
                       help='Reset system to default values, if this switch is included (default="%default")')
     (opts, args) = parser.parse_args()
 
@@ -129,11 +126,11 @@ if __name__ == "__main__":
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
+        kat = katuilib.tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
-        kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
-    print "\nUsing KAT connection with configuration: %s\n" % (kat.get_config(),)
+        kat = katuilib.tbuild('systems/local.conf')
+    print "Using KAT connection with configuration: %s" % (kat.config_file,)
 
     print "Checking current settings....."
     check_sensors(kat,defaults)

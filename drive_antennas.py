@@ -12,14 +12,11 @@ parser = OptionParser(usage="usage: %prog [options]\n\n"+
                             "Track sources all around the sky for a few seconds each without recording data\n"+
                             "(mostly to keep tourists or antennas amused). Uses the standard catalogue,\n"+
                             "but excludes the extremely strong sources (Sun, Afristar). Some options\n"+
-                            "are **required.")
-parser.add_option('-i', '--ini_file', dest='ini_file', type="string", metavar='INI', help='Telescope configuration ' +
-                  'file to use in conf directory (by default reuses existing connection, or falls back to cfg-local.ini)')
-parser.add_option('-s', '--selected_config', dest='selected_config', type="string", metavar='SELECTED',
-                  help='Selected configuration to use (by default reuses existing connection, or falls back to local_ff)')
-parser.add_option('-a', '--ants', dest='ants', type="string", metavar='ANTS',
-                  help="Comma-separated list of antennas to include in scan (e.g. 'ant1,ant2')," +
-                       " or 'all' for all antennas (**required - safety reasons)")
+                            "are **required**.")
+parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
+                  '(default reuses existing connection, or falls back to systems/local.conf)')
+parser.add_option('-a', '--ants', metavar='ANTS', help="Comma-separated list of antennas to include in scan " +
+                  "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required - safety reasons)")
 (opts, args) = parser.parse_args()
 
 # Force antennas to be specified to sensitise the user to what will physically move
@@ -30,11 +27,12 @@ if opts.ants is None:
 # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
 # This connects to all the proxies and devices and queries their commands and sensors
 try:
-    kat = katuilib.tbuild(opts.ini_file, opts.selected_config)
+    kat = katuilib.tbuild(opts.system)
 # Fall back to *local* configuration to prevent inadvertent use of the real hardware
 except ValueError:
-    kat = katuilib.tbuild('cfg-local.ini', 'local_ff')
-print "\nUsing KAT connection with configuration: %s\n" % (kat.get_config(),)
+    kat = katuilib.tbuild('systems/local.conf')
+print "Using KAT connection with configuration: %s" % (kat.config_file,)
+
 
 # Create a list of the specified antenna devices, and complain if they are not found
 if opts.ants.strip() == 'all':
