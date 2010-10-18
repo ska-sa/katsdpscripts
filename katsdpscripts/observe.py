@@ -17,28 +17,6 @@ from .katcp_client import KATDevice
 from .defaults import user_logger
 from .utility import tbuild
 
-# Ripped from katpoint.construct_target_params, to avoid extra dependencies
-def preferred_name(description):
-    """Parse target description string to extract preferred target name."""
-    fields = [s.strip() for s in description.split(',')]
-    # Extract preferred name from name list (starred or first entry)
-    names = [s.strip() for s in fields[0].split('|')]
-    if len(names) == 0:
-        return ''
-    first_word = names[0].split(' ')[0]
-    if first_word in ('azel', 'radec'):
-        return first_word
-    if first_word == 'xephem':
-        edb_string = fields[-1].replace('~', ',')
-        edb_name_field = edb_string.partition(',')[0]
-        edb_names = [name.strip() for name in edb_name_field.split('|')]
-        return edb_names[0]
-    try:
-        ind = [name.startswith('*') for name in names].index(True)
-        return names[ind][1:]
-    except ValueError:
-        return names[0]
-
 def ant_array(kat, ants, name='ants'):
     """Create sub-array of antennas from flexible specification.
 
@@ -521,13 +499,13 @@ class CaptureSession(object):
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
-        # Turn target object into description string (or use string as is)
-        target = getattr(target, 'description', target)
+        # Convert description string to target object, or keep object as is
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         if announce:
-            user_logger.info("Initiating %g-second track on target '%s'" % (duration, preferred_name(target)))
+            user_logger.info("Initiating %g-second track on target '%s'" % (duration, target.name))
         if not session.target_visible(target, duration):
-            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (preferred_name(target),))
+            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
         # Check if we are currently on the desired target (saves a slewing step)
         on_target = session.on_target(target)
@@ -642,13 +620,13 @@ class CaptureSession(object):
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
-        # Turn target object into description string (or use string as is)
-        target = getattr(target, 'description', target)
+        # Convert description string to target object, or keep object as is
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         if announce:
-            user_logger.info("Initiating %g-second scan across target '%s'" % (duration, preferred_name(target)))
+            user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
         if not session.target_visible(target, duration):
-            user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (preferred_name(target),))
+            user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (target.name,))
             return False
 
         # Set the drive strategy for how antenna moves between targets
@@ -777,20 +755,19 @@ class CaptureSession(object):
         """
         # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
         session, kat, ants = self, self.kat, self.ants
-        # Turn target object into description string (or use string as is)
-        target = getattr(target, 'description', target)
+        # Convert description string to target object, or keep object as is
+        target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         if announce:
             user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
-                             (num_scans, scan_duration, scan_extent, preferred_name(target)))
+                             (num_scans, scan_duration, scan_extent, target.name))
         # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
         nd_time = session.nd_params['on'] + session.nd_params['off']
         nd_time *= scan_duration / max(session.nd_params['period'], scan_duration)
         nd_time = nd_time if session.nd_params['period'] >= 0 else 0.
         # Check whether the target will be visible for entire duration of raster scan
         if not session.target_visible(target, (scan_duration + nd_time) * num_scans):
-            user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" %
-                                (preferred_name(target),))
+            user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" % (target.name,))
             return False
 
         # Set the drive strategy for how antenna moves between targets
