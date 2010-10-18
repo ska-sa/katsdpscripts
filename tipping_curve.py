@@ -18,6 +18,10 @@ parser.set_defaults(description='Tipping curve')
 # Parse the command line
 opts, args = parser.parse_args()
 
+# Ensure that azimuth is in valid physical range of -185 to 275 degrees
+if (opts.az < -185.) or (opts.az > 275.):
+    opts.az = (opts.az + 180.) % 360. - 180.
+
 with verify_and_connect(opts) as kat:
 
     # Select either a CaptureSession for the real experiment, or a fake TimeSession
