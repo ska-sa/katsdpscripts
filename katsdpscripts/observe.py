@@ -1192,10 +1192,17 @@ def standard_script_options(usage, description):
 def verify_and_connect(opts):
     """Verify command-line options, build KAT configuration and connect to devices.
 
+    This inspects the parsed options and requires at least *ants* and *observer*
+    to be set. It generates an experiment ID if missing and verifies noise diode
+    parameters if given. It then creates a KAT connection based on the *system*
+    option, reusing an existing connection or falling back to the local system
+    if required. The resulting KATHost object is returned.
+
     Parameters
     ----------
     opts : :class:`optparse.Values` object
-        Parsed command-line options (will be updated by this function)
+        Parsed command-line options (will be updated by this function). Should
+        contain at least the options *ants*, *observer* and *system*.
 
     Returns
     -------
@@ -1209,24 +1216,26 @@ def verify_and_connect(opts):
 
     """
     # Various non-optional options...
-    if opts.ants is None:
+    if not hasattr(opts, 'ants') or opts.ants is None:
         raise ValueError('Please specify the antennas to use via -a option (yes, this is a non-optional option...)')
-    if opts.observer is None:
+    if not hasattr(opts, 'observer') or opts.observer is None:
         raise ValueError('Please specify the observer name via -o option (yes, this is a non-optional option...)')
-    if opts.experiment_id is None:
+    if not hasattr(opts, 'experiment_id') or opts.experiment_id is None:
         # Generate unique string via RFC 4122 version 1
         opts.experiment_id = str(uuid.uuid1())
 
-    # Verify noise diode parameters (should be 'string,number,number,number') and convert to dict
-    try:
-        opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" % tuple(opts.nd_params.split(',')), {})
-    except TypeError, NameError:
-        raise ValueError("Noise diode parameters are incorrect (should be 'diode,on,off,period')")
-    for key in ('on', 'off', 'period'):
-        if opts.nd_params[key] != float(opts.nd_params[key]):
-            raise ValueError("Parameter nd_params['%s'] = %s (should be a number)" % (key, opts.nd_params[key]))
+    # If given, verify noise diode parameters (should be 'string,number,number,number') and convert to dict
+    if hasattr(opts, 'nd_params'):
+        try:
+            opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" %
+                                  tuple(opts.nd_params.split(',')), {})
+        except TypeError, NameError:
+            raise ValueError("Noise diode parameters are incorrect (should be 'diode,on,off,period')")
+        for key in ('on', 'off', 'period'):
+            if opts.nd_params[key] != float(opts.nd_params[key]):
+                raise ValueError("Parameter nd_params['%s'] = %s (should be a number)" % (key, opts.nd_params[key]))
 
-    # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
+    # Try to build KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
         kat = tbuild(opts.system)
