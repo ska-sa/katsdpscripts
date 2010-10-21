@@ -255,6 +255,8 @@ class CaptureSession(object):
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
                                                              (centre_freq, dump_rate, session.record_slews))
+            kat.cfg.req.set_script_param("script-nd-params", "Diode=%s, On=%g s, Off=%g s, Period=%g s" %
+                                         (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
 
         # Set centre frequency in RFE stage 7
         kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
