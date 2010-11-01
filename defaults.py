@@ -9,7 +9,6 @@ import katuilib
 from katuilib.ansi import col
 
 # Default settings logically grouped in lists
-
 ped1 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.ped1.req.log_level('cryo')[1]", "fatal", "kat.ped1.req.log_level('cryo', 'fatal')"),
 ("kat.ped1.sensor.rfe3_psu_on.get_value()", 1, "kat.ped1.req.rfe3_psu_on(1)"),
@@ -60,16 +59,56 @@ ped5 = [ # structure is list of tuples with (command to access sensor value, def
 ("kat.ped5.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,"kat.ped5.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
 ]
 
+ped6 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+("kat.ped6.req.log_level('cryo')[1]", "fatal", "kat.ped6.req.log_level('cryo', 'fatal')"),
+("kat.ped6.sensor.rfe3_psu_on.get_value()", 1, "kat.ped6.req.rfe3_psu_on(1)"),
+("kat.ped6.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped6.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
+("kat.ped6.sensor.rfe5_attenuator_horizontal.get_value()", 4.0, "kat.ped6.req.rfe5_attenuation('h',4.0)"),
+("kat.ped6.sensor.rfe5_attenuator_vertical.get_value()", 3.5, "kat.ped6.req.rfe5_attenuation('v',3.5)"),
+("kat.ped6.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0, "kat.ped6.req.rfe3_rfe15_noise_source_on('pin',0,'now',0)"),
+("kat.ped6.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,"kat.ped6.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
+]
+
+ped7 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+("kat.ped7.req.log_level('cryo')[1]", "fatal", "kat.ped7.req.log_level('cryo', 'fatal')"),
+("kat.ped7.sensor.rfe3_psu_on.get_value()", 1, "kat.ped7.req.rfe3_psu_on(1)"),
+("kat.ped7.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped7.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
+("kat.ped7.sensor.rfe5_attenuator_horizontal.get_value()", 4.0, "kat.ped7.req.rfe5_attenuation('h',4.0)"),
+("kat.ped7.sensor.rfe5_attenuator_vertical.get_value()", 3.5, "kat.ped7.req.rfe5_attenuation('v',3.5)"),
+("kat.ped7.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0, "kat.ped7.req.rfe3_rfe15_noise_source_on('pin',0,'now',0)"),
+("kat.ped7.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,"kat.ped7.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
+]
+
 rfe7 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.rfe7.sensor.rfe7_lo1_frequency.get_value()", 6022000000.0, "kat.rfe7.req.rfe7_lo1_frequency(6.022,'GHz')"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('1','h',6.0)" ),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('1','v',6.0)" ),
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('2','h',6.0)" ),
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('2','v',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant3_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('3','h',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant3_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('3','v',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant4_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('4','h',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant4_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('4','v',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant5_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('5','h',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant5_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('5','v',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant6_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('6','h',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant6_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('6','v',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant7_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('7','h',6.0)" ),
+("kat.rfe7.sensor.rfe7_downconverter_ant7_v_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('7','v',6.0)" ),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(1,'h',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(1,'v',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(2,'h',1)"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant2_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(2,'v',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant3_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(3,'h',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant3_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(3,'v',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant4_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(4,'h',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant4_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(4,'v',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant5_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(5,'h',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant5_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(5,'v',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant6_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(6,'h',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant6_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(6,'v',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant7_h_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(7,'h',1)"),
+("kat.rfe7.sensor.rfe7_downconverter_ant7_v_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_downconverter_powerswitch(7,'v',1)"),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1, "kat.rfe7.req.rfe7_orx_powerswitch(1,1)"),
 ]
 
@@ -84,12 +123,14 @@ lab_rfe7 = [ # structure is list of tuples with (command to access sensor value,
 
 # Dictionary containing multiple sets of default settings, identified by name (user selects these by name at runtime)
 defaults_set = {
-'karoo' : ped1 + ped2 + ped3 + ped4 + ped5 + rfe7,
+'karoo' : ped1 + ped2 + ped3 + ped4 + ped5 + ped6 + ped7 + rfe7,
 'karoo1' : ped1 + rfe7,
 'karoo2' : ped2 + rfe7,
 'karoo3' : ped3 + rfe7,
 'karoo4' : ped4 + rfe7,
 'karoo5' : ped5 + rfe7,
+'karoo6' : ped6 + rfe7,
+'karoo7' : ped7 + rfe7,
 'karoo_rfe7' : rfe7,
 'lab' : ped1 + lab_rfe7,
 }
@@ -97,24 +138,24 @@ defaults_set = {
 def check_sensors(kat, defaults):
     # check current system setting and compare with defaults as specified above
     print "%s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Default Value".ljust(25))
-    current_vals = []
-    for i in range(len(defaults)):
+    for checker, default, _setter in defaults:
         try:
-            current_vals.append(str(eval(defaults[i][0])))
-            if current_vals[i] <> str(defaults[i][1]):
-                print "%s %s %s" % (col("red")+str(defaults[i][0]).ljust(65),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25)+col("normal"))
+            default = str(default)
+            current_val = str(eval(checker))
+            if current_val != default:
+                print "%s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), default.ljust(25) + col("normal"))
             else:
-                print "%s %s %s" % (str(defaults[i][0]).ljust(65),str(current_vals[i]).ljust(25),str(defaults[i][1]).ljust(25))
+                print "%s %s %s" % (checker.ljust(65), current_val.ljust(25), default.ljust(25))
         except:
-            print "Could not check", str(defaults[i])
+            print "Could not check", checker, "[expected value: %r]" % (default,)
 
 def reset_defaults(kat, defaults):
     # reset system to default setting as specified by commands above
-    for i in range(len(defaults)):
+    for _checker, _default, setter in defaults:
         try:
-            eval(defaults[i][2])
+            eval(setter)
         except Exception, err:
-            print "Cannot set - ",str(defaults[1][2]),"ERROR :",str(err)
+            print "Cannot set - ", setter, "ERROR :", err
 
 if __name__ == "__main__":
 
