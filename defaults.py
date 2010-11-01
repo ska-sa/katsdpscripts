@@ -50,6 +50,16 @@ ped4 = [ # structure is list of tuples with (command to access sensor value, def
 ("kat.ped4.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,"kat.ped4.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
 ]
 
+ped5 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
+("kat.ped5.req.log_level('cryo')[1]", "fatal", "kat.ped5.req.log_level('cryo', 'fatal')"),
+("kat.ped5.sensor.rfe3_psu_on.get_value()", 1, "kat.ped5.req.rfe3_psu_on(1)"),
+("kat.ped5.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1, "kat.ped5.req.rfe3_rfe15_rfe1_lna_psu_on(1)"),
+("kat.ped5.sensor.rfe5_attenuator_horizontal.get_value()", 4.0, "kat.ped5.req.rfe5_attenuation('h',4.0)"),
+("kat.ped5.sensor.rfe5_attenuator_vertical.get_value()", 3.5, "kat.ped5.req.rfe5_attenuation('v',3.5)"),
+("kat.ped5.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0, "kat.ped5.req.rfe3_rfe15_noise_source_on('pin',0,'now',0)"),
+("kat.ped5.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,"kat.ped5.req.rfe3_rfe15_noise_source_on('coupler',0,'now',0)"),
+]
+
 rfe7 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
 ("kat.rfe7.sensor.rfe7_lo1_frequency.get_value()", 6022000000.0, "kat.rfe7.req.rfe7_lo1_frequency(6.022,'GHz')"),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_attenuation.get_value()", 6.0, "kat.rfe7.req.rfe7_downconverter_attenuation('1','h',6.0)" ),
@@ -74,11 +84,12 @@ lab_rfe7 = [ # structure is list of tuples with (command to access sensor value,
 
 # Dictionary containing multiple sets of default settings, identified by name (user selects these by name at runtime)
 defaults_set = {
-'karoo' : ped1 + ped2 + ped3 + ped4 + rfe7,
+'karoo' : ped1 + ped2 + ped3 + ped4 + ped5 + rfe7,
 'karoo1' : ped1 + rfe7,
 'karoo2' : ped2 + rfe7,
 'karoo3' : ped3 + rfe7,
 'karoo4' : ped4 + rfe7,
+'karoo5' : ped5 + rfe7,
 'karoo_rfe7' : rfe7,
 'lab' : ped1 + lab_rfe7,
 }
