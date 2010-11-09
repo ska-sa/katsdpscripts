@@ -17,8 +17,8 @@ import katuilib as katui
 
 enviro = katui.build_device("enviro","ff-proxy",1341)
  # connect to ancillary proxy to get environment data
-enviro.sensor.enviro_wind_speed.set_strategy("period","1000")
-enviro.sensor.enviro_wind_direction.set_strategy("period","1000")
+enviro.sensor.asc_wind_speed.set_strategy("period","1000")
+enviro.sensor.asc_wind_direction.set_strategy("period","1000")
 
 fig = plt.figure(figsize=(12,6))
 ax = fig.add_subplot(111)
@@ -28,7 +28,7 @@ ax2 = ax.twinx()
 ax2.set_ylabel("Direction (deg)", color='r')
 
 def get_wind():
-    return (enviro.sensor.enviro_wind_speed.value, enviro.sensor.enviro_wind_direction.value)
+    return (enviro.sensor.asc_wind_speed.value, enviro.sensor.asc_wind_direction.value)
 
 def format_date(x, pos=None):
     return matplotlib.dates.num2date(x).strftime('%H:%M:%S')

@@ -31,19 +31,19 @@ or 'YYYY-MM-DD HH:MM'.
 Examples
 --------
 
-# Find out what sensors named anc.enviro.air are in the store
-$ ./retrieve_sensor_data.py -l 'anc.enviro.air'
+# Find out what sensors named anc.asc.air are in the store
+$ ./retrieve_sensor_data.py -l 'anc.asc.air'
 
 # Find out what dates sensor information is available over
-$ ./retrieve_sensor_data.py -d 'anc.enviro.air'
+$ ./retrieve_sensor_data.py -d 'anc.asc.air'
 
 # Plot temperature and pressure over a given date range
 $ ./retrieve_sensor_data.py -p --start 2010-01-01 --end 2010-02-01 \\
- anc.enviro.air.pressure anc.enviro.air.temperature
+ anc.asc.air.pressure anc.asc.air.temperature
 
 # Download same data to .csv files in current folder
 $ ./retrieve_sensor_data.py --start 2010-01-01 --end 2010-02-01 \\
- anc.enviro.air.pressure anc.enviro.air.temperature
+ anc.asc.air.pressure anc.asc.air.temperature
 """
 
 
