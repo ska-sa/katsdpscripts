@@ -43,6 +43,9 @@ else:
     except AttributeError:
         raise ValueError("Antenna '%s' not found" % ant_x)
 
+#Setup strategies for the sensors we are interested in
+kat.ants.req.sensor_sampling("lock","event")
+
 # time to stay on each target (secs)
 on_target_duration = 10
 
