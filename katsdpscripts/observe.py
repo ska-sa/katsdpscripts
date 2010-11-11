@@ -188,6 +188,11 @@ class CaptureSession(object):
             kat.dbe.req.k7w_write_hdf5(1)
             kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
+            #Setup strategies for the sensors we are interested in
+            kat.ants.req.sensor_sampling("lock","event")
+            kat.ants.req.sensor_sampling("scan.status","event")
+            kat.ants.req.sensor_sampling("mode","event")
+
             # Log the activity parameters (if config manager is around)
             if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-starttime",
