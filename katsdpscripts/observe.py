@@ -188,11 +188,6 @@ class CaptureSession(object):
             kat.dbe.req.k7w_write_hdf5(1)
             kat.dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
-            #Setup strategies for the sensors we are interested in
-            kat.ants.req.sensor_sampling("lock","event")
-            kat.ants.req.sensor_sampling("scan.status","event")
-            kat.ants.req.sensor_sampling("mode","event")
-
             # Log the activity parameters (if config manager is around)
             if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-starttime",
@@ -242,7 +237,8 @@ class CaptureSession(object):
         """Set up LO frequency, dump rate and noise diode parameters.
 
         This performs basic setup of the LO frequency, dump rate and noise diode
-        parameters. It should usually be called as the first step in a new session
+        parameters. It also sets strategies on antenna sensors that might be
+        waited on. It should usually be called as the first step in a new session
         (unless the experiment has special requirements, such as holography).
 
         Parameters
@@ -279,6 +275,11 @@ class CaptureSession(object):
                                                              (centre_freq, dump_rate, session.record_slews))
             kat.cfg.req.set_script_param("script-nd-params", "Diode=%s, On=%g s, Off=%g s, Period=%g s" %
                                          (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
+
+        # Setup strategies for the sensors we might be wait()ing on
+        ants.req.sensor_sampling("lock", "event")
+        ants.req.sensor_sampling("scan.status", "event")
+        ants.req.sensor_sampling("mode", "event")
 
         # Set centre frequency in RFE stage 7
         kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
