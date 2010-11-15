@@ -34,6 +34,8 @@ with verify_and_connect(opts) as kat:
     with CaptureSession(kat, **vars(opts)) as session:
         # HACK DBE to accept target(target) and do nothing with it.
         kat.dbe.req.target = lambda target: None
+        session.ants.req.sensor_sampling("lock", "event")
+        session.ants.req.sensor_sampling("scan.status", "event")
 
         # Keep going until the time is up
         keep_going = True

@@ -47,6 +47,8 @@ with verify_and_connect(opts) as kat:
 
     # The real experiment: Create a data capturing session with the selected sub-array of antennas
     with CaptureSession(kat, **vars(opts)) as session:
+        kat.ant1.req.sensor_sampling("lock","event")
+        kat.ant1.req.sensor_sampling("scan.status","event")
         kat.dbe.req.capture_setup()
         kat.dbe.req.capture_start()
         kat.dbe.req.k7w_new_scan('slew')

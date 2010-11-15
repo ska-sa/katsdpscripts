@@ -63,6 +63,8 @@ if kat.dh.sd is None:
     sys.exit(1)
 # The real experiment: Create a data capturing session with the selected sub-array of antennas
 with katuilib.CaptureSession(kat, opts.experiment_id, opts.observer, opts.description, opts.ants, opts.record_slews) as session:
+    kat.ant1.req.sensor_sampling("lock","event")
+    kat.ant1.req.sensor_sampling("scan.status","event")
     kat.dbe.req.k7w_write_hdf5(0)
     kat.dbe.req.capture_stop()
     kat.dbe.req.capture_setup()
