@@ -462,6 +462,8 @@ class CaptureSession(object):
 
         if announce:
             session._log_info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
+        else:
+            session._log_info('firing noise diode')
 
         with session.start_scan(label):
             # Switch noise diode on on all antennas
@@ -472,7 +474,7 @@ class CaptureSession(object):
             # Switch noise diode off on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
             time.sleep(off)
-        session._log_info('fired noise diode')
+        session._log_info('noise diode fired')
 
         return True
 
@@ -557,19 +559,21 @@ class CaptureSession(object):
 
         # Avoid slewing if we are already on target
         if not on_target:
+            session._log_info('slewing to target')
             with session.start_scan('slew'):
                 # Start moving each antenna to the target
                 ants.req.mode('POINT')
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
-            session._log_info('slewed onto target')
+            session._log_info('target reached')
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
+        session._log_info('tracking target')
         with session.start_scan('scan'):
             # Do nothing else for the duration of the track
             time.sleep(duration)
-        session._log_info('tracked target for %g seconds' % (duration,))
+        session._log_info('target tracked for %g seconds' % (duration,))
 
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
@@ -674,6 +678,7 @@ class CaptureSession(object):
         else:
             session.fire_noise_diode(announce=False, **session.nd_params)
 
+        session._log_info('slewing to start of scan')
         with session.start_scan('slew'):
             # Move each antenna to the start position of the scan
             if scan_in_azimuth:
@@ -683,10 +688,11 @@ class CaptureSession(object):
             ants.req.mode('POINT')
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
-        session._log_info('slewed to start of scan')
+        session._log_info('start of scan reached')
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
+        session._log_info('starting scan')
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
@@ -825,6 +831,7 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
+            session._log_info('slewing to start of scan %d' % (scan_count,))
             with session.start_scan('slew'):
                 # Move each antenna to the start position of the next scan
                 if scan_in_azimuth:
@@ -834,10 +841,11 @@ class CaptureSession(object):
                 ants.req.mode('POINT')
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
-            session._log_info('slewed to start of scan %d' % (scan_count,))
+            session._log_info('start of scan %d reached' % (scan_count,))
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
+            session._log_info('starting scan %d' % (scan_count,))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
@@ -1048,6 +1056,8 @@ class TimeSession(object):
             return False
         if announce:
             user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
+        else:
+            user_logger.info('firing noise diode')
         self.time += on
         self.last_nd_firing = self.time + 0.
         self.time += off
@@ -1064,11 +1074,13 @@ class TimeSession(object):
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         if not self.on_target(target):
+            user_logger.info('slewing to target')
             self._slew_to(target)
-            user_logger.info('slewed onto target')
+            user_logger.info('target reached')
             self.fire_noise_diode(announce=False, **self.nd_params)
+        user_logger.info('tracking target')
         self.time += duration + 1.0
-        user_logger.info('tracked target for %g seconds' % (duration,))
+        user_logger.info('target tracked for %g seconds' % (duration,))
         self.fire_noise_diode(announce=False, **self.nd_params)
         self._teleport_to(target)
         return True
@@ -1084,10 +1096,12 @@ class TimeSession(object):
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
+        user_logger.info('slewing to start of scan')
         self._slew_to(target, mode='SCAN')
-        user_logger.info('slewed to start of scan')
+        user_logger.info('start of scan reached')
         self.fire_noise_diode(announce=False, **self.nd_params)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
+        user_logger.info('starting scan')
         self.time += duration + 1.0
         user_logger.info('scan complete')
         self.fire_noise_diode(announce=False, **self.nd_params)
@@ -1119,10 +1133,12 @@ class TimeSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
             self.projection = ('ARC', scan[0], scan[1])
+            user_logger.info('slewing to start of scan %d' % (scan_count,))
             self._slew_to(target, mode='SCAN')
-            user_logger.info('slewed to start of scan %d' % (scan_count,))
+            user_logger.info('start of scan %d reached' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
+            user_logger.info('starting scan %d' % (scan_count,))
             self.time += scan_duration + 1.0
             user_logger.info('scan %d complete' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
