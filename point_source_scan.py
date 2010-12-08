@@ -5,6 +5,7 @@
 from __future__ import with_statement
 
 import datetime
+import os
 import time
 from cStringIO import StringIO
 
@@ -45,7 +46,7 @@ with verify_and_connect(opts) as kat:
         pointing_sources = kat.sources.filter(tags='radec')
 
     skip_sources = katpoint.Catalogue(add_specials=False, antenna=kat.sources.antenna)
-    if opts.skip_catalogue is not None:
+    if opts.skip_catalogue is not None and os.path.exists(opts.skip_catalogue):
         skip_sources.add(file(opts.skip_catalogue))
 
     if opts.skip_catalogue is not None and not opts.dry_run:
