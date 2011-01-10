@@ -65,7 +65,7 @@ with verify_and_connect(opts) as kat:
     reply = kat.dbe.req.k7w_get_current_file()
     if not reply.succeeded:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
-        
+
     cfg = kat.config_file
     h5path = reply[1].replace('writing.', '')
     h5file = os.path.basename(h5path) if cfg.find('local') < 0 else h5path
@@ -80,10 +80,11 @@ if not opts.dry_run:
         archive = arutils.lab_archive
     elif cfg.find('local') < 0:
         raise RuntimeError("Could not deduce archive associated with configuration '%s'" % cfg)
-    # Wait until desired HDF5 file appears in the archive (or a timeout occurs)
+    # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
+    # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
     user_logger.info("Waiting for HDF5 file '%s' to appear in archive" % (h5file,))
-#    timeout = 40
-#    while timeout > 0:
+    # timeout = 300
+    # while timeout > 0:
     while True:
         if archive:
             ar = arutils.ArchiveBrowser(archive)
@@ -93,23 +94,25 @@ if not opts.dry_run:
         elif os.path.exists(h5file):
             break
         time.sleep(1)
-#        timeout -= 1
-#    if timeout == 0:
-#        raise RuntimeError("Timed out waiting for HDF5 file '%s' to appear in '%s' archive" %
-#                           (h5file, archive.name if archive else 'local'))
+    #     timeout -= 1
+    # if timeout == 0:
+    #     raise RuntimeError("Timed out waiting for HDF5 file '%s' to appear in '%s' archive" %
+    #                        (h5file, archive.name if archive else 'local'))
     # Copy file to local machine if needed
     if archive:
         os.system(ar.generate_script())
     if not os.path.isfile(h5file):
         raise RuntimeError("Could not copy file '%s' from archive to local machine" % (h5file,))
 
-    # Obtain list of antennas present in data set
+    # Obtain list of antennas and polarisations present in data set
     user_logger.info('Loading HDF5 file into scape and reducing the data')
     f = h5py.File(h5file, 'r')
     antennas = [int(ant[7:]) for ant in f['Antennas'].iternames()]
+    has_h_pol = ['H' in f['Antennas'][ant_group] for ant_group in f['Antennas']]
+    has_v_pol = ['V' in f['Antennas'][ant_group] for ant_group in f['Antennas']]
     f.close()
     # Iterate through antennas
-    for ant in antennas:
+    for ind, ant in enumerate(antennas):
         # Load file and do standard processing
         d = scape.DataSet(h5file, baseline='A%dA%d' % (ant, ant))
         d = d.select(freqkeep=range(start_freq_channel, end_freq_channel + 1))
@@ -117,14 +120,26 @@ if not opts.dry_run:
         d.convert_power_to_temperature()
         d = d.select(labelkeep='scan', copy=False)
         d.average()
-        d.fit_beams_and_baselines()
         # Only use the first compound scan for fitting beam and baseline
         compscan = d.compscans[0]
-        beam = compscan.beam
-        baseline = compscan.baseline_height()
         # Calculate average target flux over entire band
         flux_spectrum = [compscan.target.flux_density(freq) for freq in channel_freqs]
         average_flux = np.mean([flux for flux in flux_spectrum if flux])
+        # Fit individual polarisation beams first, to get gains and system temperatures
+        gain_hh, gain_vv = None, None
+        baseline_hh, baseline_vv = None, None
+        if has_h_pol[ind]:
+            d.fit_beams_and_baselines(pol='HH', circular_beam=False)
+            if compscan.beam is not None and d.data_unit == 'K':
+                gain_hh = compscan.beam.height / average_flux
+                baseline_hh = compscan.baseline_height()
+        if has_v_pol[ind]:
+            d.fit_beams_and_baselines(pol='VV', circular_beam=False)
+            if compscan.beam is not None and d.data_unit == 'K':
+                gain_vv = compscan.beam.height / average_flux
+                baseline_vv = compscan.baseline_height()
+        d.fit_beams_and_baselines(pol='I', circular_beam=True)
+        beam = compscan.beam
         # Obtain middle timestamp of compound scan, where all pointing calculations are done
         compscan_times = np.hstack([scan.timestamps for scan in compscan.scans])
         middle_time = np.median(compscan_times, axis=None)
@@ -136,39 +151,50 @@ if not opts.dry_run:
 
         user_logger.info("Antenna %d" % (ant,))
         user_logger.info("---------")
+        user_logger.info("Target = '%s', azel around (%.1f, %.1f) deg" %
+                         (compscan.target.name, requested_azel[0], requested_azel[1]))
         if beam is None:
-            user_logger.info("no beam found")
+            user_logger.info("No total power beam found")
         else:
-            user_logger.info("beam height = %g %s" % (beam.height, d.data_unit))
-            user_logger.info("beam width = %g arcmin" % (60 * katpoint.rad2deg(beam.width),))
-            user_logger.info("beam offset = (%g, %g) arcmin" % (60 * offset_azel[0], 60 * offset_azel[1]))
-        if baseline is None:
-            user_logger.info("no baseline found")
+            user_logger.info("Beam height = %g %s" % (beam.height, d.data_unit))
+            user_logger.info("Beamwidth = %.1f' (expected %.1f')" %
+                             (60 * katpoint.rad2deg(beam.width), 60 * katpoint.rad2deg(beam.expected_width)))
+            user_logger.info("Beam offset = (%.1f', %.1f') (expected (0', 0'))" %
+                             (60 * offset_azel[0], 60 * offset_azel[1]))
+        if gain_hh is None:
+            user_logger.info("HH parameters could not be determined (no HH data or noise diode cal / beam fit failed)")
         else:
-            user_logger.info("baseline height = %g %s" % (baseline, d.data_unit))
+            user_logger.info("HH gain = %.5f K/Jy" % (gain_hh,))
+            user_logger.info("HH Tsys = %.1f K" % (baseline_hh,))
+        if gain_vv is None:
+            user_logger.info("VV parameters could not be determined (no VV data or noise diode cal / beam fit failed)")
+        else:
+            user_logger.info("VV gain = %.5f K/Jy" % (gain_vv,))
+            user_logger.info("VV Tsys = %.1f K" % (baseline_vv,))
 
         if plot:
-            plt.figure(ant)
+            plt.figure(ant, figsize=(10, 10))
             plt.clf()
+            plt.subplots_adjust(bottom=0.3)
             plt.subplot(211)
             scape.plot_compound_scan_in_time(compscan)
-            plt.title("%s '%s'\nazel=(%.1f, %.1f) deg, offset=(%.1f, %.1f) arcmin" %
+            plt.title("%s '%s'\nazel=(%.1f, %.1f) deg, offset=(%.1f', %.1f')" %
                       (d.antenna.name, compscan.target.name, requested_azel[0], requested_azel[1],
                        60. * offset_azel[0], 60. * offset_azel[1]), size='medium')
             plt.ylabel('Total power (%s)' % d.data_unit)
             plt.subplot(212)
             scape.plot_compound_scan_on_target(compscan)
+            # Print additional info as text labels
+            beam_str = "Beamwidth = %.1f' (expected %.1f')\nBeam height = %g %s" % \
+                       (60 * katpoint.rad2deg(beam.width), 60 * katpoint.rad2deg(beam.expected_width),
+                        beam.height, d.data_unit) if beam is not None else "No I beam"
+            plt.figtext(0.05, 0.2, beam_str, va='top', ha='left')
+            hh_str = "HH gain = %.5f K/Jy\nHH Tsys = %.1f K" % (gain_hh, baseline_hh) \
+                     if gain_hh is not None else "No HH parameters"
+            plt.figtext(0.05, 0.1, hh_str, va='top', ha='left')
+            vv_str = "VV gain = %.5f K/Jy\nVV Tsys = %.1f K" % (gain_vv, baseline_vv) \
+                     if gain_vv is not None else "No VV parameters"
+            plt.figtext(0.55, 0.1, vv_str, va='top', ha='left')
             plt.show()
-            # if beam:
-            #     plt.figtext(0.05, 0.05, ("Beamwidth = %.1f' (expected %.1f')\n" +
-            #                              "Beam height = %.1f %s\n" +
-            #                              "HH/VV gain = %.3f/%.3f Jy/%s\n" +
-            #                              "Baseline height = %.1f %s") %
-            #                   (60. * katpoint.rad2deg(beam.width),
-            #                    60. * katpoint.rad2deg(beam.expected_width),
-            #                    beam.height, d.data_unit,
-            #                    average_flux / , average_flux / beam_params[8], current_dataset.data_unit,
-            #                    baseline_height_I, current_dataset.data_unit)
-            #     , va='bottom', ha='left')
-                
+
     os.remove(h5file)
