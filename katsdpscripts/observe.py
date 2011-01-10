@@ -268,7 +268,7 @@ class CaptureSession(object):
             session._log_info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
                               (nd_params['diode'], nd_params['on'], nd_params['off']))
         else:
-            session._log_info("Noise diode will not fire")
+            session._log_info("Noise diode will not fire automatically")
         # Log the activity parameters (if config manager is around)
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
@@ -293,10 +293,15 @@ class CaptureSession(object):
         # If the DBE is simulated, it will have position update commands
         if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
             first_ant = ants.devs[0]
+            # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
+            update_period_sec = 0.4 / dump_rate
+            # Tell the position sensors to report their values periodically at this rate
+            # Remember that this should be an *integer* number of milliseconds
+            first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(int(1000 * update_period_sec)))
+            first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(int(1000 * update_period_sec)))
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
-            # The minimum time between position updates is just a little less than the standard (az, el) sensor period
-            first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, 0.4)
-            first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, 0.4)
+            first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, update_period_sec)
+            first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, update_period_sec)
             session._log_info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
         session._log_info("--------------------------")
 
@@ -543,6 +548,10 @@ class CaptureSession(object):
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
+        # If using DBE simulator and target is azel type, move test target here (allows changes in correlation power)
+        if hasattr(kat.dbe.req, 'dbe_test_target') and target.body_type == 'azel':
+            azel = katpoint.rad2deg(np.array(target.azel()))
+            kat.dbe.req.dbe_test_target(azel[0], azel[1], 100.)
         # Obtain target associated with the current compound scan
         req = kat.dbe.req.k7w_get_target()
         current_target = req[1] if req else ''
@@ -664,6 +673,10 @@ class CaptureSession(object):
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
+        # If using DBE simulator and target is azel type, move test target here (allows changes in correlation power)
+        if hasattr(kat.dbe.req, 'dbe_test_target') and target.body_type == 'azel':
+            azel = katpoint.rad2deg(np.array(target.azel()))
+            kat.dbe.req.dbe_test_target(azel[0], azel[1], 100.)
         # Obtain target associated with the current compound scan
         req = kat.dbe.req.k7w_get_target()
         current_target = req[1] if req else ''
@@ -807,6 +820,10 @@ class CaptureSession(object):
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
         kat.dbe.req.target(target)
+        # If using DBE simulator and target is azel type, move test target here (allows changes in correlation power)
+        if hasattr(kat.dbe.req, 'dbe_test_target') and target.body_type == 'azel':
+            azel = katpoint.rad2deg(np.array(target.azel()))
+            kat.dbe.req.dbe_test_target(azel[0], azel[1], 100.)
         # Obtain target associated with the current compound scan
         req = kat.dbe.req.k7w_get_target()
         current_target = req[1] if req else ''
@@ -1201,7 +1218,7 @@ def standard_script_options(usage, description):
     parser.add_option('-r', '--dump-rate', type="float", default=1.0, help='Dump rate, in Hz (default="%default")')
     parser.add_option('-w', '--discard-slews', dest='record_slews', action="store_false", default=True,
                       help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
-    parser.add_option('-n', '--nd-params', default='pin,10,10,180',
+    parser.add_option('-n', '--nd-params', default='coupler,10,10,180',
                       help='Noise diode parameters as "diode,on,off,period", in seconds (default="%default")')
     parser.add_option('-y', '--dry-run', action='store_true', default=False,
                       help="Do not actually observe, but display script actions at predicted times (default=%default)")
