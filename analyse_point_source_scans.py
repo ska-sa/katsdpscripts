@@ -40,7 +40,7 @@ parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string",
 parser.add_option("-k", "--keep", dest="keepfilename", type="string", default='',
                   help="Name of optional CSV file used to select compound scans from datasets (implies batch mode)")
 parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
-                  help="Name of optional directory containing noise diode model files")
+                  help="Name of optional directory containing noise diode model files (*assumes COUPLER diode*)")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
 parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='',
@@ -168,6 +168,7 @@ def load_reduce(index):
         # If noise diode models are supplied, insert them into data set before converting to temperature
         if antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
             try:
+                # This is currently hard-coded to coupler models
                 nd_hpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sH_coupler.txt' % (antenna.name[3],))
                 nd_vpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sV_coupler.txt' % (antenna.name[3],))
                 logger.info("Loading noise diode model '%s'" % (nd_hpol_file,))
