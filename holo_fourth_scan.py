@@ -7,7 +7,7 @@
 # up on the target. This can be done as follows:
 #   kat.ant1.req.target(kat.sources["EUTELSAT W2M"]) # or whatever your source
 #   az=0.0;el=0.0; kat.ant1.req.offset_fixed(az,el,'stereographic');
-# Now iterate\ively increase az, el to maximize the magnitude
+# Now iteratively increase az, el to maximize the magnitude
 #   kat.dh.sd.plot_time_series('mag', products=[(1,2,'HH')], start_channel=377,stop_channel=378)
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
@@ -21,8 +21,7 @@ from katuilib.observe import standard_script_options, verify_and_connect, user_l
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
-                               description="Perform mini (Zorro) raster scans across the holography sources \
-                                            Some options are **required**.")
+                                 description="Perform raster scan across holography source. Some options are **required**.")
 # Add experiment-specific options
 parser.add_option('-t', '--target', default="EUTELSAT W2M",
                   help="Name of the source, as accepted by kat.sources (default=%default)")
@@ -33,7 +32,7 @@ parser.add_option('-X', '--extent', dest='extent_deg', type="float", default=1.5
 parser.add_option('-x', '--step', dest='step_deg', type="float", default=0.075,
                   help="Angular spacing of scans (in az or el, depending on scan direction), in degrees (default=%default)")
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Fourth holography scan')
+parser.set_defaults(description='Holography script version 4')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -46,8 +45,9 @@ with verify_and_connect(opts) as kat:
     except:
         pass
 
-    # The real experiment: Create a data capturing session with the selected sub-array of antennas
+    # The real experiment starts here, by creating a data capturing session
     with CaptureSession(kat, **vars(opts)) as session:
+        # Setup strategies for the sensors we want to wait() on
         kat.ant1.req.sensor_sampling("lock","event")
         kat.ant1.req.sensor_sampling("scan.status","event")
         kat.dbe.req.capture_setup()

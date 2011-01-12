@@ -21,8 +21,7 @@ from katuilib.observe import standard_script_options, verify_and_connect, user_l
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
-                               description="Perform mini (Zorro) raster scans across the holography sources \
-                                            Some options are **required**.")
+                                 description="Perform raster scan across holography source. Some options are **required**.")
 # Add experiment-specific options
 parser.add_option('-e', '--scan_in_elevation', action="store_true", default=False,
                   help="Scan in elevation rather than in azimuth, (default=%default)")
@@ -31,7 +30,7 @@ parser.add_option('-X', '--extent', dest='extent_deg', type="float", default=1.5
 parser.add_option('-x', '--step', dest='step_deg', type="float", default=0.075,
                   help="Angular spacing of scans (in az or el, depending on scan direction), in degrees (default=%default)")
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Second holography scan')
+parser.set_defaults(description='Holography script version 3')
 # Parse the command line
 opts, args = parser.parse_args()
 
