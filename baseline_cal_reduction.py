@@ -110,7 +110,7 @@ cable_length_diff = augmented_baseline[3] * cable_lightspeed
 sigma_cable_length_diff = sigma_augmented_baseline[3] * cable_lightspeed
 
 # First guesses of cable lengths, from cfgdet-array.ini
-old_cable_length = {'ant1': 95.5, 'ant2': 108.8, 'ant3': 95.5 + 50, 'ant4': 95.5 + 70, 'ant5': 95.5 + 70}
+old_cable_length = {'ant1': 95.5, 'ant2': 108.8, 'ant3': 95.5 + 50, 'ant4': 95.5 + 70, 'ant5': 95.5 + 70, 'ant6': 95.5 + 70, 'ant7': 95.5 + 70}
 
 # Stop the fringes (make a copy of the data first)
 scans2 = [scan.select(copy=True) for scan in scans]
