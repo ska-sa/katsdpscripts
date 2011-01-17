@@ -1265,7 +1265,7 @@ def verify_and_connect(opts):
         try:
             opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" %
                                   tuple(opts.nd_params.split(',')), {})
-        except TypeError, NameError:
+        except (TypeError, NameError):
             raise ValueError("Noise diode parameters are incorrect (should be 'diode,on,off,period')")
         for key in ('on', 'off', 'period'):
             if opts.nd_params[key] != float(opts.nd_params[key]):
