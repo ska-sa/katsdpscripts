@@ -152,6 +152,8 @@ class CaptureSession(object):
         of the next proper scan. If False, the file output (but not the signal
         displays) is paused while the antennas slew, and the data file contains
         only proper scans.
+    stow_when_done : {True, False}, optional
+        If True, stow the antennas when the capture session completes.
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -161,12 +163,13 @@ class CaptureSession(object):
         If antenna with a specified name is not found on KAT connection object
 
     """
-    def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, **kwargs):
+    def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, stow_when_done=False, **kwargs):
         try:
             self.kat = kat
             self.experiment_id = experiment_id
             self.ants = ants = ant_array(kat, ants)
             self.record_slews = record_slews
+            self.stow_when_done = stow_when_done
             # By default, no noise diodes are fired
             self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
@@ -882,7 +885,7 @@ class CaptureSession(object):
 
         """
         # Create reference to session and KAT objects, as this allows easy copy-and-pasting from this function
-        session, kat = self, self.kat
+        session, kat, ants = self, self.kat, self.ants
 
         # Obtain the name of the file currently being written to
         reply = kat.dbe.req.k7w_get_current_file()
@@ -896,12 +899,17 @@ class CaptureSession(object):
             kat.cfg.req.set_script_param("script-endtime",
                                          time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
             kat.cfg.req.set_script_param("script-status", "ended")
+
+        if session.stow_when_done:
+            session._log_info("Stowing dishes.")
+            ants.req.mode("STOW")
+
         session._log_info("==========================")
 
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, **kwargs):
+    def __init__(self, kat, experiment_id, observer, description, ants, record_slews=True, stow_when_done=False, **kwargs):
         self.kat = kat
         self.experiment_id = experiment_id
         self.ants = []
@@ -914,6 +922,7 @@ class TimeSession(object):
             except AttributeError:
                 pass
         self.record_slews = record_slews
+        self.stow_when_done = stow_when_done
         # By default, no noise diodes are fired
         self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
         self.last_nd_firing = 0.
@@ -1167,6 +1176,9 @@ class TimeSession(object):
         """Stop data capturing to shut down the session and close the data file."""
         user_logger.info('Scans complete, no data captured as this is a timing simulation...')
         user_logger.info('Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        if self.stow_when_done:
+            user_logger.info("Stowing dishes.")
+            self._teleport_to(katpoint.Target("azel, 0.0, 90.0"), mode="STOW")
         user_logger.info('==========================')
         duration = self.time - self.start_time
         if duration <= 100:
@@ -1222,6 +1234,8 @@ def standard_script_options(usage, description):
                       help='Noise diode parameters as "diode,on,off,period", in seconds (default="%default")')
     parser.add_option('-y', '--dry-run', action='store_true', default=False,
                       help="Do not actually observe, but display script actions at predicted times (default=%default)")
+    parser.add_option('--stow-when-done', action='store_true', default=False,
+                      help="Stow the antennas when the capture session ends.")
 
     return parser
 
