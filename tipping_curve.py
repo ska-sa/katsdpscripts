@@ -30,6 +30,6 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
 
         # Iterate through elevation angles
-        for el in [2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90]:
+        for el in [10, 12.5, 15, 17.5,  20, 22.5, 25, 27.5, 30, 32.5, 35, 37.5, 40, 42.5, 45, 47.5,  50, 52.5,  55, 57.5,  60, 62.5, 65, 67.5, 70, 72.5, 75, 77.5, 80, 82.5, 85, 87.5, 90]:
             session.track('azel, %f, %f' % (opts.az, el), duration=15.0)
             session.fire_noise_diode('coupler', on=10, off=10)
