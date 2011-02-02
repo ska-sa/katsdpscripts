@@ -24,29 +24,29 @@ import katpoint
 
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
-                               description="This processes one or more datasets (FITS or HDF5) and extracts \
-                                            fitted beam parameters from them. It runs interactively by default, \
-                                            which allows the user to inspect results and discard bad scans. \
-                                            By default all datasets in the current directory and all \
-                                            subdirectories are processed.")
-parser.add_option('-a', '--baseline', dest='baseline', type="string", metavar='BASELINE', default='AxAx',
+                               description="This processes one or more datasets (FITS or HDF5) and extracts "
+                                           "fitted beam parameters from them. It runs interactively by default, "
+                                           "which allows the user to inspect results and discard bad scans. "
+                                           "By default all datasets in the current directory and all "
+                                           "subdirectories are processed.")
+parser.add_option("-a", "--baseline", default='AxAx',
                   help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
-parser.add_option("-b", "--batch", dest="batch", action="store_true",
-                  help="True if processing is to be done in batch mode without user interaction")
-parser.add_option("-c", "--catalogue", dest="catfilename", type="string", default='',
+parser.add_option("-b", "--batch", action="store_true",
+                  help="Flag to do processing in batch mode without user interaction")
+parser.add_option("-c", "--catalogue",
                   help="Name of optional source catalogue file used to override XDM FITS targets")
-parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='90,424',
-                  help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
-parser.add_option("-k", "--keep", dest="keepfilename", type="string", default='',
+parser.add_option("-f", "--freq-chans", default='90,424',
+                  help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
+parser.add_option("-k", "--keep", dest="keepfilename",
                   help="Name of optional CSV file used to select compound scans from datasets (implies batch mode)")
-parser.add_option("-n", "--nd_models", dest="nd_dir", type="string", default='',
-                  help="Name of optional directory containing noise diode model files (*assumes COUPLER diode*)")
-parser.add_option("-o", "--output", dest="outfilebase", type="string", default='point_source_scans',
+parser.add_option("-n", "--nd-models",
+                  help="Name of optional directory containing noise diode model files")
+parser.add_option("-o", "--output", dest="outfilebase", default='point_source_scans',
                   help="Base name of output files (*.csv for output data and *.log for messages)")
-parser.add_option("-p", "--pointing_model", dest="pmfilename", type="string", default='',
+parser.add_option("-p", "--pointing-model",
                   help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
-parser.add_option("-s", "--plot_spectrum", dest="plot_spectrum", action="store_true",
-                  help="True to include spectral plot")
+parser.add_option("-s", "--plot-spectrum", action="store_true",
+                  help="Flag to include spectral plot")
 
 (opts, args) = parser.parse_args()
 if len(args) < 1:
@@ -62,14 +62,14 @@ logger.addHandler(fh)
 
 # Load catalogue used to convert ACSM targets to katpoint ones (only needed for XDM data files)
 cat = None
-if opts.catfilename:
-    cat = katpoint.Catalogue(file(opts.catfilename))
-    logger.debug("Loaded catalogue with %d source(s) from '%s'" % (len(cat.targets), opts.catfilename))
+if opts.catalogue:
+    cat = katpoint.Catalogue(file(opts.catalogue))
+    logger.debug("Loaded catalogue with %d source(s) from '%s'" % (len(cat.targets), opts.catalogue))
 # Load old pointing model parameters (useful if it is not in data file, like on XDM and early KAT-7)
 pm = None
-if opts.pmfilename:
-    pm = file(opts.pmfilename).readline().strip()
-    logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pmfilename))
+if opts.pointing_model:
+    pm = file(opts.pointing_model).readline().strip()
+    logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pointing_model))
 # Load old CSV file used to select compound scans from datasets
 keep_scans = keep_datasets = None
 if opts.keepfilename:
@@ -90,8 +90,9 @@ if opts.keepfilename:
     logger.debug("Loaded CSV file '%s' containing %d dataset(s) and %d compscan(s)" %
                  (opts.keepfilename, len(keep_datasets), len(keep_scans)))
 # Frequency channels to keep
-start_freq_channel = int(opts.freq_keep.split(',')[0])
-end_freq_channel = int(opts.freq_keep.split(',')[1])
+start_freq_channel = int(opts.freq_chans.split(',')[0])
+end_freq_channel = int(opts.freq_chans.split(',')[1])
+chan_range = range(start_freq_channel, end_freq_channel + 1)
 
 # Only import matplotlib if not in batch mode
 if not opts.batch:
@@ -142,7 +143,7 @@ def load_reduce(index):
         logger.info("Skipping dataset '%s' (based on CSV file)" % (filename,))
         return False
     logger.info("Loading dataset '%s'" % (filename,))
-    current_dataset = scape.DataSet(filename, catalogue=cat, baseline=opts.baseline)
+    current_dataset = scape.DataSet(filename, catalogue=cat, baseline=opts.baseline, nd_models=opts.nd_models)
 
     # Skip data set if antenna differs from the first antenna found, or no scans found
     if antenna is None or (antenna.name == current_dataset.antenna.name):
@@ -158,29 +159,11 @@ def load_reduce(index):
     if pm is not None:
         antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
 
-    # Standard reduction for XDM, more hard-coded version for FF / KAT-7
-    if antenna.name == 'XDM':
-        current_dataset = current_dataset.select(freqkeep=current_dataset.channel_select)
-        current_dataset.convert_power_to_temperature()
-    else:
-        # Hard-code the FF frequency band
-        current_dataset = current_dataset.select(freqkeep=range(start_freq_channel, end_freq_channel+1))
-        # If noise diode models are supplied, insert them into data set before converting to temperature
-        if antenna.name[:3] == 'ant' and os.path.isdir(opts.nd_dir):
-            try:
-                # This is currently hard-coded to coupler models
-                nd_hpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sH_coupler.txt' % (antenna.name[3],))
-                nd_vpol_file = os.path.join(opts.nd_dir, 'T_nd_A%sV_coupler.txt' % (antenna.name[3],))
-                logger.info("Loading noise diode model '%s'" % (nd_hpol_file,))
-                nd_hpol = np.loadtxt(nd_hpol_file, delimiter=',')
-                logger.info("Loading noise diode model '%s'" % (nd_vpol_file,))
-                nd_vpol = np.loadtxt(nd_vpol_file, delimiter=',')
-                nd_hpol[:, 0] /= 1e6
-                nd_vpol[:, 0] /= 1e6
-                current_dataset.nd_model = scape.gaincal.NoiseDiodeModel(nd_hpol, nd_vpol, std_temp=0.04)
-                current_dataset.convert_power_to_temperature()
-            except IOError:
-                logger.warning('Could not load noise diode model files, should be named T_nd_A1H_coupler.txt etc.')
+    # Use frequency mask in file for XDM, and user-selected range for FF / KAT-7
+    freqkeep = current_dataset.channel_select if antenna.name == 'XDM' else chan_range
+    # Standard single-dish continuum reduction
+    current_dataset = current_dataset.select(freqkeep=freqkeep)
+    current_dataset.convert_power_to_temperature()
     current_dataset = current_dataset.select(labelkeep='scan', copy=False)
     # Make a copy of the dataset before averaging the channels so that we keep the spectral information
     unaveraged_dataset = current_dataset.select(copy=True)
