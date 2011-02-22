@@ -73,6 +73,7 @@ def ratio_stats(mean_num, std_num, mean_den, std_den):
 def find_jumps(timestamps, power, std_power):
     """Find significant jumps in power and estimate the time instant of each jump."""
     # Margin within which power is deemed to be constant (i.e. expected variation of power)
+    # This works around potential biases in power levels, such as small linear slopes across jump
     margin = opts.margin_factor * std_power
     upper, lower = power + margin, power - margin
     delta_power = np.r_[power[1:], power[-1]] - np.r_[power[0], power[:-1]]
@@ -82,26 +83,32 @@ def find_jumps(timestamps, power, std_power):
     # True for each power value that is considered to be the same as the one on its left
     same_as_previous = ((power > previous_lower) & (power < previous_upper)).tolist()
     same_as_previous[0] = False
+    # True for each power value that is considered to be the same as the one on its right
     same_as_next = ((power > next_lower) & (power < next_upper)).tolist()
     same_as_next[-1] = False
+
     jumps = []
-    # Look for significant rises in power, and pick midpoint of jump
+    # Look for large instantaneous rises in power (spanning at most 2 dumps)
+    # Then pick midpoint of jump (or end of jump if no clear midpoint), and add it to candidate jumps
     rise = np.where((power > previous_upper) & (power < next_upper))[0].tolist()
-    for clique in contiguous_cliques(rise):
-        if (len(clique) == 1) or ((len(clique) == 2) and (delta_power[clique[0]] > delta_power[clique[1]])):
-            if (clique[0] not in (0, len(power) - 1)) and \
-               delta_power[clique[0]] / margin[clique[0]] > opts.jump_significance:
-                jumps.append(clique[0])
-    # Look for significant drops in power, and pick midpoint of jump
+    jumps += [clique[0] for clique in contiguous_cliques(rise)
+              if (len(clique) == 1) or ((len(clique) == 2) and (delta_power[clique[0]] > delta_power[clique[1]]))]
+    # Look for large instantaneous drops in power (spanning at most 2 dumps)
+    # Then pick midpoint of jump (or end of jump if no clear midpoint), and add it to candidate jumps
     drop = np.where((power < previous_lower) & (power > next_lower))[0].tolist()
-    for clique in contiguous_cliques(drop):
-        if (len(clique) == 1) or ((len(clique) == 2) and (delta_power[clique[0]] < delta_power[clique[1]])):
-            if (clique[0] not in (0, len(power) - 1)) and \
-               -delta_power[clique[0]] / margin[clique[0]] > opts.jump_significance:
-                jumps.append(clique[0])
+    jumps += [clique[0] for clique in contiguous_cliques(drop)
+              if (len(clique) == 1) or ((len(clique) == 2) and (delta_power[clique[0]] < delta_power[clique[1]]))]
+    # Throw out jumps on the very edges of time series (we need a dump before and after the jump)
+    jumps = [jump for jump in jumps if jump not in (0, len(power) - 1)]
+
     # Investigate each jump and determine accurate timestamp with corresponding uncertainty
     jump_time, jump_std_time, jump_size = [], [], []
     for jump in jumps:
+        # Margin / uncertainty associated with power difference between samples adjacent to jump
+        jump_margin = np.sqrt(margin[jump - 1] ** 2 + margin[jump + 1] ** 2)
+        # Throw out insignificant jumps
+        if np.abs(delta_power[jump]) / jump_margin <= opts.jump_significance:
+            continue
         # Limit the range of points around jump to use in estimation of jump instant (to ensure stationarity)
         segment_range = np.abs(timestamps - timestamps[jump]) <= opts.max_onoff_segment_duration
         # Determine earliest (and last) sample to use to estimate the mean power before (and after) the jump
@@ -121,7 +128,8 @@ def find_jumps(timestamps, power, std_power):
         # Estimate instant of jump with corresponding uncertainty (assumes timestamps are accurately known)
         jump_time.append(mean_subdump * timestamps[jump] + (1. - mean_subdump) * timestamps[jump + 1])
         jump_std_time.append(std_subdump * (timestamps[jump + 1] - timestamps[jump]))
-        jump_size.append(delta_power[jump] / margin[jump])
+        # Refined estimate of the significance of the jump, using averaged data instead of single dumps
+        jump_size.append(mean_den / std_den / opts.margin_factor)
     return jump_time, jump_std_time, jump_size
 
 offset_stats = {}
