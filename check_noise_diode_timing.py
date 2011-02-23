@@ -58,17 +58,22 @@ def contiguous_cliques(x, step=1):
     cliques.append(current)
     return cliques
 
-def ratio_stats(mean_num, std_num, mean_den, std_den):
-    """Approximate second-order statistics of ratio of uncorrelated normal variables."""
+def ratio_stats(mean_num, std_num, mean_den, std_den, corrcoef=0):
+    """Approximate second-order statistics of ratio of correlated normal variables."""
     # Transform num/den to standard form (a + x) / (b + y), with x and y uncorrelated standard normal vars
-    a, b = mean_num, mean_den / std_den
+    # Then num/den is distributed as 1/r (a + x) / (b + y) + s
+    # Therefore determine parameters a and b, scale r and translation s
+    s = corrcoef * std_num / std_den
+    a, b = mean_num - s * mean_den, mean_den / std_den
+    # Pick the sign of h so that a and b have the same sign
     sign_h = 2 * (a >= 0) * (b >= 0) - 1
-    h = sign_h * std_num
+    h = sign_h * std_num * np.sqrt(1. - corrcoef ** 2)
     a, r = a / h, std_den / h
     # Calculate the approximate mean and standard deviation of (a + x) / (b + y) a la F-distribution
     mean_axby = a * b / (b**2 - 1)
     std_axby = np.abs(b) / (b**2 - 1) * np.sqrt((a**2 + b**2 - 1) / (b**2 - 2))
-    return mean_axby / r, std_axby / np.abs(r)
+    # Translate by s and scale by r
+    return s + mean_axby / r, std_axby / np.abs(r)
 
 def find_jumps(timestamps, power, std_power):
     """Find significant jumps in power and estimate the time instant of each jump."""
@@ -120,11 +125,17 @@ def find_jumps(timestamps, power, std_power):
         mean_power_before, mean_power_after = power[before:jump].mean(), power[jump + 1:after + 1].mean()
         std_power_before = np.sqrt(np.sum(std_power[before:jump] ** 2)) / (jump - before)
         std_power_after = np.sqrt(np.sum(std_power[jump + 1:after + 1] ** 2)) / (after - jump)
-        # Use ratio of power differences before, at and after jump to estimate where in the dump the jump happened
+        # Use ratio of power differences (at - before) / (after - before) to estimate where in dump the jump happened
         mean_num, mean_den = power[jump] - mean_power_before, mean_power_after - mean_power_before
         std_num = np.sqrt(std_power[jump] ** 2 + std_power_before ** 2)
         std_den = np.sqrt(std_power_after ** 2 + std_power_before ** 2)
-        mean_subdump, std_subdump = ratio_stats(mean_num, std_num, mean_den, std_den)
+        # Since "before" power appears in both numerator and denominator, they are (slightly) correlated.
+        # NOTE: The complementary ratio (after - at) / (after - before) can also be used, and at first glance
+        # it appears to be better if std_power_after < std_power_before, which will result in smaller std_num
+        # for the same std_den. The correlation coefficient will change in such a way to cancel out this advantage,
+        # however, resulting in the same stats. We therefore do not need to consider the complementary ratio.
+        corrcoef = std_power_before ** 2 / std_num / std_den
+        mean_subdump, std_subdump = ratio_stats(mean_num, std_num, mean_den, std_den, corrcoef)
         # Estimate instant of jump with corresponding uncertainty (assumes timestamps are accurately known)
         jump_time.append(mean_subdump * timestamps[jump] + (1. - mean_subdump) * timestamps[jump + 1])
         jump_std_time.append(std_subdump * (timestamps[jump + 1] - timestamps[jump]))
