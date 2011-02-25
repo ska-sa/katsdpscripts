@@ -47,6 +47,8 @@ parser.add_option("-p", "--pointing-model",
                   help="Name of optional file containing pointing model parameters in degrees (needed for XDM)")
 parser.add_option("-s", "--plot-spectrum", action="store_true",
                   help="Flag to include spectral plot")
+parser.add_option("-t", "--time-offset", type='float', default=0.0,
+                  help="Time offset to add to DBE timestamps, in seconds (default = %default)")
 
 (opts, args) = parser.parse_args()
 if len(args) < 1:
@@ -143,8 +145,8 @@ def load_reduce(index):
         logger.info("Skipping dataset '%s' (based on CSV file)" % (filename,))
         return False
     logger.info("Loading dataset '%s'" % (filename,))
-    current_dataset = scape.DataSet(filename, catalogue=cat, baseline=opts.baseline, nd_models=opts.nd_models)
-
+    current_dataset = scape.DataSet(filename, catalogue=cat, baseline=opts.baseline,
+                                    nd_models=opts.nd_models, time_offset=opts.time_offset)
     # Skip data set if antenna differs from the first antenna found, or no scans found
     if antenna is None or (antenna.name == current_dataset.antenna.name):
         antenna = current_dataset.antenna
