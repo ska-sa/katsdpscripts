@@ -134,6 +134,8 @@ with verify_and_connect(opts) as kat:
             ants.wait('lock', True, 300)
 
     user_logger.info('Input: --dBm->| RFE5 |--dBm->| RFE7 |--dBm->| DBE |')
+    user_logger.info('Desired:      | RFE5 | %-4.1f | RFE7 | %-4.1f | DBE |' %
+                     (opts.rfe5_desired_power, opts.dbe_desired_power))
     for ant in ants.devs:
         # This assumes that antenna names have the format 'antx', where x is an integer (the antenna number)
         ant_num = int(ant.name.strip()[3:])
