@@ -68,7 +68,7 @@ with verify_and_connect(opts) as kat:
 
     cfg = kat.config_file
     h5path = reply[1].replace('writing.', '')
-    h5file = os.path.basename(h5path) if cfg.find('local') < 0 else h5path
+    h5file = os.path.basename(h5path)
 #    simulated_dbe = hasattr(kat.dbe.req, 'dbe_test_target') and hasattr(kat.dbe.req, 'dbe_pointing_az')
 
 if not opts.dry_run:
@@ -78,7 +78,9 @@ if not opts.dry_run:
         archive = arutils.karoo_archive
     elif cfg.find('lab') >= 0:
         archive = arutils.lab_archive
-    elif cfg.find('local') < 0:
+    elif cfg.find('local') >= 0:
+        archive = arutils.local_archive
+    else:
         raise RuntimeError("Could not deduce archive associated with configuration '%s'" % cfg)
     # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
     # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
