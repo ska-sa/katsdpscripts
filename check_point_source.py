@@ -69,7 +69,6 @@ with verify_and_connect(opts) as kat:
     cfg = kat.config_file
     h5path = reply[1].replace('writing.', '')
     h5file = os.path.basename(h5path)
-#    simulated_dbe = hasattr(kat.dbe.req, 'dbe_test_target') and hasattr(kat.dbe.req, 'dbe_pointing_az')
 
 if not opts.dry_run:
     ### HACK TO DEDUCE CORRECT ARCHIVE ###
