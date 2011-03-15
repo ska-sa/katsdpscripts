@@ -11,11 +11,14 @@ import uuid
 
 import numpy as np
 import katpoint
+# This is used to document available spherical projections (and set them in case of TimeSession)
+from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
 
 from .array import Array
 from .katcp_client import KATDevice
 from .defaults import user_logger
 from .utility import tbuild
+from .misc import dynamic_doc
 
 def ant_array(kat, ants, name='ants'):
     """Create sub-array of antennas from flexible specification.
@@ -534,8 +537,10 @@ class CaptureSession(object):
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
 
-    def scan(self, target, duration=30.0, start=-3.0, end=3.0, offset=0.0, index=-1,
-             scan_in_azimuth=True, drive_strategy='shortest-slew', label='scan', announce=True):
+    @dynamic_doc("', '".join(AntennaProxyModel.PROJECTIONS), AntennaProxyModel.DEFAULT_PROJECTION)
+    def scan(self, target, duration=30.0, start=-3.0, end=3.0, offset=0.0, index=-1, scan_in_azimuth=True,
+             projection=AntennaProxyModel.DEFAULT_PROJECTION, drive_strategy='shortest-slew', label='scan',
+             announce=True):
         """Scan across a target.
 
         This scans across a target with all antennas involved in the session,
@@ -566,6 +571,9 @@ class CaptureSession(object):
         scan_in_azimuth : {True, False}, optional
             True if azimuth changes during scan while elevation remains fixed;
             False if scanning in elevation and stepping in azimuth instead
+        projection : {'%s'}, optional
+            Name of projection in which to perform scan relative to target
+            (default = '%s')
         drive_strategy : {'shortest-slew', 'longest-track'}, optional
             Drive strategy employed by antennas, used to decide what to do when
             target is in azimuth overlap region of antenna. The default is to
@@ -619,9 +627,9 @@ class CaptureSession(object):
         user_logger.info('slewing to start of %s' % (scan_name,))
         # Move each antenna to the start position of the scan
         if scan_in_azimuth:
-            ants.req.scan_asym(start, offset, end, offset, duration)
+            ants.req.scan_asym(start, offset, end, offset, duration, projection)
         else:
-            ants.req.scan_asym(offset, start, offset, end, duration)
+            ants.req.scan_asym(offset, start, offset, end, duration, projection)
         ants.req.mode('POINT')
         # Wait until they are all in position (with 5 minute timeout)
         ants.wait('lock', True, 300)
@@ -639,8 +647,9 @@ class CaptureSession(object):
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
 
-    def raster_scan(self, target, num_scans=3, scan_duration=30.0,
-                    scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
+    @dynamic_doc("', '".join(AntennaProxyModel.PROJECTIONS), AntennaProxyModel.DEFAULT_PROJECTION)
+    def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
+                    scan_in_azimuth=True, projection=AntennaProxyModel.DEFAULT_PROJECTION,
                     drive_strategy='shortest-slew', label='raster', announce=True):
         """Perform raster scan on target.
 
@@ -675,6 +684,9 @@ class CaptureSession(object):
         scan_in_azimuth : {True, False}
             True if azimuth changes during scan while elevation remains fixed;
             False if scanning in elevation and stepping in azimuth instead
+        projection : {'%s'}, optional
+            Name of projection in which to perform scan relative to target
+            (default = '%s')
         drive_strategy : {'shortest-slew', 'longest-track'}
             Drive strategy employed by antennas, used to decide what to do when
             target is in azimuth overlap region of antenna. The default is to
@@ -733,7 +745,8 @@ class CaptureSession(object):
         # Perform multiple scans across the target
         for scan_index, (scan, step) in enumerate(scan_step):
             session.scan(target, duration=scan_duration, start=scan, end=-scan, offset=step, index=scan_index,
-                         scan_in_azimuth=scan_in_azimuth, drive_strategy=drive_strategy, label=label, announce=False)
+                         scan_in_azimuth=scan_in_azimuth, projection=projection, drive_strategy=drive_strategy,
+                         label=label, announce=False)
         return True
 
     def end(self):
@@ -970,7 +983,8 @@ class TimeSession(object):
         return True
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
-             drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=AntennaProxyModel.DEFAULT_PROJECTION, drive_strategy='shortest-slew',
+             label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
@@ -979,7 +993,8 @@ class TimeSession(object):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
-        self.projection = ('ARC', start, 0.) if scan_in_azimuth else ('ARC', 0., start)
+        projection = Offset.PROJECTIONS[projection]
+        self.projection = (projection, start, 0.) if scan_in_azimuth else (projection, 0., start)
         user_logger.info('slewing to start of scan')
         self._slew_to(target, mode='SCAN')
         user_logger.info('start of scan reached')
@@ -989,15 +1004,16 @@ class TimeSession(object):
         self.time += duration + 1.0
         user_logger.info('scan complete')
         self.fire_noise_diode(announce=False, **self.nd_params)
-        self.projection = ('ARC', end, 0.) if scan_in_azimuth else ('ARC', 0., end)
+        self.projection = (projection, end, 0.) if scan_in_azimuth else (projection, 0., end)
         self._teleport_to(target)
         return True
 
-    def raster_scan(self, target, num_scans=3, scan_duration=30.0,
-                    scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
+    def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
+                    scan_in_azimuth=True, projection=AntennaProxyModel.DEFAULT_PROJECTION,
                     drive_strategy='shortest-slew', label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        projection = Offset.PROJECTIONS[projection]
         if announce:
             user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
                              (num_scans, scan_duration, scan_extent, target.name))
@@ -1016,7 +1032,7 @@ class TimeSession(object):
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
-            self.projection = ('ARC', scan[0], scan[1])
+            self.projection = (projection, scan[0], scan[1])
             user_logger.info('slewing to start of scan %d' % (scan_count,))
             self._slew_to(target, mode='SCAN')
             user_logger.info('start of scan %d reached' % (scan_count,))
@@ -1026,7 +1042,7 @@ class TimeSession(object):
             self.time += scan_duration + 1.0
             user_logger.info('scan %d complete' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
-            self.projection = ('ARC', -scan[0], scan[1]) if scan_in_azimuth else ('ARC', scan[0], -scan[1])
+            self.projection = (projection, -scan[0], scan[1]) if scan_in_azimuth else (projection, scan[0], -scan[1])
             self._teleport_to(target)
         return True
 
