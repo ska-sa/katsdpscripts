@@ -19,16 +19,16 @@ parser = standard_script_options(usage="%prog [options] [<catalogue files>]",
                                              "or the default. This script is aimed at fast scans across a large range "
                                              "of sources. Some options are **required**.")
 # Add experiment-specific options
-parser.add_option('-e', '--scan_in_elevation', action="store_true", default=False,
+parser.add_option('-e', '--scan-in-elevation', action="store_true", default=False,
                   help="Scan in elevation rather than in azimuth (default=%default)")
-parser.add_option('-m', '--min_time', type="float", default=-1.0,
+parser.add_option('-m', '--min-time', type="float", default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 # Set default value for any option (both standard and experiment-specific options)
 parser.add_option('-z', '--skip-catalogue',
                   help="Name of file containing catalogue of targets to skip (updated with observed targets). "
                        "The default is not to skip any targets.")
-parser.add_option('--source-strength', type="choice", default="auto", choices=['strong', 'weak', 'auto'],
-                  help="Select scanning strategy based on strength of sources. Options are 'strong' or 'weak' or 'auto'."
+parser.add_option('--source-strength', type='choice', default='auto', choices=('strong', 'weak', 'auto'),
+                  help="Scanning strategy based on source strength, one of 'strong', 'weak' or 'auto' (default). "
                        "Auto is based on flux density specified in catalogue.")
 parser.add_option('--horizon', type="float", default=5.0, help="Horizon limit in degrees (default=%default)")
 parser.set_defaults(description='Point source scan')
@@ -80,10 +80,12 @@ with verify_and_connect(opts) as kat:
                     if (opts.source_strength == 'strong' or
                         (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 25.0)):
                         session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
-                                            scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation)
+                                            scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
                     else:
                         session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
-                                            scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation)
+                                            scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
                     targets_observed.append(target.name)
                     skip_file.write(target.description + "\n")
                     # The default is to do only one iteration through source list

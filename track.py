@@ -10,11 +10,11 @@ import katpoint
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target 1'> [<'target 2'> ...]",
-                                 description="Track one or more sources for a specified time. At least one \
-                                              target must be specified. Note also some **required** options below.")
+                                 description='Track one or more sources for a specified time. At least one '
+                                             'target must be specified. Note also some **required** options below.')
 # Add experiment-specific options
-parser.add_option('-t', '--track_duration', type='int', default=60,
-                  help='Length of time to track each source, in integer secs (default="%default")')
+parser.add_option('-t', '--track-duration', type='float', default=60.0,
+                  help='Length of time to track each source, in seconds (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track')
 # Parse the command line
@@ -22,8 +22,8 @@ opts, args = parser.parse_args()
 
 # Check options and arguments, and build KAT configuration, connecting to proxies and devices
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument \
-                      (via name, e.g. 'Cygnus A' or description, e.g. 'azel, 20, 30')")
+    raise ValueError("Please specify at least one target argument "
+                     "(via name, e.g. 'Cygnus A' or description, e.g. 'azel, 20, 30')")
 
 with verify_and_connect(opts) as kat:
 
@@ -37,10 +37,6 @@ with verify_and_connect(opts) as kat:
         for target in targets:
             target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
             user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name))
-            if not session.target_visible(target, opts.track_duration):
-                user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
-                continue
-
             # Split the total track on one target into segments lasting as long as the noise diode period
             # This ensures the maximum number of noise diode firings
             total_track_time = 0.

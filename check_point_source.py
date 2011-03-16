@@ -22,11 +22,11 @@ import scape
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] ['target']",
-                                 description="Perform mini raster scan across (nearest) point source and reduce \
-                                              data to check system performance. Some options are **required**.")
+                                 description='Perform mini raster scan across (nearest) point source and reduce '
+                                             'data to check system performance. Some options are **required**.')
 # Add experiment-specific options
-parser.add_option("-c", "--channels", default='100,400',
-                  help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
+parser.add_option('-c', '--channels', default='100,400',
+                  help="Frequency channel range to keep (zero-based, specified as 'start,end', default='%default')")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Point source check', observer='check', nd_params='coupler,0,0,-1', dump_rate=2.0)
 # Parse the command line

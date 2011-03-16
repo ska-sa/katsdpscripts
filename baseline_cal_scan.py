@@ -12,12 +12,12 @@ import katpoint
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] [<catalogue files>]",
-                                 description="Track various point sources from the specified catalogue file(s), or use \
-                                              the default catalogue if none is specified. This is useful for baseline \
-                                              (antenna location) calibration. Remember to specify the observer and \
-                                              antenna options, as these are **required**.")
+                                 description='Track various point sources from the specified catalogue file(s), or use '
+                                             'the default catalogue if none is specified. This is useful for baseline '
+                                             '(antenna location) calibration. Remember to specify the observer and '
+                                             'antenna options, as these are **required**.')
 # Add experiment-specific options
-parser.add_option('-m', '--min_time', type='float', default=-1.0,
+parser.add_option('-m', '--min-time', type='float', default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Baseline calibration', nd_params='pin,0,0,-1')
