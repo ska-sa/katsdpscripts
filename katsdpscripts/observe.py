@@ -20,6 +20,12 @@ from .defaults import user_logger
 from .utility import tbuild
 from .misc import dynamic_doc
 
+# Obtain list of spherical projections and the default projection from antenna proxy
+_projections, _default_proj = AntennaProxyModel.PROJECTIONS, AntennaProxyModel.DEFAULT_PROJECTION
+# Move default projection to front of list
+_projections.remove(_default_proj)
+_projections.insert(0, _default_proj)
+
 def ant_array(kat, ants, name='ants'):
     """Create sub-array of antennas from flexible specification.
 
@@ -593,10 +599,9 @@ class CaptureSession(object):
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
 
-    @dynamic_doc("', '".join(AntennaProxyModel.PROJECTIONS), AntennaProxyModel.DEFAULT_PROJECTION)
+    @dynamic_doc("', '".join(_projections), _default_proj)
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
-             projection=AntennaProxyModel.DEFAULT_PROJECTION,
-             drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=_default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Scan across a target.
 
         This scans across a target, either in azimuth or elevation (depending on
@@ -727,11 +732,10 @@ class CaptureSession(object):
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
 
-    @dynamic_doc("', '".join(AntennaProxyModel.PROJECTIONS), AntennaProxyModel.DEFAULT_PROJECTION)
-    def raster_scan(self, target, num_scans=3, scan_duration=30.0,
-                    scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
-                    projection=AntennaProxyModel.DEFAULT_PROJECTION,
-                    drive_strategy='shortest-slew', label='raster', announce=True):
+    @dynamic_doc("', '".join(_projections), _default_proj)
+    def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
+                    scan_in_azimuth=True, projection=_default_proj, drive_strategy='shortest-slew',
+                    label='raster', announce=True):
         """Perform raster scan on target.
 
         A *raster scan* is a series of scans across a target, scanning in either
@@ -1035,13 +1039,13 @@ class TimeSession(object):
                        nd_params={'diode' : 'pin', 'on' : 10.0, 'off' : 10.0, 'period' : 180.}, **kwargs):
         """Set up LO frequency, dump rate and noise diode parameters."""
         self.nd_params = nd_params
-        user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s' % \
+        user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s' %
                          (centre_freq, dump_rate, self.record_slews))
         if nd_params['period'] > 0:
-            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
                              (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
         elif nd_params['period'] == 0:
-            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" % \
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
                              (nd_params['diode'], nd_params['on'], nd_params['off']))
         else:
             user_logger.info('Noise diode will not fire')
@@ -1125,8 +1129,7 @@ class TimeSession(object):
         return True
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
-             projection=AntennaProxyModel.DEFAULT_PROJECTION,
-             drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=_default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
@@ -1150,15 +1153,14 @@ class TimeSession(object):
         self._teleport_to(target)
         return True
 
-    def raster_scan(self, target, num_scans=3, scan_duration=30.0,
-                    scan_extent=6.0, scan_spacing=0.5, scan_in_azimuth=True,
-                    projection=AntennaProxyModel.DEFAULT_PROJECTION,
-                    drive_strategy='shortest-slew', label='raster', announce=True):
+    def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
+                    scan_in_azimuth=True, projection=_default_proj, drive_strategy='shortest-slew',
+                    label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         projection = Offset.PROJECTIONS[projection]
         if announce:
-            user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" % \
+            user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
                              (num_scans, scan_duration, scan_extent, target.name))
         nd_time = self.nd_params['on'] + self.nd_params['off']
         nd_time *= scan_duration / max(self.nd_params['period'], scan_duration)
@@ -1239,16 +1241,19 @@ def standard_script_options(usage, description):
                       'together (UUID generated by default)')
     parser.add_option('-o', '--observer', help='Name of person doing the observation (**required**)')
     parser.add_option('-d', '--description', default='No description.',
-                      help='Description of observation (default="%default")')
+                      help="Description of observation (default='%default')")
     parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
                       "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
     parser.add_option('-f', '--centre-freq', type='float', default=1822.0,
-                      help='Centre frequency, in MHz (default="%default")')
-    parser.add_option('-r', '--dump-rate', type="float", default=1.0, help='Dump rate, in Hz (default="%default")')
-    parser.add_option('-w', '--discard-slews', dest='record_slews', action="store_false", default=True,
+                      help='Centre frequency, in MHz (default=%default)')
+    parser.add_option('-r', '--dump-rate', type='float', default=1.0, help='Dump rate, in Hz (default=%default)')
+    parser.add_option('-w', '--discard-slews', dest='record_slews', action='store_false', default=True,
                       help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
     parser.add_option('-n', '--nd-params', default='coupler,10,10,180',
-                      help='Noise diode parameters as "diode,on,off,period", in seconds (default="%default")')
+                      help="Noise diode parameters as 'diode,on,off,period', in seconds (default='%default')")
+    parser.add_option('-p', '--projection', type='choice', choices=_projections, default=_default_proj,
+                      help="Spherical projection in which to perform scans, one of '%s' (default), '%s'" %
+                           (_projections[0], "', '".join(_projections[1:])))
     parser.add_option('-y', '--dry-run', action='store_true', default=False,
                       help="Do not actually observe, but display script actions at predicted times (default=%default)")
     parser.add_option('--stow-when-done', action='store_true', default=False,
