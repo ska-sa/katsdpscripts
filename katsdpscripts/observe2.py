@@ -157,8 +157,11 @@ class CaptureSession(object):
             reply = kat.dbe.req.k7w_capture_init()
             if not reply.succeeded:
                 raise CaptureInitError(reply[1])
-            # Enable logging to the new HDF5 file via the usual logger
+            # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
             self._script_log_handler = ScriptLogHandler(kat)
+            if len(user_logger.handlers) > 0:
+                self._script_log_handler.setLevel(user_logger.handlers[0].level)
+                self._script_log_handler.setFormatter(user_logger.handlers[0].formatter)
             user_logger.addHandler(self._script_log_handler)
 
             user_logger.info('==========================')
@@ -184,6 +187,7 @@ class CaptureSession(object):
             kat.dbe.req.k7w_set_script_param('script-ants', ','.join(ant_names))
         except Exception, e:
             user_logger.error('CaptureSession failed to initialise (%s)' % (e,))
+            user_logger.removeHandler(self._script_log_handler)
             raise
 
     def __enter__(self):

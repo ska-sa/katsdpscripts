@@ -66,6 +66,30 @@ def ant_array(kat, ants, name='ants'):
         # The default assumes that *ants* is a list of antenna devices
         return Array(name, ants)
 
+class ActivityLogHandler(logging.Handler):
+    """Logging handler that writes logging records to KAT activity log.
+
+    Parameters
+    ----------
+    kat : :class:`utility.KATHost` object
+        KAT connection object associated with this experiment
+
+    """
+    def __init__(self, kat):
+        logging.Handler.__init__(self)
+        self.kat = kat
+
+    def emit(self, record):
+        """Emit a logging record."""
+        try:
+            msg = self.format(record)
+            if self.kat.has_connected_device('cfg'):
+                self.kat.cfg.req.activity_log('observe', msg)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+
 class CaptureScan(object):
     """Context manager that encapsulates the capturing of a single scan.
 
@@ -183,13 +207,19 @@ class CaptureSession(object):
             self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
 
-            self._log_info("==========================")
-            self._log_info("New data capturing session")
-            self._log_info("--------------------------")
-            self._log_info("Experiment ID = %s" % (experiment_id,))
-            self._log_info("Observer = %s" % (observer,))
-            self._log_info("Description ='%s'" % description)
-            self._log_info("Antennas used = %s" % (' '.join([ant.name for ant in ants.devs]),))
+            # Enable logging to the KAT activity log via the usual logger
+            self._activity_log_handler = ActivityLogHandler(kat)
+            self._activity_log_handler.setLevel(logging.INFO)
+            self._activity_log_handler.setFormatter(logging.Formatter("%(levelname)s - %(message)s"))
+            user_logger.addHandler(self._activity_log_handler)
+
+            user_logger.info("==========================")
+            user_logger.info("New data capturing session")
+            user_logger.info("--------------------------")
+            user_logger.info("Experiment ID = %s" % (experiment_id,))
+            user_logger.info("Observer = %s" % (observer,))
+            user_logger.info("Description ='%s'" % description)
+            user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants.devs]),))
 
             # Start with a clean state, by stopping the DBE
             kat.dbe.req.capture_stop()
@@ -212,25 +242,9 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-description", description)
                 kat.cfg.req.set_script_param("script-status", "started")
         except Exception, e:
-            self._log_error("CaptureSession failed to initialise (%s)" % (e,))
+            user_logger.error("CaptureSession failed to initialise (%s)" % (e,))
+            user_logger.removeHandler(self._activity_log_handler)
             raise
-
-    def _log(self, level, msg):
-        user_logger.log(level, msg)
-        if self.kat.has_connected_device('cfg'):
-            self.kat.cfg.req.activity_log("observe",logging.getLevelName(level)+" - "+msg)
-
-    def _log_info(self, msg):
-        level = logging.INFO
-        self._log(level, msg)
-
-    def _log_warning(self, msg):
-        level = logging.WARN
-        self._log(level, msg)
-
-    def _log_error(self, msg):
-        level = logging.ERROR
-        self._log(level, msg)
 
     def __enter__(self):
         """Enter the data capturing session."""
@@ -239,7 +253,7 @@ class CaptureSession(object):
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
         if exc_value is not None:
-            self._log_error('Session interrupted by exception (%s)' % (exc_value,))
+            user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
         self.end()
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
@@ -271,16 +285,16 @@ class CaptureSession(object):
         session, kat, ants = self, self.kat, self.ants
         session.nd_params = nd_params
 
-        session._log_info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
-                          (centre_freq, dump_rate, session.record_slews))
+        user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
+                         (centre_freq, dump_rate, session.record_slews))
         if nd_params['period'] > 0:
-            session._log_info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
-                              (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" %
+                             (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
         elif nd_params['period'] == 0:
-            session._log_info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
-                              (nd_params['diode'], nd_params['on'], nd_params['off']))
+            user_logger.info("Will switch '%s' noise diode on for %g s and off for %g s at every opportunity" %
+                             (nd_params['diode'], nd_params['on'], nd_params['off']))
         else:
-            session._log_info("Noise diode will not fire automatically")
+            user_logger.info("Noise diode will not fire automatically")
         # Log the activity parameters (if config manager is around)
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
@@ -314,8 +328,8 @@ class CaptureSession(object):
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
             first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, update_period_sec)
             first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, update_period_sec)
-            session._log_info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
-        session._log_info("--------------------------")
+            user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+        user_logger.info("--------------------------")
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target.
@@ -396,10 +410,10 @@ class CaptureSession(object):
             return True
         always_invisible = any(~np.array(visible_before) & ~np.array(visible_after))
         if always_invisible:
-            self._log_warning("Target '%s' is never up during requested period (average elevation is %g degrees)" %
+            user_logger.warning("Target '%s' is never up during requested period (average elevation is %g degrees)" %
                                 (target.name, np.mean(average_el)))
         else:
-            self._log_warning("Target '%s' will rise or set during requested period" % (target.name,))
+            user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
     def start_scan(self, label):
@@ -478,9 +492,9 @@ class CaptureSession(object):
         pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
         if announce:
-            session._log_info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
+            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
         else:
-            session._log_info('firing noise diode')
+            user_logger.info('firing noise diode')
 
         with session.start_scan(label):
             # Switch noise diode on on all antennas
@@ -491,7 +505,7 @@ class CaptureSession(object):
             # Switch noise diode off on all antennas
             pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
             time.sleep(off)
-        session._log_info('noise diode fired')
+        user_logger.info('noise diode fired')
 
         return True
 
@@ -547,9 +561,9 @@ class CaptureSession(object):
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         if announce:
-            session._log_info("Initiating %g-second track on target '%s'" % (duration, target.name))
+            user_logger.info("Initiating %g-second track on target '%s'" % (duration, target.name))
         if not session.target_visible(target, duration):
-            session._log_warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
+            user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
         # Check if we are currently on the desired target (saves a slewing step)
         on_target = session.on_target(target)
@@ -580,21 +594,21 @@ class CaptureSession(object):
 
         # Avoid slewing if we are already on target
         if not on_target:
-            session._log_info('slewing to target')
+            user_logger.info('slewing to target')
             with session.start_scan('slew'):
                 # Start moving each antenna to the target
                 ants.req.mode('POINT')
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
-            session._log_info('target reached')
+            user_logger.info('target reached')
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
-        session._log_info('tracking target')
+        user_logger.info('tracking target')
         with session.start_scan('scan'):
             # Do nothing else for the duration of the track
             time.sleep(duration)
-        session._log_info('target tracked for %g seconds' % (duration,))
+        user_logger.info('target tracked for %g seconds' % (duration,))
 
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
@@ -678,9 +692,9 @@ class CaptureSession(object):
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         if announce:
-            session._log_info("Initiating %g-second scan across target '%s'" % (duration, target.name))
+            user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
         if not session.target_visible(target, duration):
-            session._log_warning("Skipping scan, as target '%s' will be below horizon" % (target.name,))
+            user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (target.name,))
             return False
 
         # Set the drive strategy for how antenna moves between targets
@@ -707,7 +721,7 @@ class CaptureSession(object):
         else:
             session.fire_noise_diode(announce=False, **session.nd_params)
 
-        session._log_info('slewing to start of scan')
+        user_logger.info('slewing to start of scan')
         with session.start_scan('slew'):
             # Move each antenna to the start position of the scan
             if scan_in_azimuth:
@@ -717,17 +731,17 @@ class CaptureSession(object):
             ants.req.mode('POINT')
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
-        session._log_info('start of scan reached')
+        user_logger.info('start of scan reached')
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
-        session._log_info('starting scan')
+        user_logger.info('starting scan')
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
             ants.wait('scan_status', 'after', 300)
-        session._log_info('scan complete')
+        user_logger.info('scan complete')
 
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
@@ -823,7 +837,7 @@ class CaptureSession(object):
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         if announce:
-            session._log_info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
+            user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'" %
                              (num_scans, scan_duration, scan_extent, target.name))
         # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
         nd_time = session.nd_params['on'] + session.nd_params['off']
@@ -831,7 +845,7 @@ class CaptureSession(object):
         nd_time = nd_time if session.nd_params['period'] >= 0 else 0.
         # Check whether the target will be visible for entire duration of raster scan
         if not session.target_visible(target, (scan_duration + nd_time) * num_scans):
-            session._log_warning("Skipping raster scan, as target '%s' will be below horizon" % (target.name,))
+            user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" % (target.name,))
             return False
 
         # Set the drive strategy for how antenna moves between targets
@@ -868,7 +882,7 @@ class CaptureSession(object):
         # Iterate through the scans across the target
         for scan_count, scan in enumerate(scan_starts):
 
-            session._log_info('slewing to start of scan %d' % (scan_count,))
+            user_logger.info('slewing to start of scan %d' % (scan_count,))
             with session.start_scan('slew'):
                 # Move each antenna to the start position of the next scan
                 if scan_in_azimuth:
@@ -878,17 +892,17 @@ class CaptureSession(object):
                 ants.req.mode('POINT')
                 # Wait until they are all in position (with 5 minute timeout)
                 ants.wait('lock', True, 300)
-            session._log_info('start of scan %d reached' % (scan_count,))
+            user_logger.info('start of scan %d reached' % (scan_count,))
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
-            session._log_info('starting scan %d' % (scan_count,))
+            user_logger.info('starting scan %d' % (scan_count,))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
                 # Wait until they are all finished scanning (with 5 minute timeout)
                 ants.wait('scan_status', 'after', 300)
-            session._log_info('scan %d complete' % (scan_count,))
+            user_logger.info('scan %d complete' % (scan_count,))
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
@@ -907,22 +921,23 @@ class CaptureSession(object):
         # Obtain the name of the file currently being written to
         reply = kat.dbe.req.k7w_get_current_file()
         outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
-        session._log_info('Scans complete, data captured to %s' % (outfile,))
+        user_logger.info('Scans complete, data captured to %s' % (outfile,))
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         kat.dbe.req.capture_stop()
-        session._log_info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
+        user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-endtime",
                                          time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
             kat.cfg.req.set_script_param("script-status", "ended")
 
         if session.stow_when_done:
-            session._log_info("Stowing dishes.")
+            user_logger.info("Stowing dishes.")
             ants.req.mode("STOW")
 
-        session._log_info("==========================")
-
+        user_logger.info("==========================")
+        # Finally disable activity logging
+        user_logger.removeHandler(self._activity_log_handler)
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
