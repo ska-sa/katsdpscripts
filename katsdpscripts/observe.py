@@ -509,7 +509,7 @@ class CaptureSession(object):
 
         return True
 
-    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
+    def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
         """Track a target.
 
         This tracks the specified target while recording data.
@@ -536,7 +536,7 @@ class CaptureSession(object):
             Target to track, as an object or description string
         duration : float, optional
             Minimum duration of track, in seconds
-        drive_strategy : {'longest-track', 'shortest-slew'}, optional
+        drive_strategy : {'shortest-slew', 'longest-track'}, optional
             Drive strategy employed by antennas, used to decide what to do when
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that will permit the longest possible track before
@@ -1122,7 +1122,7 @@ class TimeSession(object):
         user_logger.info('fired noise diode')
         return True
 
-    def track(self, target, duration=20.0, drive_strategy='longest-track', label='track', announce=True):
+    def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
         """Estimate time taken to perform track."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
