@@ -44,5 +44,5 @@ with verify_and_connect(opts) as kat:
                 next_track = opts.track_duration - total_track_time
                 if opts.nd_params['period'] > 0:
                     next_track = min(next_track, opts.nd_params['period'])
-                session.track(target, duration=next_track, drive_strategy='longest-track', label='', announce=False)
+                session.track(target, duration=next_track, label='', announce=False)
                 total_track_time += next_track
