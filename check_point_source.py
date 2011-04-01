@@ -55,7 +55,7 @@ with verify_and_connect(opts) as kat:
                 current_el = session.ants.devs[0].sensor.pos_actual_scan_elev.get_value()
             current_pos = katpoint.construct_azel_target(katpoint.deg2rad(current_az), katpoint.deg2rad(current_el))
             # Get closest strong source that is up
-            strong_sources = kat.sources.filter(el_limit_deg=15, flux_limit_Jy=100, flux_freq_MHz=opts.centre_freq)
+            strong_sources = kat.sources.filter(el_limit_deg=[15, 75], flux_limit_Jy=100, flux_freq_MHz=opts.centre_freq)
             target = strong_sources.targets[np.argmin([t.separation(current_pos) for t in strong_sources])]
 
         session.fire_noise_diode('coupler', 4, 4)
