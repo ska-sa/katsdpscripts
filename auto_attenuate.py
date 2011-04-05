@@ -112,10 +112,10 @@ opts.observer = 'Otto Attenuator'
 
 with verify_and_connect(opts) as kat:
 
-    # Populate lookup table that maps ant+pol to DBE input for FF correlator
-    for dbe_input in ['0x', '0y', '1x', '1y']:
-        ant_pol = getattr(kat.dbe.sensor, 'input_mappings_%s' % (dbe_input,)).get_value()
-        connected_antpols[ant_pol] = dbe_input
+    # Populate lookup table that maps ant+pol to DBE input
+    for dbe_input_sensor in [sensor for sensor in vars(kat.dbe.sensor) if sensor.startswith('input_mappings_')]:
+        ant_pol = getattr(kat.dbe.sensor, dbe_input_sensor).get_value()
+        connected_antpols[ant_pol] = dbe_input_sensor[15:]
 
     # Create device array of antennas, based on specification string
     ants = ant_array(kat, opts.ants)
@@ -141,7 +141,7 @@ with verify_and_connect(opts) as kat:
         ant_num = int(ant.name.strip()[3:])
         for pol in ('h', 'v'):
             if 'ant%d, %s' % (ant_num, pol) not in connected_antpols:
-                user_logger.info('ant%d %s: not connected to FF DBE' % (ant_num, pol.upper()))
+                user_logger.info('ant%d %s: not connected to DBE' % (ant_num, pol.upper()))
                 continue
             rfe5_in = get_rfe5_input_power(kat, ant_num, pol)
             # Adjust RFE stage 5 attenuation to give desired output power (short waits required to stabilise power)
