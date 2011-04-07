@@ -907,6 +907,14 @@ class TimeSession(object):
             user_logger.info('Noise diode will not fire')
         user_logger.info('--------------------------')
 
+    def capture_start(self):
+        """Starting capture has no timing effect."""
+        pass
+
+    def label(self, label):
+        """Adding label has no timing effect."""
+        pass
+
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
         for antenna, mode, ant_az, ant_el in self.ants:
@@ -945,10 +953,6 @@ class TimeSession(object):
             user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
-    def start_scan(self, label):
-        """Starting scan has no major timing effect."""
-        pass
-
     def fire_noise_diode(self, diode='coupler', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
         """Estimate time taken to fire noise diode."""
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
@@ -962,6 +966,10 @@ class TimeSession(object):
         self.time += off
         user_logger.info('fired noise diode')
         return True
+
+    def set_target(self, target):
+        """Setting target has no timing effect."""
+        pass
 
     def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
         """Estimate time taken to perform track."""
