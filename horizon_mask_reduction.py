@@ -123,7 +123,6 @@ def main():
     hh_data = (azimuth, elevation, power_hh_db)
     hh_titles = ('Azimuth (deg)', 'Elevation (deg)', 'Power (dB) for %s HH' % (opts.baseline,))
     vv_data = (azimuth, elevation, power_vv_db)
-    print vv_data
     vv_titles = ('Azimuth (deg)', 'Elevation (deg)', 'Power (dB) for %s VV' % (opts.baseline,))
     az_max, az_min = np.ceil(max(azimuth)), np.floor(min(azimuth))
     el_max, el_min = np.ceil(max(elevation)), np.floor(min(elevation))
