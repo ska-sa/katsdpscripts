@@ -44,8 +44,9 @@ if len(args) < 1:
     print 'Please specify at least one data file to reduce'
     sys.exit(1)
 
+print "\nLoading and processing data...\n"
 # Open data file
-f = h5py.File(args[0])
+f = h5py.File(args[0], 'r')
 
 # Extract antenna objects and input map
 ant_names = f['Antennas'].listnames()
@@ -82,6 +83,10 @@ max_delay = 0.5 / channel_bw
 # The division by sqrt(N-1) converts the per-channel standard deviation to a per-snapshot deviation
 max_sigma_delay = np.abs(2 * max_delay) / np.sqrt(12) / np.sqrt(len(channel_freqs) - 1)
 
+ant_list = ', '.join([(name + ' (*ref*)' if ind == ref_ant_ind else name) for ind, name in enumerate(ant_names)])
+print 'antennas (%d): %s [pol %s]' % (len(ants), ant_list, opts.pol)
+print 'baselines (%d): %s' % (len(baselines), ' '.join([('%dx%d' % (antA, antB)) for antA, antB in baselines]))
+
 augmented_targetdir, group_delay, sigma_delay = [], [], []
 for compscan in f['Scans']:
     compscan_group = f['Scans'][compscan]
@@ -89,6 +94,7 @@ for compscan in f['Scans']:
     for scan in compscan_group:
         scan_group = compscan_group[scan]
         if scan_group.attrs['label'] != 'scan':
+            print "scan %s/%s skipped '%s'" % (compscan, scan, scan_group.attrs['label'])
             continue
         # Convert from millisecs to secs since Unix epoch, and be sure to use float64 to preserve digits
         # Also move correlator data timestamps from start of each sample to the middle
@@ -99,6 +105,7 @@ for compscan in f['Scans']:
         # Invert sign of target vector, as positive dot product with baseline implies negative delay / advance
         # Augment target vector with a 1, as this allows fitting of constant (receiver) delay
         scan_augmented_targetdir = np.vstack((-targetdir, np.ones(len(el))))
+        scan_norm_sigma = []
         for ant_A, ant_B in baselines:
             # Extract visibility of the selected baseline
             corr_prod = str(reverse_input_map[inputs[ant_A] + inputs[ant_B]])
@@ -113,10 +120,11 @@ for compscan in f['Scans']:
             delay = phase_diff_per_Hz / (-2.0 * np.pi)
             # Obtain robust periodic statistics for *per-channel* phase difference
             delay_stats_mu, delay_stats_sigma = scape.stats.periodic_mu_sigma(delay, axis=1, period=2 * max_delay)
-            group_delay.append(delay_stats_mu)
             # The estimated mean group delay is the average of N-1 per-channel differences. Since this is less
             # variable than the per-channel data itself, we have to divide the data sigma by sqrt(N-1).
-            sigma_delay.append(delay_stats_sigma / np.sqrt(len(channel_freqs) - 1))
+            delay_stats_sigma /= np.sqrt(len(channel_freqs) - 1)
+            group_delay.append(delay_stats_mu)
+            sigma_delay.append(delay_stats_sigma)
             # Insert augmented direction block into proper spot to build design matrix
             augm_block = np.zeros((4 * len(ants), len(timestamps)))
             # Since baseline AB = (ant B - ant A) positions, insert target dirs with appropriate sign
@@ -124,6 +132,10 @@ for compscan in f['Scans']:
             augm_block[(4 * ant_A):(4 * ant_A + 4), :] = -scan_augmented_targetdir
             augm_block[(4 * ant_B):(4 * ant_B + 4), :] = scan_augmented_targetdir
             augmented_targetdir.append(augm_block)
+            scan_norm_sigma.append(delay_stats_sigma.mean() / max_sigma_delay)
+        print "scan %s/%s %s '%s'" % \
+              (compscan, scan, ' '.join([('%.3f' % norm_sigma) for norm_sigma in scan_norm_sigma]), target.name)
+
 # Concatenate per-scan arrays into a single array for data set
 augmented_targetdir = np.hstack(augmented_targetdir)
 group_delay = np.hstack(group_delay)
@@ -140,7 +152,7 @@ b = group_delay / sigma_delay
 # Throw out data points with standard deviations above the given threshold
 A = A[:, sigma_delay < opts.max_sigma * max_sigma_delay]
 b = b[sigma_delay < opts.max_sigma * max_sigma_delay]
-print 'Fitting %d parameters to %d data points (discarded %d)...' % (A.shape[0], len(b), len(sigma_delay) - len(b))
+print '\nFitting %d parameters to %d data points (discarded %d)...' % (A.shape[0], len(b), len(sigma_delay) - len(b))
 if len(b) == 0:
     raise ValueError('No solution possible, as all data points were discarded')
 # Solve linear least-squares problem using SVD (see NRinC, 2nd ed, Eq. 15.4.17)
@@ -169,7 +181,7 @@ sigma_receiver_delays = sigma_cable_lengths / cable_lightspeed
 
 # Output results
 for n, ant in enumerate(ants):
-    print "Antenna", ant.name, ' (*REFERENCE*)' if n == ref_ant_ind else ''
+    print "\nAntenna", ant.name, ' (*REFERENCE*)' if n == ref_ant_ind else ''
     print "------------"
     print "E (m):               %7.3f +- %.5f (was %7.3f)%s" % \
           (positions[n, 0], sigma_positions[n, 0], old_positions[n, 0],
@@ -186,4 +198,3 @@ for n, ant in enumerate(ants):
     print "Receiver delay (ns): %7.3f +- %.3f   (was %7.3f)%s" % \
           (receiver_delays[n] * 1e9, sigma_receiver_delays[n] * 1e9, old_receiver_delays[n] * 1e9,
            ' *' if np.abs(receiver_delays[n] - old_receiver_delays[n]) > 3 * sigma_receiver_delays[n] else '')
-    print
