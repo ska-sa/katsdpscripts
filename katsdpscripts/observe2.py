@@ -277,7 +277,7 @@ class CaptureSession(object):
     def capture_start(self):
         """Start capturing data to HDF5 file."""
         # This starts the SPEAD stream on the DBE
-        self.kat.dbe.req.dbe_capture_start()
+        self.kat.dbe.req.dbe_capture_start('k7')
 
     def label(self, label):
         """Add timestamped label to HDF5 file."""
