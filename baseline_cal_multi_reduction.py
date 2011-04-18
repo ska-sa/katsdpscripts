@@ -103,9 +103,11 @@ class Hdf5DataV1(object):
                                                 if channel_range is not None else (0, num_chans - 1)
         self.channel_freqs = self.channel_freqs[self.first_channel:self.last_channel + 1]
         self.dump_rate = f['Correlator'].attrs['dump_rate_hz']
-
         self._time_offset = time_offset
-        self._scan_group = f['Scans'].values()[0].values()[0]
+        try:
+            self._scan_group = f['Scans']['CompoundScan0']['Scan0']
+        except (KeyError, h5py.H5Error):
+            self._scan_group = None
         self.start_time = self.timestamps()[0]
         self._f = f
 
@@ -138,18 +140,21 @@ class Hdf5DataV1(object):
     def scans(self):
         """Generator that iterates through scans."""
         scan_index = 0
-        for compscan_index, compscan in enumerate(self._f['Scans']):
-            compscan_group = self._f['Scans'][compscan]
+        for compscan_index in range(len(self._f['Scans'])):
+            compscan_group = self._f['Scans']['CompoundScan' + str(compscan_index)]
             target = katpoint.Target(compscan_group.attrs['target'])
             compscan_label = compscan_group.attrs['label']
-            for scan in compscan_group:
-                self._scan_group = compscan_group[scan]
+            for scan in range(len(compscan_group)):
+                self._scan_group = compscan_group['Scan' + str(scan)]
                 state = self._scan_group.attrs['label']
                 if state == 'scan' and compscan_label == 'track':
                     state = 'track'
                 yield scan_index, compscan_index, state, target
                 scan_index += 1
-        self._scan_group = self._f['Scans'].values()[0].values()[0]
+        try:
+            self._scan_group = self._f['Scans']['CompoundScan0']['Scan0']
+        except (KeyError, h5py.H5Error):
+            self._scan_group = None
 
     def vis(self, corrprod):
         """Extract complex visibility data of given correlation product with shape (T, F) for current scan."""
@@ -430,6 +435,7 @@ U, s, Vrt = np.linalg.svd(A.transpose(), full_matrices=False)
 params = np.dot(Vrt.T, np.dot(U.T, b) / s)
 # Also obtain standard errors of parameters (see NRinC, 2nd ed, Eq. 15.4.19)
 sigma_params = np.sqrt(np.sum((Vrt.T / s[np.newaxis, :]) ** 2, axis=1))
+print 'Condition number = %.3f' % (s[0] / s[-1],)
 
 # Reshape parameters to be per antenna, also inserting a row of zeros for reference antenna
 ant_params = params.reshape(-1, 4)
@@ -487,7 +493,7 @@ def extract_scan_segments(x):
 plt.figure(1)
 plt.clf()
 scan_freqinds = [np.arange(num_bls * num_chans)] * len(scan_timestamps)
-scape.plots_basic.plot_segments(scan_timestamps, scan_freqinds, scan_phase, labels=scan_targets, monotonic_axis='x')
+scape.plots_basic.plot_segments(scan_timestamps, scan_freqinds, scan_phase, labels=scan_targets)
 plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(data.start_time).local(),))
 plt.yticks(np.arange(num_chans // 2, num_bls * num_chans, num_chans), baseline_names)
 for yval in range(0, num_bls * num_chans, num_chans):
@@ -499,9 +505,9 @@ plt.clf()
 resid_ind = [np.arange(scan_start, scan_start + num_bls*scan_len)
              for scan_start, scan_len in zip(scan_bl_starts, scan_lengths)]
 scape.plots_basic.plot_segments(resid_ind, extract_scan_segments(old_resid / 1e-9),
-                                labels=scan_targets, width=sample_period, monotonic_axis='x', color='b')
+                                labels=scan_targets, width=sample_period, color='b')
 scape.plots_basic.plot_segments(resid_ind, extract_scan_segments(new_resid / 1e-9), labels=[],
-                                width=sample_period, monotonic_axis='x', color='r')
+                                width=sample_period, color='r')
 plt.axhline(-0.5 * delay_period / 1e-9, color='k', linestyle='--')
 plt.axhline(0.5 * delay_period / 1e-9, color='k', linestyle='--')
 plt.xticks([])
@@ -521,15 +527,15 @@ for n in range(num_bls):
     bl_old_resid = extract_bl_segments(old_resid, n, scale, n * delay_period)
     bl_new_resid = extract_bl_segments(new_resid, n, scale, n * delay_period)
     resid_sigma = extract_bl_segments(sigma_delay, n, scale)
-    old_resid_range = [np.c_[r - s, r + s] for r, s in zip(bl_old_resid, resid_sigma)]
+    old_resid_range = [np.c_[resid - sigma, resid + sigma] for resid, sigma in zip(bl_old_resid, resid_sigma)]
     plt.axhline(n * delay_period, color='k')
     plt.axhline((n + 0.5) * delay_period, color='k', linestyle='--')
     scape.plots_basic.plot_segments(scan_timestamps, old_resid_range, labels=[], width=sample_period,
-                                    add_breaks=False, monotonic_axis='x', color='b', alpha=0.5)
+                                    add_breaks=False, color='b', alpha=0.5)
     scape.plots_basic.plot_segments(scan_timestamps, bl_old_resid, labels=scan_targets,
-                                    width=sample_period, monotonic_axis='x', color='b')
+                                    width=sample_period, color='b')
     scape.plots_basic.plot_segments(scan_timestamps, bl_new_resid, labels=[], width=sample_period,
-                                    add_breaks=False, monotonic_axis='x', color='r', lw=2)
+                                    add_breaks=False, color='r', lw=2)
 plt.ylim(-0.5 * delay_period, (num_bls - 0.5) * delay_period)
 plt.yticks(np.arange(num_bls) * delay_period, baseline_names)
 plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(data.start_time).local(),))
