@@ -18,7 +18,7 @@ parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string",
                 help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='pre-defined_rfi',
                 help="Base name of output files (*.csv for output data and *.log for messages)")
-parser.add_option("-c", "--output_chan", dest="outfilebase2", type="string", default='contaminted_rfi_channels',
+parser.add_option("-c", "--output_chan", dest="outfilebase2", type="string", default='contaminte_rfi_channels',
                 help="Base name of output files (*.txt for output data and *.log for messages)")
 parser.add_option("-s", "--size", dest="file_size", type=float, default=100.0,
                 help="Size of the file to be reduced Default = %default")
@@ -39,13 +39,14 @@ logger = logging.root
 datasets, output_data = [],[]
 output_chan, output_ts, abs_time = [], [], []
 output_az, output_el = [], []
-"""
-ar = arutils.ArchiveBrowser(arutils.karoo_archive_cpt)
-ar.filter_by_date(start_date=opts.startdate, end_date=opts.enddate)
-ar._filter_from_string('antennas', '^%s' % opts.ant)
-datasets = [i['file_name'] for i in ar.kath5s if os.path.getsize(i['file_name'])/1e6 < opts.file_size]
-print "Length of datasets found is:", len(datasets)
-"""
+
+#ar = arutils.ArchiveBrowser(arutils.karoo_archive_cpt)
+#ar.filter_by_date(start_date=opts.startdate, end_date=opts.enddate)
+#ar._filter_from_string('antennas', '^%s' % opts.ant)
+#datasets = [i['file_name'] for i in ar.kath5s if os.path.getsize(i['file_name'])/1e6 < opts.file_size]
+#datasets = [i['file_name'] for i in ar.kath5s]
+#print "Length of datasets found is:", len(datasets)
+
 def walk_callback(arg, directory, files):
     datasets.extend([os.path.join(directory, f) for f in files if f.endswith('.h5') and os.path.getsize(os.path.join(directory, f))/1e6 <= opts.file_size])
 for arg in args:
@@ -112,7 +113,8 @@ class Index:
 
         self.filename = datasets[self.ind]
         try:
-            logger.info("Loading dataset %s , File size is %fMB, This is File number %s" % (os.path.basename(self.filename),os.path.getsize(self.filename)/1e6,self.ind))
+            #logger.info("Loading dataset %s , File size is %fMB, This is File number %s" % (os.path.basename(self.filename),os.path.getsize(self.filename)/1e6,self.ind))
+            logger.info("Loading dataset %s , File size is %fMB, This is File number %s" % (os.path.basename(self.filename),os.path.getsize(self.filename),self.ind))
             current_dataset = DataSet(self.filename, baseline=opts.baseline)
             out_filename =os.path.basename(self.filename)
             start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -121,14 +123,15 @@ class Index:
             current_dataset = current_dataset.select(labelkeep='scan', copy=False)
             if len(current_dataset.compscans) == 0 or len(current_dataset.scans) == 0:
                 logger.warning('No scans found in file, skipping data set')
+         
             # try to extract antenna target points per each timestamps
-
             for cscan in current_dataset.compscans:
                 target = cscan.target.name
                 az = np.hstack([scan.pointing['az'] for scan in cscan.scans])
                 el = np.hstack([scan.pointing['el'] for scan in cscan.scans])
                 ts = np.hstack([scan.timestamps for scan in cscan.scans])
                 azimuth.extend(katpoint.rad2deg(az)),elevation.extend(katpoint.rad2deg(el))
+
             azimuth, elevation = np.array(azimuth), np.array(elevation)
             ts,f,amp = extract_xyz_data(current_dataset,'abs_time','freq','amp')
             power,freq = amp.data,f.data
@@ -143,13 +146,14 @@ class Index:
             TT = T.ravel()
             FF = F.ravel()
             PP = p.ravel()
-
+            
             def onselect_next(eclick,erelease):
                 global output_data, output_chan, output_ts
                 xmin = min(eclick.xdata, erelease.xdata)
                 xmax = max(eclick.xdata, erelease.xdata)
                 ymin = min(eclick.ydata, erelease.ydata)
                 ymax = max(eclick.ydata, erelease.ydata)
+
                 ind = (FF >= xmin) & (FF <= xmax)  & (PP >= ymin) & (PP <= ymax)
                 selected_freq = FF[ind]
                 selected_amp = 10.0*np.log10(PP[ind])
@@ -157,17 +161,18 @@ class Index:
                 selected_az = AA[ind]
                 selected_el = EE[ind]
                 print "SUCCESSFUL, CLICK AND DRAG TO SELECT THE NEXT RFI CHANNELS OR NEXT TO LOAD NEW DATASET"
+
                 #sorting with increasng X_new
                 indices = np.lexsort(keys = (selected_ts, selected_freq))
+
                 for index in indices:
-                    output_data.append([out_filename, selected_freq[index],selected_ts[index],katpoint.Timestamp(selected_ts[index]).local(),
-                    selected_az[index], selected_el[index], selected_amp[index]])
+                    output_data.append([out_filename, selected_freq[index],selected_ts[index], katpoint.Timestamp(selected_ts[index]).local(), selected_az[index], selected_el[index], selected_amp[index]])
                 for point in output_data:
                     output_chan.append(point[1])
                     output_ts.append(point[2])
                     output_az.append(point[4])
                     output_el.append(point[5])
-
+                    
             def toggle_selector_next(event):
                 print ' Key pressed.'
                 if event.key in ['Q', 'q'] and toggle_selector.RS.active:
