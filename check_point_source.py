@@ -58,6 +58,7 @@ with verify_and_connect(opts) as kat:
         session.fire_noise_diode('coupler', 4, 4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
 
+if not opts.dry_run:
     # Obtain the name of the file currently being written to
     reply = session.dbe.req.k7w_get_current_file()
     if not reply.succeeded:
@@ -67,7 +68,6 @@ with verify_and_connect(opts) as kat:
     h5path = reply[1].replace('writing.', '')
     h5file = os.path.basename(h5path)
 
-if not opts.dry_run:
     ### HACK TO DEDUCE CORRECT ARCHIVE ###
     archive = None
     if cfg.find('karoo') >= 0:
