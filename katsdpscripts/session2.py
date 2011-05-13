@@ -1,13 +1,15 @@
-"""Set of useful routines to do standard observations with KAT."""
+"""CaptureSession encompassing data capturing and standard observations with KAT.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
+This defines the :class:`CaptureSession` class, which encompasses the capturing
+of data and the performance of standard scans with the KAT-7 system. It also
+provides a fake :class:`TimeSession` class, which goes through the motions in
+order to time them, but without performing any real actions.
+
+"""
 
 import time
 import logging
 import sys
-import optparse
-import uuid
 
 import numpy as np
 import katpoint
@@ -17,14 +19,13 @@ from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
 from .array import Array
 from .katcp_client import KATDevice
 from .defaults import user_logger
-from .utility import tbuild
 from .misc import dynamic_doc
 
 # Obtain list of spherical projections and the default projection from antenna proxy
-_projections, _default_proj = AntennaProxyModel.PROJECTIONS, AntennaProxyModel.DEFAULT_PROJECTION
+projections, default_proj = AntennaProxyModel.PROJECTIONS, AntennaProxyModel.DEFAULT_PROJECTION
 # Move default projection to front of list
-_projections.remove(_default_proj)
-_projections.insert(0, _default_proj)
+projections.remove(default_proj)
+projections.insert(0, default_proj)
 
 def ant_array(kat, ants, name='ants'):
     """Create sub-array of antennas from flexible specification.
@@ -83,7 +84,7 @@ class ScriptLogHandler(logging.Handler):
         """Emit a logging record."""
         try:
             msg = self.format(record)
-            self.kat.dbe.req.k7w_script_log(msg)
+            self.dbe.req.k7w_script_log(msg)
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -131,6 +132,8 @@ class CaptureSession(object):
         list of antenna devices, or a string of comma-separated antenna
         names, or the string 'all' for all antennas controlled via the
         KAT connection associated with this session
+    dbe : string, optional
+        Name of DBE proxy to use (effectively selects the correlator)
     stow_when_done : {True, False}, optional
         If True, stow the antennas when the capture session completes.
     kwargs : dict, optional
@@ -142,19 +145,23 @@ class CaptureSession(object):
         If antenna with a specified name is not found on KAT connection object
 
     """
-    def __init__(self, kat, experiment_id, observer, description, ants, stow_when_done=False, **kwargs):
+    def __init__(self, kat, experiment_id, observer, description, ants, dbe='dbe', stow_when_done=False, **kwargs):
         try:
             self.kat = kat
             self.experiment_id = experiment_id
             self.ants = ants = ant_array(kat, ants)
             ant_names = [ant.name for ant in ants.devs]
+            try:
+                self.dbe = dbe = getattr(kat, dbe)
+            except AttributeError:
+                raise ValueError("DBE proxy '%s' not found (i.e. no kat.%s exists)" % (dbe, dbe))
             self.stow_when_done = stow_when_done
             # By default, no noise diodes are fired
             self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
 
             # Prepare the capturing system, which opens the HDF5 file
-            reply = kat.dbe.req.k7w_capture_init()
+            reply = dbe.req.k7w_capture_init()
             if not reply.succeeded:
                 raise CaptureInitError(reply[1])
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
@@ -169,22 +176,23 @@ class CaptureSession(object):
             user_logger.info('--------------------------')
             user_logger.info('Experiment ID = %s' % (experiment_id,))
             user_logger.info('Observer = %s' % (observer,))
-            user_logger.info("Description ='%s'" % description)
+            user_logger.info("Description ='%s'" % (description,))
             user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
+            user_logger.info("DBE proxy used = '%s'" % (dbe.name,))
             # Obtain the name of the file currently being written to
-            reply = kat.dbe.req.k7w_get_current_file()
+            reply = dbe.req.k7w_get_current_file()
             outfile = reply[1] if reply.succeeded else '<unknown file>'
             user_logger.info('Opened output file %s' % (outfile,))
             user_logger.info('')
 
             # Log details of the script to the back-end
-            kat.dbe.req.k7w_set_script_param('script-starttime', time.time())
-            kat.dbe.req.k7w_set_script_param('script-name', sys.argv[0])
-            kat.dbe.req.k7w_set_script_param('script-arguments', ' '.join(sys.argv[1:]))
-            kat.dbe.req.k7w_set_script_param('script-experiment-id', experiment_id)
-            kat.dbe.req.k7w_set_script_param('script-observer', observer)
-            kat.dbe.req.k7w_set_script_param('script-description', description)
-            kat.dbe.req.k7w_set_script_param('script-ants', ','.join(ant_names))
+            dbe.req.k7w_set_script_param('script-starttime', time.time())
+            dbe.req.k7w_set_script_param('script-name', sys.argv[0])
+            dbe.req.k7w_set_script_param('script-arguments', ' '.join(sys.argv[1:]))
+            dbe.req.k7w_set_script_param('script-experiment-id', experiment_id)
+            dbe.req.k7w_set_script_param('script-observer', observer)
+            dbe.req.k7w_set_script_param('script-description', description)
+            dbe.req.k7w_set_script_param('script-ants', ','.join(ant_names))
         except Exception, e:
             user_logger.error('CaptureSession failed to initialise (%s)' % (e,))
             user_logger.removeHandler(self._script_log_handler)
@@ -225,8 +233,8 @@ class CaptureSession(object):
             Ignore any other keyword arguments (simplifies passing options as dict)
 
         """
-        # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
-        session, kat, ants = self, self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
         session.nd_params = nd_params
 
         user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz' % (centre_freq, dump_rate))
@@ -239,11 +247,10 @@ class CaptureSession(object):
         else:
             user_logger.info("Noise diode will not fire automatically")
         # Log parameters to output file
-        kat.dbe.req.k7w_set_script_param('script-rf-params',
-                                         'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, dump_rate))
-        kat.dbe.req.k7w_set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
-                                         (nd_params['diode'], nd_params['on'],
-                                          nd_params['off'], nd_params['period']))
+        dbe.req.k7w_set_script_param('script-rf-params',
+                                     'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, dump_rate))
+        dbe.req.k7w_set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
+                                     (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
 
         # Setup strategies for the sensors we might be wait()ing on
         ants.req.sensor_sampling('lock', 'event')
@@ -257,10 +264,10 @@ class CaptureSession(object):
         # which is used for fringe stopping (eventually). This sets the delay model and other
         # correlator parameters, such as the dump rate, and instructs the correlator to pass
         # its data to the k7writer daemon (set via configuration)
-        kat.dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
+        dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
 
         # If the DBE is simulated, it will have position update commands
-        if hasattr(kat.dbe.req, 'dbe_pointing_az') and hasattr(kat.dbe.req, 'dbe_pointing_el'):
+        if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
             first_ant = ants.devs[0]
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
             update_period_sec = 0.4 / dump_rate
@@ -269,19 +276,19 @@ class CaptureSession(object):
             first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(int(1000 * update_period_sec)))
             first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(int(1000 * update_period_sec)))
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
-            first_ant.sensor.pos_actual_scan_azim.register_listener(kat.dbe.req.dbe_pointing_az, update_period_sec)
-            first_ant.sensor.pos_actual_scan_elev.register_listener(kat.dbe.req.dbe_pointing_el, update_period_sec)
+            first_ant.sensor.pos_actual_scan_azim.register_listener(dbe.req.dbe_pointing_az, update_period_sec)
+            first_ant.sensor.pos_actual_scan_elev.register_listener(dbe.req.dbe_pointing_el, update_period_sec)
             user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
         user_logger.info("--------------------------")
 
     def capture_start(self):
         """Start capturing data to HDF5 file."""
         # This starts the SPEAD stream on the DBE
-        self.kat.dbe.req.dbe_capture_start('k7')
+        self.dbe.req.dbe_capture_start('k7')
 
     def label(self, label):
         """Add timestamped label to HDF5 file."""
-        self.kat.dbe.req.k7w_set_label(label)
+        self.dbe.req.k7w_set_label(label)
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target.
@@ -411,8 +418,8 @@ class CaptureSession(object):
         (automatically done when this object is used in a with-statement)!
 
         """
-        # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
-        session, kat, ants = self, self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
         # If period is non-negative, quit if it is not yet time to fire the noise diode
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
             return False
@@ -427,8 +434,8 @@ class CaptureSession(object):
         # Switch noise diode on on all antennas
         pedestals.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
         # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
-        if hasattr(kat.dbe.req, 'dbe_fire_nd'):
-            kat.dbe.req.dbe_fire_nd(on)
+        if hasattr(dbe.req, 'dbe_fire_nd'):
+            dbe.req.dbe_fire_nd(on)
         time.sleep(on)
         # Mark on -> off transition as last firing
         session.last_nd_firing = time.time()
@@ -453,19 +460,19 @@ class CaptureSession(object):
             Target as an object or description string
 
         """
-        # Create reference to KAT object and antennas, as this allows easy copy-and-pasting from this function
-        kat, ants = self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        ants, dbe = self.ants, self.dbe
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         # Set the antenna target (antennas will already move there if in mode 'POINT')
         ants.req.target(target)
         # Provide target to the DBE proxy, which will use it as delay-tracking center
-        kat.dbe.req.target(target)
+        dbe.req.target(target)
         # If using DBE simulator and target is azel type, move test target here (allows changes in correlation power)
-        if hasattr(kat.dbe.req, 'dbe_test_target') and target.body_type == 'azel':
+        if hasattr(dbe.req, 'dbe_test_target') and target.body_type == 'azel':
             azel = katpoint.rad2deg(np.array(target.azel()))
-            kat.dbe.req.dbe_test_target(azel[0], azel[1], 100.)
+            dbe.req.dbe_test_target(azel[0], azel[1], 100.)
 
     def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
         """Track a target.
@@ -503,8 +510,8 @@ class CaptureSession(object):
         object is used in a with-statement)!
 
         """
-        # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
-        session, kat, ants = self, self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        session, ants = self, self.ants
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
@@ -540,9 +547,9 @@ class CaptureSession(object):
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
 
-    @dynamic_doc("', '".join(_projections), _default_proj)
+    @dynamic_doc("', '".join(projections), default_proj)
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, offset=0.0, index=-1, scan_in_azimuth=True,
-             projection=_default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Scan across a target.
 
         This scans across a target with all antennas involved in the session,
@@ -607,8 +614,8 @@ class CaptureSession(object):
         this object is used in a with-statement)!
 
         """
-        # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
-        session, kat, ants = self, self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        session, ants = self, self.ants
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         scan_name = 'scan' if index < 0 else 'scan %d' % (index,)
@@ -649,9 +656,9 @@ class CaptureSession(object):
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
 
-    @dynamic_doc("', '".join(_projections), _default_proj)
+    @dynamic_doc("', '".join(projections), default_proj)
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=_default_proj, drive_strategy='shortest-slew',
+                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
                     label='raster', announce=True):
         """Perform raster scan on target.
 
@@ -720,8 +727,8 @@ class CaptureSession(object):
         (automatically done when this object is used in a with-statement)!
 
         """
-        # Create reference to session, KAT object and antennas, as this allows easy copy-and-pasting from this function
-        session, kat, ants = self, self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        session = self
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
@@ -758,18 +765,18 @@ class CaptureSession(object):
         last action (unless explicitly asked to stow).
 
         """
-        # Create reference to session and KAT objects, as this allows easy copy-and-pasting from this function
-        session, kat, ants = self, self.kat, self.ants
+        # Create references to allow easy copy-and-pasting from this function
+        session, ants, dbe = self, self.ants, self.dbe
 
         # Obtain the name of the file currently being written to
-        reply = kat.dbe.req.k7w_get_current_file()
+        reply = dbe.req.k7w_get_current_file()
         outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
         user_logger.info('Scans complete, data captured to %s' % (outfile,))
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, but the HDF5 file is left open)
-        kat.dbe.req.dbe_capture_stop()
+        dbe.req.dbe_capture_stop()
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
-        kat.dbe.req.k7w_set_script_param('script-endtime', time.time())
+        dbe.req.k7w_set_script_param('script-endtime', time.time())
 
         if session.stow_when_done:
             user_logger.info('stowing dishes')
@@ -780,11 +787,11 @@ class CaptureSession(object):
         # Disable logging to HDF5 file
         user_logger.removeHandler(self._script_log_handler)
         # Finally close the HDF5 file and prepare for augmentation after all logging and parameter settings are done
-        kat.dbe.req.k7w_capture_done()
+        dbe.req.k7w_capture_done()
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, experiment_id, observer, description, ants, stow_when_done=False, **kwargs):
+    def __init__(self, kat, experiment_id, observer, description, ants, dbe='dbe', stow_when_done=False, **kwargs):
         self.kat = kat
         self.experiment_id = experiment_id
         self.ants = []
@@ -796,6 +803,10 @@ class TimeSession(object):
                                   ant.sensor.pos_actual_scan_elev.get_value()))
             except AttributeError:
                 pass
+        try:
+            self.dbe = dbe = getattr(kat, dbe)
+        except AttributeError:
+            raise ValueError("DBE proxy '%s' not found (i.e. no kat.%s exists)" % (dbe, dbe))
         self.stow_when_done = stow_when_done
         # By default, no noise diodes are fired
         self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
@@ -830,6 +841,7 @@ class TimeSession(object):
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self.ants]),))
+        user_logger.info("DBE proxy used = '%s'" % (dbe.name,))
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
@@ -993,7 +1005,7 @@ class TimeSession(object):
         return True
 
     def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
-             projection=_default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
@@ -1018,7 +1030,7 @@ class TimeSession(object):
         return True
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=_default_proj, drive_strategy='shortest-slew',
+                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
                     label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
@@ -1081,139 +1093,3 @@ class TimeSession(object):
             else:
                 handler.setLevel(handler.old_level)
                 del handler.old_level
-
-
-def standard_script_options(usage, description):
-    """Create option parser pre-populated with standard observation script options.
-
-    Parameters
-    ----------
-    usage, description : string
-        Usage and description strings to be used for script help
-
-    Returns
-    -------
-    parser : :class:`optparse.OptionParser` object
-        Parser populated with standard script options
-
-    """
-    parser = optparse.OptionParser(usage=usage, description=description)
-
-    parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory '
-                      '(default reuses existing connection, or falls back to systems/local.conf)')
-    parser.add_option('-u', '--experiment-id', help='Experiment ID used to link various parts of experiment '
-                      'together (UUID generated by default)')
-    parser.add_option('-o', '--observer', help='Name of person doing the observation (**required**)')
-    parser.add_option('-d', '--description', default='No description.',
-                      help="Description of observation (default='%default')")
-    parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
-                      "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
-    parser.add_option('-f', '--centre-freq', type='float', default=1822.0,
-                      help='Centre frequency, in MHz (default=%default)')
-    parser.add_option('-r', '--dump-rate', type='float', default=1.0, help='Dump rate, in Hz (default=%default)')
-    parser.add_option('-n', '--nd-params', default='coupler,10,10,180',
-                      help="Noise diode parameters as 'diode,on,off,period', in seconds (default='%default')")
-    parser.add_option('-p', '--projection', type='choice', choices=_projections, default=_default_proj,
-                      help="Spherical projection in which to perform scans, one of '%s' (default), '%s'" %
-                           (_projections[0], "', '".join(_projections[1:])))
-    parser.add_option('-y', '--dry-run', action='store_true', default=False,
-                      help="Do not actually observe, but display script actions at predicted times (default=%default)")
-    parser.add_option('--stow-when-done', action='store_true', default=False,
-                      help="Stow the antennas when the capture session ends.")
-
-    return parser
-
-def verify_and_connect(opts):
-    """Verify command-line options, build KAT configuration and connect to devices.
-
-    This inspects the parsed options and requires at least *ants* and *observer*
-    to be set. It generates an experiment ID if missing and verifies noise diode
-    parameters if given. It then creates a KAT connection based on the *system*
-    option, reusing an existing connection or falling back to the local system
-    if required. The resulting KATHost object is returned.
-
-    Parameters
-    ----------
-    opts : :class:`optparse.Values` object
-        Parsed command-line options (will be updated by this function). Should
-        contain at least the options *ants*, *observer* and *system*.
-
-    Returns
-    -------
-    kat : :class:`utility.KATHost` object
-        KAT connection object associated with this experiment
-
-    Raises
-    ------
-    ValueError
-        If required options are missing
-
-    """
-    # Various non-optional options...
-    if not hasattr(opts, 'ants') or opts.ants is None:
-        raise ValueError('Please specify the antennas to use via -a option (yes, this is a non-optional option...)')
-    if not hasattr(opts, 'observer') or opts.observer is None:
-        raise ValueError('Please specify the observer name via -o option (yes, this is a non-optional option...)')
-    if not hasattr(opts, 'experiment_id') or opts.experiment_id is None:
-        # Generate unique string via RFC 4122 version 1
-        opts.experiment_id = str(uuid.uuid1())
-
-    # If given, verify noise diode parameters (should be 'string,number,number,number') and convert to dict
-    if hasattr(opts, 'nd_params'):
-        try:
-            opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" %
-                                  tuple(opts.nd_params.split(',')), {})
-        except (TypeError, NameError):
-            raise ValueError("Noise diode parameters are incorrect (should be 'diode,on,off,period')")
-        for key in ('on', 'off', 'period'):
-            if opts.nd_params[key] != float(opts.nd_params[key]):
-                raise ValueError("Parameter nd_params['%s'] = %s (should be a number)" % (key, opts.nd_params[key]))
-
-    # Try to build KAT configuration (which might be None, in which case try to reuse latest active connection)
-    # This connects to all the proxies and devices and queries their commands and sensors
-    try:
-        kat = tbuild(opts.system)
-    # Fall back to *local* configuration to prevent inadvertent use of the real hardware
-    except ValueError:
-        kat = tbuild('systems/local.conf')
-    user_logger.info("Using KAT connection with configuration: %s" % (kat.config_file,))
-
-    return kat
-
-def lookup_targets(kat, args):
-    """Look up targets by name in default catalogue, or keep as description string.
-
-    Parameters
-    ----------
-    kat : :class:`utility.KATHost` object
-        KAT connection object associated with this experiment
-    args : list of strings
-        Argument list containing mixture of target names and description strings
-
-    Returns
-    -------
-    targets : list of strings and :class:`katpoint.Target` objects
-        Targets as objects or description strings
-
-    Raises
-    ------
-    ValueError
-        If final target list is empty
-
-    """
-    # Look up target names in catalogue, and keep target description strings as is
-    targets = []
-    for arg in args:
-        # With no comma in the target string, assume it's the name of a target to be looked up in the standard catalogue
-        if arg.find(',') < 0:
-            target = kat.sources[arg]
-            if target is None:
-                user_logger.info("Unknown source '%s', skipping it" % (arg,))
-            else:
-                targets.append(target)
-        else:
-            # Assume the argument is a target description string
-            targets.append(arg)
-    if len(targets) == 0:
-        raise ValueError("No known targets found")
-    return targets
