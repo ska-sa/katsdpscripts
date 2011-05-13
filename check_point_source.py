@@ -14,8 +14,7 @@ except ImportError:
     plot = False
 import h5py
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, \
-                             CaptureSession, TimeSession, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
 import arutils
 import katpoint
 import scape
@@ -38,9 +37,7 @@ end_freq_channel = int(opts.channels.split(',')[1])
 
 with verify_and_connect(opts) as kat:
 
-    # Select either a CaptureSession for the real experiment, or a fake TimeSession
-    Session = TimeSession if opts.dry_run else CaptureSession
-    with Session(kat, **vars(opts)) as session:
+    with start_session(kat, opts) as session:
         session.standard_setup(**vars(opts))
 
         # Pick a target, either explicitly or the closest strong one
@@ -62,7 +59,7 @@ with verify_and_connect(opts) as kat:
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
 
     # Obtain the name of the file currently being written to
-    reply = kat.dbe.req.k7w_get_current_file()
+    reply = session.dbe.req.k7w_get_current_file()
     if not reply.succeeded:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
 

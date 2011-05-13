@@ -9,7 +9,7 @@ from cStringIO import StringIO
 import datetime
 import time
 
-from katuilib.observe import standard_script_options, verify_and_connect, CaptureSession, TimeSession, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
 # Set up standard script options
@@ -63,9 +63,7 @@ with verify_and_connect(opts) as kat:
         # Observed targets will be written back to catalogue file, or into the void
         skip_file = file(opts.skip_catalogue, "a") if opts.skip_catalogue is not None and not opts.dry_run else StringIO()
 
-        # Select either a CaptureSession for the real experiment, or a fake TimeSession
-        Session = TimeSession if opts.dry_run else CaptureSession
-        with Session(kat, **vars(opts)) as session:
+        with start_session(kat, opts) as session:
             session.standard_setup(**vars(opts))
             start_time = time.time()
             targets_observed = []
