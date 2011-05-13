@@ -109,6 +109,8 @@ class CaptureScan(object):
     label : string
         Label for scan in HDF5 file, usually a single computer-parseable word.
         If this is an empty string, do not create a new Scan group in the file.
+    dbe : :class:`KATDevice` object
+        DBE proxy device for the session
     record_slews : {True, False}
         If True, correlator data is recorded contiguously and the data file
         includes 'slew' scans which occur while the antennas slew to the start
@@ -117,9 +119,10 @@ class CaptureScan(object):
         only proper scans.
 
     """
-    def __init__(self, kat, label, record_slews):
+    def __init__(self, kat, label, dbe, record_slews):
         self.kat = kat
         self.label = label
+        self.dbe = dbe
         self.record_slews = record_slews
 
     def __enter__(self):
@@ -448,7 +451,7 @@ class CaptureSession(object):
             Context manager that encapsulates capturing of a single scan
 
         """
-        return CaptureScan(self.kat, label, self.record_slews)
+        return CaptureScan(self.kat, label, self.dbe, self.record_slews)
 
     def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
         """Switch noise diode on and off.
