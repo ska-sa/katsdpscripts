@@ -9,9 +9,8 @@ import time
 import numpy as np
 try:
     import matplotlib.pyplot as plt
-    plot = True
 except ImportError:
-    plot = False
+    plt = None
 import h5py
 
 from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
@@ -26,6 +25,7 @@ parser = standard_script_options(usage="%prog [options] ['target']",
 # Add experiment-specific options
 parser.add_option('-c', '--channels', default='100,400',
                   help="Frequency channel range to keep (zero-based, specified as 'start,end', default='%default')")
+parser.add_option('--no-plots', action='store_true', default=False, help='Disable plotting')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Point source check', observer='check', nd_params='coupler,0,0,-1', dump_rate=2.0)
 # Parse the command line
@@ -34,6 +34,8 @@ opts, args = parser.parse_args()
 # Frequency channels to keep
 start_freq_channel = int(opts.channels.split(',')[0])
 end_freq_channel = int(opts.channels.split(',')[1])
+if opts.no_plots:
+    plt = None
 
 with verify_and_connect(opts) as kat:
 
@@ -59,24 +61,17 @@ with verify_and_connect(opts) as kat:
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
 
 if not opts.dry_run:
-    # Obtain the name of the file currently being written to
-    reply = session.dbe.req.k7w_get_current_file()
-    if not reply.succeeded:
+    cfg = kat.config_file
+    h5file = session.output_file
+    if not h5file:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
 
-    cfg = kat.config_file
-    h5path = reply[1].replace('writing.', '')
-    h5file = os.path.basename(h5path)
-
     ### HACK TO DEDUCE CORRECT ARCHIVE ###
-    archive = None
-    if cfg.find('karoo') >= 0:
-        archive = arutils.karoo_archive
-    elif cfg.find('lab') >= 0:
-        archive = arutils.lab_archive
-    elif cfg.find('local') >= 0:
-        archive = arutils.local_archive
-    else:
+    # Assume that the archive name corresponds to the config file
+    archive_name = os.path.splitext(os.path.basename(cfg))[0]
+    try:
+        archive = arutils.DataArchive(archive_name)
+    except ValueError:
         raise RuntimeError("Could not deduce archive associated with configuration '%s'" % cfg)
     # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
     # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
@@ -170,7 +165,7 @@ if not opts.dry_run:
             user_logger.info("VV gain = %.5f K/Jy" % (gain_vv,))
             user_logger.info("VV Tsys = %.1f K" % (baseline_vv,))
 
-        if plot:
+        if plt is not None:
             plt.figure(ant, figsize=(10, 10))
             plt.clf()
             plt.subplots_adjust(bottom=0.3)
