@@ -348,6 +348,14 @@ class CaptureSession(object):
             user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
         user_logger.info("--------------------------")
 
+    def capture_start(self):
+        """Start capturing data (ignored in version 1, as start is implicit)."""
+        pass
+
+    def label(self, label):
+        """Add timestamped label to HDF5 file (ignored in version 1)."""
+        pass
+
     def on_target(self, target):
         """Determine whether antennas are tracking a given target.
 
@@ -1091,6 +1099,14 @@ class TimeSession(object):
         else:
             user_logger.info('Noise diode will not fire')
         user_logger.info('--------------------------')
+
+    def capture_start(self):
+        """Start capturing data (ignored in version 1, as start is implicit)."""
+        pass
+
+    def label(self, label):
+        """Add timestamped label to HDF5 file (ignored in version 1)."""
+        pass
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
