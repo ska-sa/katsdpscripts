@@ -750,7 +750,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
-        user_logger.info('starting scan')
+        user_logger.info('performing scan')
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
@@ -911,7 +911,7 @@ class CaptureSession(object):
 
             session.fire_noise_diode(announce=False, **session.nd_params)
 
-            user_logger.info('starting scan %d' % (scan_count,))
+            user_logger.info('performing scan %d' % (scan_count,))
             with session.start_scan('scan'):
                 # Start scanning the antennas
                 ants.req.mode('SCAN')
@@ -1181,7 +1181,7 @@ class TimeSession(object):
         user_logger.info('start of scan reached')
         self.fire_noise_diode(announce=False, **self.nd_params)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
-        user_logger.info('starting scan')
+        user_logger.info('performing scan')
         self.time += duration + 1.0
         user_logger.info('scan complete')
         self.fire_noise_diode(announce=False, **self.nd_params)
@@ -1219,7 +1219,7 @@ class TimeSession(object):
             user_logger.info('start of scan %d reached' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
-            user_logger.info('starting scan %d' % (scan_count,))
+            user_logger.info('performing scan %d' % (scan_count,))
             self.time += scan_duration + 1.0
             user_logger.info('scan %d complete' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)

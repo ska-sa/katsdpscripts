@@ -72,13 +72,13 @@ class ScriptLogHandler(logging.Handler):
 
     Parameters
     ----------
-    kat : :class:`utility.KATHost` object
-        KAT connection object associated with this experiment
+    dbe : :class:`KATDevice` object
+        DBE proxy device for the session
 
     """
-    def __init__(self, kat):
+    def __init__(self, dbe):
         logging.Handler.__init__(self)
-        self.kat = kat
+        self.dbe = dbe
 
     def emit(self, record):
         """Emit a logging record."""
@@ -165,7 +165,7 @@ class CaptureSession(object):
             if not reply.succeeded:
                 raise CaptureInitError(reply[1])
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
-            self._script_log_handler = ScriptLogHandler(kat)
+            self._script_log_handler = ScriptLogHandler(dbe)
             if len(user_logger.handlers) > 0:
                 self._script_log_handler.setLevel(user_logger.handlers[0].level)
                 self._script_log_handler.setFormatter(user_logger.handlers[0].formatter)
@@ -646,7 +646,7 @@ class CaptureSession(object):
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
-        user_logger.info('starting scan')
+        user_logger.info('performing %s' % (scan_name,))
         # Start scanning the antennas
         ants.req.mode('SCAN')
         # Wait until they are all finished scanning (with 5 minute timeout)
@@ -1004,9 +1004,10 @@ class TimeSession(object):
         self._teleport_to(target)
         return True
 
-    def scan(self, target, duration=30.0, start=-3.0, end=3.0, scan_in_azimuth=True,
+    def scan(self, target, duration=30.0, start=-3.0, end=3.0, offset=0.0, index=-1, scan_in_azimuth=True,
              projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
+        scan_name = 'scan' if index < 0 else 'scan %d' % (index,)
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
@@ -1015,17 +1016,17 @@ class TimeSession(object):
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         projection = Offset.PROJECTIONS[projection]
-        self.projection = (projection, start, 0.) if scan_in_azimuth else (projection, 0., start)
-        user_logger.info('slewing to start of scan')
+        self.projection = (projection, start, offset) if scan_in_azimuth else (projection, offset, start)
+        user_logger.info('slewing to start of %s' % (scan_name,))
         self._slew_to(target, mode='SCAN')
-        user_logger.info('start of scan reached')
+        user_logger.info('start of %s reached' % (scan_name,))
         self.fire_noise_diode(announce=False, **self.nd_params)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
-        user_logger.info('starting scan')
+        user_logger.info('performing %s' % (scan_name,))
         self.time += duration + 1.0
-        user_logger.info('scan complete')
+        user_logger.info('%s complete' % (scan_name,))
         self.fire_noise_diode(announce=False, **self.nd_params)
-        self.projection = (projection, end, 0.) if scan_in_azimuth else (projection, 0., end)
+        self.projection = (projection, end, offset) if scan_in_azimuth else (projection, offset, end)
         self._teleport_to(target)
         return True
 
@@ -1059,7 +1060,7 @@ class TimeSession(object):
             user_logger.info('start of scan %d reached' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
-            user_logger.info('starting scan %d' % (scan_count,))
+            user_logger.info('performing scan %d' % (scan_count,))
             self.time += scan_duration + 1.0
             user_logger.info('scan %d complete' % (scan_count,))
             self.fire_noise_diode(announce=False, **self.nd_params)
