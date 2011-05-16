@@ -220,6 +220,7 @@ class CaptureSession(object):
             # By default, no noise diodes are fired
             self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
+            self.output_file = ''
 
             # Enable logging to the KAT activity log via the usual logger
             self._activity_log_handler = ActivityLogHandler(kat)
@@ -234,7 +235,7 @@ class CaptureSession(object):
             user_logger.info("Observer = %s" % (observer,))
             user_logger.info("Description ='%s'" % (description,))
             user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants.devs]),))
-            user_logger.info("DBE proxy used = '%s'" % (dbe.name,))
+            user_logger.info("DBE proxy used = %s" % (dbe.name,))
 
             # Start with a clean state, by stopping the DBE
             dbe.req.capture_stop()
@@ -937,6 +938,8 @@ class CaptureSession(object):
         reply = dbe.req.k7w_get_current_file()
         outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
         user_logger.info('Scans complete, data captured to %s' % (outfile,))
+        # The final output file name after augmentation
+        session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         dbe.req.capture_stop()
@@ -978,6 +981,7 @@ class TimeSession(object):
         # By default, no noise diodes are fired
         self.nd_params = {'diode' : 'pin', 'on' : 0., 'off' : 0., 'period' : -1.}
         self.last_nd_firing = 0.
+        self.output_file = ''
 
         self.start_time = time.time()
         self.time = self.start_time
@@ -1008,7 +1012,7 @@ class TimeSession(object):
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self.ants]),))
-        user_logger.info("DBE proxy used = '%s'" % (dbe.name,))
+        user_logger.info("DBE proxy used = %s" % (dbe.name,))
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
