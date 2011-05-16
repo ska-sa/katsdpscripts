@@ -41,6 +41,7 @@ with verify_and_connect(opts) as kat:
 
     with start_session(kat, opts) as session:
         session.standard_setup(**vars(opts))
+        session.capture_start()
 
         # Pick a target, either explicitly or the closest strong one
         if len(args) > 0:

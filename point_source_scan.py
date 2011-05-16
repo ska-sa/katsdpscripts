@@ -65,6 +65,8 @@ with verify_and_connect(opts) as kat:
 
         with start_session(kat, opts) as session:
             session.standard_setup(**vars(opts))
+            session.capture_start()
+
             start_time = time.time()
             targets_observed = []
             # Keep going until the time is up
