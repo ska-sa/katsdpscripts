@@ -13,6 +13,7 @@ from __future__ import with_statement
 import time
 import logging
 import sys
+import os.path
 
 import numpy as np
 import katpoint

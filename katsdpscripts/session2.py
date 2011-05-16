@@ -10,6 +10,7 @@ order to time them, but without performing any real actions.
 import time
 import logging
 import sys
+import os.path
 
 import numpy as np
 import katpoint
