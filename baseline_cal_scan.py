@@ -6,8 +6,7 @@ from __future__ import with_statement
 
 import time
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, \
-                             CaptureSession, TimeSession, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
 import katpoint
 
 # Set up standard script options
@@ -38,10 +37,10 @@ with verify_and_connect(opts) as kat:
         good_sources =  ['3C48', '3C84', 'J0408-6545', 'J0522-3627', '3C161', 'J1819-6345', 'J1939-6342', '3C433', 'J2253+1608']
         baseline_sources.add([kat.sources[src] for src in great_sources + good_sources])
 
-    # Select either a CaptureSession for the real experiment, or a fake TimeSession
-    Session = TimeSession if opts.dry_run else CaptureSession
-    with Session(kat, **vars(opts)) as session:
+    with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        session.capture_start()
+
         start_time = time.time()
         targets_observed = []
         # Keep going until the time is up
