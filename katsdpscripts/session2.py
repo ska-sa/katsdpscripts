@@ -197,7 +197,8 @@ class CaptureSession(object):
             dbe.req.k7w_set_script_param('script-ants', ','.join(ant_names))
         except Exception, e:
             user_logger.error('CaptureSession failed to initialise (%s)' % (e,))
-            user_logger.removeHandler(self._script_log_handler)
+            if hasattr(self, '_script_log_handler'):
+                user_logger.removeHandler(self._script_log_handler)
             raise
 
     def __enter__(self):

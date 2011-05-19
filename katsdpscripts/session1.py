@@ -260,7 +260,8 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-status", "started")
         except Exception, e:
             user_logger.error("CaptureSession failed to initialise (%s)" % (e,))
-            user_logger.removeHandler(self._activity_log_handler)
+            if hasattr(self, '_activity_log_handler'):
+                user_logger.removeHandler(self._activity_log_handler)
             raise
 
     def __enter__(self):
