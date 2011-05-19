@@ -109,34 +109,68 @@ def verify_and_connect(opts):
 
     return kat
 
-def start_session(kat, opts):
-    """Start appropriate capture session based on command-line options.
+def start_session(kat, observer, ants, dbe='dbe', experiment_id=None,
+                  description='Interactive session', stow_when_done=False, dry_run=False, **kwargs):
+    """Start capture session (real or fake).
 
-    This inspects the parsed options and requires at least *dbe* and *dry_run*
-    to be set. Based on the *dbe* option it picks the appropriate version of
-    the session module, and based on the *dry_run* option it picks either a
-    proper :class:`CaptureSession` or a fake :class:`TimeSession`. It then
-    instantiates and returns an object of this class, which starts the session.
+    This starts a capture session initialised with the given arguments, choosing
+    the appropriate session class to use based on the arguments. The arguments
+    match those of :class:`CaptureSession`, except for *dry_run*, which can be
+    used to select a fake :class:`TimeSession` instead. The appropriate version
+    of :class:`CaptureSession` is selected based on the value of *dbe*.
 
     Parameters
     ----------
     kat : :class:`utility.KATHost` object
         KAT connection object associated with this experiment
-    opts : :class:`optparse.Values` object
-        Parsed command-line options, containing at least *dbe* and *dry_run*
+    observer : string
+        Name of person doing the observation
+    ants : :class:`Array` or :class:`KATDevice` object, or list, or string
+        Antennas that will participate in the capturing session, as an Array
+        object containing antenna devices, or a single antenna device or a
+        list of antenna devices, or a string of comma-separated antenna
+        names, or the string 'all' for all antennas controlled via the
+        KAT connection associated with this session
+    dbe : string, optional
+        Name of DBE proxy to use (effectively selects the correlator)
+    experiment_id : string, optional
+        Experiment ID, a unique string used to link the data files of an
+        experiment together with blog entries, etc. (random by default)
+    description : string, optional
+        Short description of the purpose of the capturing session
+    stow_when_done : {False, True}, optional
+        If True, stow the antennas when the capture session completes
+    dry_run : {False, True}, optional
+        True if no real capturing will be done, only timing of the commands
+    kwargs : dict, optional
+        Ignore any other keyword arguments (simplifies passing options as dict)
 
     Returns
     -------
     session : :class:`CaptureSession` or :class:`TimeSession` object
         Session object associated with started session
 
+    Raises
+    ------
+    ValueError
+        If DBE proxy device is unknown
+
     """
-    if opts.dbe == 'dbe':
-        return TimeSession1(kat, **vars(opts)) if opts.dry_run else CaptureSession1(kat, **vars(opts))
-    elif opts.dbe == 'dbe7':
-        return TimeSession2(kat, **vars(opts)) if opts.dry_run else CaptureSession2(kat, **vars(opts))
+    if experiment_id is None:
+        # Generate unique string via RFC 4122 version 1
+        experiment_id = str(uuid.uuid1())
+    if dbe == 'dbe':
+        if dry_run:
+            return TimeSession1(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
+        else:
+            return CaptureSession1(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
+    elif dbe == 'dbe7':
+        if dry_run:
+            return TimeSession2(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
+        else:
+            return CaptureSession2(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
     else:
-        raise ValueError("Unknown DBE proxy device specified in --dbe option - should be 'dbe' (FF) or 'dbe7' (KAT-7)")
+        raise ValueError("Unknown DBE proxy device specified - should be 'dbe' (FF) or 'dbe7' (KAT-7)")
 
 def lookup_targets(kat, args):
     """Look up targets by name in default catalogue, or keep as description string.

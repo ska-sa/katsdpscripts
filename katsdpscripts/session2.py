@@ -135,8 +135,8 @@ class CaptureSession(object):
         KAT connection associated with this session
     dbe : string, optional
         Name of DBE proxy to use (effectively selects the correlator)
-    stow_when_done : {True, False}, optional
-        If True, stow the antennas when the capture session completes.
+    stow_when_done : {False, True}, optional
+        If True, stow the antennas when the capture session completes
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 

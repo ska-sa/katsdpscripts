@@ -195,8 +195,8 @@ class CaptureSession(object):
         of the next proper scan. If False, the file output (but not the signal
         displays) is paused while the antennas slew, and the data file contains
         only proper scans.
-    stow_when_done : {True, False}, optional
-        If True, stow the antennas when the capture session completes.
+    stow_when_done : {False, True}, optional
+        If True, stow the antennas when the capture session completes
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
