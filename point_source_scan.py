@@ -63,7 +63,7 @@ with verify_and_connect(opts) as kat:
         # Observed targets will be written back to catalogue file, or into the void
         skip_file = file(opts.skip_catalogue, "a") if opts.skip_catalogue is not None and not opts.dry_run else StringIO()
 
-        with start_session(kat, opts) as session:
+        with start_session(kat, **vars(opts)) as session:
             session.standard_setup(**vars(opts))
             session.capture_start()
 
