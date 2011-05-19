@@ -779,7 +779,7 @@ class CaptureSession(object):
         session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, but the HDF5 file is left open)
-        dbe.req.dbe_capture_stop()
+        dbe.req.dbe_capture_stop('k7')
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         dbe.req.k7w_set_script_param('script-endtime', time.time())
 
