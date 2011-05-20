@@ -8,7 +8,7 @@ from __future__ import with_statement
 
 import numpy as np
 
-from katuilib.observe import standard_script_options, verify_and_connect, CaptureSession, TimeSession
+from katuilib.observe import standard_script_options, verify_and_connect, start_session
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
@@ -28,10 +28,10 @@ with verify_and_connect(opts) as kat:
     elev_center = 8.5
     elev_offset = 6.5
 
-    # Select either a CaptureSession for the real experiment, or a fake TimeSession
-    Session = TimeSession if opts.dry_run else CaptureSession
-    with Session(kat, **vars(opts)) as session:
+    with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        session.capture_start()
+
         # Iterate through azimuth and elevation angles
         for az in azimuth_angle:
             session.scan('azel, %f, %f' % (az, elev_center), duration=15.0,

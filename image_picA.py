@@ -4,8 +4,7 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, \
-                             user_logger, CaptureSession, TimeSession
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
 import katpoint
 
 # Set up standard script options
@@ -36,10 +35,9 @@ with verify_and_connect(opts) as kat:
     user_logger.info("Calibrator(s) are %s" % (calibrators,))
     full_duration = opts.target_duration + len(calibrators) * opts.cal_duration
 
-    # Select either a CaptureSession for the real experiment, or a fake TimeSession
-    Session = TimeSession if opts.dry_run else CaptureSession
-    with Session(kat, **vars(opts)) as session:
+    with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        session.capture_start()
 
         while True:
             # Visit each calibrator
