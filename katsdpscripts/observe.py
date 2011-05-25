@@ -109,37 +109,21 @@ def verify_and_connect(opts):
 
     return kat
 
-def start_session(kat, observer, ants, dbe='dbe', experiment_id=None,
-                  description='Interactive session', stow_when_done=False, dry_run=False, **kwargs):
+def start_session(kat, dbe='dbe', dry_run=False, **kwargs):
     """Start capture session (real or fake).
 
     This starts a capture session initialised with the given arguments, choosing
-    the appropriate session class to use based on the arguments. The arguments
-    match those of :class:`CaptureSession`, except for *dry_run*, which can be
-    used to select a fake :class:`TimeSession` instead. The appropriate version
-    of :class:`CaptureSession` is selected based on the value of *dbe*.
+    the appropriate session class to use based on the arguments. The *dbe*
+    parameter selects which version of :class:`CaptureSession` to use, while
+    the *dry_run* parameter decides whether a fake :class:`TimeSession` will
+    be used instead.
 
     Parameters
     ----------
     kat : :class:`utility.KATHost` object
         KAT connection object associated with this experiment
-    observer : string
-        Name of person doing the observation
-    ants : :class:`Array` or :class:`KATDevice` object, or list, or string
-        Antennas that will participate in the capturing session, as an Array
-        object containing antenna devices, or a single antenna device or a
-        list of antenna devices, or a string of comma-separated antenna
-        names, or the string 'all' for all antennas controlled via the
-        KAT connection associated with this session
     dbe : string, optional
         Name of DBE proxy to use (effectively selects the correlator)
-    experiment_id : string, optional
-        Experiment ID, a unique string used to link the data files of an
-        experiment together with blog entries, etc. (random by default)
-    description : string, optional
-        Short description of the purpose of the capturing session
-    stow_when_done : {False, True}, optional
-        If True, stow the antennas when the capture session completes
     dry_run : {False, True}, optional
         True if no real capturing will be done, only timing of the commands
     kwargs : dict, optional
@@ -156,19 +140,10 @@ def start_session(kat, observer, ants, dbe='dbe', experiment_id=None,
         If DBE proxy device is unknown
 
     """
-    if experiment_id is None:
-        # Generate unique string via RFC 4122 version 1
-        experiment_id = str(uuid.uuid1())
     if dbe == 'dbe':
-        if dry_run:
-            return TimeSession1(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
-        else:
-            return CaptureSession1(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
+        return TimeSession1(kat, dbe, **kwargs) if dry_run else CaptureSession1(kat, dbe, **kwargs)
     elif dbe == 'dbe7':
-        if dry_run:
-            return TimeSession2(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
-        else:
-            return CaptureSession2(kat, experiment_id, observer, description, ants, dbe, stow_when_done, **kwargs)
+        return TimeSession2(kat, dbe, **kwargs) if dry_run else CaptureSession2(kat, dbe, **kwargs)
     else:
         raise ValueError("Unknown DBE proxy device specified - should be 'dbe' (FF) or 'dbe7' (KAT-7)")
 
