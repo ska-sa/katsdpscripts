@@ -22,23 +22,27 @@ configure()
 # The end result is that we have a 'kat' object used to talk to the system.
 
 # Now start a capture session, which creates an HDF5 output file.
-# You need to specify the observer (which should be *your* name :-)) and the
-# antennas to use. The antennas can be specified in many ways:
+# You can optionally set the DBE proxy to use, in order to select the appropriate
+# correlator. Currently we have 'dbe' for the Fringe Finder correlator and 'dbe7'
+# for the KAT-7 correlator. The function returns a CaptureSession object, which
+# is used to manage the session.
+session = katuilib.start_session(kat, dbe='dbe')
+
+# Now you can perform basic setup of the system for the experiment, which is
+# simplified by the standard_setup command. At the minimum you need to specify
+# which antennas you want to use, your name and a short description of the
+# experiment. The antennas can be specified in many ways:
 # - a comma-separated list of antenna names: 'ant1,ant2'
 # - an antenna device: kat.ant3
 # - a list of antenna devices: [kat.ant1, kat.ant2]
 # - an antenna device array: kat.ants
 # - the keyword 'all' to use all antennas in the system
-# You can optionally also set the DBE proxy to use, in order to select the
-# appropriate correlator. Currently we have 'dbe' for the Fringe Finder correlator
-# and 'dbe7' for the KAT-7 correlator.
-# The function returns a CaptureSession object, which is used to manage the session.
-session = katuilib.start_session(kat, observer='me', ants='ant1,ant2', dbe='dbe')
-
-# Now you can perform further setup of the system. A useful standard setup command
-# sets the dump rate in Hz, centre frequency in MHz and noise diode firing
-# strategy (which diode to use and how often to fire it on and off, in seconds).
-session.standard_setup(centre_freq=1822.0, dump_rate=1.0,
+# You can optionally also set the dump rate in Hz, centre frequency in MHz and
+# noise diode firing strategy (which diode to use and how often to fire it on and
+# off during the canned commands, in seconds). If you don't specify these
+# settings, they are left unchanged (except for the dump rate, which will be set).
+session.standard_setup(ants='ant1,ant2', observer='me', description='Testing testing...',
+                       centre_freq=1822.0, dump_rate=1.0,
                        nd_params={'diode' : 'coupler', 'on' : 10.0, 'off' : 10.0, 'period' : 180.})
 
 # The data actually starts flowing once you call capture_start(). [Note: on the
