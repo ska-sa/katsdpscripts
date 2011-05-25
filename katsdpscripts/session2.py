@@ -957,12 +957,17 @@ class TimeSession(object):
         self.experiment_id = experiment_id = self.experiment_id if experiment_id is None else experiment_id
         self.nd_params = nd_params = self.nd_params if nd_params is None else nd_params
         self.stow_when_done = stow_when_done = self.stow_when_done if stow_when_done is None else stow_when_done
+            centre_freq = -1.
 
         user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self.ants]),))
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Experiment ID = %s' % (experiment_id,))
-        user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz' % (centre_freq, dump_rate))
+        # There is no way to find out the centre frequency in this fake session...
+        if centre_freq is None:
+            user_logger.info('RF centre frequency = unknown to simulator, dump rate = %g Hz' % (dump_rate,))
+        else:
+            user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz' % (centre_freq, dump_rate))
         if nd_params['period'] > 0:
             nd_info = "Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
                       (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])

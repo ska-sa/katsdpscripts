@@ -1136,8 +1136,13 @@ class TimeSession(object):
         user_logger.info("Observer = %s" % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info("Experiment ID = %s" % (experiment_id,))
-        user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
-                         (centre_freq, dump_rate, record_slews))
+        # There is no way to find out the centre frequency in this fake session...
+        if centre_freq is None:
+            user_logger.info('RF centre frequency = unknown to simulator, dump rate = %g Hz, keep slews = %s' %
+                             (dump_rate, record_slews))
+        else:
+            user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz, keep slews = %s" %
+                             (centre_freq, dump_rate, record_slews))
         if nd_params['period'] > 0:
             nd_info = "Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
                       (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
