@@ -6,7 +6,7 @@ import uuid
 from .defaults import user_logger
 from .utility import tbuild
 from .session1 import CaptureSession as CaptureSession1, TimeSession as TimeSession1
-from .session2 import CaptureSession as CaptureSession2, TimeSession as TimeSession2, projections, default_proj
+from .session2 import CaptureSession as CaptureSession2, TimeSession as TimeSession2, projections, default_proj, ant_array
 
 def standard_script_options(usage, description):
     """Create option parser pre-populated with standard observation script options.
