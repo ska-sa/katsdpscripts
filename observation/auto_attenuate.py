@@ -15,6 +15,7 @@ import numpy as np
 
 from katuilib.observe import verify_and_connect, ant_array, lookup_targets, user_logger
 from katuilib import colors
+import katpoint
 
 ###################### RFE Stage 5 getters and setters ########################
 
@@ -100,7 +101,8 @@ parser.add_option('-s', '--system', help='System configuration file to use, rela
 parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
                   "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
 parser.add_option('-f', '--centre-freq', type='float', help='Centre frequency, in MHz (ignored by default)')
-parser.add_option('-t', '--target', help='Radio source on which to calibrate the attenuators (ignored by default)')
+parser.add_option('-t', '--target', default='SCP,radec,0,-90',
+                  help="Radio source on which to calibrate the attenuators (default='%default')")
 parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', default=-47.0,
                   help='Desired RFE5 output power, in dBm (default=%default)')
 parser.add_option('-d', '--dbe-desired', type='float', dest='dbe_desired_power', default=-27.0,
@@ -119,19 +121,23 @@ with verify_and_connect(opts) as kat:
 
     # Create device array of antennas, based on specification string
     ants = ant_array(kat, opts.ants)
+    user_logger.info('Using antennas: %s' % (' '.join([dev.name for dev in ants.devs]),))
 
     # If centre frequency is specified, set it accordingly
     if opts.centre_freq:
         kat.rfe7.req.rfe7_lo1_frequency(4200.0 + opts.centre_freq, 'MHz')
+    user_logger.info('Centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
 
-    # If a calibration source is provided and known to the system, move all antennas onto it and wait for lock
-    if opts.target:
-        targets = lookup_targets(kat, [opts.target])
-        if len(targets) > 0:
-            ants.req.target(targets[0])
-            ants.req.mode('POINT')
-            ants.req.sensor_sampling('lock', 'event')
-            ants.wait('lock', True, 300)
+    # Move all antennas onto calibration source and wait for lock
+    targets = lookup_targets(kat, [opts.target])
+    if len(targets) > 0:
+        target = targets[0] if isinstance(targets[0], katpoint.Target) else katpoint.Target(targets[0])
+        user_logger.info("Slewing antennas to target '%s'" % (target.name,))
+        ants.req.target(targets[0])
+        ants.req.mode('POINT')
+        ants.req.sensor_sampling('lock', 'event')
+        ants.wait('lock', True, 300)
+        user_logger.info('Target reached')
 
     user_logger.info('Input: --dBm->| RFE5 |--dBm->| RFE7 |--dBm->| DBE |')
     user_logger.info('Desired:      | RFE5 | %-4.1f | RFE7 | %-4.1f | DBE |' %
