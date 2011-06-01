@@ -48,8 +48,8 @@ def standard_script_options(usage, description):
                       help="Do not actually observe, but display script actions at predicted times (default=%default)")
     parser.add_option('--stow-when-done', action='store_true', default=False,
                       help="Stow the antennas when the capture session ends.")
-    parser.add_option('--dbe', default='dbe', help="DBE proxy / correlator to use for experiment "
-                                                   "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
+    parser.add_option('--dbe', default='dbe7', help="DBE proxy / correlator to use for experiment "
+                                                    "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
 
     return parser
 
