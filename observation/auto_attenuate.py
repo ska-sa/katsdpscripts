@@ -67,7 +67,7 @@ def set_rfe7_attenuation(kat, ant_name, pol, value):
 snapshot_length = 8192
 connected_antpols = {}
 
-def get_ff_dbe_input_power(kat, ant_name, pol):
+def get_dbe_input_power(kat, ant_name, pol):
     dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
     PinFS_dBm, nbits = 0, 8 # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
     fullscale = 2 ** (nbits - 1)
@@ -75,7 +75,7 @@ def get_ff_dbe_input_power(kat, ant_name, pol):
     voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
     return 10 * np.log10(np.var(voltage_samples)) - gainADC_dB
 
-def get_kat7_dbe_input_power(kat, ant_name, pol):
+def get_dbe7_input_power(kat, ant_name, pol):
     dbe_input = ant_name + pol.upper()
     PinFS_dBm, nbits = 0, 8 # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
     fullscale = 2 ** (nbits - 1)
@@ -135,11 +135,17 @@ opts.observer = 'Otto Attenuator'
 
 with verify_and_connect(opts) as kat:
 
-    selected_dbe = getattr(kat, opts.dbe)
+    try:
+        selected_dbe = getattr(kat, opts.dbe)
+        get_dbe_power = eval('get_' + opts.dbe + '_input_power')
+         # select the input power function based on the user specified dbe
+    except NameError:
+        print "Unknown dbe device (%s) specified. Typically it should be either 'dbe' or 'dbe7'"
+        sys.exit(0)
 
     # Populate lookup table that maps ant+pol to DBE input
     for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
-        ant_pol = getattr(kat.dbe.sensor, dbe_input_sensor).get_value()
+        ant_pol = getattr(selected_dbe.sensor, dbe_input_sensor).get_value()
         connected_antpols[ant_pol] = dbe_input_sensor[15:]
 
     # Create device array of antennas, based on specification string
@@ -174,30 +180,30 @@ with verify_and_connect(opts) as kat:
             if '%s, %s' % (ant.name, pol) not in connected_antpols:
                 user_logger.info('%s %s: not connected to DBE' % (ant.name, pol.upper()))
                 continue
-            rfe5_in = get_rfe5_input_power(kat, ant_num, pol)
+            rfe5_in = get_rfe5_input_power(kat, ant.name, pol)
             # Adjust RFE stage 5 attenuation to give desired output power (short waits required to stabilise power)
-            rfe5_att, rfe5_out = adjust(kat, ant_num, pol, get_rfe5_attenuation, set_rfe5_attenuation,
+            rfe5_att, rfe5_out = adjust(kat, ant.name, pol, get_rfe5_attenuation, set_rfe5_attenuation,
                                         get_rfe5_output_power, opts.rfe5_desired_power,
                                         rfe5_min_att, rfe5_max_att, rfe5_att_step, 0.1)
             # Adjust RFE stage 7 attenuation to give desired DBE input power (no waits required, as DBE lookup is slow)
-            rfe7_att, dbe_in = adjust(kat, ant_num, pol, get_rfe7_attenuation, set_rfe7_attenuation,
-                                      get_dbe_input_power, opts.dbe_desired_power,
+            rfe7_att, dbe_in = adjust(kat, ant.name, pol, get_rfe7_attenuation, set_rfe7_attenuation,
+                                      get_dbe_power, opts.dbe_desired_power,
                                       rfe7_min_att, rfe7_max_att, rfe7_att_step)
             # If RFE7 hits minimum attenuation, go back to RFE5 to try and reach desired DBE input power
             if rfe7_att == rfe7_min_att:
-                rfe5_att, dbe_in = adjust(kat, ant_num, pol, get_rfe5_attenuation, set_rfe5_attenuation,
-                                          get_dbe_input_power, opts.dbe_desired_power,
+                rfe5_att, dbe_in = adjust(kat, ant.name, pol, get_rfe5_attenuation, set_rfe5_attenuation,
+                                          get_dbe_power, opts.dbe_desired_power,
                                           rfe5_min_att, rfe5_max_att, rfe5_att_step)
-                rfe5_out = get_rfe5_output_power(kat, ant_num, pol)
+                rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
             # Check whether final power levels are within expected bounds
             rfe5_success = np.abs(rfe5_out - opts.rfe5_desired_power) <= rfe5_power_range / 2
             # 95% confidence interval of DBE power, assuming large snapshot length and normally distributed samples
             dbe_conf_interval = 2 * 10. * np.log10(1. + 2. * np.sqrt(2. / snapshot_length))
             dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe_conf_interval) / 2
-            user_logger.info('ant%d %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
-                             (ant_num, pol.upper(), rfe5_in, rfe5_att,
+            user_logger.info('ant%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
+                             (ant.name, pol.upper(), rfe5_in, rfe5_att,
                               colors.Green if rfe5_success else colors.Red, rfe5_out, colors.Normal, rfe7_att,
                               colors.Green if dbe_success else colors.Red, dbe_in, colors.Normal))
             if rfe5_att == rfe5_min_att and not dbe_success:
-                user_logger.warning('RFE5 attenuation of less than %g dB required on ant%d %s - no input signal?'
-                                    % (rfe5_min_att, ant_num, pol.upper()))
+                user_logger.warning('RFE5 attenuation of less than %g dB required on ant%s %s - no input signal?'
+                                    % (rfe5_min_att, ant.name, pol.upper()))
