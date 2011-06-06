@@ -416,6 +416,8 @@ else:
     def done_callback(event):
         with all_buttons:
             dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset = fig.user_data
+            # Don't keep the current compscan (since user did not click on "Keep")
+            output_data[compscan_index] = None
             compscan_index = len(output_data)
             reduce_and_plot(dataset, compscan_index, output_data, opts, fig)
     done_button.on_clicked(done_callback)
