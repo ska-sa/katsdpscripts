@@ -163,8 +163,6 @@ def reduce_and_plot(dataset, compscan_index, output_data, opts, fig=None):
     """Reduce compound scan, update the plots in given figure and save output data when done."""
     # Save output data and return after last compound scan is done
     if compscan_index >= len(output_data):
-        output_recs = [np.atleast_1d(p) for p in output_data if p]
-        output_recs = np.concatenate(output_recs) if len(output_recs) > 0 else []
         output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
                         '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
                         '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, %(beam_width_I).7f, ' \
@@ -176,7 +174,7 @@ def reduce_and_plot(dataset, compscan_index, output_data, opts, fig=None):
         f = file(opts.outfilebase + '.csv', 'w')
         f.write('# antenna = %s\n' % dataset.antenna.description)
         f.write(', '.join(output_field_names) + '\n')
-        f.writelines([output_fields % rec for rec in output_recs])
+        f.writelines([output_fields % rec for rec in output_data if rec])
         f.close()
         if not opts.batch:
             # This closes the GUI and effectively exits the program in the interactive case
