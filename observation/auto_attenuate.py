@@ -6,6 +6,8 @@
 # Ludwig Schwardt
 # 16 February 2011
 #
+# Hacked a little by SimonR
+# 06 June 2011
 
 from __future__ import with_statement
 
@@ -120,7 +122,7 @@ parser.add_option('-s', '--system', help='System configuration file to use, rela
 parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
                   "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
 parser.add_option('-f', '--centre-freq', type='float', help='Centre frequency, in MHz (ignored by default)')
-parser.add_option('-t', '--target', default='SCP,radec,0,-90',
+parser.add_option('-t', '--target', default='',
                   help="Radio source on which to calibrate the attenuators (default='%default')")
 parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', default=-47.0,
                   help='Desired RFE5 output power, in dBm (default=%default)')
@@ -162,7 +164,11 @@ with verify_and_connect(opts) as kat:
     user_logger.info('Centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
 
     # Move all antennas onto calibration source and wait for lock
-    targets = lookup_targets(kat, [opts.target])
+    try:
+        targets = lookup_targets(kat, [opts.target])
+    except ValueError:
+        user_logger.info("No valid targets specified. Antenna will not be moved.")
+        targets = []
     if len(targets) > 0:
         target = targets[0] if isinstance(targets[0], katpoint.Target) else katpoint.Target(targets[0])
         user_logger.info("Slewing antennas to target '%s'" % (target.name,))
@@ -182,9 +188,13 @@ with verify_and_connect(opts) as kat:
                 continue
             rfe5_in = get_rfe5_input_power(kat, ant.name, pol)
             # Adjust RFE stage 5 attenuation to give desired output power (short waits required to stabilise power)
-            rfe5_att, rfe5_out = adjust(kat, ant.name, pol, get_rfe5_attenuation, set_rfe5_attenuation,
-                                        get_rfe5_output_power, opts.rfe5_desired_power,
-                                        rfe5_min_att, rfe5_max_att, rfe5_att_step, 0.1)
+            rfe_init_att = max(-(opts.rfe5_desired_power - rfe5_in),0)
+            user_logger.info("Setting initial RFE5 attenuation of %i to allow power out sensor to work..." % rfe_init_att)
+            set_rfe5_attenuation(kat, ant.name, pol, rfe_init_att)
+            rfe5_att = get_rfe5_attenuation(kat, ant.name, pol)
+            rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
+             # make sure we are getting a decent output power reading
+             # as the ouput power sensor only works when output is less than -40dB
             # Adjust RFE stage 7 attenuation to give desired DBE input power (no waits required, as DBE lookup is slow)
             rfe7_att, dbe_in = adjust(kat, ant.name, pol, get_rfe7_attenuation, set_rfe7_attenuation,
                                       get_dbe_power, opts.dbe_desired_power,
