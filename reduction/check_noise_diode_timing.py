@@ -12,36 +12,23 @@ import optparse
 import sys
 
 import numpy as np
-import h5py
+import katfile
 
-parser = optparse.OptionParser(usage="%prog [opts] <file>",
-                               description="This checks the noise diode timing in the given HDF5 file.")
-parser.add_option('-f', '--freq-chans', default='100,400',
-                  help="Range of frequency channels to use (zero-based, specified as 'start,end', default %default)")
-parser.add_option('-o', '--max-offset', type='float', default=2.,
-                  help="Maximum allowed offset between CAM and DBE timestamps, in seconds (default %default)")
-parser.add_option('-d', '--max-duration', type='float', dest='max_onoff_segment_duration', default=0.,
-                  help="Maximum duration of segments around jump used to estimate instant, in seconds (default 1 dump)")
-parser.add_option('-m', '--margin', type='float', dest='margin_factor', default=24.,
-                  help="Allowed variation in power, as multiple of theoretical standard deviation (default %default)")
-parser.add_option('-s', '--significance', type='float', dest='jump_significance', default=10.,
-                  help="Keep jumps that are bigger than margin by this factor (default %default)")
+################################################### Helper routines ###################################################
 
-(opts, args) = parser.parse_args()
-if len(args) < 1:
-    print 'Please specify an HDF5 file to check'
-    sys.exit(1)
-
-start_chan, end_chan = [int(n) for n in opts.freq_chans.split(',')]
-sensors = {'pin' : 'rfe3_rfe15_noise_pin_on',
-           'coupler' : 'rfe3_rfe15_noise_coupler_on'}
-
-f = h5py.File(args[0], 'r')
-
-input_map = f['Correlator']['input_map'].value
-dbestr_to_corr_id = dict(zip(input_map['dbe_inputs'], input_map['correlator_product_id']))
-# Number of real normal variables squared and added together
-dof = 2 * f['Correlator'].attrs['accum_per_int'] * (end_chan + 1 - start_chan)
+def nd_sensor(f, ant, diode_name):
+    """Extract noise diode sensor data from HDF5 file."""
+    version = f.attrs.get('version', '1.x')
+    if version.startswith('1.'):
+        ant_group = f['Antennas/Antenna%s' % (ant.name[3:],)]
+        sensors = {'pin' : 'rfe3_rfe15_noise_pin_on', 'coupler' : 'rfe3_rfe15_noise_coupler_on'}
+        sensor_name = sensors[diode_name]
+        return ant_group['Sensors'][sensor_name] if sensor_name in ant_group['Sensors'] else None
+    else:
+        ped_group = f['MetaData/Sensors/Pedestals/ped%s' % (ant.name[3:],)]
+        sensors = {'pin' : 'rfe3.rfe15.noise.pin.on', 'coupler' : 'rfe3.rfe15.noise.coupler.on'}
+        sensor_name = sensors[diode_name]
+        return ped_group[sensor_name] if sensor_name in ped_group else None
 
 def contiguous_cliques(x, step=1):
     """Partition *x* into contiguous cliques, where elements in clique differ by *step*."""
@@ -75,11 +62,11 @@ def ratio_stats(mean_num, std_num, mean_den, std_den, corrcoef=0):
     # Translate by s and scale by r
     return s + mean_axby / r, std_axby / np.abs(r)
 
-def find_jumps(timestamps, power, std_power):
+def find_jumps(timestamps, power, std_power, margin_factor, jump_significance, max_onoff_segment_duration, **kwargs):
     """Find significant jumps in power and estimate the time instant of each jump."""
     # Margin within which power is deemed to be constant (i.e. expected variation of power)
     # This works around potential biases in power levels, such as small linear slopes across jump
-    margin = opts.margin_factor * std_power
+    margin = margin_factor * std_power
     upper, lower = power + margin, power - margin
     delta_power = np.r_[power[1:], power[-1]] - np.r_[power[0], power[:-1]]
     # Shifted versions of the upper and lower power bounds
@@ -112,10 +99,10 @@ def find_jumps(timestamps, power, std_power):
         # Margin / uncertainty associated with power difference between samples adjacent to jump
         jump_margin = np.sqrt(margin[jump - 1] ** 2 + margin[jump + 1] ** 2)
         # Throw out insignificant jumps
-        if np.abs(delta_power[jump]) / jump_margin <= opts.jump_significance:
+        if np.abs(delta_power[jump]) / jump_margin <= jump_significance:
             continue
         # Limit the range of points around jump to use in estimation of jump instant (to ensure stationarity)
-        segment_range = np.abs(timestamps - timestamps[jump]) <= opts.max_onoff_segment_duration
+        segment_range = np.abs(timestamps - timestamps[jump]) <= max_onoff_segment_duration
         # Determine earliest (and last) sample to use to estimate the mean power before (and after) the jump
         before = min(np.where(segment_range)[0][0], jump - 1)
         after = max(len(segment_range) - 1 - np.where(segment_range[::-1])[0][0], jump + 1)
@@ -140,64 +127,80 @@ def find_jumps(timestamps, power, std_power):
         jump_time.append(mean_subdump * timestamps[jump] + (1. - mean_subdump) * timestamps[jump + 1])
         jump_std_time.append(std_subdump * (timestamps[jump + 1] - timestamps[jump]))
         # Refined estimate of the significance of the jump, using averaged data instead of single dumps
-        jump_size.append(mean_den / std_den / opts.margin_factor)
+        jump_size.append(mean_den / std_den / margin_factor)
     return jump_time, jump_std_time, jump_size
+
+#################################################### Main function ####################################################
+
+parser = optparse.OptionParser(usage="%prog [opts] <file>",
+                               description="This checks the noise diode timing in the given HDF5 file.")
+parser.add_option('-f', '--freq-chans', default='100,400',
+                  help="Range of frequency channels to use (zero-based, specified as 'start,end', default %default)")
+parser.add_option('-o', '--max-offset', type='float', default=2.,
+                  help="Maximum allowed offset between CAM and DBE timestamps, in seconds (default %default)")
+parser.add_option('-d', '--max-duration', type='float', dest='max_onoff_segment_duration', default=0.,
+                  help="Maximum duration of segments around jump used to estimate instant, in seconds (default 1 dump)")
+parser.add_option('-m', '--margin', type='float', dest='margin_factor', default=24.,
+                  help="Allowed variation in power, as multiple of theoretical standard deviation (default %default)")
+parser.add_option('-s', '--significance', type='float', dest='jump_significance', default=10.,
+                  help="Keep jumps that are bigger than margin by this factor (default %default)")
+
+(opts, args) = parser.parse_args()
+if len(args) < 1:
+    print 'Please specify an HDF5 file to check'
+    sys.exit(1)
+
+h5 = katfile.h5_data(args[0], channel_range=[int(n) for n in opts.freq_chans.split(',')])
+# Number of real normal variables squared and added together
+dof = 2 * len(h5.channel_freqs) * h5.channel_bw / h5.dump_rate
 
 offset_stats = {}
 print 'Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)'
 print '--------------------------------------------------------------------------'
-for ant in f['Antennas']:
-    ant_group = f['Antennas'][ant]
-    ant_name = ant_group.attrs['description'].split(',')[0]
-    # Construct correlation product ID associated with available polarisations
-    hh = dbestr_to_corr_id.get(ant_group['H'].attrs['dbe_input'] * 2) if 'H' in ant_group else None
-    vv = dbestr_to_corr_id.get(ant_group['V'].attrs['dbe_input'] * 2) if 'V' in ant_group else None
-    for diode_name, sensor in sensors.iteritems():
+for ant in h5.ants:
+    for diode_name in ('pin', 'coupler'):
+        sensor = nd_sensor(h5.file, ant, diode_name)
         # Ignore missing sensors or sensors with one entry (which serves as an initial value instead of real event)
-        if sensor not in ant_group['Sensors'] or len(ant_group['Sensors'][sensor]) <= 1:
+        if sensor is None or len(sensor) <= 1:
             continue
         # Collect all expected noise diode firings
-        print "Diode:", ant_name, diode_name
-        nd_timestamps = ant_group['Sensors'][sensor]['timestamp']
-        nd_state = np.array(ant_group['Sensors'][sensor]['value'], dtype=np.int)
-        for compscan in f['Scans']:
-            for scan in f['Scans'][compscan]:
-                scan_group = f['Scans'][compscan][scan]
-                # Extract averaged power data and DBE timestamps
-                dbe_timestamps = scan_group['timestamps'].value.astype(np.float64) / 1000.0
-                if len(dbe_timestamps) < 3:
-                    continue
-                power = np.zeros(len(dbe_timestamps), dtype=np.float64)
-                if hh is not None:
-                    power += scan_group['data'][str(hh)][:, start_chan:end_chan+1].real.mean(axis=1)
-                if vv is not None:
-                    power += scan_group['data'][str(vv)][:, start_chan:end_chan+1].real.mean(axis=1)
-                # Since I = HH + VV and not the average of HH and VV, the dof actually halves instead of doubling
-                power_dof = dof if hh is None or vv is None else dof / 2
-                jump_time, jump_std_time, jump_size = find_jumps(dbe_timestamps, power, power * np.sqrt(2. / power_dof))
-                # Focus on noise diode events within this scan (and not on the edges of scan either)
-                firings_in_scan = (nd_timestamps > dbe_timestamps[1]) & (nd_timestamps < dbe_timestamps[-1])
-                for n, firing in enumerate(nd_timestamps[firings_in_scan]):
-                    # Obtain closest time offset between expected firing and power jump
-                    offsets = np.array(jump_time) - firing
-                    # Ensure that jump is in the expected direction (up or down)
-                    same_direction = (2 * nd_state[firings_in_scan][n] - 1) * np.sign(jump_size) > 0
-                    if same_direction.any():
-                        same_direction = np.where(same_direction)[0]
-                        closest_jump = same_direction[np.argmin(np.abs(offsets[same_direction]))]
-                        offset = offsets[closest_jump]
-                        # Only match the jump if it is within a certain window of the expected firing
-                        if np.abs(offset) < opts.max_offset:
-                            std_offset, jump = jump_std_time[closest_jump], jump_size[closest_jump]
-                            stats_key = ant_name + ' ' + diode_name
-                            # For each diode, collect the offsets and their uncertainties
-                            stats = offset_stats.get(stats_key, [])
-                            offset_stats[stats_key] = stats + [(offset, std_offset)]
-                            print '%s | offset %8.2f +/- %5.2f ms (magnitude of %+.0f margins)' % \
-                                  (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),
-                                   1000 * offset, 1000 * std_offset, jump)
-                        else:
-                            print '%s | not found' % (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),)
+        print "Diode:", ant.name, diode_name
+        nd_timestamps = sensor['timestamp']
+        nd_state = np.array(sensor['value'], dtype=np.int)
+        for scan_index, compscan_index, state, target in h5.scans():
+            # Extract averaged power data time series and DBE timestamps (at start of each dump)
+            dbe_timestamps = h5.timestamps() - 0.5 / h5.dump_rate
+            if len(dbe_timestamps) < 3:
+                continue
+            power = h5.vis((ant.name + 'H', ant.name + 'H'), zero_missing_data=True).real.mean(axis=1) + \
+                    h5.vis((ant.name + 'V', ant.name + 'V'), zero_missing_data=True).real.mean(axis=1)
+            # Since I = HH + VV and not the average of HH and VV, the dof actually halves instead of doubling
+            power_dof = dof / 2 if (ant.name + 'H' in h5.inputs and ant.name + 'V' in h5.inputs) else dof
+            jump_time, jump_std_time, jump_size = find_jumps(dbe_timestamps, power, power * np.sqrt(2. / power_dof),
+                                                             **vars(opts))
+            # Focus on noise diode events within this scan (and not on the edges of scan either)
+            firings_in_scan = (nd_timestamps > dbe_timestamps[1]) & (nd_timestamps < dbe_timestamps[-1])
+            for n, firing in enumerate(nd_timestamps[firings_in_scan]):
+                # Obtain closest time offset between expected firing and power jump
+                offsets = np.array(jump_time) - firing
+                # Ensure that jump is in the expected direction (up or down)
+                same_direction = (2 * nd_state[firings_in_scan][n] - 1) * np.sign(jump_size) > 0
+                if same_direction.any():
+                    same_direction = np.where(same_direction)[0]
+                    closest_jump = same_direction[np.argmin(np.abs(offsets[same_direction]))]
+                    offset = offsets[closest_jump]
+                    # Only match the jump if it is within a certain window of the expected firing
+                    if np.abs(offset) < opts.max_offset:
+                        std_offset, jump = jump_std_time[closest_jump], jump_size[closest_jump]
+                        stats_key = ant.name + ' ' + diode_name
+                        # For each diode, collect the offsets and their uncertainties
+                        stats = offset_stats.get(stats_key, [])
+                        offset_stats[stats_key] = stats + [(offset, std_offset)]
+                        print '%s | offset %8.2f +/- %5.2f ms (magnitude of %+.0f margins)' % \
+                              (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),
+                               1000 * offset, 1000 * std_offset, jump)
+                    else:
+                        print '%s | not found' % (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),)
 
 print
 print 'Summary of offsets (DBE - CAM) per diode'
@@ -214,6 +217,6 @@ for key, val in offset_stats.iteritems():
     std2 = offset_ms.std() / np.sqrt(len(offset_ms))
     std_mean_offset = np.sqrt(std1 ** 2 + std2 ** 2)
     min_offset, max_offset = np.argmin(offset_ms), np.argmax(offset_ms)
-    print '%s diode: mean %.2f +/- %.2f ms, min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
-          (key, mean_offset, std_mean_offset, offset_ms[min_offset], std_offset_ms[min_offset],
-           offset_ms[max_offset], std_offset_ms[max_offset])
+    print '%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
+          (key, mean_offset, std_mean_offset, mean_offset * h5.dump_rate / 1e3, std_mean_offset * h5.dump_rate / 1e3,
+           offset_ms[min_offset], std_offset_ms[min_offset], offset_ms[max_offset], std_offset_ms[max_offset])

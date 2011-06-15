@@ -7,22 +7,17 @@
 #
 
 import optparse
-import sys
 
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-import h5py
+import katfile
 import scape
 import katpoint
 
-# Offset to add to all timestamps, in seconds
-time_offset = 0.0
 # Array position used for fringe stopping
 array_ant = katpoint.Antenna('ant0, -30:43:17.3, 21:24:38.5, 1038.0, 0.0')
-# Frequency channel range to keep
-channel_range = [98, 417]
 # Original estimated cable lengths to 12-m container
 ped_to_12m = {'ant1': 95.5, 'ant2': 108.8, 'ant3': 95.5 + 50, 'ant4': 95.5 + 70}
 # Estimated Losberg cable lengths to start from, in metres
@@ -35,294 +30,38 @@ cable_lightspeed = katpoint.lightspeed / 1.4
 parser = optparse.OptionParser(usage="%prog [options] <data file>")
 parser.add_option('-a', '--ants',
                   help="Comma-separated subset of antennas to use in fit (e.g. 'ant1,ant2'), default is all antennas")
+parser.add_option("-f", "--freq-chans", default='98,417',
+                  help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
 parser.add_option('-p', '--pol', type='choice', choices=['H', 'V'], default='H',
                   help="Polarisation term to use ('H' or 'V'), default is %default")
 parser.add_option('-r', '--ref', help="Reference antenna, default is first antenna in file")
 parser.add_option('-s', '--max-sigma', type='float', default=0.2,
                   help="Threshold on std deviation of normalised group delay, default is %default")
+parser.add_option("-t", "--time-offset", type='float', default=0.0,
+                  help="Time offset to add to DBE timestamps, in seconds (default = %default)")
 parser.add_option('-x', '--exclude', default='', help="Comma-separated list of sources to exclude from fit")
 (opts, args) = parser.parse_args()
 
-if len(args) < 1:
-    print 'Please specify at least one data file to reduce'
-    sys.exit(1)
+if len(args) != 1 or not args[0].endswith('.h5'):
+    raise RuntimeError('Please specify a single HDF5 file as argument to the script')
+channel_range = [int(chan) for chan in opts.freq_chans.split(',')]
 
 print "\nLoading and processing data...\n"
 
-class WrongHdf5Version(Exception):
-    pass
-
-class Hdf5DataV1(object):
-    """Load HDF5 format version 2 file produced by KAT-7 correlator.
-
-    Parameters
-    ----------
-    filename : string
-        Name of HDF5 file
-    ref_ant : string, optional
-        Name of reference antenna (default is first antenna in use)
-    channel_range : sequence of 2 ints, optional
-        Index of first and last frequency channel to load (defaults to all)
-    time_offset : float, optional
-        Offset to add to all timestamps, in seconds
-
-    """
-    def __init__(self, filename, ref_ant=None, channel_range=None, time_offset=0.0):
-        # Load file
-        f = h5py.File(filename, 'r')
-
-        # Only continue if file is correct version and has been properly augmented
-        version = f.attrs.get('version', '1.x')
-        if not version.startswith('1.'):
-            raise WrongHdf5Version("Attempting to load version '%s' file with version 1 script" % (version,))
-        if not 'augment' in f.attrs:
-            raise ValueError('HDF5 file not augmented - please run k7_augment.py')
-
-        # Find connected antennas and build Antenna objects for them
-        ant_groups = f['Antennas'].listnames()
-        self.ants = [katpoint.Antenna(f['Antennas'][group].attrs['description']) for group in ant_groups]
-        self.ref_ant = self.ants[0].name if ref_ant is None else ref_ant
-
-        # Map from antenna signal to DBE input
-        self.input_map = dict([(ant.name + 'H', f['Antennas'][group]['H'].attrs['dbe_input'])
-                               for ant, group in zip(self.ants, ant_groups) if 'H' in f['Antennas'][group]])
-        self.input_map.update(dict([(ant.name + 'V', f['Antennas'][group]['V'].attrs['dbe_input'])
-                                    for ant, group in zip(self.ants, ant_groups) if 'V' in f['Antennas'][group]]))
-        # Map from DBE input product string to correlation product index
-        self._dbestr_to_corr_id = dict([(v, k) for k, v in f['Correlator']['input_map'].value])
-
-        # Extract frequency information
-        band_center = f['Correlator'].attrs['center_frequency_hz']
-        num_chans = f['Correlator'].attrs['num_freq_channels']
-        self.channel_bw = f['Correlator'].attrs['channel_bandwidth_hz']
-        # Assume that lower-sideband downconversion has been used, which flips frequency axis
-        # Also subtract half a channel width to get frequencies at center of each channel
-        self.channel_freqs = band_center - self.channel_bw * (np.arange(num_chans) - num_chans / 2 + 0.5)
-        # Select subset of channels
-        self.first_channel, self.last_channel = (channel_range[0], channel_range[1]) \
-                                                if channel_range is not None else (0, num_chans - 1)
-        self.channel_freqs = self.channel_freqs[self.first_channel:self.last_channel + 1]
-        self.dump_rate = f['Correlator'].attrs['dump_rate_hz']
-        self._time_offset = time_offset
-        try:
-            self._scan_group = f['Scans']['CompoundScan0']['Scan0']
-        except (KeyError, h5py.H5Error):
-            self._scan_group = None
-        self.start_time = self.timestamps()[0]
-        self._f = f
-
-    def dbe_input(self, signal):
-        """DBE input corresponding to signal path, with error reporting."""
-        try:
-            return self.input_map[signal]
-        except KeyError:
-            raise KeyError("Signal path '%s' not connected to correlator (available signals are '%s')" %
-                           (signal, "', '".join(self.input_map.keys())))
-
-    def baselines(self, signals):
-        """Correlation products in data set involving the desired signals."""
-        # DBE inputs that correspond to signal paths
-        dbe_inputs = [self.dbe_input(signal) for signal in signals]
-        # Build all correlation products (and corresponding signal index pairs) from DBE input strings
-        # For N antennas this results in N * N products
-        dbestr_signalpairs = [(inputA + inputB, indexA, indexB) for indexA, inputA in enumerate(dbe_inputs)
-                                                                for indexB, inputB in enumerate(dbe_inputs)]
-        # Discard redundant correlation products (ones which are complex conjugates of products in the data set)
-        # and autocorrelation products (i.e. where antenna indices are equal), resulting in N * (N - 1) / 2 products
-        baselines = [(indexA, indexB) for dbestr, indexA, indexB in dbestr_signalpairs
-                     if dbestr in self._dbestr_to_corr_id and indexA != indexB]
-        # If baseline A-B and its reverse B-A are both in list, only keep the one where A < B
-        for bl in baselines:
-            if (bl[1], bl[0]) in baselines and bl[1] < bl[0]:
-                baselines.remove(bl)
-        return baselines
-
-    def scans(self):
-        """Generator that iterates through scans."""
-        scan_index = 0
-        for compscan_index in range(len(self._f['Scans'])):
-            compscan_group = self._f['Scans']['CompoundScan' + str(compscan_index)]
-            target = katpoint.Target(compscan_group.attrs['target'])
-            compscan_label = compscan_group.attrs['label']
-            for scan in range(len(compscan_group)):
-                self._scan_group = compscan_group['Scan' + str(scan)]
-                state = self._scan_group.attrs['label']
-                if state == 'scan' and compscan_label == 'track':
-                    state = 'track'
-                yield scan_index, compscan_index, state, target
-                scan_index += 1
-        try:
-            self._scan_group = self._f['Scans']['CompoundScan0']['Scan0']
-        except (KeyError, h5py.H5Error):
-            self._scan_group = None
-
-    def vis(self, corrprod):
-        """Extract complex visibility data of given correlation product with shape (T, F) for current scan."""
-        if len(corrprod) == 2 and not isinstance(corrprod, basestring):
-            corrprod = self.dbe_input(corrprod[0]) + self.dbe_input(corrprod[1])
-        corr_id = self._dbestr_to_corr_id[corrprod]
-        return self._scan_group['data'][str(corr_id)][:, self.first_channel:self.last_channel + 1]
-
-    def timestamps(self):
-        """Extract timestamps for current scan."""
-        return self._scan_group['timestamps'].value.astype(np.float64) / 1000. + 0.5 / self.dump_rate + self._time_offset
-
-class Hdf5DataV2(object):
-    """Load HDF5 format version 2 file produced by KAT-7 correlator.
-
-    Parameters
-    ----------
-    filename : string
-        Name of HDF5 file
-    ref_ant : string, optional
-        Name of reference antenna (default is first antenna in use)
-    channel_range : sequence of 2 ints, optional
-        Index of first and last frequency channel to load (defaults to all)
-    time_offset : float, optional
-        Offset to add to all timestamps, in seconds
-
-    """
-    def __init__(self, filename, ref_ant=None, channel_range=None, time_offset=0.0):
-        # Load file
-        f = h5py.File(filename, 'r')
-
-        # Only continue if file is correct version and has been properly augmented
-        version = f.attrs.get('version', '1.x')
-        if not version.startswith('2.'):
-            raise WrongHdf5Version("Attempting to load version '%s' file with version 2 script" % (version,))
-        if not 'augment_ts' in f.attrs:
-            raise ValueError('HDF5 file not augmented - please run k7_augment.py')
-
-        # Load main HDF5 groups
-        data_group, sensors_group, config_group = f['Data'], f['MetaData/Sensors'], f['MetaData/Configuration']
-        # Only pick antennas that were in use by the script
-        ant_names = config_group['Observation'].attrs['script_ants'].split(',')
-        self.ref_ant = ant_names[0] if ref_ant is None else ref_ant
-        # Build Antenna objects for them
-        self.ants = [katpoint.Antenna(config_group['Antennas'][name].attrs['description']) for name in ant_names]
-
-        # Map from antenna signal to DBE input
-        self.input_map = dict(config_group['Correlator'].attrs['input_map'])
-        # Map from DBE input product string to correlation product index in form of (baseline, polarisation) pair
-        # This typically follows Miriad-style numbering
-        self._dbestr_to_corr_id = {}
-        for bl_ind, bl in enumerate(config_group['Correlator'].attrs['bls_ordering']):
-            for pol_ind, pol in enumerate(config_group['Correlator'].attrs['crosspol_ordering']):
-                self._dbestr_to_corr_id['%d%s%d%s' % (bl[0], pol[0], bl[1], pol[1])] = (bl_ind, pol_ind)
-
-        # Extract frequency information
-        band_center = sensors_group['RFE']['center-frequency-hz']['value'][0]
-        num_chans = config_group['Correlator'].attrs['n_chans']
-        self.channel_bw = config_group['Correlator'].attrs['bandwidth'] / num_chans
-        # Assume that lower-sideband downconversion has been used, which flips frequency axis
-        # Also subtract half a channel width to get frequencies at center of each channel
-        self.channel_freqs = band_center - self.channel_bw * (np.arange(num_chans) - num_chans / 2 + 0.5)
-        # Select subset of channels
-        self.first_channel, self.last_channel = (channel_range[0], channel_range[1]) \
-                                                if channel_range is not None else (0, num_chans - 1)
-        self.channel_freqs = self.channel_freqs[self.first_channel:self.last_channel + 1]
-        sample_period = scape.hdf5.get_single_value(config_group['Correlator'], 'int_time')
-        self.dump_rate = 1.0 / sample_period
-
-        # Obtain visibility data and timestamps
-        self._vis = data_group['correlator_data']
-        # Load timestamps as UT seconds since Unix epoch, and move them from start of each sample to the middle
-        self._data_timestamps = data_group['timestamps'].value + 0.5 * sample_period + time_offset
-        dump_endtimes = self._data_timestamps + 0.5 * sample_period
-        # Discard the last sample if the timestamp is a duplicate (caused by stop packet in k7_capture)
-        if len(dump_endtimes) > 1 and (dump_endtimes[-1] == dump_endtimes[-2]):
-            dump_endtimes = dump_endtimes[:-1]
-        self.start_time = self._data_timestamps[0]
-
-        # Use sensors of reference antenna to dissect data set
-        ant_sensors = sensors_group['Antennas'][self.ref_ant]
-
-        # Use the activity sensor of reference antenna to partition the data set into scans (and to label the scans)
-        activity_sensor = scape.hdf5.remove_duplicates(ant_sensors['activity'])
-        # Simplify the activities to derive the basic state of the antenna (slewing, scanning, tracking, stopped)
-        simplify = {'scan': 'scan', 'track': 'track', 'slew': 'slew', 'scan_ready': 'slew', 'scan_complete': 'slew'}
-        state = np.array([simplify.get(act, 'stop') for act in activity_sensor['value']])
-        state_changes = [n for n in xrange(len(state)) if (n == 0) or (state[n] != state[n - 1])]
-        self._scan_states, state_timestamps = state[state_changes], activity_sensor['timestamp'][state_changes]
-        self._scan_starts = dump_endtimes.searchsorted(state_timestamps)
-        self._scan_ends = np.r_[self._scan_starts[1:] - 1, len(dump_endtimes) - 1]
-
-        # Use the target sensor of reference antenna to partition the data set into compound scans
-        target_sensor = scape.hdf5.remove_duplicates(ant_sensors['target'])
-        target, target_timestamps = target_sensor['value'], target_sensor['timestamp']
-        # Ignore empty and repeating targets (but keep any target following an empty one, as well as first target)
-        target_changes = [n for n in xrange(len(target)) if target[n] and ((n == 0) or (target[n] != target[n - 1]))]
-        compscan_targets, target_timestamps = target[target_changes], target_timestamps[target_changes]
-        compscan_starts = dump_endtimes.searchsorted(target_timestamps)
-
-        # Strip off quotes from target description string and build Target objects
-        self._compscan_targets = [katpoint.Target(tgt[1:-1]) for tgt in compscan_targets]
-        self._scan_compscans = compscan_starts.searchsorted(self._scan_starts, side='right') - 1
-        self._first_sample, self._last_sample = 0, len(self._data_timestamps) - 1
-
-    def dbe_input(self, signal):
-        """DBE input corresponding to signal path, with error reporting."""
-        try:
-            return self.input_map[signal]
-        except KeyError:
-            raise KeyError("Signal path '%s' not connected to correlator (available signals are '%s')" %
-                           (signal, "', '".join(self.input_map.keys())))
-
-    def baselines(self, signals):
-        """Correlation products in data set involving the desired signals."""
-        # DBE inputs that correspond to signal paths
-        dbe_inputs = [self.dbe_input(signal) for signal in signals]
-        # Build all correlation products (and corresponding signal index pairs) from DBE input strings
-        # For N antennas this results in N * N products
-        dbestr_signalpairs = [(inputA + inputB, indexA, indexB) for indexA, inputA in enumerate(dbe_inputs)
-                                                                for indexB, inputB in enumerate(dbe_inputs)]
-        # Discard redundant correlation products (ones which are complex conjugates of products in the data set)
-        # and autocorrelation products (i.e. where antenna indices are equal), resulting in N * (N - 1) / 2 products
-        baselines = [(indexA, indexB) for dbestr, indexA, indexB in dbestr_signalpairs
-                     if dbestr in self._dbestr_to_corr_id and indexA != indexB]
-        # If baseline A-B and its reverse B-A are both in list, only keep the one where A < B
-        for bl in baselines:
-            if (bl[1], bl[0]) in baselines and bl[1] < bl[0]:
-                baselines.remove(bl)
-        return baselines
-
-    def scans(self):
-        """Generator that iterates through scans."""
-        for scan_index in range(len(self._scan_states)):
-            compscan_index = self._scan_compscans[scan_index]
-            state = self._scan_states[scan_index]
-            target = self._compscan_targets[compscan_index]
-            self._first_sample = self._scan_starts[scan_index]
-            self._last_sample = self._scan_ends[scan_index]
-            yield scan_index, compscan_index, state, target
-        self._first_sample, self._last_sample = 0, len(self._data_timestamps) - 1
-
-    def vis(self, corrprod):
-        """Extract complex visibility data of given correlation product with shape (T, F) for current scan."""
-        if len(corrprod) == 2 and not isinstance(corrprod, basestring):
-            corrprod = self.dbe_input(corrprod[0]) + self.dbe_input(corrprod[1])
-        bl_id, pol_id = self._dbestr_to_corr_id[corrprod]
-        return self._vis[self._first_sample:self._last_sample + 1, self.first_channel:self.last_channel + 1,
-                         bl_id, pol_id].astype(np.float32).view(np.complex64)[:, :, 0]
-
-    def timestamps(self):
-        """Extract timestamps for current scan."""
-        return self._data_timestamps[self._first_sample:self._last_sample + 1]
-try:
-    data = Hdf5DataV2(args[0], opts.ref, channel_range, time_offset)
-except WrongHdf5Version:
-    data = Hdf5DataV1(args[0], opts.ref, channel_range, time_offset)
+data = katfile.h5_data(args[0], opts.ref, channel_range, opts.time_offset)
 
 # Filter available antennas via script --ants option, if provided
 ants = [ant for ant in data.ants if opts.ants is None or ant.name in opts.ants]
 ref_ant_ind = [ant.name for ant in ants].index(data.ref_ant)
 # Form desired signal paths and obtain all baselines connecting them
 signals = [ant.name + opts.pol for ant in ants]
-baselines = data.baselines(signals)
+baselines = data.all_corr_products(signals)
+# Throw out autocorrelations
+baselines = [(antA, antB) for antA, antB in baselines if antA != antB]
 baseline_names = ['%s - %s' % (ants[antA].name, ants[antB].name) for antA, antB in baselines]
 num_bls = len(baselines)
 if num_bls == 0:
-    raise ValueError('No baselines based on the requested antennas and polarisation found in data set')
+    raise RuntimeError('No baselines based on the requested antennas and polarisation found in data set')
 
 # Reference antenna and excluded sources
 excluded_targets = opts.exclude.split(',')
@@ -402,6 +141,8 @@ for scan_ind, compscan_ind, state, target in data.scans():
     scan_phase.append(np.vstack(bl_phase))
     print "scan %3d (%4d samples) %s '%s'" % \
           (scan_ind, len(ts), ' '.join([('%.3f' % rel_sigma) for rel_sigma in scan_rel_sigma_delay]), target.name)
+if not augmented_targetdir:
+    raise RuntimeError('No usable scans found (are you tracking any targets?)')
 # Concatenate per-baseline arrays into a single array for data set
 augmented_targetdir = np.hstack(augmented_targetdir)
 group_delay = np.hstack(group_delay)

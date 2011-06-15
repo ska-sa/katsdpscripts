@@ -11,11 +11,11 @@ try:
     import matplotlib.pyplot as plt
 except ImportError:
     plt = None
-import h5py
 
 from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
 import arutils
 import katpoint
+import katfile
 import scape
 
 # Set up standard script options
@@ -67,13 +67,9 @@ if not opts.dry_run:
     if not h5file:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
 
-    ### HACK TO DEDUCE CORRECT ARCHIVE ###
-    # Assume that the archive name corresponds to the config file
-    archive_name = os.path.splitext(os.path.basename(cfg))[0]
-    try:
-        archive = arutils.DataArchive(archive_name)
-    except ValueError:
-        raise RuntimeError("Could not deduce archive associated with configuration '%s'" % cfg)
+    # Obtain archive where file is stored
+    archive_name = session.dbe.sensor.archiver_archive.get_value()
+    archive = arutils.DataArchive(archive_name)
     # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
     # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
     user_logger.info("Waiting for HDF5 file '%s' to appear in archive" % (h5file,))
@@ -82,7 +78,7 @@ if not opts.dry_run:
     while True:
         if archive:
             ar = arutils.ArchiveBrowser(archive)
-            ar.filter_by_filename(h5file)
+            ar.filter_by_filenames(h5file)
             if len(ar.kath5s) > 0:
                 break
         elif os.path.exists(h5file):
@@ -100,15 +96,12 @@ if not opts.dry_run:
 
     # Obtain list of antennas and polarisations present in data set
     user_logger.info('Loading HDF5 file into scape and reducing the data')
-    f = h5py.File(h5file, 'r')
-    antennas = [int(ant[7:]) for ant in f['Antennas'].iternames()]
-    has_h_pol = ['H' in f['Antennas'][ant_group] for ant_group in f['Antennas']]
-    has_v_pol = ['V' in f['Antennas'][ant_group] for ant_group in f['Antennas']]
-    f.close()
+    h5 = katfile.h5_data(h5file)
     # Iterate through antennas
-    for ind, ant in enumerate(antennas):
+    for ant in h5.ants:
+        ant_num = int(ant.name[3:])
         # Load file and do standard processing
-        d = scape.DataSet(h5file, baseline='A%dA%d' % (ant, ant))
+        d = scape.DataSet(h5file, baseline='A%dA%d' % (ant_num, ant_num))
         d = d.select(freqkeep=range(start_freq_channel, end_freq_channel + 1))
         channel_freqs = d.freqs
         d.convert_power_to_temperature()
@@ -122,12 +115,12 @@ if not opts.dry_run:
         # Fit individual polarisation beams first, to get gains and system temperatures
         gain_hh, gain_vv = None, None
         baseline_hh, baseline_vv = None, None
-        if has_h_pol[ind]:
+        if (ant.name + 'H') in h5.inputs:
             d.fit_beams_and_baselines(pol='HH', circular_beam=False)
             if compscan.beam is not None and d.data_unit == 'K':
                 gain_hh = compscan.beam.height / average_flux
                 baseline_hh = compscan.baseline_height()
-        if has_v_pol[ind]:
+        if (ant.name + 'V') in h5.inputs:
             d.fit_beams_and_baselines(pol='VV', circular_beam=False)
             if compscan.beam is not None and d.data_unit == 'K':
                 gain_vv = compscan.beam.height / average_flux
@@ -143,8 +136,8 @@ if not opts.dry_run:
         # The offset is very simplistic and doesn't take into account refraction (see a_p_s_s for more correct way)
         offset_azel = katpoint.rad2deg(np.array(beam.center)) if beam else np.zeros(2)
 
-        user_logger.info("Antenna %d" % (ant,))
-        user_logger.info("---------")
+        user_logger.info("Antenna %s" % (ant.name,))
+        user_logger.info("------------")
         user_logger.info("Target = '%s', azel around (%.1f, %.1f) deg" %
                          (compscan.target.name, requested_azel[0], requested_azel[1]))
         if beam is None:
@@ -167,7 +160,7 @@ if not opts.dry_run:
             user_logger.info("VV Tsys = %.1f K" % (baseline_vv,))
 
         if plt is not None:
-            plt.figure(ant, figsize=(10, 10))
+            plt.figure(ant_num, figsize=(10, 10))
             plt.clf()
             plt.subplots_adjust(bottom=0.3)
             plt.subplot(211)
