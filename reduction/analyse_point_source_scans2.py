@@ -115,54 +115,63 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     for beam in beams:
         var_names += ' beam_height_%s beam_width_%s baseline_height_%s refined_%s' % tuple([beam[0]] * 4)
         variable += list(beam[1])
-    return np.rec.fromrecords([tuple(fixed)], names=fixed_names.split()), \
-           np.rec.fromrecords([tuple(variable)], names=var_names.split())
+    return dict(zip(fixed_names.split(), fixed)), dict(zip(var_names.split(), variable))
 
-def join_recarrays(*args):
-    """Join the records of multiple independent recarrays of the same shape."""
-    names, data = [], []
-    for arg in args:
-        names += [name for name in arg.dtype.names]
-        data += [arg[name] for name in arg.dtype.names]
-    return np.rec.fromarrays(data, names=names)
+def extract_cal_dataset(dataset):
+    """Build data set from scans in original dataset containing noise diode firings."""
+    compscanlist = []
+    for compscan in dataset.compscans:
+        # Extract scans containing noise diode firings (make copy, as this will be modified by gain cal)
+        # Don't rely on 'cal' labels, as the KAT-7 system does not produce it anymore
+        scanlist = [scan.select(copy=True) for scan in compscan.scans
+                    if 'nd_on' in scan.flags.dtype.fields and scan.flags['nd_on'].any()]
+        if scanlist:
+            compscanlist.append(scape.CompoundScan(scanlist, compscan.target))
+    return scape.DataSet(None, compscanlist, dataset.experiment_id, dataset.observer,
+                         dataset.description, dataset.data_unit, dataset.corrconf.select(copy=True),
+                         dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
 
-def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, **kwargs):
+def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
     scan_dataset = dataset.select(labelkeep='scan', copy=False)
     compscan = scan_dataset.compscans[compscan_index]
-    logger.info("==== Processing compound scan '%s' ====" % (' '.join(compscan_key(compscan)),))
+    logger.info("==== Processing compound scan %d of %d: '%s' ====" % (compscan_index + 1, len(scan_dataset.compscans),
+                                                                       ' '.join(compscan_key(compscan)),))
     # Build data set containing a single compound scan at a time (make copy, as reduction modifies it)
     scan_dataset.compscans = [compscan]
     compscan_dataset = scan_dataset.select(copy=True)
-    # Extract noise diode firings only (make copy, as this will be modified by gain cal)
-    cal_dataset = dataset.select(labelkeep='cal', copy=True)
+    cal_dataset = extract_cal_dataset(dataset)
     # Do first reduction run
     main_compscan = compscan_dataset.compscans[0]
-    fixed, variable = reduce_compscan(main_compscan, cal_dataset)
+    fixed, variable = reduce_compscan(main_compscan, cal_dataset, **kwargs)
     # Produce data set that has counts converted to Kelvin, but no averaging (for spectral plots)
     unavg_compscan_dataset = scan_dataset.select(copy=True)
     unavg_compscan_dataset.nd_gain = cal_dataset.nd_gain
     unavg_compscan_dataset.convert_power_to_temperature()
     # Add data from Monte Carlo perturbations
-    iter_outputs = [variable]
+    iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=variable.keys())]
     for m in range(mc_iterations - 1):
         logger.info("---- Monte Carlo iteration %d of %d ----" % (m + 2, mc_iterations))
         compscan_dataset = scan_dataset.select(copy=True).perturb()
-        cal_dataset = dataset.select(labelkeep='cal', copy=True).perturb()
-        fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset)
-        iter_outputs.append(variable)
-    # Get mean and uncertainty of variable part of output data
+        cal_dataset = extract_cal_dataset(dataset).perturb()
+        fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
+        iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=variable.keys()))
+    # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
-    var_mean = np.rec.fromrecords([tuple(var_output.mean(axis=0))], names=iter_outputs[0].dtype.names)
-    var_std = np.rec.fromrecords([tuple(var_output.std(axis=0))],
-                                 names=[name + '_std' for name in iter_outputs[0].dtype.names])
-    out_record = np.squeeze(join_recarrays(fixed, var_mean, var_std))
-    return main_compscan, out_record, unavg_compscan_dataset
+    var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
+    var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
+    # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
+    keep = batch and main_compscan.beam and main_compscan.beam.is_valid
+    output_dict = {'keep' : keep, 'compscan' : main_compscan, 'unavg_dataset' : unavg_compscan_dataset}
+    output_dict.update(fixed)
+    output_dict.update(var_mean)
+    output_dict.update(var_std)
+    return output_dict
 
-def reduce_and_plot(dataset, compscan_index, output_data, opts, fig=None):
-    """Reduce compound scan, update the plots in given figure and save output data when done."""
-    # Save output data and return after last compound scan is done
-    if compscan_index >= len(output_data):
+def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **kwargs):
+    """Reduce compound scan, update the plots in given figure and save reduction output when done."""
+    # Save reduction output and return after last compound scan is done
+    if current_compscan >= len(reduced_data):
         output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
                         '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
                         '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, %(beam_width_I).7f, ' \
@@ -174,44 +183,59 @@ def reduce_and_plot(dataset, compscan_index, output_data, opts, fig=None):
         f = file(opts.outfilebase + '.csv', 'w')
         f.write('# antenna = %s\n' % dataset.antenna.description)
         f.write(', '.join(output_field_names) + '\n')
-        f.writelines([output_fields % rec for rec in output_data if rec])
+        f.writelines([output_fields % out for out in reduced_data if out and out['keep']])
         f.close()
         if not opts.batch:
             # This closes the GUI and effectively exits the program in the interactive case
             plt.close('all')
         return
 
-    # Reduce compound scan
-    compscan, rec, unavg_dataset = reduce_compscan_with_uncertainty(dataset, compscan_index, opts.monte_carlo)
-    # If beam is marked as invalid, discard scan only if in batch mode (otherwise discard button has to do it)
-    output_data[compscan_index] = rec if (compscan.beam and (not opts.batch or compscan.beam.is_valid)) else None
+    # Reduce current compound scan if results are not cached
+    if not reduced_data[current_compscan]:
+        reduced_data[current_compscan] = reduce_compscan_with_uncertainty(dataset, current_compscan,
+                                                                          opts.mc_iterations, opts.batch, **kwargs)
 
     # Display compound scan
-    if not opts.batch:
-        ax1, ax2, info = fig.axes[0], fig.axes[1], fig.texts[0]
+    if fig:
+        out = reduced_data[current_compscan]
+        # Display uncertainties if we are doing Monte Carlo
+        if opts.mc_iterations > 1:
+            offset_az = u"%.1f\u00B1%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
+            offset_el = u"%.1f\u00B1%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
+            beam_width = u"%.1f\u00B1%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
+            beam_height = u"%.2f\u00B1%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
+            baseline_height = u"%.1f\u00B1%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
+        else:
+            offset_az, offset_el = "%.1f" % (60. * out['delta_azimuth'],), "%.1f" % (60. * out['delta_elevation'],)
+            beam_width, beam_height = "%.1f" % (60. * out['beam_width_I'],), "%.2f" % (out['beam_height_I'],)
+            baseline_height = "%.1f" % (out['baseline_height_I'],)
+        ax1, ax2, info, counter = fig.axes[0], fig.axes[1], fig.texts[0], fig.texts[1]
         ax1.clear()
-        scape.plot_compound_scan_in_time(compscan, ax=ax1)
-        ax1.set_title(("%(dataset)s %(antenna)s '%(target)s'\nazel=(%(azimuth).1f, %(elevation).1f) deg," % rec) +
-                      (" offset=(%.1f, %.1f) arcmin" % (60. * rec['delta_azimuth'], 60. * rec['delta_elevation'])),
-                      size='medium')
-        ax1.set_ylabel('Total power (%(data_unit)s)' % rec)
+        scape.plot_compound_scan_in_time(out['compscan'], ax=ax1)
+        ax1.set_title(("%(dataset)s %(antenna)s '%(target)s'\nazel=(%(azimuth).1f, %(elevation).1f) deg, " % out) +
+                      (u"offset=(%s, %s) arcmin" % (offset_az, offset_el)), size='medium')
+        ax1.set_ylabel('Total power (%(data_unit)s)' % out)
         ax2.clear()
-        scape.plot_compound_scan_on_target(compscan, ax=ax2)
+        scape.plot_compound_scan_on_target(out['compscan'], ax=ax2)
         if opts.plot_spectrum:
             ax3 = fig.axes[2]
             ax3.clear()
-            scape.plot_xyz(unavg_dataset, 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
-        if compscan.beam:
-            info.set_text(("Beamwidth = %.1f' (expected %.1f')\nBeam height = %.1f %s\n" +
-                           "HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %.1f %s") %
-                          (60. * rec['beam_width_I'], 60. * rec['beam_expected_width_I'], rec['beam_height_I'],
-                           rec['data_unit'], rec['flux'] / rec['beam_height_HH'], rec['flux'] / rec['beam_height_VV'],
-                           rec['data_unit'], rec['baseline_height_I'], rec['data_unit']))
+            scape.plot_xyz(out['unavg_dataset'], 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
+        if out['compscan'].beam:
+            info.set_text((u"Beamwidth = %s' (expected %.1f')\nBeam height = %s %s\n"
+                           u"HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %s %s") %
+                          (beam_width, 60. * out['beam_expected_width_I'], beam_height, out['data_unit'],
+                           out['flux'] / out['beam_height_HH'], out['flux'] / out['beam_height_VV'], out['data_unit'],
+                           baseline_height, out['data_unit']))
         else:
-            info.set_text("No beam\nBaseline height = %(baseline_height_I).2f %(data_unit)s" % rec)
+            info.set_text(u"No beam\nBaseline height = %s %s" % (baseline_height, out['data_unit']))
+        counter.set_text("compscan %d of %d" % (current_compscan + 1, len(reduced_data)))
         plt.draw()
-        # Also store data in figure so that button callbacks can access it
-        fig.user_data = (dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset)
+
+    # Reduce next compound scan so long, as this will improve interactiveness (i.e. next plot will be immediate)
+    if (current_compscan < len(reduced_data) - 1) and not reduced_data[current_compscan + 1]:
+        reduced_data[current_compscan + 1] = reduce_compscan_with_uncertainty(dataset, current_compscan + 1,
+                                                                              opts.mc_iterations, opts.batch, **kwargs)
 
 #################################################### Main function ####################################################
 
@@ -228,7 +252,7 @@ parser.add_option("-f", "--freq-chans", default='90,424',
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
 parser.add_option("-k", "--keep", dest="keepfilename",
                   help="Name of optional CSV file used to select compound scans from dataset (implies batch mode)")
-parser.add_option("-m", "--monte-carlo", type='int', default=1,
+parser.add_option("-m", "--monte-carlo", dest="mc_iterations", type='int', default=1,
                   help="Number of Monte Carlo iterations to estimate uncertainty (20-30 suggested, default off)")
 parser.add_option("-n", "--nd-models", help="Name of optional directory containing noise diode model files")
 parser.add_option("-o", "--output", dest="outfilebase",
@@ -245,7 +269,7 @@ if len(args) != 1 or not args[0].endswith('.h5'):
     raise RuntimeError('Please specify a single HDF5 file as argument to the script')
 filename = args[0]
 dataset_name = os.path.splitext(os.path.basename(filename))[0]
-    
+
 # Default output file names are based on input file name
 if opts.outfilebase is None:
     opts.outfilebase = dataset_name + '_point_source_scans'
@@ -278,7 +302,12 @@ if opts.keepfilename:
     logger.debug("Loaded CSV file '%s' containing %d dataset(s) and %d compscan(s) for antenna '%s'" %
                  (opts.keepfilename, len(keep_datasets), len(keep_scans), ant_name))
     # Ensure we are using antenna found in CSV file (assume ant name = "ant" + number)
-    opts.baseline = 'A%sA%s' % (ant_name[3:], ant_name[3:])
+    csv_baseline = 'A%sA%s' % (ant_name[3:], ant_name[3:])
+    if opts.baseline != 'AxAx' and opts.baseline != csv_baseline:
+        logger.warn("Requested baseline '%s' does not match baseline '%s' in CSV file '%s'" %
+                    (opts.baseline, csv_baseline, opts.keepfilename))
+    logger.warn("Using baseline '%s' found in CSV file '%s'" % (csv_baseline, opts.keepfilename))
+    opts.baseline = csv_baseline
 
 # Only import matplotlib if not in batch mode
 if not opts.batch:
@@ -310,22 +339,22 @@ if opts.pointing_model:
     logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pointing_model))
     dataset.antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
 
-# Presized list of output records (None indicates a discarded compound scan)
-output_data = [None] * len(scan_dataset.compscans)
+# Initialise the output data cache (None indicates the compscan has not been processed yet)
+reduced_data = [None] * len(scan_dataset.compscans)
 
 ### BATCH MODE ###
 
 # This will cycle through all data sets and stop when done
 if opts.batch:
     # Go one past the end of compscan list to write the output data out to CSV file
-    for compscan_index in range(len(scan_dataset.compscans) + 1):
+    for current_compscan in range(len(scan_dataset.compscans) + 1):
         # Look up compscan key in list of compscans to keep (if provided, only applicable to batch mode anyway)
-        if keep_scans and (compscan_index < len(scan_dataset.compscans)):
-            cs_key = ' '.join(compscan_key(scan_dataset.compscans[compscan_index]))
+        if keep_scans and (current_compscan < len(scan_dataset.compscans)):
+            cs_key = ' '.join(compscan_key(scan_dataset.compscans[current_compscan]))
             if cs_key not in keep_scans:
                 logger.info("==== Skipping compound scan '%s' (based on CSV file) ====" % (cs_key,))
                 continue
-        reduce_and_plot(dataset, compscan_index, output_data, opts)
+        reduce_and_plot(dataset, current_compscan, reduced_data, opts)
 
 ### INTERACTIVE MODE ###
 else:
@@ -342,6 +371,7 @@ else:
         plt.subplot(212)
     plt.subplots_adjust(bottom=0.2, hspace=0.25)
     plt.figtext(0.05, 0.05, '', va='bottom', ha='left')
+    plt.figtext(0.05, 0.945, '', va='bottom', ha='left')
 
     # Make button context manager that disables buttons during processing and re-enables it afterwards
     class DisableButtons(object):
@@ -375,54 +405,50 @@ else:
         with all_buttons:
             plt.figure(2)
             plt.clf()
-            dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset = fig.user_data
-            ax = scape.plot_xyz(unavg_dataset, 'time', 'freq', 'amp', power_in_dB=True)
-            ax.set_title(rec['target'], size='medium')
+            out = reduced_data[fig.current_compscan]
+            ax = scape.plot_xyz(out['unavg_dataset'], 'time', 'freq', 'amp', power_in_dB=True)
+            ax.set_title(out['target'], size='medium')
     spectrogram_button.on_clicked(spectrogram_callback)
     all_buttons.append(spectrogram_button)
 
     keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
     def keep_callback(event):
         with all_buttons:
-            dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset = fig.user_data
-            compscan_index += 1
-            reduce_and_plot(dataset, compscan_index, output_data, opts, fig)
+            reduced_data[fig.current_compscan]['keep'] = True
+            fig.current_compscan += 1
+            reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig)
     keep_button.on_clicked(keep_callback)
     all_buttons.append(keep_button)
 
     discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
     def discard_callback(event):
         with all_buttons:
-            dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset = fig.user_data
-            output_data[compscan_index] = None
-            compscan_index += 1
-            reduce_and_plot(dataset, compscan_index, output_data, opts, fig)
+            reduced_data[fig.current_compscan]['keep'] = False
+            fig.current_compscan += 1
+            reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig)
     discard_button.on_clicked(discard_callback)
     all_buttons.append(discard_button)
 
     back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
     def back_callback(event):
         with all_buttons:
-            dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset = fig.user_data
-            if compscan_index > 0:
-                compscan_index -= 1
-                reduce_and_plot(dataset, compscan_index, output_data, opts, fig)
+            if fig.current_compscan > 0:
+                fig.current_compscan -= 1
+                reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig)
     back_button.on_clicked(back_callback)
     all_buttons.append(back_button)
 
     done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
     def done_callback(event):
         with all_buttons:
-            dataset, compscan_index, output_data, opts, compscan, rec, unavg_dataset = fig.user_data
-            # Don't keep the current compscan (since user did not click on "Keep")
-            output_data[compscan_index] = None
-            compscan_index = len(output_data)
-            reduce_and_plot(dataset, compscan_index, output_data, opts, fig)
+            fig.current_compscan = len(reduced_data)
+            reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig)
     done_button.on_clicked(done_callback)
     all_buttons.append(done_button)
 
     # Start off the processing on the first compound scan
-    reduce_and_plot(dataset, 0, output_data, opts, fig)
+    fig.current_compscan = 0
+    reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig)
     # Display plots - this should be called ONLY ONCE, at the VERY END of the script
     # The script stops here until you close the plots...
     plt.show()
