@@ -38,6 +38,8 @@ if opts.no_plots:
     plt = None
 
 with verify_and_connect(opts) as kat:
+    # Obtain archive where file is stored
+    archive_name = kat.dbe.sensor.archiver_archive.get_value()
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
@@ -67,8 +69,6 @@ if not opts.dry_run:
     if not h5file:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
 
-    # Obtain archive where file is stored
-    archive_name = session.dbe.sensor.archiver_archive.get_value()
     archive = arutils.DataArchive(archive_name)
     # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
     # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
