@@ -238,7 +238,7 @@ with verify_and_connect(opts) as kat:
             # 95% confidence interval of DBE power, assuming large snapshot length and normally distributed samples
             dbe_conf_interval = 2 * 10. * np.log10(1. + 2. * np.sqrt(2. / snapshot_length))
             dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe_conf_interval) / 2
-            user_logger.info('ant%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
+            user_logger.info('%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
                              (ant.name, pol.upper(), rfe5_in, rfe5_att,
                               colors.Green if rfe5_success else colors.Red, rfe5_out, colors.Normal, rfe7_att,
                               colors.Green if dbe_success else colors.Red, dbe_in, colors.Normal))
