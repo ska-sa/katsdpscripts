@@ -75,12 +75,11 @@ connected_antpols = {}
 def get_dbe_input_power(kat, ant_name, pol, dbe):
     if dbe == 'dbe':
         dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
-    else if dbe == 'dbe7':
+    elif dbe == 'dbe7':
         dbe_input = ant_name + pol.upper()
     else:
-        except NameError:
-            print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7'"
-            sys.exit(0)
+        print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7'"
+        sys.exit(0)
     PinFS_dBm, nbits = 0, 8 # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
     fullscale = 2 ** (nbits - 1)
     gainADC_dB = 20 * np.log10(fullscale) - PinFS_dBm # Scale factor from dBm to numbers
@@ -155,7 +154,7 @@ with verify_and_connect(opts) as kat:
         else:
             user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
             sys.exit(0)
-    else if opts.dbe == 'dbe7':
+    elif opts.dbe == 'dbe7':
         dbe_mode = kat.dbe7.req.dbe_mode()[1]
         if dbe_mode == 'wbc':
             user_logger.info("dbe7 mode is 'wbc', as expected :)")
@@ -163,9 +162,8 @@ with verify_and_connect(opts) as kat:
             user_logger.info("dbe7 mode is %s. Please run kat.dbe7.req.dbe_mode('wbc') to reset KAT-7 correlator mode. Exiting." % (dbe_mode))
             sys.exit(0)
     else:
-        except NameError:
-            print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting."
-            sys.exit(0)
+        print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting."
+        sys.exit(0)
 
     # set the default dbe gain for all freq channels as a starting point (these not adjusted further currently)
     gain = {"dbe": 3000, "dbe7": 300}[opts.dbe]
