@@ -185,9 +185,11 @@ with verify_and_connect(opts) as kat:
     kat.dh.register_dbe(selected_dbe)
 
     # If centre frequency is specified, set it accordingly
+    user_logger.info('Current centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
     if opts.centre_freq:
         kat.rfe7.req.rfe7_lo1_frequency(4200.0 + opts.centre_freq, 'MHz')
-    user_logger.info('Centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
+        time.sleep(1.0)
+        user_logger.info('New centre frequency to: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
 
     # Move all antennas onto calibration source and wait for lock
     try:
