@@ -15,6 +15,7 @@
 from __future__ import with_statement
 
 import time
+import sys
 import optparse
 import numpy as np
 
@@ -75,18 +76,19 @@ connected_antpols = {}
 def get_dbe_input_power(kat, ant_name, pol, dbe):
     if dbe == 'dbe':
         dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
+        PinFS_dBm, nbits = 0, 8  # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
+        fullscale = 2 ** (nbits - 1)
+        gainADC_dB = 20 * np.log10(fullscale) - PinFS_dBm  # Scale factor from dBm to numbers
+        voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
+        return 10 * np.log10(np.var(voltage_samples)) - gainADC_dB
     elif dbe == 'dbe7':
         dbe_input = ant_name + pol.upper()
+        dbe_device = getattr(kat, dbe)
+        power_sensor = getattr(dbe_device.sensor, "dbe_%s_adc_power" % dbe_input)
+        return power_sensor.get_value()
     else:
         print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7'"
         sys.exit(0)
-    PinFS_dBm, nbits = 0, 8 # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
-    fullscale = 2 ** (nbits - 1)
-    gainADC_dB = 20 * np.log10(fullscale) - PinFS_dBm # Scale factor from dBm to numbers
-    voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
-    return 10 * np.log10(np.var(voltage_samples)) - gainADC_dB
-    
-                
 
 ####################### Generic iterative adjustment ##########################
 
@@ -212,7 +214,7 @@ with verify_and_connect(opts) as kat:
                 continue
             rfe5_in = get_rfe5_input_power(kat, ant.name, pol)
             # Adjust RFE stage 5 attenuation to give desired output power (short waits required to stabilise power)
-            rfe_init_att = max(-(opts.rfe5_desired_power - rfe5_in),0)
+            rfe_init_att = max(-(opts.rfe5_desired_power - rfe5_in), 0)
             user_logger.info("Setting initial RFE5 attenuation of %i to allow power out sensor to work..." % rfe_init_att)
             set_rfe5_attenuation(kat, ant.name, pol, rfe_init_att)
             rfe5_att = get_rfe5_attenuation(kat, ant.name, pol)
