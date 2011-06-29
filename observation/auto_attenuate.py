@@ -1,13 +1,16 @@
 #! /usr/bin/python
 #
-# Set attenuators on RFE stages 5 and 7 to ensure the optimal input power to the
-# ADCs while tracking a radio source of interest.
+# Ensure correlator setup with basic default mode and gain settings. Set attenuators on RFE stages 5 and 7
+# to ensure the optimal input power to the ADCs while tracking a radio source of interest.
 #
 # Ludwig Schwardt
 # 16 February 2011
-#
-# Hacked a little by SimonR
-# 06 June 2011
+##
+# 06 June 2011 - (SimonR) Hacked a little
+# 29 June 2011 - (JasperH) Added correlator mode check and intial setting of correlator gains. Removed the dreaded "eval" in the process.
+
+# TODO: Revisit the workings of this in light of emerging correlator power sensors.
+
 
 from __future__ import with_statement
 
@@ -69,30 +72,31 @@ def set_rfe7_attenuation(kat, ant_name, pol, value):
 snapshot_length = 8192
 connected_antpols = {}
 
-def get_dbe_input_power(kat, ant_name, pol):
-    dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
+def get_dbe_input_power(kat, ant_name, pol, dbe):
+    if dbe == 'dbe':
+        dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
+    else if dbe == 'dbe7':
+        dbe_input = ant_name + pol.upper()
+    else:
+        except NameError:
+            print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7'"
+            sys.exit(0)
     PinFS_dBm, nbits = 0, 8 # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
     fullscale = 2 ** (nbits - 1)
     gainADC_dB = 20 * np.log10(fullscale) - PinFS_dBm # Scale factor from dBm to numbers
     voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
     return 10 * np.log10(np.var(voltage_samples)) - gainADC_dB
-
-def get_dbe7_input_power(kat, ant_name, pol):
-    dbe_input = ant_name + pol.upper()
-    PinFS_dBm, nbits = 0, 8 # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
-    fullscale = 2 ** (nbits - 1)
-    gainADC_dB = 20 * np.log10(fullscale) - PinFS_dBm # Scale factor from dBm to numbers
-    voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
-    return 10 * np.log10(np.var(voltage_samples)) - gainADC_dB
+    
+                
 
 ####################### Generic iterative adjustment ##########################
 
-def adjust(kat, ant_name, pol, get_att, set_att, get_power, desired_power, min_att, max_att, att_step, wait=0.):
+def adjust(kat, ant_name, pol, get_att, set_att, dbe, desired_power, min_att, max_att, att_step, wait=0.):
     """Iteratively adjust attenuator to move power towards desired value."""
     # This should converge in a few iterations, else stop anyway
     for n in range(5):
         att = get_att(kat, ant_name, pol)
-        power = get_power(kat, ant_name, pol)
+        power = get_dbe_input_power(kat, ant_name, pol, dbe)
         # The difference between actual and desired power is roughly the extra attenuation needed
         new_att = att + power - desired_power
         # Round desired attenuation to the nearest allowed one
@@ -108,7 +112,7 @@ def adjust(kat, ant_name, pol, get_att, set_att, get_power, desired_power, min_a
         # Obtain latest measurements on the last iteration
         if n == 4:
             att = get_att(kat, ant_name, pol)
-            power = get_power(kat, ant_name, pol)
+            power = get_dbe_input_power(kat, ant_name, pol, dbe)
     return att, power
 
 ############################### Main script ###################################
@@ -139,11 +143,34 @@ with verify_and_connect(opts) as kat:
 
     try:
         selected_dbe = getattr(kat, opts.dbe)
-        get_dbe_power = eval('get_' + opts.dbe + '_input_power')
-         # select the input power function based on the user specified dbe
     except NameError:
         print "Unknown dbe device (%s) specified. Typically it should be either 'dbe' or 'dbe7'"
         sys.exit(0)
+
+    # check that the selected dbe is set to the correct mode
+    if opts.dbe == 'dbe':
+        dbe_mode = kat.dbe.req.dbe_mode()[1]
+        if dbe_mode == 'poco':
+            user_logger.info("dbe mode is 'poco', as expected :)")
+        else:
+            user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
+            sys.exit(0)
+    else if opts.dbe == 'dbe7':
+        dbe_mode = kat.dbe7.req.dbe_mode()[1]
+        if dbe_mode == 'wbc':
+            user_logger.info("dbe7 mode is 'wbc', as expected :)")
+        else:
+            user_logger.info("dbe7 mode is %s. Please run kat.dbe7.req.dbe_mode('wbc') to reset KAT-7 correlator mode. Exiting." % (dbe_mode))
+            sys.exit(0)
+    else:
+        except NameError:
+            print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting."
+            sys.exit(0)
+
+    # set the default dbe gain for all freq channels as a starting point (these not adjusted further currently)
+    gain = {"dbe": 3000, "dbe7": 300}[opts.dbe]
+    selected_dbe.req.set_gains(gain)
+    user_logger.info("Set digital gain on selected DBE to %d." % gain)
 
     # Populate lookup table that maps ant+pol to DBE input
     for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
@@ -154,8 +181,7 @@ with verify_and_connect(opts) as kat:
     ants = ant_array(kat, opts.ants)
     user_logger.info('Using antennas: %s' % (' '.join([dev.name for dev in ants.devs]),))
 
-    # Switch data handler to requested DBE (but first remember current one)
-    old_dbe = kat.dh.dbe
+    # Switch data handler to requested DBE
     kat.dh.register_dbe(selected_dbe)
 
     # If centre frequency is specified, set it accordingly
@@ -197,12 +223,12 @@ with verify_and_connect(opts) as kat:
              # as the ouput power sensor only works when output is less than -40dB
             # Adjust RFE stage 7 attenuation to give desired DBE input power (no waits required, as DBE lookup is slow)
             rfe7_att, dbe_in = adjust(kat, ant.name, pol, get_rfe7_attenuation, set_rfe7_attenuation,
-                                      get_dbe_power, opts.dbe_desired_power,
+                                      opts.dbe, opts.dbe_desired_power,
                                       rfe7_min_att, rfe7_max_att, rfe7_att_step)
             # If RFE7 hits minimum attenuation, go back to RFE5 to try and reach desired DBE input power
             if rfe7_att == rfe7_min_att:
                 rfe5_att, dbe_in = adjust(kat, ant.name, pol, get_rfe5_attenuation, set_rfe5_attenuation,
-                                          get_dbe_power, opts.dbe_desired_power,
+                                          opts.dbe, opts.dbe_desired_power,
                                           rfe5_min_att, rfe5_max_att, rfe5_att_step)
                 rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
             # Check whether final power levels are within expected bounds
