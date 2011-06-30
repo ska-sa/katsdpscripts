@@ -78,11 +78,11 @@ dbe_power_range = 2. # dBm - Jason reckons we need to get within 1 dBm of the ta
 
 def get_dbe_input_power(kat, ant_name, pol, dbe):
     if dbe == 'dbe':
-        # Proceed as per Jason Manley's email suggestion 30/6/2011:
+        # Proceed as per Jason Manley's email suggestion 30/6/2011 plus sqrt fix in rms_inp_in_volts line:
         dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
-        voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
-        rms_inp_in_volts = np.average(voltage_samples*voltage_samples) / 368.0 # mysterious cal factor...
-        user_logger.info("DBE input power %-4.1f." % (10*numpy.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)))
+        voltage_samples = kat.dh.get_snapshot('adc', dbe_input) + 0.5
+        rms_inp_in_volts = np.sqrt(np.average(voltage_samples*voltage_samples)) / 368.0 # mysterious cal factor...
+        user_logger.info("DBE input power %-4.1f." % (10*np.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)))
         return 10*np.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)
     elif dbe == 'dbe7':
         dbe_input = ant_name + pol.upper()
