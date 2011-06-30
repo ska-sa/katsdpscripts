@@ -23,6 +23,8 @@ from katuilib.observe import verify_and_connect, ant_array, lookup_targets, user
 from katuilib import colors
 import katpoint
 
+wait_secs = 0.5 # time to wait in secs to allow power levels to settle after changing attenuators
+
 def ant_pedestal(kat, ant_name):
     """Pedestal device associated with antenna device."""
     # This assumes that antenna names have the format 'antx', where x is an integer (the antenna number)
@@ -34,6 +36,7 @@ def ant_pedestal(kat, ant_name):
 # RFE5 minimum attenuation, maximum attenuation, finest resolution to which attenuation can be set, all in dB
 rfe5_min_att, rfe5_max_att, rfe5_att_step = 0.0, 63.5, 0.5
 rfe5_power_range = 2.
+rfe5_out_max_meas_power = -40 # dBm - power sensor cannot measure larger signals than this
 
 def get_rfe5_input_power(kat, ant_name, pol):
     ped = ant_pedestal(kat, ant_name)
@@ -72,6 +75,7 @@ def set_rfe7_attenuation(kat, ant_name, pol, value):
 
 snapshot_length = 8192
 connected_antpols = {}
+dbe7_power_range = 1. # A guess for now re accuracy of sensor in dBm
 
 def get_dbe_input_power(kat, ant_name, pol, dbe):
     if dbe == 'dbe':
@@ -92,7 +96,7 @@ def get_dbe_input_power(kat, ant_name, pol, dbe):
 
 ####################### Generic iterative adjustment ##########################
 
-def adjust(kat, ant_name, pol, get_att, set_att, dbe, desired_power, min_att, max_att, att_step, wait=0.):
+def adjust(kat, ant_name, pol, get_att, set_att, dbe, desired_power, min_att, max_att, att_step, wait=wait_secs):
     """Iteratively adjust attenuator to move power towards desired value."""
     # This should converge in a few iterations, else stop anyway
     for n in range(5):
@@ -108,7 +112,7 @@ def adjust(kat, ant_name, pol, get_att, set_att, dbe, desired_power, min_att, ma
         if new_att == att:
             break
         set_att(kat, ant_name, pol, new_att)
-        # Optionally wait until power has stabilised before making the next measurement
+        # Wait until power has stabilised before making the next measurement
         time.sleep(wait)
         # Obtain latest measurements on the last iteration
         if n == 4:
@@ -128,7 +132,8 @@ parser.add_option('-a', '--ants', help="Comma-separated list of antennas to incl
                   "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
 parser.add_option('-f', '--centre-freq', type='float', help='Centre frequency, in MHz (ignored by default)')
 parser.add_option('-t', '--target', default='',
-                  help="Radio source on which to calibrate the attenuators (default='%default')")
+                  help="Radio source on which to calibrate the attenuators (default='%default'). "+
+                  "Won't drive antennas if not set.")
 parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', default=-47.0,
                   help='Desired RFE5 output power, in dBm (default=%default)')
 parser.add_option('-d', '--dbe-desired', type='float', dest='dbe_desired_power', default=-27.0,
@@ -206,6 +211,10 @@ with verify_and_connect(opts) as kat:
         ants.wait('lock', True, 300)
         user_logger.info('Target reached')
 
+    # Warn if requesting an RFE5 desired output power larger than max measurable power of the RFE5 output power sensor
+    if opts.rfe5_desired_power > rfe5_out_max_meas_power:
+        user_logger.warn("Requested RFE5 output power %-4.1f larger than max measurable power of %-4.1f dBm. Could cause problems..." % ( opts.rfe5_desired_power, rfe5_out_max_meas_power))
+
     user_logger.info('Input: --dBm->| RFE5 |--dBm->| RFE7 |--dBm->| DBE |')
     user_logger.info('Desired:      | RFE5 | %-4.1f | RFE7 | %-4.1f | DBE |' %
                      (opts.rfe5_desired_power, opts.dbe_desired_power))
@@ -214,30 +223,54 @@ with verify_and_connect(opts) as kat:
             if '%s, %s' % (ant.name, pol) not in connected_antpols:
                 user_logger.info('%s %s: not connected to DBE' % (ant.name, pol.upper()))
                 continue
-            rfe5_in = get_rfe5_input_power(kat, ant.name, pol)
-            # Adjust RFE stage 5 attenuation to give desired output power (short waits required to stabilise power)
-            rfe_init_att = max(-(opts.rfe5_desired_power - rfe5_in), 0)
-            user_logger.info("Setting initial RFE5 attenuation of %i to allow power out sensor to work..." % rfe_init_att)
-            set_rfe5_attenuation(kat, ant.name, pol, rfe_init_att)
+            
+            # Adjust RFE stage 5 attenuation to give desired output power
             rfe5_att = get_rfe5_attenuation(kat, ant.name, pol)
+            rfe5_in = get_rfe5_input_power(kat, ant.name, pol)
             rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
-             # make sure we are getting a decent output power reading
-             # as the ouput power sensor only works when output is less than -40dB
-            # Adjust RFE stage 7 attenuation to give desired DBE input power (no waits required, as DBE lookup is slow)
+            user_logger.info("Start RFE5 input power | atten | output power = %-4.1f | %-4.1f | %-4.1f" % (rfe5_in, rfe5_att, rfe5_out))
+
+            # The difference between actual and desired power is roughly the extra attenuation needed
+            rfe5_att = rfe5_att + rfe5_out - opts.rfe5_desired_power
+            # Round desired attenuation to the nearest allowed one
+            rfe5_att = np.round((rfe5_att - rfe5_min_att) / rfe5_att_step) * rfe5_att_step + rfe5_min_att
+            # Force attenuation to stay within allowed range
+            rfe5_att = np.clip(rfe5_att, rfe5_min_att, rfe5_max_att )
+
+            user_logger.info("Setting updated RFE5 attenuation of %i dB" % rfe5_att)
+            set_rfe5_attenuation(kat, ant.name, pol, rfe5_att)
+            time.sleep(wait_secs) # add a small sleep to allow change to propagate
+            
+            # Get the newly-set rfe5 attenuation value as a check and new
+            # rfe5 input and output power value (input should be approx same)
+            rfe5_att = get_rfe5_attenuation(kat, ant.name, pol)
+            rfe5_in = get_rfe5_input_power(kat, ant.name, pol)
+            rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
+            user_logger.info("Updated RFE5 input power | atten | output power = %-4.1f | %-4.1f | %-4.1f" % (rfe5_in, rfe5_att, rfe5_out))
+            
+            # Adjust RFE stage 7 attenuation to give desired DBE input power
             rfe7_att, dbe_in = adjust(kat, ant.name, pol, get_rfe7_attenuation, set_rfe7_attenuation,
                                       opts.dbe, opts.dbe_desired_power,
                                       rfe7_min_att, rfe7_max_att, rfe7_att_step)
             # If RFE7 hits minimum attenuation, go back to RFE5 to try and reach desired DBE input power
             if rfe7_att == rfe7_min_att:
+                user_logger.info("Min RFE7 atten %-4.1f reached. Attempting to re-tweak RFE5 attenuator in favour of DBE input power..." %rfe7_min_att)
                 rfe5_att, dbe_in = adjust(kat, ant.name, pol, get_rfe5_attenuation, set_rfe5_attenuation,
                                           opts.dbe, opts.dbe_desired_power,
                                           rfe5_min_att, rfe5_max_att, rfe5_att_step)
                 rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
             # Check whether final power levels are within expected bounds
             rfe5_success = np.abs(rfe5_out - opts.rfe5_desired_power) <= rfe5_power_range / 2
-            # 95% confidence interval of DBE power, assuming large snapshot length and normally distributed samples
-            dbe_conf_interval = 2 * 10. * np.log10(1. + 2. * np.sqrt(2. / snapshot_length))
-            dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe_conf_interval) / 2
+
+            if opts.dbe == 'dbe':
+                # 95% confidence interval of DBE power, assuming large snapshot length and normally distributed samples
+                # Might need to revisit this in light of greater FF understanding
+                dbe_conf_interval = 2 * 10. * np.log10(1. + 2. * np.sqrt(2. / snapshot_length))
+                dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe_conf_interval) / 2
+            elif opts.dbe == 'dbe7':
+                # Should revisit this too - the dbe7_power_range is a guess!!!
+                dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe7_power_range) / 2
+
             user_logger.info('%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
                              (ant.name, pol.upper(), rfe5_in, rfe5_att,
                               colors.Green if rfe5_success else colors.Red, rfe5_out, colors.Normal, rfe7_att,
