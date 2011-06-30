@@ -7,10 +7,10 @@
 # 16 February 2011
 ##
 # 06 June 2011 - (SimonR) Hacked a little
-# 29 June 2011 - (JasperH) Added correlator mode check and intial setting of correlator gains. Removed the dreaded "eval" in the process.
-
-# TODO: Revisit the workings of this in light of emerging correlator power sensors.
-
+# 30 June 2011 - (JasperH) Added correlator mode check and intial setting of correlator gains.
+#                 Removed the dreaded "eval" in the process. Fixed bug re setting RFE5 initial
+#                 att. Added some debug print statements. Updated FF power calc using method as
+#                 suggested in Jason Manley email 30/06/2011.
 
 from __future__ import with_statement
 
@@ -73,18 +73,16 @@ def set_rfe7_attenuation(kat, ant_name, pol, value):
 
 ################################ DBE getters ##################################
 
-snapshot_length = 8192
 connected_antpols = {}
-dbe7_power_range = 1. # A guess for now re accuracy of sensor in dBm
+dbe_power_range = 2. # dBm - Jason reckons we need to get within 1 dBm of the target DBE input power level
 
 def get_dbe_input_power(kat, ant_name, pol, dbe):
     if dbe == 'dbe':
+        # Proceed as per Jason Manley's email suggestion 30/6/2011:
         dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
-        PinFS_dBm, nbits = 0, 8  # 0 dBm for noise into iADC (J. Manley), may be different for KATADC
-        fullscale = 2 ** (nbits - 1)
-        gainADC_dB = 20 * np.log10(fullscale) - PinFS_dBm  # Scale factor from dBm to numbers
         voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
-        return 10 * np.log10(np.var(voltage_samples)) - gainADC_dB
+        rms_inp_in_volts = np.average(voltage_samples*voltage_samples) / 368.0 # mysterious cal factor...
+        return 10*numpy.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)
     elif dbe == 'dbe7':
         dbe_input = ant_name + pol.upper()
         dbe_device = getattr(kat, dbe)
@@ -99,7 +97,7 @@ def get_dbe_input_power(kat, ant_name, pol, dbe):
 def adjust(kat, ant_name, pol, get_att, set_att, dbe, desired_power, min_att, max_att, att_step, wait=wait_secs):
     """Iteratively adjust attenuator to move power towards desired value."""
     # This should converge in a few iterations, else stop anyway
-    for n in range(5):
+    for n in range(10):
         att = get_att(kat, ant_name, pol)
         power = get_dbe_input_power(kat, ant_name, pol, dbe)
         # The difference between actual and desired power is roughly the extra attenuation needed
@@ -135,9 +133,9 @@ parser.add_option('-t', '--target', default='',
                   help="Radio source on which to calibrate the attenuators (default='%default'). "+
                   "Won't drive antennas if not set.")
 parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', default=-47.0,
-                  help='Desired RFE5 output power, in dBm (default=%default)')
-parser.add_option('-d', '--dbe-desired', type='float', dest='dbe_desired_power', default=-27.0,
-                  help='Desired DBE input power, in dBm (default=%default)')
+                  help='Desired RFE5 output power, in dBm (default=%default).')
+parser.add_option('-d', '--dbe-desired', type='float', dest='dbe_desired_power', default=-26.0,
+                  help='Desired DBE input power, in dBm (default=%default). Success will be within 1 dBm of this value.')
 parser.add_option('--dbe', default='dbe7', help="DBE proxy / correlator to use for experiment "
                                                 "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
 # Parse the command line
@@ -237,7 +235,7 @@ with verify_and_connect(opts) as kat:
             # Force attenuation to stay within allowed range
             rfe5_att = np.clip(rfe5_att, rfe5_min_att, rfe5_max_att )
 
-            user_logger.info("Setting updated RFE5 attenuation of %i dB" % rfe5_att)
+            user_logger.info("Setting updated RFE5 attenuation of %-4.1f dB" % rfe5_att)
             set_rfe5_attenuation(kat, ant.name, pol, rfe5_att)
             time.sleep(wait_secs) # add a small sleep to allow change to propagate
             
@@ -261,16 +259,9 @@ with verify_and_connect(opts) as kat:
                 rfe5_out = get_rfe5_output_power(kat, ant.name, pol)
             # Check whether final power levels are within expected bounds
             rfe5_success = np.abs(rfe5_out - opts.rfe5_desired_power) <= rfe5_power_range / 2
-
-            if opts.dbe == 'dbe':
-                # 95% confidence interval of DBE power, assuming large snapshot length and normally distributed samples
-                # Might need to revisit this in light of greater FF understanding
-                dbe_conf_interval = 2 * 10. * np.log10(1. + 2. * np.sqrt(2. / snapshot_length))
-                dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe_conf_interval) / 2
-            elif opts.dbe == 'dbe7':
-                # Should revisit this too - the dbe7_power_range is a guess!!!
-                dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= (rfe7_att_step + dbe7_power_range) / 2
-
+                
+            dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= dbe_power_range / 2.
+                
             user_logger.info('%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
                              (ant.name, pol.upper(), rfe5_in, rfe5_att,
                               colors.Green if rfe5_success else colors.Red, rfe5_out, colors.Normal, rfe7_att,
