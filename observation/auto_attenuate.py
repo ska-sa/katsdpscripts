@@ -82,7 +82,8 @@ def get_dbe_input_power(kat, ant_name, pol, dbe):
         dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
         voltage_samples = kat.dh.get_snapshot('adc', dbe_input)
         rms_inp_in_volts = np.average(voltage_samples*voltage_samples) / 368.0 # mysterious cal factor...
-        return 10*numpy.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)
+        user_logger.info("DBE input power %-4.1f." % (10*numpy.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)))
+        return 10*np.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)
     elif dbe == 'dbe7':
         dbe_input = ant_name + pol.upper()
         dbe_device = getattr(kat, dbe)
@@ -97,7 +98,7 @@ def get_dbe_input_power(kat, ant_name, pol, dbe):
 def adjust(kat, ant_name, pol, get_att, set_att, dbe, desired_power, min_att, max_att, att_step, wait=wait_secs):
     """Iteratively adjust attenuator to move power towards desired value."""
     # This should converge in a few iterations, else stop anyway
-    for n in range(10):
+    for n in range(5):
         att = get_att(kat, ant_name, pol)
         power = get_dbe_input_power(kat, ant_name, pol, dbe)
         # The difference between actual and desired power is roughly the extra attenuation needed
