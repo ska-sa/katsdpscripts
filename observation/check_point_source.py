@@ -38,13 +38,9 @@ if opts.no_plots:
     plt = None
 
 with verify_and_connect(opts) as kat:
-    # Obtain archive where file is stored
-    archive_name = kat.dbe.sensor.archiver_archive.get_value()
-
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
-
         # Pick a target, either explicitly or the closest strong one
         if len(args) > 0:
             target = lookup_targets(kat, [args[0]])[0]
@@ -62,6 +58,8 @@ with verify_and_connect(opts) as kat:
 
         session.fire_noise_diode('coupler', 4, 4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
+        # Obtain archive name where file will be stored
+        archive_name = session.dbe.sensor.archiver_archive.get_value()
 
 if not opts.dry_run:
     cfg = kat.config_file
