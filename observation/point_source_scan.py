@@ -9,11 +9,11 @@ from cStringIO import StringIO
 import datetime
 import time
 
-from katuilib.observe import standard_script_options, verify_and_connect, start_session, user_logger
+from katuilib.observe import lookup_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] [<catalogue files>]",
+parser = standard_script_options(usage="%prog [options] [<catalogue files>] [target strings]",
                                  description="Perform mini (Zorro) raster scans across (point) sources for pointing "
                                              "model fits and gain curve calculation. Use the specified catalogue(s) "
                                              "or the default. This script is aimed at fast scans across a large range "
@@ -30,6 +30,10 @@ parser.add_option('-z', '--skip-catalogue',
 parser.add_option('--source-strength', type='choice', default='auto', choices=('strong', 'weak', 'auto'),
                   help="Scanning strategy based on source strength, one of 'strong', 'weak' or 'auto' (default). "
                        "Auto is based on flux density specified in catalogue.")
+parser.add_option( '--quick', action="store_true" , default=False,
+                  help='Do a quick "Zorro" type scan, 3 scans of 15 seconds over 5 degrees spaced 0.5 apart at 2Hz sample rate.')
+
+
 parser.add_option('--horizon', type="float", default=5.0, help="Horizon limit in degrees (default=%default)")
 parser.set_defaults(description='Point source scan')
 # Parse the command line
@@ -39,9 +43,18 @@ with verify_and_connect(opts) as kat:
 
     # Load pointing calibrator catalogues
     if len(args) > 0:
+        target = list()
         pointing_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
         for catfile in args:
-            pointing_sources.add(file(catfile))
+            try:
+                pointing_sources.add(file(catfile))
+            except IOError:
+                target.append(catfile)
+        num_targets = len(pointing_sources.targets)
+        if  len(target) > 0 :
+            targets = lookup_targets(kat,target)
+            pointing_sources.add(targets)
+        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(targets),num_targets,len(args)-len(target),))
     else:
         # Default catalogue contains the radec sources in the standard kat database
         pointing_sources = kat.sources.filter(tags='radec')
@@ -62,7 +75,7 @@ with verify_and_connect(opts) as kat:
     else:
         # Observed targets will be written back to catalogue file, or into the void
         skip_file = file(opts.skip_catalogue, "a") if opts.skip_catalogue is not None and not opts.dry_run else StringIO()
-
+        if opts.quick :opts.dump_rate = 2.0
         with start_session(kat, **vars(opts)) as session:
             session.standard_setup(**vars(opts))
             session.capture_start()
@@ -77,15 +90,20 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
                     # Do different raster scan on strong and weak targets
-                    if (opts.source_strength == 'strong' or
-                        (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0)):
-                        session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
-                                            scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
+                    if not opts.quick :
+                        if (opts.source_strength == 'strong' or (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0)):
+                            session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
+                                                scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
+                                                projection=opts.projection)
+                        else :
+                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
+                                                scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
+                                                projection=opts.projection)
+                    else :
+                        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                                            scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
-                    else:
-                        session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
-                                            scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
-                                            projection=opts.projection)
+
                     targets_observed.append(target.name)
                     skip_file.write(target.description + "\n")
                     # The default is to do only one iteration through source list

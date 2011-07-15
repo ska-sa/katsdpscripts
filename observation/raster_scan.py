@@ -4,10 +4,10 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session
-
+from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
+import katpoint
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] <'target 1'> [<'target 2'> ...]",
+parser = standard_script_options(usage="%prog [options] <'target 1'> [<'target 2'> ...] [catalogue]",
                                  description='Perform large raster scan across one or more sources. Mostly used for '
                                              'beam pattern mapping and on-the-fly mapping. Some options are '
                                              '**required**.')
@@ -45,14 +45,27 @@ if opts.scan_duration <= 0.0:
     opts.scan_duration = classic_dumps_per_scan / opts.dump_rate
 
 with verify_and_connect(opts) as kat:
+    if len(args) > 0:
+        target = list()
+        pointing_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        for catfile in args:
+            try:
+                pointing_sources.add(file(catfile))
+            except IOError:
+                target.append(catfile)
+        num_targets = len(pointing_sources.targets)
+        if  len(target) > 0 :
+            targets = lookup_targets(kat,target)
+            pointing_sources.add(targets)
+        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(targets),num_targets,len(args)-len(target),))
 
-    targets = lookup_targets(kat, args)
+    #targets = lookup_targets(kat, args)
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
 
-        for target in targets:
+        for target in pointing_sources:
             session.raster_scan(target, num_scans=opts.num_scans, scan_duration=opts.scan_duration,
                                 scan_extent=opts.scan_extent, scan_spacing=opts.scan_spacing,
                                 scan_in_azimuth=not opts.scan_in_elevation, projection=opts.projection)
