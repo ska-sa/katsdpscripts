@@ -164,8 +164,10 @@ class CaptureSession(object):
 
             # Log details of the script to the back-end
             dbe.req.k7w_set_script_param('script-starttime', time.time())
+            dbe.req.k7w_set_script_param('script-endtime', '')
             dbe.req.k7w_set_script_param('script-name', sys.argv[0])
             dbe.req.k7w_set_script_param('script-arguments', ' '.join(sys.argv[1:]))
+            dbe.req.k7w_set_script_param('script-status', 'busy')
         except Exception, e:
             user_logger.error('CaptureSession failed to initialise (%s)' % (e,))
             if hasattr(self, '_script_log_handler'):
@@ -180,7 +182,9 @@ class CaptureSession(object):
         """Exit the data capturing session, closing the data file."""
         if exc_value is not None:
             user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
-        self.end()
+            self.end(cancel=True)
+        else:
+            self.end(cancel=False)
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
@@ -800,11 +804,16 @@ class CaptureSession(object):
                          label=label, announce=False)
         return True
 
-    def end(self):
+    def end(self, cancel=False):
         """End the session, which stops data capturing and closes the data file.
 
         This does not affect the antennas, which continue to perform their
         last action (unless explicitly asked to stow).
+
+        Parameters
+        ----------
+        cancel : {False, True}, optional
+            True if session got cancelled via an exception
 
         """
         # Create references to allow easy copy-and-pasting from this function
@@ -821,6 +830,7 @@ class CaptureSession(object):
         dbe.req.dbe_capture_stop('k7')
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         dbe.req.k7w_set_script_param('script-endtime', time.time())
+        dbe.req.k7w_set_script_param('script-status', 'cancelled' if cancel else 'completed')
 
         if session.stow_when_done and self.ants is not None:
             user_logger.info('stowing dishes')
