@@ -65,7 +65,7 @@ if num_bls == 0:
 
 # Reference antenna and excluded sources
 excluded_targets = opts.exclude.split(',')
-old_positions = np.array([ant.position_enu for ant in data.ants])
+old_positions = np.array([ant.position_enu for ant in ants])
 old_cable_lengths = np.array([ped_to_losberg[ant.name] for ant in ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
 
@@ -83,7 +83,7 @@ delay_period = 1. / data.channel_bw
 max_sigma_delay = delay_period / np.sqrt(12) / np.sqrt(num_chans - 1)
 
 ant_list = ', '.join([(ant.name + ' (*ref*)' if ind == ref_ant_ind else ant.name) for ind, ant in enumerate(ants)])
-print 'antennas (%d): %s [pol %s]' % (len(data.ants), ant_list, opts.pol)
+print 'antennas (%d): %s [pol %s]' % (len(ants), ant_list, opts.pol)
 print 'baselines (%d): %s' % (num_bls, ' '.join([('%d-%d' % (antA, antB)) for antA, antB in baselines]))
 
 # Iterate through scans (as indicated by activity sensor)
