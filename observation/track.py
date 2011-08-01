@@ -28,31 +28,33 @@ if len(args) == 0:
     raise ValueError("Please specify at least one target argument "
                      "(via name, e.g. 'Cygnus A' or description, e.g. 'azel, 20, 30')")
 start_time = time.time()
-el_lim = 2.0
+el_lim = 4.0
 with verify_and_connect(opts) as kat:
 
-    target = list()
-    cat_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    for catfile in args:
-        try:
-            cat_sources.add(file(catfile))
-        except IOError:
-            target.append(catfile)
-    num_targets = len(cat_sources.targets)
-    if  len(target) > 0 :
-        targets = lookup_targets(kat,target)
-        cat_sources.add(targets)
-    user_logger.info("Found %d targets from the Command line and %d targets from %d Catalogue(s) " % (len(targets),num_targets,len(args)-len(targets),))
-    #targets = lookup_targets(kat, args)
+    # Load the catalogues and the command line targets
+    if len(args) > 0:
+        args_target_list = []
+        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        for catfile in args:
+            try:
+                observation_sources.add(file(catfile))
+            except IOError: # If the file failed to load assume it is a target string
+                args_target_list.append(catfile)
+        num_catalogue_targets = len(observation_sources.targets)
+        args_target_obj = []
+        if len(args_target_list) > 0 :
+            args_target_obj = lookup_targets(kat,args_target_list)
+            observation_sources.add(args_target_obj)
+        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
         loop_once = True
         if opts.max_duration is None : opts.repeat = False
-        while (opts.repeat or loop_once) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and len(cat_sources.filter(el_limit_deg=el_lim).targets) > 0:
+        while (opts.repeat or loop_once) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and len(observation_sources.filter(el_limit_deg=el_lim).targets) > 0:
             loop_once = False
-            for target in cat_sources:
+            for target in observation_sources:
                 target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
                 if katpoint.rad2deg(target.azel()[1]) > el_lim and  ( opts.max_duration is None or ( time.time() - start_time)< opts.max_duration):
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))

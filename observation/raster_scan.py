@@ -45,27 +45,28 @@ if opts.scan_duration <= 0.0:
     opts.scan_duration = classic_dumps_per_scan / opts.dump_rate
 
 with verify_and_connect(opts) as kat:
+    # Load the calibrator catalogues and the command line targets
     if len(args) > 0:
-        target = list()
-        pointing_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        args_target_list = []
+        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
         for catfile in args:
             try:
-                pointing_sources.add(file(catfile))
-            except IOError:
-                target.append(catfile)
-        num_targets = len(pointing_sources.targets)
-        if  len(target) > 0 :
-            targets = lookup_targets(kat,target)
-            pointing_sources.add(targets)
-        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(targets),num_targets,len(args)-len(target),))
+                observation_sources.add(file(catfile))
+            except IOError: # If the file failed to load assume it is a target string
+                args_target_list.append(catfile)
+        num_catalogue_targets = len(observation_sources.targets)
+        args_target_obj = []
+        if len(args_target_list) > 0 :
+            args_target_obj = lookup_targets(kat,args_target_list)
+            observation_sources.add(args_target_obj)
+        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
 
-    #targets = lookup_targets(kat, args)
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
 
-        for target in pointing_sources:
+        for target in observation_sources:
             session.raster_scan(target, num_scans=opts.num_scans, scan_duration=opts.scan_duration,
                                 scan_extent=opts.scan_extent, scan_spacing=opts.scan_spacing,
                                 scan_in_azimuth=not opts.scan_in_elevation, projection=opts.projection)
