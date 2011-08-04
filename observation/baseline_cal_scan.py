@@ -24,7 +24,6 @@ parser.set_defaults(description='Baseline calibration', nd_params='pin,0,0,-1')
 opts, args = parser.parse_args()
 
 with verify_and_connect(opts) as kat:
-
     # Create baseline calibrator catalogue
     baseline_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     # Load catalogue files if given
@@ -39,8 +38,9 @@ with verify_and_connect(opts) as kat:
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        session.dbe.req.auto_delay('off')
+        session.dbe.req.zero_delay()
         session.capture_start()
-
         start_time = time.time()
         targets_observed = []
         # Keep going until the time is up
