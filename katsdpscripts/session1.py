@@ -22,7 +22,7 @@ from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
 
 from .array import Array
 from .katcp_client import KATDevice
-from .defaults import user_logger
+from .defaults import user_logger, activity_logger
 from .misc import dynamic_doc
 
 # Obtain list of spherical projections and the default projection from antenna proxy
@@ -70,30 +70,6 @@ def ant_array(kat, ants, name='ants'):
     else:
         # The default assumes that *ants* is a list of antenna devices
         return Array(name, ants)
-
-class ActivityLogHandler(logging.Handler):
-    """Logging handler that writes logging records to KAT activity log.
-
-    Parameters
-    ----------
-    kat : :class:`utility.KATHost` object
-        KAT connection object associated with this experiment
-
-    """
-    def __init__(self, kat):
-        logging.Handler.__init__(self)
-        self.kat = kat
-
-    def emit(self, record):
-        """Emit a logging record."""
-        try:
-            msg = self.format(record)
-            if self.kat.has_connected_device('cfg'):
-                self.kat.cfg.req.activity_log('observe', msg)
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except:
-            self.handleError(record)
 
 class CaptureScan(object):
     """Context manager that encapsulates the capturing of a single scan.
@@ -195,12 +171,8 @@ class CaptureSession(object):
             self.last_nd_firing = 0.
             self.output_file = ''
 
-            # Enable logging to the KAT activity log via the usual logger
-            self._activity_log_handler = ActivityLogHandler(kat)
-            self._activity_log_handler.setLevel(logging.INFO)
-            self._activity_log_handler.setFormatter(logging.Formatter("%(levelname)s - %(message)s"))
-            user_logger.addHandler(self._activity_log_handler)
-
+            activity_logger.info("----- Script starting  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
+  
             user_logger.info("==========================")
             user_logger.info("New data capturing session")
             user_logger.info("--------------------------")
@@ -213,18 +185,22 @@ class CaptureSession(object):
             # Enable output to HDF5 file (takes effect on capture_start only)
             dbe.req.k7w_write_hdf5(1)
 
-            # Log the activity parameters (if config manager is around)
+            # Log the script parameters (if config manager is around)
             if kat.has_connected_device('cfg'):
                 kat.cfg.req.set_script_param("script-starttime",
                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
                 kat.cfg.req.set_script_param("script-endtime", "")
                 kat.cfg.req.set_script_param("script-name", sys.argv[0])
                 kat.cfg.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
-                kat.cfg.req.set_script_param("script-status", "started")
+                kat.cfg.req.set_script_param("script-status", "busy")
         except Exception, e:
-            user_logger.error("CaptureSession failed to initialise (%s)" % (e,))
-            if hasattr(self, '_activity_log_handler'):
-                user_logger.removeHandler(self._activity_log_handler)
+            if kat.has_connected_device('cfg'):
+                kat.cfg.req.set_script_param("script-endtime",
+                                             time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
+                kat.cfg.req.set_script_param("script-status", "failed")
+            msg = "CaptureSession failed to initialise (%s)" % (e,)
+            user_logger.error(msg)
+            activity_logger.error(msg)
             raise
 
     def __enter__(self):
@@ -349,7 +325,7 @@ class CaptureSession(object):
             nd_info = "Noise diode will not fire automatically"
         user_logger.info(nd_info + " while performing canned commands")
 
-        # Log the activity parameters (if config manager is around)
+        # Log the script parameters (if config manager is around)
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-observer", observer)
             kat.cfg.req.set_script_param("script-description", description)
@@ -926,7 +902,7 @@ class CaptureSession(object):
         req = dbe.req.k7w_get_target()
         current_target = req[1] if req else ''
         # Ensure that there is a label if a new compound scan is forced
-        if target != current_target and not label:
+        if target.description != current_target and not label:
             label = 'raster'
 
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
@@ -985,13 +961,17 @@ class CaptureSession(object):
         # Obtain the name of the file currently being written to
         reply = dbe.req.k7w_get_current_file()
         outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
-        user_logger.info('Scans complete, data captured to %s' % (outfile,))
+
+        msg = 'Scans complete, data captured to %s' % (outfile,)
+        user_logger.info(msg)
         # The final output file name after augmentation
         session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
 
         # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, which then closes the HDF5 file)
         dbe.req.capture_stop()
-        user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
+        msg = 'Ended data capturing session with experiment ID %s' % (session.experiment_id,)
+        user_logger.info(msg)
+        activity_logger.info(msg)
         if kat.has_connected_device('cfg'):
             kat.cfg.req.set_script_param("script-endtime",
                                          time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
@@ -999,11 +979,12 @@ class CaptureSession(object):
 
         if session.stow_when_done and ants is not None:
             user_logger.info("Stowing dishes.")
+            activity_logger.info("Stowing dishes.")
             ants.req.mode("STOW")
 
         user_logger.info("==========================")
-        # Finally disable activity logging
-        user_logger.removeHandler(self._activity_log_handler)
+
+        activity_logger.info("----- Script ended  %s (%s) Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), session.output_file))
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
@@ -1052,6 +1033,8 @@ class TimeSession(object):
         user_logger.info('New data capturing session')
         user_logger.info('--------------------------')
         user_logger.info("DBE proxy used = %s" % (dbe.name,))
+        
+        activity_logger.info("Timing simulation. ----- Script starting  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
@@ -1317,9 +1300,13 @@ class TimeSession(object):
     def end(self):
         """Stop data capturing to shut down the session and close the data file."""
         user_logger.info('Scans complete, no data captured as this is a timing simulation...')
-        user_logger.info('Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        msg = 'Ended data capturing session with experiment ID %s' % (self.experiment_id,)
+        user_logger.info(msg)
+        activity_logger.info("Timing simulation. %s" % (msg,))
         if self.stow_when_done and self.ants is not None:
-            user_logger.info("Stowing dishes.")
+            msg = "Stowing dishes."
+            user_logger.info(msg)
+            activity_logger.info("Timing simulation.  %s" % (msg,))
             self._teleport_to(katpoint.Target("azel, 0.0, 90.0"), mode="STOW")
         user_logger.info('==========================')
         duration = self.time - self.start_time
@@ -1329,7 +1316,9 @@ class TimeSession(object):
             duration = '%d minutes' % (np.ceil(duration / 60.),)
         else:
             duration = '%.1f hours' % (duration / 3600.,)
-        user_logger.info("Experiment estimated to last %s until this time\n" % (duration,))
+        msg = "Experiment estimated to last %s until this time" % (duration,)
+        user_logger.info(msg+"\n")
+        activity_logger.info("Timing simulation.  %s" % (msg,))
         # Restore time module functions
         time.time, time.sleep = self.realtime, self.realsleep
         # Restore logging
@@ -1340,3 +1329,6 @@ class TimeSession(object):
             else:
                 handler.setLevel(handler.old_level)
                 del handler.old_level
+
+        activity_logger.info("Timing simulation. ----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
+

@@ -19,7 +19,7 @@ from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
 
 from .array import Array
 from .katcp_client import KATDevice
-from .defaults import user_logger
+from .defaults import user_logger, activity_logger
 from .misc import dynamic_doc
 
 # Obtain list of spherical projections and the default projection from antenna proxy
@@ -155,12 +155,16 @@ class CaptureSession(object):
             user_logger.info('New data capturing session')
             user_logger.info('--------------------------')
             user_logger.info("DBE proxy used = %s" % (dbe.name,))
-
+            
+            
             # Obtain the name of the file currently being written to
             reply = dbe.req.k7w_get_current_file()
             outfile = reply[1] if reply.succeeded else '<unknown file>'
             user_logger.info('Opened output file %s' % (outfile,))
             user_logger.info('')
+
+
+            activity_logger.info("----- Script starting %s (%s). Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), outfile))
 
             # Log details of the script to the back-end
             dbe.req.k7w_set_script_param('script-starttime', time.time())
@@ -169,7 +173,9 @@ class CaptureSession(object):
             dbe.req.k7w_set_script_param('script-arguments', ' '.join(sys.argv[1:]))
             dbe.req.k7w_set_script_param('script-status', 'busy')
         except Exception, e:
-            user_logger.error('CaptureSession failed to initialise (%s)' % (e,))
+            msg = 'CaptureSession failed to initialise (%s)' % (e,)
+            user_logger.error(msg)
+            activity_logger.info(msg)
             if hasattr(self, '_script_log_handler'):
                 user_logger.removeHandler(self._script_log_handler)
             raise
@@ -181,7 +187,9 @@ class CaptureSession(object):
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
         if exc_value is not None:
-            user_logger.error('Session interrupted by exception (%s)' % (exc_value,))
+            msg = 'Session interrupted by exception (%s)' % (exc_value,)
+            user_logger.error(msg)
+            activity_logger.error(msg)
             self.end(cancel=True)
         else:
             self.end(cancel=False)
@@ -831,9 +839,11 @@ class CaptureSession(object):
         user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
         dbe.req.k7w_set_script_param('script-endtime', time.time())
         dbe.req.k7w_set_script_param('script-status', 'cancelled' if cancel else 'completed')
+        activity_logger.info('Ended data capturing session (%s) with experiment ID %s' % ('cancelled' if cancel else 'completed', session.experiment_id,))
 
         if session.stow_when_done and self.ants is not None:
             user_logger.info('stowing dishes')
+            activity_logger.info('Stowing dishes')
             ants.req.mode('STOW')
 
         user_logger.info('==========================')
@@ -842,6 +852,8 @@ class CaptureSession(object):
         user_logger.removeHandler(self._script_log_handler)
         # Finally close the HDF5 file and prepare for augmentation after all logging and parameter settings are done
         dbe.req.k7w_capture_done()
+
+        activity_logger.info("----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
@@ -889,6 +901,8 @@ class TimeSession(object):
         user_logger.info('New data capturing session')
         user_logger.info('--------------------------')
         user_logger.info("DBE proxy used = %s" % (dbe.name,))
+        
+        activity_logger.info("Timing simulation. ----- Script starting %s (%s). Output file None" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
     def __enter__(self):
         """Start time estimate, overriding the time module."""
@@ -1154,8 +1168,11 @@ class TimeSession(object):
         """Stop data capturing to shut down the session and close the data file."""
         user_logger.info('Scans complete, no data captured as this is a timing simulation...')
         user_logger.info('Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        activity_logger.info('Timing simulation. Ended data capturing session with experiment ID %s' % (self.experiment_id,))
+        
         if self.stow_when_done and self.ants is not None:
             user_logger.info("Stowing dishes.")
+            activity_logger.info('Timing simulation. Stowing dishes.')
             self._teleport_to(katpoint.Target("azel, 0.0, 90.0"), mode="STOW")
         user_logger.info('==========================')
         duration = self.time - self.start_time
@@ -1165,7 +1182,9 @@ class TimeSession(object):
             duration = '%d minutes' % (np.ceil(duration / 60.),)
         else:
             duration = '%.1f hours' % (duration / 3600.,)
-        user_logger.info("Experiment estimated to last %s until this time\n" % (duration,))
+        msg = "Experiment estimated to last %s until this time" % (duration,)
+        user_logger.info(msg+"\n")
+        activity_logger.info("Timing simulation. %s" % (msg,))
         # Restore time module functions
         time.time, time.sleep = self.realtime, self.realsleep
         # Restore logging
@@ -1176,3 +1195,5 @@ class TimeSession(object):
             else:
                 handler.setLevel(handler.old_level)
                 del handler.old_level
+
+        activity_logger.info("Timing simulation. ----- Script ended %s (%s). Output file None" % (sys.argv[0], ' '.join(sys.argv[1:])))
