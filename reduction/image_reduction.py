@@ -75,15 +75,15 @@ channels_per_band, dumps_per_vis = opts.chan_avg, opts.time_avg
 time_slice = opts.time_slice
 freq_slice = opts.freq_slice - first_chan
 
-# Latest KAT-7 antenna positions and H / V cable delays via recent baseline cal (V delays not calibrated well yet)
+# Latest KAT-7 antenna positions and H / V cable delays via recent baseline cal (1313748602 dataset, not joint yet)
 new_ants = {
-  'ant1' : ('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 25.094 -9.095 0.041, , 1.22', 23218.005e-9, 23243.947e-9),
-  'ant2' : ('ant2, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 90.287 26.385 -0.243, , 1.22', 23282.532e-9, 23297.184e-9),
-  'ant3' : ('ant3, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 3.984 26.898 -0.013, , 1.22', 23406.719e-9, 23398.639e-9),
+  'ant1' : ('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 25.095 -9.095 0.045, , 1.22', 23220.506e-9, 23228.551e-9),
+  'ant2' : ('ant2, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 90.288 26.389 -0.238, , 1.22', 23283.799e-9, 23286.823e-9),
+  'ant3' : ('ant3, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 3.985 26.899 -0.012, , 1.22', 23407.970e-9, 23400.221e-9),
   'ant4' : ('ant4, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -21.600 25.500 0.000, , 1.22', 23514.801e-9, 23514.801e-9),
-  'ant5' : ('ant5, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -38.264 -2.585 0.374, , 1.22', 23676.024e-9, 23668.491e-9),
-  'ant6' : ('ant6, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -61.575 -79.698 0.683, , 1.22', 23780.326e-9, 23782.643e-9),
-  'ant7' : ('ant7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -87.982 75.757 0.129, , 1.22', 24047.674e-9, 24037.784e-9),
+  'ant5' : ('ant5, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -38.264 -2.586 0.371, , 1.22', 23676.033e-9, 23668.223e-9),
+  'ant6' : ('ant6, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -61.580 -79.685 0.690, , 1.22', 23782.854e-9, 23782.150e-9),
+  'ant7' : ('ant7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -87.979 75.756 0.125, , 1.22', 24047.672e-9, 24039.237e-9),
 }
 
 katpoint.logger.setLevel(30)
@@ -222,12 +222,16 @@ print "Performing bandpass calibration on '%s'..." % (bandpass_cal.name,)
 full_params = np.zeros(2 * len(inputs))
 # Indices of gain parameters that will be optimised
 params_to_fit = range(len(full_params))
-real_ref_gain_ind = 2 * inputs.index(data.ref_ant + opts.pol)
+ref_input_index = inputs.index(data.ref_ant + opts.pol)
 # Don't fit the imaginary component of the gain on the reference signal path (this is assumed to be zero)
-params_to_fit.pop(real_ref_gain_ind + 1)
+params_to_fit.pop(2 * ref_input_index + 1)
+initial_gains = np.tile([1., 0.], len(inputs))[params_to_fit]
 
-def gains_to_vis(params, x):
-    """Estimate visibility of (ideal) point source from relevant antenna gains.
+def apply_gains(params, input_pairs, model_vis=1.0):
+    """Apply relevant antenna gains to model visibility to estimate measurements.
+
+    This corrupts the ideal model visibilities by applying a set of complex
+    antenna gains to them.
 
     Parameters
     ----------
@@ -235,36 +239,79 @@ def gains_to_vis(params, x):
         Array of gain parameters with 2 parameters per signal path (real and
         imaginary components of complex gain), except for phase reference input
         which has a single real component
-    x : array of int, shape (2,) or (2, M)
+    input_pairs : array of int, shape (2, M)
         Input pair(s) for which visibilities will be calculated. The inputs are
         specified by integer indices into the main input list.
+    model_vis : complex or array of complex, shape (M,), optional
+        The modelled (ideal) source visibilities on each specified baseline.
+        The default model is that of a point source with unit flux density.
 
     Returns
     -------
-    y : array of float, shape (2, M)
+    estm_vis : array of float, shape (2,) or (2, M)
         Estimated visibilities specified by their real and imaginary components
 
     """
     full_params[params_to_fit] = params
-    antA, antB = x[0], x[1]
+    antA, antB = input_pairs[0], input_pairs[1]
     reA, imA, reB, imB = full_params[2 * antA], full_params[2 * antA + 1], full_params[2 * antB], full_params[2 * antB + 1]
-    return np.vstack((reA * reB + imA * imB, imA * reB - reA * imB)).squeeze()
+    # Calculate gain product (g_A g_B*)
+    reAB, imAB = reA * reB + imA * imB, imA * reB - reA * imB
+    re_model, im_model = np.real(model_vis), np.imag(model_vis)
+    return np.vstack((reAB * re_model - imAB * im_model, reAB * im_model + imAB * re_model)).squeeze()
+
+# Vector that contains gain phase components for all signal paths
+phase_params = np.zeros(len(inputs))
+# Indices of phase parameters that will be optimised
+phase_params_to_fit = range(len(phase_params))
+# Don't fit the phase on the reference signal path (this is assumed to be zero)
+phase_params_to_fit.pop(ref_input_index)
+initial_phases = np.zeros(len(inputs))[phase_params_to_fit]
+
+def apply_phases(params, input_pairs, model_vis=1.0):
+    """Apply relevant antenna phases to model visibility to estimate measurements.
+
+    This corrupts the ideal model visibilities by adding a set of per-antenna
+    phases to them.
+
+    Parameters
+    ----------
+    params : array of float, shape (N - 1,)
+        Array of gain parameters with 1 parameter per signal path (phase
+        component of complex gain), except for phase reference input which has
+        zero phase
+    input_pairs : array of int, shape (2, M)
+        Input pair(s) for which visibilities will be calculated. The inputs are
+        specified by integer indices into the main input list.
+    model_vis : complex or array of complex, shape (M,), optional
+        The modelled (ideal) source visibilities on each specified baseline.
+        The default model is that of a point source with unit flux density.
+
+    Returns
+    -------
+    estm_vis : array of float, shape (2,) or (2, M)
+        Estimated visibilities specified by their real and imaginary components
+
+    """
+    phase_params[phase_params_to_fit] = params
+    phaseA, phaseB = phase_params[input_pairs[0]], phase_params[input_pairs[1]]
+    # Calculate gain product (g_A g_B*) where each gain has unit magnitude
+    estm_vis = np.exp(1j * (phaseA - phaseB)) * model_vis
+    return np.vstack((np.real(estm_vis), np.imag(estm_vis))).squeeze()
 
 # Solve for antenna bandpass gains
-initial_gains = np.tile([1., 0.], len(inputs))[params_to_fit]
 bandpass_gainsols = []
 bp_source_vis = bandpass_cal.flux_density(center_freqs / 1e6)
 # Iterate over solution intervals
-for vis in cal_vis_samples:
-    gainsol = np.zeros((len(inputs), vis.shape[1]), dtype=np.complex64)
-    x = np.tile(np.array(crosscorr).T, vis.shape[0])
+for solint_vis in cal_vis_samples:
+    gainsol = np.zeros((len(inputs), solint_vis.shape[1]), dtype=np.complex64)
+    input_pairs = np.tile(np.array(crosscorr).T, solint_vis.shape[0])
     # Iterate over frequency channels
-    for n in xrange(vis.shape[1]):
-        fitter = scape.fitting.NonLinearLeastSquaresFit(gains_to_vis, initial_gains)
-        normalised_vis = vis[:, n, :].ravel() / bp_source_vis[n]
-        y = np.vstack((normalised_vis.real, normalised_vis.imag))
-        fitter.fit(x, y)
-        full_params[params_to_fit] = fitter.params * np.sign(fitter.params[real_ref_gain_ind])
+    for n in xrange(solint_vis.shape[1]):
+        vis, model_vis = solint_vis[:, n, :].ravel(), bp_source_vis[n]
+        fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis), initial_gains)
+        fitter.fit(input_pairs, np.vstack((vis.real, vis.imag)))
+        full_params[params_to_fit] = fitter.params * np.sign(fitter.params[2 * ref_input_index])
         gainsol[:, n] = full_params.view(np.complex128)
     bandpass_gainsols.append(gainsol)
 
@@ -345,11 +392,12 @@ for scan_ind, cs_ind, state, target in data.scans():
     all_cal_vis_samples.append(vis_cross.mean(axis=1))
     cal_source.append(target)
     all_cal_times.append(timestamps[len(timestamps) // 2])
-# Add bandpass calibrator data in a similar vein
+# Add bandpass calibrator data in a similar vein (if not there already)
 for vis_cross, timestamps in zip(bp_cal_vis_samples, cal_timestamps):
-    all_cal_vis_samples.append(vis_cross.mean(axis=1))
-    cal_source.append(bandpass_cal)
-    all_cal_times.append(timestamps[len(timestamps) // 2])
+    if timestamps[len(timestamps) // 2] not in all_cal_times:
+        all_cal_vis_samples.append(vis_cross.mean(axis=1))
+        cal_source.append(bandpass_cal)
+        all_cal_times.append(timestamps[len(timestamps) // 2])
 
 # Sort the data chronologically
 time_index = np.argsort(all_cal_times)
@@ -374,26 +422,26 @@ print "Performing gain calibration on '%s'..." % (gain_cal.name,)
 gain_cal_vis = np.array([vis.mean(axis=0) for vis in all_cal_vis_samples])
 # Obtain average flux of calibrators
 # Far cal has known flux, but the other calibrator has to be bootstrapped off the average data in a SETJY procedure
+bandpass_cal_source = np.array([target == bandpass_cal for target in cal_source])
 gain_cal_source = np.array([target == gain_cal for target in cal_source])
 bandpass_cal_flux = bp_source_vis.mean()
-gain_cal_flux = bandpass_cal_flux / np.abs(gain_cal_vis[~gain_cal_source, :]).mean() * np.abs(gain_cal_vis[gain_cal_source, :]).mean()
+gain_cal_flux = np.abs(gain_cal_vis[gain_cal_source, :]).mean() * \
+                bandpass_cal_flux / np.abs(gain_cal_vis[bandpass_cal_source, :]).mean()
 cal_source_vis = np.zeros(gain_cal_vis.shape[0])
 cal_source_vis[gain_cal_source] = gain_cal_flux
-cal_source_vis[~gain_cal_source] = bandpass_cal_flux
+cal_source_vis[bandpass_cal_source] = bandpass_cal_flux
 # Use phase calibrator for standard gain calibration
-gain_cal_vis, cal_source_vis, gain_times = gain_cal_vis[gain_cal_source, :], cal_source_vis[gain_cal_source], all_cal_times[gain_cal_source]
+gain_cal_vis, cal_source_vis = gain_cal_vis[gain_cal_source, :], cal_source_vis[gain_cal_source]
+gain_times = all_cal_times[gain_cal_source]
 
 # Solve for time-varying antenna gains
-initial_gains = np.tile([1., 0.], len(inputs))[params_to_fit]
 ant_gains = []
-x = np.array(crosscorr).T
+input_pairs = np.array(crosscorr).T
 # Iterate over solution intervals
 for vis, flux in zip(gain_cal_vis, cal_source_vis):
-    fitter = scape.fitting.NonLinearLeastSquaresFit(gains_to_vis, initial_gains)
-    normalised_vis = vis / flux
-    y = np.vstack((normalised_vis.real, normalised_vis.imag))
-    fitter.fit(x, y)
-    full_params[params_to_fit] = fitter.params * np.sign(fitter.params[real_ref_gain_ind])
+    fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, flux), initial_gains)
+    fitter.fit(input_pairs, np.vstack((vis.real, vis.imag)))
+    full_params[params_to_fit] = fitter.params * np.sign(fitter.params[2 * ref_input_index])
     gainsol = full_params.view(np.complex128).astype(np.complex64)
     ant_gains.append(gainsol)
 ant_gains = np.array(ant_gains).transpose()
@@ -458,7 +506,7 @@ print "Applying calibration to imaging target..."
 
 # Assemble visibility data and uvw coordinates for imaging target
 vis_samples_per_scan, uvw_samples_per_scan = [], []
-start_chans = np.arange(0, len(wavelengths), channels_per_band)
+start_chans = np.arange(0, (len(wavelengths) // channels_per_band) * channels_per_band, channels_per_band)
 for scan_ind, cs_ind, state, target in data.scans():
     if state != 'track' or target != image_target:
         continue
@@ -488,7 +536,7 @@ for scan_ind, cs_ind, state, target in data.scans():
         vis /= (interp_ant_gains[indexA, :] * interp_ant_gains[indexB, :].conjugate())[:, np.newaxis]
         vis_cross[:, :, n] = vis
     # Average over adjacent time and frequency bins to create coarser bins, which reduces processing load
-    start_times = np.arange(0, len(timestamps), dumps_per_vis)
+    start_times = np.arange(0, (len(timestamps) // dumps_per_vis) * dumps_per_vis, dumps_per_vis)
     averaged_vis = np.zeros((len(start_times), len(start_chans), len(crosscorr)), dtype=np.complex64)
     averaged_uvw = np.zeros((3, len(start_times), len(start_chans), len(crosscorr)))
     for m, start_time in enumerate(start_times):
@@ -583,6 +631,7 @@ ax.set_ylabel('m (arcmins)')
 ax.set_title("Dirty image of '%s' at %.0f MHz" % (image_target.name, band_center / 1e6))
 ax.axis('image')
 ax.set_xlim(ax.get_xlim()[::-1])
+dirty_image_clim = ax.images[0].get_clim()
 
 ################################## CLEAN #######################################
 
@@ -591,9 +640,9 @@ print "CLEANing the image..."
 # The CLEAN variant that will be used
 def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, resThresh=0.0):
     """Positive Orthogonal Matching Pursuit.
-    
-    This approximately solves the linear system A x = y for sparse positive real x, 
-    where A is an MxN matrix with M << N. This is very similar to the NNLS algorithm of 
+
+    This approximately solves the linear system A x = y for sparse positive real x,
+    where A is an MxN matrix with M << N. This is very similar to the NNLS algorithm of
     Lawson & Hanson (Solving Least Squares Problems, 1974, Chapter 23).
     
     Parameters
@@ -618,7 +667,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
         A progress line is printed every 'printEveryIter' iterations (0 for no
         progress report). The default is a progress report after every iteration.
     resThresh : real
-        Stop iterating if the residual l2-norm (relative to the l2-norm of the 
+        Stop iterating if the residual l2-norm (relative to the l2-norm of the
         measurements y) falls below this threshold. Default is 0.0 (no threshold).
 
     Returns
@@ -629,7 +678,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
     """
     # Convert explicit A matrix to functional form (or use provided functions)
     if At_times is None:
-        At_times = lambda x: np.dot(A.conjugate().transpose(), x) 
+        At_times = lambda x: np.dot(A.conjugate().transpose(), x)
         A_column = lambda n: A[:, n]
         N = A.shape[1]
     M = len(y)
@@ -651,7 +700,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
         # residual size drops below the threshold (an earlier exit is also possible)
         while (numAtoms < S) and (resSize >= resThresh):
             # Form the real part of the dirty image residual A' r
-            # This happens to be the negative gradient of 0.5 || y - A x ||_2^2, 
+            # This happens to be the negative gradient of 0.5 || y - A x ||_2^2,
             # the associated l2-norm (least-squares) objective, and also the dual vector
             dual = At_times(residual).real
             # Ensure that no existing atoms will be selected again
@@ -743,8 +792,24 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
     
     return x
 
-# Set up CLEAN boxes around main peaks
-mask = (dirty_image > 0.3 * dirty_image.max()).ravel()
+# Set up CLEAN boxes around main peaks in dirty image
+# Original simplistic attempt at auto-boxing
+# mask = (dirty_image > 0.3 * dirty_image.max()).ravel()
+## First try to pick a decent threshold based on a knee shape in sorted amplitudes
+sorted_dirty = np.sort(dirty_image.ravel())
+norm_sd_x = np.linspace(0, 1, len(sorted_dirty))
+norm_sd_y = sorted_dirty / sorted_dirty[-1]
+# Break graph into coarse steps, in order to get less noisy slope estimates
+norm_sd_coarse_steps = norm_sd_y.searchsorted(np.arange(0., 1., 0.05))
+norm_sd_coarse_x = norm_sd_coarse_steps / float(len(sorted_dirty))
+norm_sd_coarse_y = norm_sd_y[norm_sd_coarse_steps]
+norm_sd_coarse_slope = np.diff(norm_sd_coarse_y) / np.diff(norm_sd_coarse_x)
+# Look for rightmost point in graph with a tangent slope of around 1
+knee = norm_sd_coarse_steps[norm_sd_coarse_slope.searchsorted(2., side='right') + 1]
+# Look for closest point in graph to lower right corner of plot
+# knee = np.sqrt((norm_sd_x - 1) ** 2 + norm_sd_y ** 2).argmin()
+mask = (dirty_image > sorted_dirty[knee]).ravel()
+mask_image = mask.reshape(image_size, image_size)
 # Create measurement matrix (potentially *very* big - use smaller mask to reduce it)
 masked_phi = np.exp(2j * np.pi * np.dot(np.c_[u_samples, v_samples], lm_positions.T[:, mask]))
 # Desired number of pixels (the sparsity level m of the signal)
@@ -774,7 +839,11 @@ residual_image *= n_image / len(residual_vis)
 blob_image, blob_count = ndimage.label(dirty_beam > 0.2)
 # Pick the centre blob and enlarge it slightly to make up for the aggressive thresholding in the previous step
 centre_blob = ndimage.binary_dilation(blob_image == blob_image[image_size // 2, image_size // 2])
-restoring_beam = centre_blob * dirty_beam
+# Fit Gaussian beam to central part of dirty beam
+beam_weights = centre_blob * dirty_beam
+lm = np.vstack((l_image.ravel(), m_image.ravel()))
+beam_cov = np.dot(lm * beam_weights.ravel(), lm.T) / beam_weights.sum()
+restoring_beam = np.exp(-0.5 * np.sum(lm * np.dot(np.linalg.inv(beam_cov), lm), axis=0)).reshape(image_size, image_size)
 # Create clean image by restoring with clean beam
 clean_image = np.zeros((image_size, image_size), dtype='double')
 comps_row, comps_col = clean_components.nonzero()
@@ -782,11 +851,18 @@ origin = (image_size // 2, image_size // 2 - 1)
 for comp_row, comp_col in zip(comps_row, comps_col):
     flux = clean_components[comp_row, comp_col]
     clean_image += ndimage.shift(flux * restoring_beam, (comp_row - origin[0], comp_col - origin[1]))
+# Get final image and corresponding DR estimate
+final_image = clean_image + residual_image
+
+print "Estimated dynamic range = ", final_image.max() / residual_image.std()
 
 fig = plt.figure(13)
 fig.clear()
 ax = fig.add_subplot(111)
-ax.imshow(clean_components, interpolation='nearest', origin='lower', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
+ax.imshow(0.2 * mask_image, interpolation='nearest', origin='lower',
+          extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]], cmap=mpl.cm.gray_r, vmin=0., vmax=1.)
+ax.imshow(np.ma.masked_array(clean_components, clean_components == 0), interpolation='nearest', origin='lower',
+          extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
 ax.set_xlabel('l (arcmins)')
 ax.set_ylabel('m (arcmins)')
 ax.set_title('Clean components')
@@ -796,7 +872,20 @@ ax.set_xlim(ax.get_xlim()[::-1])
 fig = plt.figure(14)
 fig.clear()
 ax = fig.add_subplot(111)
-ax.imshow(clean_image + residual_image, origin='lower', interpolation='bicubic', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
+ax.imshow(residual_image, origin='lower', interpolation='bicubic',
+          extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
+ax.imshow(mask_image, interpolation='nearest', origin='lower',
+          extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]], cmap=mpl.cm.gray_r, alpha=0.5)
+ax.set_xlabel('l (arcmins)')
+ax.set_ylabel('m (arcmins)')
+ax.set_title("Residual image")
+ax.axis('image')
+ax.set_xlim(ax.get_xlim()[::-1])
+
+fig = plt.figure(15)
+fig.clear()
+ax = fig.add_subplot(111)
+ax.imshow(final_image, origin='lower', interpolation='bicubic', extent=[l_plot[0], l_plot[-1], m_plot[0], m_plot[-1]])
 ax.set_xlabel('l (arcmins)')
 ax.set_ylabel('m (arcmins)')
 ax.set_title("Clean image of '%s' at %.0f MHz" % (image_target.name, band_center / 1e6))
