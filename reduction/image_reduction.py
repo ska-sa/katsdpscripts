@@ -5,6 +5,8 @@
 # 18 July 2011
 #
 
+import os
+import time
 import optparse
 
 import numpy as np
@@ -607,10 +609,13 @@ fig = plt.figure(10)
 fig.clear()
 ax = fig.add_subplot(111)
 ax.plot(u_samples, v_samples, '.', markersize=2)
+ax.plot(-u_samples, -v_samples, '.r', markersize=2)
 ax.set_xlabel('u (lambda)')
 ax.set_ylabel('v (lambda)')
 ax.set_title("UV coverage for '%s' target" % (image_target.name,))
-ax.axis('equal')
+uvmax = max(np.abs(ax.axis()))
+ax.axis('image')
+ax.axis((-uvmax, uvmax, -uvmax, uvmax))
 
 fig = plt.figure(11)
 fig.clear()
@@ -644,7 +649,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
     This approximately solves the linear system A x = y for sparse positive real x,
     where A is an MxN matrix with M << N. This is very similar to the NNLS algorithm of
     Lawson & Hanson (Solving Least Squares Problems, 1974, Chapter 23).
-    
+
     Parameters
     ----------
     A : array, shape (M, N)
@@ -674,7 +679,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
     -------
     x : array of same type as y, shape (N,)
         The approximate sparse positive solution to A x = y.
-    
+
     """
     # Convert explicit A matrix to functional form (or use provided functions)
     if At_times is None:
@@ -693,7 +698,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
     iterCount = 0
     # Maximum iteration count suggested by Lawson & Hanson
     iterMax = 3 * N
-    
+
     try:
         # MAIN LOOP (a la NNLS) to find all atoms
         # Loop until the desired number of components / atoms are found, or the
@@ -774,7 +779,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
             if printEveryIter and (iterCount % printEveryIter == 0):
                 print "iter %d : best atom = %d, dual = %.3e, atoms = %d, residual l2 = %.3e" % \
                       (iterCount, newAtom, dual[newAtom], numAtoms, resSize)
-    
+
     # Return last results on Ctrl-C, for the impatient ones
     except KeyboardInterrupt:
         # Create sparse solution vector
@@ -782,14 +787,14 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
         x[atomIndex[:numAtoms]] = atomWeights[:numAtoms]
         if printEveryIter:
             print 'omp: atoms = %d, residual = %.3e (interrupted)' % (sum(x != 0.0), resSize)
-    
+
     else:
         # Create sparse solution vector
         x = np.zeros(N, dtype='float64')
         x[atomIndex[:numAtoms]] = atomWeights[:numAtoms]
         if printEveryIter:
             print 'omp: atoms = %d, residual = %.3e' % (sum(x != 0.0), resSize)
-    
+
     return x
 
 # Set up CLEAN boxes around main peaks in dirty image
@@ -844,6 +849,8 @@ beam_weights = centre_blob * dirty_beam
 lm = np.vstack((l_image.ravel(), m_image.ravel()))
 beam_cov = np.dot(lm * beam_weights.ravel(), lm.T) / beam_weights.sum()
 restoring_beam = np.exp(-0.5 * np.sum(lm * np.dot(np.linalg.inv(beam_cov), lm), axis=0)).reshape(image_size, image_size)
+# Normalise the beam area to 1 (to get proper Jy/beam units in image domain)
+restoring_beam /= restoring_beam.sum()
 # Create clean image by restoring with clean beam
 clean_image = np.zeros((image_size, image_size), dtype='double')
 comps_row, comps_col = clean_components.nonzero()
@@ -892,3 +899,18 @@ ax.set_title("Clean image of '%s' at %.0f MHz" % (image_target.name, band_center
 ax.axis('image')
 ax.set_xlim(ax.get_xlim()[::-1])
 ax.images[0].set_cmap(mpl.cm.gist_heat)
+
+# Save final image to FITS
+ra0, dec0 = image_target.radec()
+fits_filename = '%s_%.0fMHz.fits' % (image_target.name.replace(' ', ''), band_center / 1e6)
+# The PyFITS package has a problem with the clobber flag, therefore remove any existing file or face a crash
+if os.path.isfile(fits_filename):
+    print "Overwriting existing file '%s'" % (fits_filename,)
+    os.remove(fits_filename)
+scape.plots_basic.save_fits_image(fits_filename,
+                                  katpoint.rad2deg(ra0 + l_range[::-1]), katpoint.rad2deg(dec0 + m_range),
+                                  np.fliplr(final_image), target_name=image_target.name,
+                                  coord_system='radec', projection_type='SIN', data_unit='Jy/beam',
+                                  observe_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(data.start_time)),
+                                  create_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+                                  telescope='KAT-7', observer=data.observer)
