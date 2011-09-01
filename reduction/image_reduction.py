@@ -202,19 +202,19 @@ fig = plt.figure(1)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in orig_cal_vis_samples],
                     "'%s' raw vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
-                    upper=True, units='counts', marker='o', linestyle='-')
+                    upper=True, units='counts', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in orig_cal_vis_samples],
                     "'%s' raw vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
-                    upper=False, units='counts', marker='o', linestyle='')
+                    upper=False, units='counts', marker='.', linestyle='')
 
 fig = plt.figure(2)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in cal_vis_samples],
                     "'%s' stopped vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
-                    upper=True, units='counts', marker='o', linestyle='-')
+                    upper=True, units='counts', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in cal_vis_samples],
                     "'%s' stopped vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
-                    upper=False, units='counts', marker='o', linestyle='')
+                    upper=False, units='counts', marker='.', linestyle='')
 
 ############################## BANDPASS CAL ####################################
 
@@ -354,10 +354,10 @@ fig = plt.figure(4)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in bp_cal_vis_samples],
                     "'%s' bp-corrected vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
-                    upper=True, units='Jy', marker='o', linestyle='-')
+                    upper=True, units='Jy', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in bp_cal_vis_samples],
                     "'%s' bp-corrected vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
-                    upper=False, units='Jy', marker='o', linestyle='')
+                    upper=False, units='Jy', marker='.', linestyle='')
 
 ############################## BAND AVERAGE ####################################
 
@@ -411,10 +411,10 @@ fig = plt.figure(5)
 fig.clear()
 plot_vis_crosshairs(fig, [vis for n, vis in enumerate(all_cal_vis_samples) if cal_source[n] == bandpass_cal],
                     "Frequency-averaged visibilities of '%s' (all times)" % (bandpass_cal.name,),
-                    upper=True, units='Jy', marker='o', linestyle='-')
+                    upper=True, units='Jy', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis for n, vis in enumerate(all_cal_vis_samples) if cal_source[n] == gain_cal],
                     "Frequency-averaged visibilities of '%s' (all times)" % (gain_cal.name,),
-                    upper=False, units='Jy', marker='o', linestyle='-')
+                    upper=False, units='Jy', marker='.', linestyle='-')
 
 ################################ GAIN CAL ######################################
 
@@ -497,10 +497,10 @@ fig = plt.figure(7)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in bp_cal_vis_samples],
                     "'%s' gain-corrected vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
-                    upper=True, units='Jy', marker='o', linestyle='-')
+                    upper=True, units='Jy', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in bp_cal_vis_samples],
                     "'%s' gain-corrected vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
-                    upper=False, units='Jy', marker='o', linestyle='')
+                    upper=False, units='Jy', marker='.', linestyle='')
 
 ######################### TRANSFER CAL TO TARGET ###############################
 
@@ -558,7 +558,7 @@ fig = plt.figure(8)
 fig.clear()
 plot_vis_crosshairs(fig, [vis.reshape(-1, vis.shape[-1]) for vis in vis_samples_per_scan],
                     "Calibrated '%s' visibilities averaged in coarse bins" % (image_target.name,),
-                    upper=True, units='Jy', marker='o', linestyle='-')
+                    upper=True, units='Jy', marker='.', linestyle='-')
 
 fig = plt.figure(9)
 fig.clear()
@@ -849,8 +849,6 @@ beam_weights = centre_blob * dirty_beam
 lm = np.vstack((l_image.ravel(), m_image.ravel()))
 beam_cov = np.dot(lm * beam_weights.ravel(), lm.T) / beam_weights.sum()
 restoring_beam = np.exp(-0.5 * np.sum(lm * np.dot(np.linalg.inv(beam_cov), lm), axis=0)).reshape(image_size, image_size)
-# Normalise the beam area to 1 (to get proper Jy/beam units in image domain)
-restoring_beam /= restoring_beam.sum()
 # Create clean image by restoring with clean beam
 clean_image = np.zeros((image_size, image_size), dtype='double')
 comps_row, comps_col = clean_components.nonzero()
@@ -907,9 +905,10 @@ fits_filename = '%s_%.0fMHz.fits' % (image_target.name.replace(' ', ''), band_ce
 if os.path.isfile(fits_filename):
     print "Overwriting existing file '%s'" % (fits_filename,)
     os.remove(fits_filename)
+# Normalise image by the beam volume to get to Jy/beam units
 scape.plots_basic.save_fits_image(fits_filename,
                                   katpoint.rad2deg(ra0 + l_range[::-1]), katpoint.rad2deg(dec0 + m_range),
-                                  np.fliplr(final_image), target_name=image_target.name,
+                                  np.fliplr(final_image / restoring_beam.sum()), target_name=image_target.name,
                                   coord_system='radec', projection_type='SIN', data_unit='Jy/beam',
                                   observe_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(data.start_time)),
                                   create_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
