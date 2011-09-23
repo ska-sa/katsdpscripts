@@ -3,7 +3,7 @@
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
-
+import katpoint
 import time
 from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
 
@@ -16,8 +16,8 @@ parser.add_option('-t', '--target_duration', type='int', default=5*60,
                   help='Duration to track the imaging target per visit, in integer secs (default="%default")')
 parser.add_option('-b', '--bpcal_duration', type='int', default=5*60,
                   help='Duration to track bandpass calibrator per visit, in integer secs (default="%default")')
-parser.add_option('-i', '--bpcal_interval', type='int', default=60*60,
-                  help='Interval between bandpass calibrator visits, in integer secs (default="%default")')
+parser.add_option('-i', '--bpcal_interval', type='float', default=None,
+                  help='Interval between bandpass calibrator visits, in secs no pereodic (default="%default")')
 parser.add_option('-g', '--gaincal_duration', type='int', default=1*60,
                   help='Duration to track gain calibrator per visit, in integer secs (default="%default")')
 parser.add_option('-m', '--max-duration', type='float', default=None,
@@ -28,40 +28,51 @@ parser.set_defaults(description='Imaging run.', nd_params='coupler,0,0,-1')
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Check options and arguments, and build KAT configuration, connecting to proxies and devices
-if len(args) < 3:
-    raise ValueError("Please specify the target, bandpass calibrator and at least one gain calibrator")
-
 with verify_and_connect(opts) as kat:
+    if len(args)>0:
+        args_target_list = []
+        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        for catfile in args:
+            try:
+                observation_sources.add(file(catfile))
+            except IOError: # If the file failed to load assume it is a target string
+                args_target_list.append(catfile)
+        num_catalogue_targets = len(observation_sources.targets)
+        args_target_obj = []
+        if len(args_target_list) > 0 :
+            args_target_obj = lookup_targets(kat,args_target_list)
+            observation_sources.add(args_target_obj)
+        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
 
-    targets = lookup_targets(kat, args)
-    target, bpcal, gaincals = targets[0], targets[1], targets[2:]
-    user_logger.info("Imaging target is '%s'" % (target,))
-    user_logger.info("Bandpass calibrator is '%s'" % (bpcal,))
-    user_logger.info("Gain calibrators are [%s]" % (', '.join([("'%s'" % (gaincal,)) for gaincal in gaincals]),))
-    
+    user_logger.info("Imaging targets are [%s]" % (', '.join([("'%s'" % (target.name,)) for target  in observation_sources.filter(['~bpcal','~gaincal'])]),))
+    user_logger.info("Bandpass calibrators are [%s]" % (', '.join([("'%s'" % (bpcal.name,)) for bpcal in observation_sources.filter('bpcal')]),))
+    user_logger.info("Gain calibrators are [%s]" % (', '.join([("'%s'" % (gaincal.name,)) for gaincal in observation_sources.filter('gaincal')]),))
+    time_lookup = {'gaincal':opts.gaincal_duration,'target':opts.target_duration,'bpcal':opts.bpcal_duration}
+    def sources_up(sources):
+        for s in sources:
+            if session.target_visible(target, horizon=5.) : return True
+        return False
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
-        time_till_bpcal = opts.bpcal_interval
+        if opts.bpcal_interval is not None :
+            time_till_bpcal = opts.bpcal_interval
+        else:
+            time_till_bpcal = 0
         start_time = time.time()
+        loop = True
+        while loop or opts.max_duration and (time.time() < start_time + opts.max_duration) and sources_up(observation_sources):
+            loop = False
+            for current_source in observation_sources:
+                if opts.bpcal_interval is not None and time_till_bpcal >= opts.bpcal_interval:
+                    time_till_bpcal = 0.0
+                    for  bpcal_source in observation_sources.filter('bpcal'):
+                        session.track(bpcal_source, duration=time_lookup['bpcal'])
+                        time_till_bpcal += opts.bpcal_duration
+                if  'bpcal' not in current_source.tags or opts.bpcal_interval is None:
+                    track_duration = opts.target_duration
+                    for tmp in current_source.tags:
+                        if time_lookup.has_key(tmp): track_duration = time_lookup.get(tmp)
+                    session.track(current_source, duration=track_duration)
+                    time_till_bpcal += track_duration
 
-        while True:
-            if time_till_bpcal >= opts.bpcal_interval:
-                session.track(bpcal, duration=opts.bpcal_duration, label='bandpass_cal')
-                time_till_bpcal = opts.bpcal_duration
-            for gaincal in gaincals:
-                session.track(gaincal, duration=opts.gaincal_duration, label='gain_cal')
-                time_till_bpcal += opts.gaincal_duration
-
-            if opts.max_duration and (time.time() > start_time + opts.max_duration):
-                user_logger.warning("Stopping experiment, as maximum script duration was exceeded")
-                break
-
-            if not session.target_visible(target, opts.target_duration, horizon=5.) or \
-               not session.target_visible(gaincal, opts.target_duration + len(gaincals) * opts.gaincal_duration, horizon=5.):
-                user_logger.warning("Stopping experiment, as imaging target or following gain cal(s) will be below horizon")
-                break
-
-            session.track(target, duration=opts.target_duration, label='target')
-            time_till_bpcal += opts.target_duration
