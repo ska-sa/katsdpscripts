@@ -49,7 +49,7 @@ with verify_and_connect(opts) as kat:
     user_logger.info("Gain calibrators are [%s]" % (', '.join([("'%s'" % (gaincal.name,)) for gaincal in observation_sources.filter('gaincal')]),))
     time_lookup = {'gaincal':opts.gaincal_duration,'target':opts.target_duration,'bpcal':opts.bpcal_duration}
     def sources_up(sources):
-        for s in sources:
+        for target in sources:
             if session.target_visible(target, horizon=5.) : return True
         return False
     with start_session(kat, **vars(opts)) as session:
@@ -62,17 +62,17 @@ with verify_and_connect(opts) as kat:
         start_time = time.time()
         loop = True
         while loop or opts.max_duration and (time.time() < start_time + opts.max_duration) and sources_up(observation_sources):
-            loop = False
             for current_source in observation_sources:
-                if opts.bpcal_interval is not None and time_till_bpcal >= opts.bpcal_interval:
-                    time_till_bpcal = 0.0
-                    for  bpcal_source in observation_sources.filter('bpcal'):
-                        session.track(bpcal_source, duration=time_lookup['bpcal'])
-                        time_till_bpcal += opts.bpcal_duration
-                if  'bpcal' not in current_source.tags or opts.bpcal_interval is None:
-                    track_duration = opts.target_duration
-                    for tmp in current_source.tags:
-                        if time_lookup.has_key(tmp): track_duration = time_lookup.get(tmp)
-                    session.track(current_source, duration=track_duration)
-                    time_till_bpcal += track_duration
-
+                if loop or opts.max_duration and (time.time() < start_time + opts.max_duration) and sources_up([current_source]):
+                    if opts.bpcal_interval is not None and time_till_bpcal >= opts.bpcal_interval:
+                        time_till_bpcal = 0.0
+                        for  bpcal_source in observation_sources.filter('bpcal'):
+                            session.track(bpcal_source, duration=time_lookup['bpcal'])
+                            time_till_bpcal += opts.bpcal_duration
+                    if  'bpcal' not in current_source.tags or opts.bpcal_interval is None:
+                        track_duration = opts.target_duration
+                        for tmp in current_source.tags:
+                            time_lookup.get(tmp,track_duration)
+                        session.track(current_source, duration=track_duration)
+                        time_till_bpcal += track_duration
+            loop = False
