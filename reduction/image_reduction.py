@@ -42,6 +42,8 @@ parser.add_option("--time-slice", type='int', default=30,
                        "is plotted as function of frequency (default = %default)")
 parser.add_option("--freq-slice", type='int', default=250,
                   help="Frequency channel index for which vis is plotted as a function of time (default = %default)")
+parser.add_option("--bp-flux", type='float', default=0.,
+                  help="Bandpass calibrator flux in Jy (use model in data file by default)")
 (opts, args) = parser.parse_args()
 
 if opts.image_target is None:
@@ -126,6 +128,14 @@ bandpass_cal = targets[opts.bandpass_cal]
 if bandpass_cal is None:
     raise KeyError("Unknown bandpass calibrator '%s' - data contains targets '%s'" %
                    (opts.bandpass_cal, "', '".join([tgt.name for tgt in targets])))
+# If bandpass flux is specified on command line, override the existing model
+if opts.bp_flux > 0:
+    bandpass_cal.flux_model = katpoint.FluxDensityModel(center_freqs.min() / 1e6 - 1, center_freqs.max() / 1e6 + 1,
+                                                        [np.log10(opts.bp_flux)])
+# Expect a valid flux density for the BP cal for each frequency channel in data set
+if np.any(np.isnan(bandpass_cal.flux_density(center_freqs / 1e6))):
+    raise ValueError(("Bandpass calibrator '%s' has incomplete or absent flux density model '%s'"
+                      " - please specify flux via --bp-flux option") % (opts.bandpass_cal, bandpass_cal.flux_model))
 gain_cal = targets[opts.gain_cal]
 if gain_cal is None:
     raise KeyError("Unknown gain calibrator '%s' - data contains targets '%s'" %
@@ -138,7 +148,7 @@ print "Assembling bandpass calibrator data and checking fringe stopping..."
 # Assemble fringe-stopped visibility data for main (bandpass) calibrator
 orig_cal_vis_samples, cal_vis_samples, cal_timestamps = [], [], []
 for scan_ind, cs_ind, state, target in data.scans():
-    if state != 'track' or target != bandpass_cal:
+    if state != 'track' or target.name != bandpass_cal.name:
         continue
     timestamps = data.timestamps()
     if len(timestamps) < 2:
@@ -367,7 +377,7 @@ print "Averaging all calibrator data into single frequency band..."
 all_cal_vis_samples, cal_source, all_cal_times = [], [], []
 # Add phase calibrator data
 for scan_ind, cs_ind, state, target in data.scans():
-    if state != 'track' or target != gain_cal:
+    if state != 'track' or target.name != gain_cal.name:
         continue
     timestamps = data.timestamps()
     if len(timestamps) < 2:
@@ -510,7 +520,7 @@ print "Applying calibration to imaging target..."
 vis_samples_per_scan, uvw_samples_per_scan = [], []
 start_chans = np.arange(0, (len(wavelengths) // channels_per_band) * channels_per_band, channels_per_band)
 for scan_ind, cs_ind, state, target in data.scans():
-    if state != 'track' or target != image_target:
+    if state != 'track' or target.name != image_target.name:
         continue
     timestamps = data.timestamps()
     if len(timestamps) < 2:
