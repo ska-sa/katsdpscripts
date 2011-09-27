@@ -23,7 +23,7 @@ from katuilib.observe import verify_and_connect, ant_array, lookup_targets, user
 from katuilib import colors
 import katpoint
 
-wait_secs = 0.5 # time to wait in secs to allow power levels to settle after changing attenuators
+wait_secs = 1.0 # time to wait in secs to allow power levels to settle after changing attenuators
 
 def ant_pedestal(kat, ant_name):
     """Pedestal device associated with antenna device."""
@@ -41,7 +41,12 @@ rfe5_out_max_meas_power = -40 # dBm - power sensor cannot measure larger signals
 def get_rfe5_input_power(kat, ant_name, pol):
     ped = ant_pedestal(kat, ant_name)
     sensor = getattr(ped.sensor, 'rfe5_%s_power_in' % ('horizontal' if pol == 'h' else 'vertical',))
-    return sensor.get_value()
+    # Read sensor 100 times in one second and return median to obtain a more stable value
+    power = []
+    for t in range(100):
+        power.append(sensor.get_value())
+        time.sleep(0.01) # second sample
+    return np.median(power)
 
 def get_rfe5_attenuation(kat, ant_name, pol):
     ped = ant_pedestal(kat, ant_name)
@@ -55,7 +60,12 @@ def set_rfe5_attenuation(kat, ant_name, pol, value):
 def get_rfe5_output_power(kat, ant_name, pol):
     ped = ant_pedestal(kat, ant_name)
     sensor = getattr(ped.sensor, 'rfe5_%s_power_out' % ('horizontal' if pol == 'h' else 'vertical',))
-    return sensor.get_value()
+    # Read sensor 100 times in one second and return median to obtain a more stable value
+    power = []
+    for t in range(100):
+        power.append(sensor.get_value())
+        time.sleep(0.01) # second sample
+    return np.median(power)
 
 ###################### RFE Stage 7 getters and setters ########################
 
