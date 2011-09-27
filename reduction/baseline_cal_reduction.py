@@ -27,7 +27,7 @@ ped_to_losberg = {'ant1' : 4977.4, 'ant2' : 4988.8, 'ant3' : 5011.8, 'ant4' : 50
 cable_lightspeed = katpoint.lightspeed / 1.4
 
 # Parse command-line options and arguments
-parser = optparse.OptionParser(usage="%prog [options] <data file>")
+parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]")
 parser.add_option('-a', '--ants',
                   help="Comma-separated subset of antennas to use in fit (e.g. 'ant1,ant2'), default is all antennas")
 parser.add_option("-f", "--freq-chans", default='98,417',
@@ -42,13 +42,13 @@ parser.add_option("-t", "--time-offset", type='float', default=0.0,
 parser.add_option('-x', '--exclude', default='', help="Comma-separated list of sources to exclude from fit")
 (opts, args) = parser.parse_args()
 
-if len(args) != 1 or not args[0].endswith('.h5'):
-    raise RuntimeError('Please specify a single HDF5 file as argument to the script')
+if len(args) < 1:
+    raise RuntimeError('Please specify HDF5 data file(s) to use as arguments of the script')
 channel_range = [int(chan) for chan in opts.freq_chans.split(',')]
 
 print "\nLoading and processing data...\n"
 
-data = katfile.h5_data(args[0], opts.ref, channel_range, opts.time_offset)
+data = katfile.open(args, opts.ref, channel_range, opts.time_offset)
 
 # Filter available antennas via script --ants option, if provided
 ants = [ant for ant in data.ants if opts.ants is None or ant.name in opts.ants]
