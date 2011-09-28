@@ -150,7 +150,7 @@ if len(args) < 1:
     print 'Please specify an HDF5 file to check'
     sys.exit(1)
 
-h5 = katfile.h5_data(args[0], channel_range=[int(n) for n in opts.freq_chans.split(',')])
+h5 = katfile.open(args[0], channel_range=[int(n) for n in opts.freq_chans.split(',')])
 # Number of real normal variables squared and added together
 dof = 2 * len(h5.channel_freqs) * h5.channel_bw / h5.dump_rate
 

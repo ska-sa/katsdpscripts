@@ -94,7 +94,7 @@ if not opts.dry_run:
 
     # Obtain list of antennas and polarisations present in data set
     user_logger.info('Loading HDF5 file into scape and reducing the data')
-    h5 = katfile.h5_data(h5file)
+    h5 = katfile.open(h5file)
     # Iterate through antennas
     for ant in h5.ants:
         ant_num = int(ant.name[3:])
