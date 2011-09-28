@@ -1,38 +1,50 @@
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-
 # run a simple scan script to derive the horizon mask for KAT-7
 # scan over constant elevation range but loop over azimuth
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-import numpy as np
-
-from katuilib.observe import standard_script_options, verify_and_connect, start_session
+import time
+from katuilib.observe import standard_script_options, verify_and_connect, start_session, user_logger
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
-                                 description="Derive the horizon mask for KAT-7. Scan over constant elevation range \
-                                              but loop over azimuth. Note also some **required** options below.")
+                                 description="Derive the horizon mask for a KAT-7 dish. Scan over constant elevation "
+                                             "range but loop over azimuth. This takes the form of 2x180 raster scans "
+                                             "in opposite directions, with 180 seconds per scan. "
+                                             "There are non-optional options.")
 # Add experiment-specific options
-#parser.add_option('-m', '--max_time', dest='max_time', type="float", default=-1.0,
-#                                         help="Time limit on experiment, in seconds (default=no limit)")
-# Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Horizon mask data')
+parser.add_option('--elevation-range', dest='elevation_range', type="float", default=13.0,
+                  help="The range in elevation to cover starting from 2 degrees elevation (default=%default)")
+parser.add_option('--scan-spacing', dest='scan_spacing', type="float", default=1.0,
+                  help="The spacing of the scan lines in the experiment, in degrees (default=%default)")
+## Set default value for any option (both standard and experiment-specific options)
+parser.set_defaults(description='Horizon mask')
 # Parse the command line
 opts, args = parser.parse_args()
 
+el_start =  2.
+el_end = el_start + opts.elevation_range
+scan_spacing = opts.scan_spacing
+num_scans = int((el_end - el_start) / scan_spacing)
+scan_duration = 180.
+scan_extent = 180.
+
 with verify_and_connect(opts) as kat:
-
-    azimuth_angle = np.arange(-180.0, 181.0)
-    elev_center = 8.5
-    elev_offset = 6.5
-
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
-
-        # Iterate through azimuth and elevation angles
-        for az in azimuth_angle:
-            session.scan('azel, %f, %f' % (az, elev_center), duration=15.0, start=(0, -elev_offset), end=(0, elev_offset))
-            session.fire_noise_diode('coupler')
+        # First Half
+        start_time = time.time()
+        azimuth_angle = abs(-90.0 - 270.0) / 4. # should be 90 deg.
+        target1 = 'azel, %f, %f' % (-90. + azimuth_angle, (el_end + el_start) / 2.)
+        session.raster_scan(target1, num_scans=num_scans, scan_duration=scan_duration, scan_extent=scan_extent,
+                            scan_spacing=scan_spacing, scan_in_azimuth=True, projection='plate-carree')
+        user_logger.info("Observed horizon part 1/2 for %d seconds" % (time.time() - start_time))
+        # Second Half
+        half_time = time.time()
+        target2 = 'azel, %f, %f' % (-90. + azimuth_angle * 3., (el_end + el_start) / 2.)
+        session.raster_scan(target2, num_scans=num_scans, scan_duration=scan_duration, scan_extent=scan_extent,
+                            scan_spacing=scan_spacing, scan_in_azimuth=True, projection='plate-carree')
+        user_logger.info("Observed horizon part 2/2 for %d Seconds (%d Seconds in Total)" %
+                         ((time.time() - half_time), (time.time() - start_time)))
