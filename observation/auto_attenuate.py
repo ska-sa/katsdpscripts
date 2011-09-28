@@ -94,7 +94,7 @@ def get_dbe_input_power(kat, ant_name, pol, dbe):
         rms_inp_in_volts = np.sqrt(np.average(voltage_samples*voltage_samples)) / 368.0 # mysterious cal factor...
         return 10*np.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000)
     elif dbe == 'dbe7':
-        dbe_input = ant_name + pol.upper()
+        dbe_input = ant_name + pol.lower()
         dbe_device = getattr(kat, dbe)
         power_sensor = getattr(dbe_device.sensor, "dbe_%s_adc_power" % dbe_input)
         return power_sensor.get_value()
