@@ -598,7 +598,7 @@ class CaptureSession(object):
         return True
 
     @dynamic_doc("', '".join(projections), default_proj)
-    def scan(self, target, duration=30.0, start=-3.0, end=3.0, offset=0.0, index=-1, scan_in_azimuth=True,
+    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
              projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Scan across a target.
 
@@ -617,19 +617,12 @@ class CaptureSession(object):
             Target to scan across, as an object or description string
         duration : float, optional
             Minimum duration of scan across target, in seconds
-        start : float, optional
-            Start offset of scan position along scanning coordinate, in degrees
-            (see *Notes* below)
-        end : float, optional
-            End offset of scan position along scanning coordinate, in degrees
-            (see *Notes* below)
-        offset : float, optional
-            Offset of scan position along non-scanning coordinate, in degrees
+        start : sequence of 2 floats, optional
+            Initial scan position as (x, y) offset in degrees (see *Notes* below)
+        end : sequence of 2 floats, optional
+            Final scan position as (x, y) offset in degrees (see *Notes* below)
         index : integer, optional
             Scan index, used for display purposes when this is part of a raster
-        scan_in_azimuth : {True, False}, optional
-            True if azimuth changes during scan while elevation remains fixed;
-            False if scanning in elevation and stepping in azimuth instead
         projection : {'%s'}, optional
             Name of projection in which to perform scan relative to target
             (default = '%s')
@@ -653,9 +646,10 @@ class CaptureSession(object):
         Take note that scanning is done in a projection on the celestial sphere,
         and the scan start and end are in the projected coordinates. The azimuth
         coordinate of a scan in azimuth will therefore change more than the
-        *start* and *end* parameters suggest, especially at high elevations.
-        This ensures that the same scan parameters will lead to the same
-        qualitative scan for any position on the celestial sphere.
+        *start* and *end* parameters suggest, especially at high elevations
+        (unless the 'plate-carree' projection is used). This ensures that the
+        same scan parameters will lead to the same qualitative scan for any
+        position on the celestial sphere.
 
         When the function returns, the antennas will still track the end-point of
         the scan and data will still be recorded to the HDF5 file. The specified
@@ -687,10 +681,7 @@ class CaptureSession(object):
 
         user_logger.info('slewing to start of %s' % (scan_name,))
         # Move each antenna to the start position of the scan
-        if scan_in_azimuth:
-            ants.req.scan_asym(start, offset, end, offset, duration, projection)
-        else:
-            ants.req.scan_asym(offset, start, offset, end, duration, projection)
+        ants.req.scan_asym(start[0], start[1], end[0], end[1], duration, projection)
         ants.req.mode('POINT')
         # Wait until they are all in position (with 5 minute timeout)
         ants.wait('lock', True, 300)
@@ -798,18 +789,18 @@ class CaptureSession(object):
             user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" % (target.name,))
             return False
 
-        # Create start positions of each scan, based on scan parameters
+        # Create start and end positions of each scan, based on scan parameters
         scan_levels = np.arange(-(num_scans // 2), num_scans // 2 + 1)
         scanning_coord = (scan_extent / 2.0) * (-1) ** scan_levels
         stepping_coord = scan_spacing * scan_levels
         # Flip sign of elevation offsets to ensure that the first scan always starts at the top left of target
-        scan_step = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(-scanning_coord, stepping_coord)
+        scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
+        scan_ends = zip(-scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, scanning_coord)
 
         # Perform multiple scans across the target
-        for scan_index, (scan, step) in enumerate(scan_step):
-            session.scan(target, duration=scan_duration, start=scan, end=-scan, offset=step, index=scan_index,
-                         scan_in_azimuth=scan_in_azimuth, projection=projection, drive_strategy=drive_strategy,
-                         label=label, announce=False)
+        for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
+            session.scan(target, duration=scan_duration, start=start, end=end, index=scan_index,
+                         projection=projection, drive_strategy=drive_strategy, label=label, announce=False)
         return True
 
     def end(self, cancel=False):
@@ -1096,7 +1087,7 @@ class TimeSession(object):
         self._teleport_to(target)
         return True
 
-    def scan(self, target, duration=30.0, start=-3.0, end=3.0, offset=0.0, index=-1, scan_in_azimuth=True,
+    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
              projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         if self.ants is None:
@@ -1110,7 +1101,7 @@ class TimeSession(object):
             return False
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         projection = Offset.PROJECTIONS[projection]
-        self.projection = (projection, start, offset) if scan_in_azimuth else (projection, offset, start)
+        self.projection = (projection, start[0], start[1])
         user_logger.info('slewing to start of %s' % (scan_name,))
         self._slew_to(target, mode='SCAN')
         user_logger.info('start of %s reached' % (scan_name,))
@@ -1120,7 +1111,7 @@ class TimeSession(object):
         self.time += duration + 1.0
         user_logger.info('%s complete' % (scan_name,))
         self.fire_noise_diode(announce=False, **self.nd_params)
-        self.projection = (projection, end, offset) if scan_in_azimuth else (projection, offset, end)
+        self.projection = (projection, end[0], end[1])
         self._teleport_to(target)
         return True
 
@@ -1141,26 +1132,27 @@ class TimeSession(object):
         if not self.target_visible(target, (scan_duration + nd_time) * num_scans):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
-        # Create start positions of each scan, based on scan parameters
-        scan_steps = np.arange(-(num_scans // 2), num_scans // 2 + 1)
-        scanning_coord = (scan_extent / 2.0) * (-1) ** scan_steps
-        stepping_coord = scan_spacing * scan_steps
-        # These minus signs ensure that the first scan always starts at the top left of target
+        # Create start and end positions of each scan, based on scan parameters
+        scan_levels = np.arange(-(num_scans // 2), num_scans // 2 + 1)
+        scanning_coord = (scan_extent / 2.0) * (-1) ** scan_levels
+        stepping_coord = scan_spacing * scan_levels
+        # Flip sign of elevation offsets to ensure that the first scan always starts at the top left of target
         scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
+        scan_ends = zip(-scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, scanning_coord)
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
-        # Iterate through the scans across the target
-        for scan_count, scan in enumerate(scan_starts):
-            self.projection = (projection, scan[0], scan[1])
-            user_logger.info('slewing to start of scan %d' % (scan_count,))
+        # Perform multiple scans across the target
+        for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
+            self.projection = (projection, start[0], start[1])
+            user_logger.info('slewing to start of scan %d' % (scan_index,))
             self._slew_to(target, mode='SCAN')
-            user_logger.info('start of scan %d reached' % (scan_count,))
+            user_logger.info('start of scan %d reached' % (scan_index,))
             self.fire_noise_diode(announce=False, **self.nd_params)
             # Assume antennas can keep up with target (and doesn't scan too fast either)
-            user_logger.info('performing scan %d' % (scan_count,))
+            user_logger.info('performing scan %d' % (scan_index,))
             self.time += scan_duration + 1.0
-            user_logger.info('scan %d complete' % (scan_count,))
+            user_logger.info('scan %d complete' % (scan_index,))
             self.fire_noise_diode(announce=False, **self.nd_params)
-            self.projection = (projection, -scan[0], scan[1]) if scan_in_azimuth else (projection, scan[0], -scan[1])
+            self.projection = (projection, end[0], end[1])
             self._teleport_to(target)
         return True
 
