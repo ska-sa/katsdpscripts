@@ -923,3 +923,64 @@ scape.plots_basic.save_fits_image(fits_filename,
                                   observe_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(data.start_time)),
                                   create_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
                                   telescope='KAT-7', observer=data.observer)
+
+################################# SELF-CAL #####################################
+
+# This follows the recipe in Chapter 10 of the White Book
+
+# Step 1: Make an initial model of the source (we have the model_vis_samples obtained by the initial CLEAN)
+
+# Step 2: Convert the source into a point source using the model (this happens inside the solver)
+
+# Step 3: Solve for the time-varying complex antenna gains
+# selfcal_type = 'P'
+# selfcal_gains = []
+# uv_dist_range = [0, 1500]
+# bins_per_solint = 1
+# input_pairs = np.tile(np.array(crosscorr).T, len(start_chans))
+# solint_size = len(start_chans) * len(crosscorr) * bins_per_solint
+# # Iterate over solution intervals
+# for n in range(0, len(vis_samples), solint_size):
+#     vis, model_vis, uvd = vis_samples[n:n + solint_size], model_vis_samples[n:n + solint_size], uvdist[n:n + solint_size]
+#     good_uv = (uvd >= uv_dist_range[0]) & (uvd <= uv_dist_range[1])
+#     if selfcal_type == 'P':
+#         fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_phases(p, x, model_vis[good_uv]), initial_phases)
+#         fitter.fit(np.tile(input_pairs, bins_per_solint)[:, good_uv], np.vstack((vis.real, vis.imag))[:, good_uv])
+#         phase_params[phase_params_to_fit] = fitter.params
+#         gainsol = np.exp(1j * phase_params).astype(np.complex64)
+#     else:
+#         fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis[good_uv]), initial_gains)
+#         fitter.fit(np.tile(input_pairs, bins_per_solint)[:, good_uv], np.vstack((vis.real, vis.imag))[:, good_uv])
+#         full_params[params_to_fit] = fitter.params * np.sign(fitter.params[2 * ref_input_index])
+#         gainsol = full_params.view(np.complex128).astype(np.complex64)
+#     selfcal_gains.append(np.tile(gainsol, bins_per_solint).reshape(bins_per_solint, -1))
+# # Solved gains per input and time bin
+# selfcal_gains = np.vstack(selfcal_gains).T
+#
+# fig = plt.figure(16)
+# fig.clear()
+# fig.subplots_adjust(right=0.8)
+# ax = fig.add_subplot(121)
+# for n in range(len(inputs)):
+#     ax.plot(np.abs(selfcal_gains[n]), 'o', label=inputs[n][3:])
+# ax.set_xlabel('Solution intervals')
+# ax.set_title('Gain amplitude')
+# ax = fig.add_subplot(122)
+# for n in range(len(inputs)):
+#     ax.plot(katpoint.rad2deg(np.angle(selfcal_gains[n])), 'o', label=inputs[n][3:])
+# ax.set_xlabel('Solution intervals')
+# ax.set_title('Gain phase (degrees)')
+# ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0., numpoints=1)
+#
+# # Step 4: Find the corrected visibility
+# gainA = selfcal_gains.T[:, input_pairs[0, :]].ravel()
+# gainB = selfcal_gains.T[:, input_pairs[1, :]].ravel()
+# corrected_vis_samples = vis_samples / (gainA * gainB.conjugate())
+#
+# # Step 5: Form a new model from the corrected data
+# masked_comps = omp_plus(A=masked_phi, y=corrected_vis_samples, S=num_components, resThresh=res_thresh)
+# model_vis_samples = np.dot(masked_phi, masked_comps)
+# residual_vis = vis_samples - model_vis_samples
+# print residual_vis.std()
+#
+# # Step 6: Rinse back to step 2, repeat...
