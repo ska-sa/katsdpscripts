@@ -34,6 +34,5 @@ with verify_and_connect(opts) as kat:
 
         # Iterate through azimuth and elevation angles
         for az in azimuth_angle:
-            session.scan('azel, %f, %f' % (az, elev_center), duration=15.0,
-                         start=-elev_offset, end=elev_offset, scan_in_azimuth=False)
+            session.scan('azel, %f, %f' % (az, elev_center), duration=15.0, start=(0, -elev_offset), end=(0, elev_offset))
             session.fire_noise_diode('coupler')

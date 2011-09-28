@@ -73,7 +73,7 @@ session.fire_noise_diode(diode='coupler', on=10.0)
 # Track the target for 10 seconds
 session.track(target, duration=10.0)
 # Perform a scan across the target in azimuth with a span of 6 degrees, lasting 10 seconds
-session.scan(target, duration=10.0, start=-3.0, end=3.0)
+session.scan(target, duration=10.0, start=(-3.0, 0.0), end=(3.0, 0.0))
 # For the grand finale, perform a raster scan on the target, consisting of 3 scans lasting 10 seconds
 # each and spanning 6 degrees in azimuth, with a 0.5-degree spacing between scans in elevation
 session.raster_scan(target, num_scans=3, scan_duration=10.0, scan_extent=6.0, scan_spacing=0.5)
