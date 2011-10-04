@@ -244,7 +244,7 @@ parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                description="This processes an HDF5 dataset and extracts fitted beam parameters "
                                            "from the compound scans in it. It runs interactively by default, "
                                            "which allows the user to inspect results and discard bad scans.")
-parser.add_option("-a", "--baseline", default='AxAx',
+parser.add_option("-a", "--baseline", default='sd',
                   help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", action="store_true",
                   help="Flag to do processing in batch mode without user interaction")
@@ -303,7 +303,7 @@ if opts.keepfilename:
                  (opts.keepfilename, len(keep_datasets), len(keep_scans), ant_name))
     # Ensure we are using antenna found in CSV file (assume ant name = "ant" + number)
     csv_baseline = 'A%sA%s' % (ant_name[3:], ant_name[3:])
-    if opts.baseline != 'AxAx' and opts.baseline != csv_baseline:
+    if opts.baseline != 'sd' and opts.baseline != csv_baseline:
         logger.warn("Requested baseline '%s' does not match baseline '%s' in CSV file '%s'" %
                     (opts.baseline, csv_baseline, opts.keepfilename))
     logger.warn("Using baseline '%s' found in CSV file '%s'" % (csv_baseline, opts.keepfilename))

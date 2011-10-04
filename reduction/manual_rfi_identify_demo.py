@@ -12,21 +12,21 @@ from scape import DataSet, extract_xyz_data
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
                                description="This processes one or more datasets (HDF5) and extracts RFI affected channels from them.")
-parser.add_option('-a', '--baseline', dest='baseline', type='string', metavar='BASELINE', default='AxAx',
+parser.add_option('-a', '--baseline', default='sd',
                 help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
-parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='70,460',
+parser.add_option("-f", "--frequency_channels", dest="freq_keep", default='70,460',
                 help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
-parser.add_option("-o", "--output", dest="outfilebase", type="string", default='pre-defined_rfi',
+parser.add_option("-o", "--output", dest="outfilebase", default='pre-defined_rfi',
                 help="Base name of output files (*.csv for output data and *.log for messages)")
-parser.add_option("-c", "--output_chan", dest="outfilebase2", type="string", default='contaminte_rfi_channels',
+parser.add_option("-c", "--output_chan", dest="outfilebase2", default='contaminte_rfi_channels',
                 help="Base name of output files (*.txt for output data and *.log for messages)")
-parser.add_option("-s", "--size", dest="file_size", type=float, default=100.0,
+parser.add_option("-s", "--size", dest="file_size", type='float', default=100.0,
                 help="Size of the file to be reduced Default = %default")
-parser.add_option("-m", "--startdate", dest='startdate',type='string', default='01/05/2010',
+parser.add_option("-m", "--startdate", default='01/05/2010',
                     help="filtered start date (e.g day/month/year) for the datasets to be reduced")
-parser.add_option("-e", "--enddate", dest='enddate',type='string', default='15/05/2010',
+parser.add_option("-e", "--enddate", default='15/05/2010',
                     help="filtered end date (e.g day/month/year ) for the data set to be reduced")
-parser.add_option("-n", "--ant", dest='ant',type='string', default='1',
+parser.add_option("-n", "--ant", default='1',
                 help="filtered first antenna from the data set to be reduced")
 (opts, args) = parser.parse_args()
 if len(args) < 1:

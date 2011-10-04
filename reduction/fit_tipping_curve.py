@@ -24,7 +24,7 @@ logger.setLevel(logging.DEBUG)
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This reduces a data file to produce a tipping curve plot.')
-parser.add_option("-a", "--baseline", default='AxAx',
+parser.add_option("-a", "--baseline", default='sd',
                   help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 parser.add_option("-n", "--nd-models",
                   help="Name of optional directory containing noise diode model files")

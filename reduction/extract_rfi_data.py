@@ -19,7 +19,7 @@ logger = logging.root
 
 def LoadHDF5(HDF5Filename, header=False):
     try:
-        d = scape.DataSet(HDF5Filename,baseline = opts.baseline)
+        d = scape.DataSet(HDF5Filename,baseline=opts.baseline)
     except ValueError:
         print "WARNING:THIS FILE",HDF5Filename.split('/')[-1], "IS CORRUPTED AND SCAPE WILL NOT PROCESS IT, YOU MAY NEED TO REAUGMENT IT,BUT ITS AN EXPENSIVE TASK..!!"
     else:
@@ -80,11 +80,11 @@ def loop_througth(observationDataDir):
 if __name__ == '__main__':
 
     parser = optparse.OptionParser(usage='prog[options]<data file>',description='This extract the useful data from data file')
-    parser.add_option('-a', '--baseline', dest='baseline', type='string', metavar='BASELINE', default='AxAx',
+    parser.add_option('-a', '--baseline', default='sd',
     		help='Baseline to be loaded (e.g A1A1 for antenna 1) default is the first single-dish baseline in the data file')
     parser.add_option('-p', '--path', dest='data_dir',
             help='Directory containing observation data')
-    parser.add_option("-o", "--output", dest="outfilebase", type="string", default='rfi_data_points',
+    parser.add_option("-o", "--output", dest="outfilebase", default='rfi_data_points',
                       help="Base name of output files (*.csv for output data)")
 
     (opts, args) = parser.parse_args()
