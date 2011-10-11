@@ -54,7 +54,7 @@ data = katfile.open(args, opts.ref, channel_range, opts.time_offset)
 ants = [ant for ant in data.ants if opts.ants is None or ant.name in opts.ants]
 ref_ant_ind = [ant.name for ant in ants].index(data.ref_ant)
 # Form desired signal paths and obtain all baselines connecting them
-signals = [ant.name + opts.pol for ant in ants]
+signals = [ant.name + opts.pol.lower() for ant in ants]
 baselines = data.all_corr_products(signals)
 # Throw out autocorrelations
 baselines = [(antA, antB) for antA, antB in baselines if antA != antB]

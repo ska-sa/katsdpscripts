@@ -78,6 +78,8 @@ channels_per_band, dumps_per_vis = opts.chan_avg, opts.time_avg
 # Slices for plotting
 time_slice = opts.time_slice
 freq_slice = opts.freq_slice - first_chan
+# Turn polarisation label to lower-case to match DBE inputs
+pol = opts.pol.lower()
 
 # Latest KAT-7 antenna positions and H / V cable delays via recent baseline cal (1313748602 dataset, not joint yet)
 new_ants = {
@@ -104,9 +106,9 @@ data = katfile.open(args, ref_ant=opts.ref_ant, channel_range=(first_chan, one_p
 ants = dict([(ant.name, katpoint.Antenna(new_ants[ant.name][0])) for ant in data.ants])
 inputs, delays = [], {}
 for ant in sorted(ants):
-    if ant + opts.pol in data.inputs:
-        inputs.append(ant + opts.pol)
-        delays[ant + opts.pol] = new_ants[ant][1 if opts.pol == 'H' else 2]
+    if ant + pol in data.inputs:
+        inputs.append(ant + pol)
+        delays[ant + pol] = new_ants[ant][1 if pol == 'h' else 2]
 # Extract available cross-correlation products, as pairs of indices into input list
 crosscorr = [corrprod for corrprod in data.all_corr_products(inputs) if corrprod[0] != corrprod[1]]
 
@@ -234,7 +236,7 @@ print "Performing bandpass calibration on '%s'..." % (bandpass_cal.name,)
 full_params = np.zeros(2 * len(inputs))
 # Indices of gain parameters that will be optimised
 params_to_fit = range(len(full_params))
-ref_input_index = inputs.index(data.ref_ant + opts.pol)
+ref_input_index = inputs.index(data.ref_ant + pol)
 # Don't fit the imaginary component of the gain on the reference signal path (this is assumed to be zero)
 params_to_fit.pop(2 * ref_input_index + 1)
 initial_gains = np.tile([1., 0.], len(inputs))[params_to_fit]

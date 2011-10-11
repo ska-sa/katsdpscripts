@@ -58,7 +58,7 @@ def main():
     parser.add_option('-o', '--output', dest='output', type="string", metavar='OUTPUTFILE', default=None,help="Write out intermediate h5 file")
     parser.add_option('-s', '--split', dest='split', action="store_true", metavar='SPLIT', default=False,help="Whether to split each horizon plot in half")
     parser.add_option('-z', '--azshift', dest='azshift', type='float', metavar='AZIMUTH_SHIFT', default=45.0,help="Degrees to rotate azimuth window by.")
-    parser.add_option('-p', '--pol', dest = 'pol',type ='string',metavar ='POLARIZATION', default = False,help = 'Polarization to load (e.g. HH for horizontal polarization ), there is no default polarization')
+    parser.add_option('-p', '--pol', dest = 'pol',type ='string',metavar ='POLARIZATION', default = None,help = 'Polarization to load (e.g. HH for horizontal polarization ), there is no default polarization')
     (opts, args) = parser.parse_args()
 
     # Check arguments
@@ -66,7 +66,7 @@ def main():
         print 'Please specify the data file to reduce'
         sys.exit(1)
 
-    if opts.pol < 1:
+    if opts.pol is None:
         print "please specify which polarization to load"
         sys.exit(1)
     # Load data set
