@@ -44,7 +44,7 @@ def plot_horizon(xyz_data, xyz_titles, az_lims, el_lims, pow_lims):
     #cs = plt.contour(el_pos, az_pos, power_db_pos, pow_levels)
     plt.contourf(az_pos,el_pos, power_db_pos, pow_levels, antialiased=True)
     #plt.contourf(el_pos, az_pos, power_db_pos, pow_levels, antialiased=True)
-    plt.colorbar(cs, ticks=pow_ticks)
+    plt.colorbar()
 
     plt.xlim(az_min, az_max)
     plt.ylim(el_min, el_max)
@@ -142,7 +142,7 @@ def main():
         plt.subplot(2, 1, 1)
         plot_horizon(vv_data, vv_titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
         plt.subplot(2, 1, 2 )
-        plot_horizon(vv_data, vv_titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
+        plot_horizon(hh_data, hh_titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
 
 
     # Display plots - this should be called ONLY ONCE, at the VERY END of the script

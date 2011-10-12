@@ -54,7 +54,7 @@ def load_cal(filename, baseline, start_freq_channel, end_freq_channel, nd_models
     d = d.select(freqkeep=range(start_freq_channel, end_freq_channel + 1))
     d.convert_power_to_temperature(min_duration=opts.min_nd, jump_significance=10.0)
     # Only keep main scans (discard slew and cal scans)
-    d = d.select(labelkeep='scan', copy=False)
+    d = d.select(labelkeep='track',flagkeep='~nd_on', copy=False)
     # Average all frequency channels into one band
     d.average()
     return d

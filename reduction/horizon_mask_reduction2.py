@@ -113,7 +113,7 @@ def main():
         plt.subplot(2, 1, 1)
         plot_horizon(data, titles, (az_min, az_mid), (el_min, el_max), (pow_min, pow_max))
         plt.subplot(2, 1, 2)
-        plot_horizon(data,titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
+        plot_horizon(data,titles, (az_mid, az_max), (el_min, el_max), (pow_min, pow_max))
     else:
         plt.subplot(1, 1, 1)
         plot_horizon(data,titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
