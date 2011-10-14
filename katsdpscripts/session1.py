@@ -1003,11 +1003,12 @@ class TimeSession(object):
         self.projection = ('ARC', 0., 0.)
 
         # Usurp time module functions that deal with the passage of real time, and connect them to session time instead
-        self.realtime, self.realsleep = time.time, time.sleep
+        self._realtime, self._realsleep = time.time, time.sleep
         time.time = lambda: self.time
         def simsleep(seconds):
             self.time += seconds
         time.sleep = simsleep
+        self._fake_ants = []
 
         # Modify logging so that only stream handlers are active and timestamps are prepended with a tilde
         for handler in user_logger.handlers:
@@ -1045,15 +1046,15 @@ class TimeSession(object):
 
     def _teleport_to(self, target, mode='POINT'):
         """Move antennas instantaneously onto target (or nearest point on horizon)."""
-        for m in range(len(self.ants)):
-            antenna = self.ants[m][0]
+        for m in range(len(self._fake_ants)):
+            antenna = self._fake_ants[m][0]
             az, el = self._azel(target, self.time, antenna)
-            self.ants[m] = (antenna, mode, az, max(el, 2.))
+            self._fake_ants[m] = (antenna, mode, az, max(el, 2.))
 
     def _slew_to(self, target, mode='POINT', timeout=300.):
         """Slew antennas to target (or nearest point on horizon), with timeout."""
         slew_times = []
-        for ant, ant_mode, ant_az, ant_el in self.ants:
+        for ant, ant_mode, ant_az, ant_el in self._fake_ants:
             def estimate_slew(timestamp):
                 """Obtain instantaneous target position and estimate time to slew there."""
                 # Target position right now
@@ -1091,13 +1092,13 @@ class TimeSession(object):
     def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
                        dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate."""
-        self.ants = []
-        for ant in ant_array(self.kat, ants).devs:
+        self.ants = ant_array(self.kat, ants)
+        for ant in self.ants.devs:
             try:
-                self.ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),
-                                  ant.sensor.mode.get_value(),
-                                  ant.sensor.pos_actual_scan_azim.get_value(),
-                                  ant.sensor.pos_actual_scan_elev.get_value()))
+                self._fake_ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),
+                                        ant.sensor.mode.get_value(),
+                                        ant.sensor.pos_actual_scan_azim.get_value(),
+                                        ant.sensor.pos_actual_scan_elev.get_value()))
             except AttributeError:
                 pass
         # Override provided session parameters (or initialize them from existing parameters if not provided)
@@ -1106,7 +1107,7 @@ class TimeSession(object):
         self.record_slews = record_slews = self.record_slews if record_slews is None else record_slews
         self.stow_when_done = stow_when_done = self.stow_when_done if stow_when_done is None else stow_when_done
 
-        user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self.ants]),))
+        user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self._fake_ants]),))
         user_logger.info("Observer = %s" % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info("Experiment ID = %s" % (experiment_id,))
@@ -1138,9 +1139,9 @@ class TimeSession(object):
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
-        if self.ants is None:
+        if not self._fake_ants:
             return False
-        for antenna, mode, ant_az, ant_el in self.ants:
+        for antenna, mode, ant_az, ant_el in self._fake_ants:
             az, el = self._azel(target, self.time, antenna)
             # Checking for lock and checking for target identity considered the same thing
             if (az != ant_az) or (el != ant_el) or (mode != 'POINT'):
@@ -1149,7 +1150,7 @@ class TimeSession(object):
 
     def target_visible(self, target, duration=0., timeout=300., horizon=2., operation='scan'):
         """Check whether target is visible for given duration."""
-        if self.ants is None:
+        if not self._fake_ants:
             return False
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
@@ -1157,7 +1158,7 @@ class TimeSession(object):
         # Include an average time to slew to the target (worst case about 90 seconds, so half that)
         now = self.time + 45.
         average_el, visible_before, visible_after = [], [], []
-        for antenna, mode, ant_az, ant_el in self.ants:
+        for antenna, mode, ant_az, ant_el in self._fake_ants:
             az, el = target.azel(now, antenna)
             average_el.append(katpoint.rad2deg(el))
             # If not up yet, see if the target will pop out before the timeout
@@ -1184,7 +1185,7 @@ class TimeSession(object):
 
     def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
         """Estimate time taken to fire noise diode."""
-        if self.ants is None:
+        if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
@@ -1200,7 +1201,7 @@ class TimeSession(object):
 
     def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
         """Estimate time taken to perform track."""
-        if self.ants is None:
+        if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
@@ -1224,7 +1225,7 @@ class TimeSession(object):
     def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0),
              projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
-        if self.ants is None:
+        if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
@@ -1252,7 +1253,7 @@ class TimeSession(object):
                     scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
                     label='raster', announce=True):
         """Estimate time taken to perform raster scan."""
-        if self.ants is None:
+        if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         projection = Offset.PROJECTIONS[projection]
@@ -1295,7 +1296,7 @@ class TimeSession(object):
         msg = 'Ended data capturing session with experiment ID %s' % (self.experiment_id,)
         user_logger.info(msg)
         activity_logger.info("Timing simulation. %s" % (msg,))
-        if self.stow_when_done and self.ants is not None:
+        if self.stow_when_done and self._fake_ants:
             msg = "Stowing dishes."
             user_logger.info(msg)
             activity_logger.info("Timing simulation.  %s" % (msg,))
@@ -1312,7 +1313,7 @@ class TimeSession(object):
         user_logger.info(msg+"\n")
         activity_logger.info("Timing simulation.  %s" % (msg,))
         # Restore time module functions
-        time.time, time.sleep = self.realtime, self.realsleep
+        time.time, time.sleep = self._realtime, self._realsleep
         # Restore logging
         for handler in user_logger.handlers:
             if isinstance(handler, logging.StreamHandler):
