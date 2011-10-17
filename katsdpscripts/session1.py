@@ -650,7 +650,7 @@ class CaptureSession(object):
         return True
 
     @dynamic_doc("', '".join(projections), default_proj)
-    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0),
+    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
              projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Scan across a target.
 
@@ -686,6 +686,8 @@ class CaptureSession(object):
             Initial scan position as (x, y) offset in degrees (see *Notes* below)
         end : sequence of 2 floats, optional
             Final scan position as (x, y) offset in degrees (see *Notes* below)
+        index : integer, optional
+            Scan index, used for display purposes when this is part of a raster
         projection : {'%s'}, optional
             Name of projection in which to perform scan relative to target
             (default = '%s')
@@ -724,6 +726,7 @@ class CaptureSession(object):
         session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+        scan_name = 'scan' if index < 0 else 'scan %d' % (index,)
 
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
@@ -755,24 +758,24 @@ class CaptureSession(object):
         else:
             session.fire_noise_diode(announce=False, **session.nd_params)
 
-        user_logger.info('slewing to start of scan')
+        user_logger.info('slewing to start of %s' % (scan_name,))
         with session.start_scan('slew'):
             # Move each antenna to the start position of the scan
             ants.req.scan_asym(start[0], start[1], end[0], end[1], duration, projection)
             ants.req.mode('POINT')
             # Wait until they are all in position (with 5 minute timeout)
             ants.wait('lock', True, 300)
-        user_logger.info('start of scan reached')
+        user_logger.info('start of %s reached' % (scan_name,))
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
-        user_logger.info('performing scan')
+        user_logger.info('performing %s' % (scan_name,))
         with session.start_scan('scan'):
             # Start scanning the antennas
             ants.req.mode('SCAN')
             # Wait until they are all finished scanning (with 5 minute timeout)
             ants.wait('scan_status', 'after', 300)
-        user_logger.info('scan complete')
+        user_logger.info('%s complete' % (scan_name,))
 
         session.fire_noise_diode(announce=False, **session.nd_params)
         return True
@@ -1222,11 +1225,12 @@ class TimeSession(object):
         self._teleport_to(target)
         return True
 
-    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0),
+    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
              projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
         """Estimate time taken to perform single linear scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
+        scan_name = 'scan' if index < 0 else 'scan %d' % (index,)
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         if announce:
             user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
@@ -1236,14 +1240,14 @@ class TimeSession(object):
         self.fire_noise_diode(label='', announce=False, **self.nd_params)
         projection = Offset.PROJECTIONS[projection]
         self.projection = (projection, start[0], start[1])
-        user_logger.info('slewing to start of scan')
+        user_logger.info('slewing to start of %s' % (scan_name,))
         self._slew_to(target, mode='SCAN')
-        user_logger.info('start of scan reached')
+        user_logger.info('start of %s reached' % (scan_name,))
         self.fire_noise_diode(announce=False, **self.nd_params)
         # Assume antennas can keep up with target (and doesn't scan too fast either)
-        user_logger.info('performing scan')
+        user_logger.info('performing %s' % (scan_name,))
         self.time += duration + 1.0
-        user_logger.info('scan complete')
+        user_logger.info('%s complete' % (scan_name,))
         self.fire_noise_diode(announce=False, **self.nd_params)
         self.projection = (projection, end[0], end[1])
         self._teleport_to(target)
