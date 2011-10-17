@@ -19,9 +19,9 @@ parser.add_option('--pol', help=optparse.SUPPRESS_HELP)
 parser.add_option('-i', '--interp', help='Scape interpolation function to use (default is linear)')
 parser.add_option('-t', '--date', help='Date of measurements (could be approximate)')
 parser.add_option('-c', '--cryostat', help='Cryostat assembly number according to EMSS')
-parser.add_option('-k', '--kat', help='KAT eB document number')
+parser.add_option('-n', '--doc', help='KAT eB document number')
 parser.add_option('-r', '--rev', help='KAT eB document revision')
-parser.add_option('-n', '--notes', help='Extra notes')
+parser.add_option('-x', '--notes', help='Extra notes')
 
 parser.set_defaults(interp='PiecewisePolynomial1DFit(max_degree=1)')
 # Parse the command line and check options and arguments
