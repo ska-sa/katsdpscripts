@@ -27,9 +27,7 @@ wait_secs = 1.0 # time to wait in secs to allow power levels to settle after cha
 
 def ant_pedestal(kat, ant_name):
     """Pedestal device associated with antenna device."""
-    # This assumes that antenna names have the format 'antx', where x is an integer (the antenna number)
-    ant_num = int(ant_name.strip()[3:])
-    return getattr(kat, 'ped%d' % (ant_num,))
+    return getattr(kat, ant_name)
 
 ###################### RFE Stage 5 getters and setters ########################
 
