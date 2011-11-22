@@ -469,8 +469,6 @@ class CaptureSession(object):
         # If period is non-negative, quit if it is not yet time to fire the noise diode
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
             return False
-        # Find pedestal controllers with the same number as antennas (i.e. 'ant1' maps to 'ped1') and put into Array
-        pedestals = Array('peds', [getattr(kat, 'ped' + ant.name[3:]) for ant in ants.devs])
 
         if announce:
             user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
@@ -478,7 +476,7 @@ class CaptureSession(object):
             user_logger.info('firing noise diode')
 
         # Switch noise diode on on all antennas
-        pedestals.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
+        ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
         # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
         if hasattr(dbe.req, 'dbe_fire_nd'):
             dbe.req.dbe_fire_nd(on)
@@ -486,7 +484,7 @@ class CaptureSession(object):
         # Mark on -> off transition as last firing
         session.last_nd_firing = time.time()
         # Switch noise diode off on all antennas
-        pedestals.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
+        ants.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
         time.sleep(off)
         user_logger.info('noise diode fired')
 
