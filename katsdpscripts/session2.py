@@ -155,8 +155,8 @@ class CaptureSession(object):
             user_logger.info('New data capturing session')
             user_logger.info('--------------------------')
             user_logger.info("DBE proxy used = %s" % (dbe.name,))
-            
-            
+
+
             # Obtain the name of the file currently being written to
             reply = dbe.req.k7w_get_current_file()
             outfile = reply[1] if reply.succeeded else '<unknown file>'
@@ -310,14 +310,14 @@ class CaptureSession(object):
         if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
             first_ant = ants.devs[0]
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
-            update_period_sec = 0.4 / dump_rate
+            update_period_seconds = 0.4 / dump_rate
             # Tell the position sensors to report their values periodically at this rate
             # Remember that this should be an *integer* number of milliseconds
-            first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(int(1000 * update_period_sec)))
-            first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(int(1000 * update_period_sec)))
+            first_ant.sensor.pos_actual_scan_azim.set_strategy('period',update_period_seconds)
+            first_ant.sensor.pos_actual_scan_elev.set_strategy('period', update_period_seconds)
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
-            first_ant.sensor.pos_actual_scan_azim.register_listener(dbe.req.dbe_pointing_az, update_period_sec)
-            first_ant.sensor.pos_actual_scan_elev.register_listener(dbe.req.dbe_pointing_el, update_period_sec)
+            first_ant.sensor.pos_actual_scan_azim.register_listener(dbe.req.dbe_pointing_az, update_period_seconds)
+            first_ant.sensor.pos_actual_scan_elev.register_listener(dbe.req.dbe_pointing_el, update_period_seconds)
             user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
         user_logger.info("--------------------------")
 
@@ -891,7 +891,7 @@ class TimeSession(object):
         user_logger.info('New data capturing session')
         user_logger.info('--------------------------')
         user_logger.info("DBE proxy used = %s" % (dbe.name,))
-        
+
         activity_logger.info("Timing simulation. ----- Script starting %s (%s). Output file None" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
     def __enter__(self):
@@ -1160,7 +1160,7 @@ class TimeSession(object):
         user_logger.info('Scans complete, no data captured as this is a timing simulation...')
         user_logger.info('Ended data capturing session with experiment ID %s' % (self.experiment_id,))
         activity_logger.info('Timing simulation. Ended data capturing session with experiment ID %s' % (self.experiment_id,))
-        
+
         if self.stow_when_done and self._fake_ants:
             user_logger.info("Stowing dishes.")
             activity_logger.info('Timing simulation. Stowing dishes.')
