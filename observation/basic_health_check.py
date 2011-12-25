@@ -159,9 +159,9 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ]
 
 dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
-(" kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
-(" kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
-(" kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
+("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
+("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
+("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -220,7 +220,7 @@ defaults_set = {
 
 def check_sensors(kat, defaults, show_only_errors):
     # check current system setting and compare with defaults and tolerances as specified above
-    print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Min Value".ljust(25), "Max Value".ljust(25))
+    print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Green Min".ljust(25), "Green Max".ljust(25))
     for checker, min_val, max_val in defaults:
         if checker.strip() == '':
             if not show_only_errors: print "" # print a blank line, but skip this if only showing errors
