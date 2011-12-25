@@ -134,10 +134,10 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ]
 
 anc = [# structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.anc.sensor.asc_asc_air_temperature.get_value()", 22.0,26.0),
-("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 14.0,18.0),
-("kat.anc.sensor.cc_cc_air_temperature.get_value()", 22.0,26.0),
-("kat.anc.sensor.cc_chiller_water_temperature.get_value()", 13.0,18.0),
+("kat.anc.sensor.asc_asc_air_temperature.get_value()", 0.0,32.0),
+("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 6.0,22.0),
+("kat.anc.sensor.cc_cc_air_temperature.get_value()", 0.0,30.0),
+("kat.anc.sensor.cc_chiller_water_temperature.get_value()", 6.0,18.0),
 ("kat.anc.sensor.asc_wind_speed.get_value()", 0.0,15.2),
 ("kat.anc.sensor.asc_fire_ok.get_value()", 1,1), # these sensors really should be something like "(not) on fire"
 ("kat.anc.sensor.cc_fire_ok.get_value()", 1,1),
