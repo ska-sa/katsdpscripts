@@ -28,6 +28,7 @@ ant1 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant1.sensor.windstow_active.get_value()",0,0),
 ("kat.ant1.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant1.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant1.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 ant2 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -41,6 +42,7 @@ ant2 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant2.sensor.windstow_active.get_value()",0,0),
 ("kat.ant2.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant2.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant2.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 ant3 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -54,6 +56,7 @@ ant3 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant3.sensor.windstow_active.get_value()",0,0),
 ("kat.ant3.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant3.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant3.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 ant4 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -67,6 +70,7 @@ ant4 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant4.sensor.windstow_active.get_value()",0,0),
 ("kat.ant4.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant4.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant4.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 ant5 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -80,6 +84,7 @@ ant5 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant5.sensor.windstow_active.get_value()",0,0),
 ("kat.ant5.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant5.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant5.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 ant6 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -93,6 +98,7 @@ ant6 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant6.sensor.windstow_active.get_value()",0,0),
 ("kat.ant6.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant6.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant6.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 ant7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -106,6 +112,7 @@ ant7 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant7.sensor.windstow_active.get_value()",0,0),
 ("kat.ant7.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant7.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ant7.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ]
 
 rfe7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -178,7 +185,7 @@ defaults_set = {
 'lab' : ant1 + lab_rfe7,
 }
 
-def check_sensors(kat, defaults):
+def check_sensors(kat, defaults, show_only_errors):
     # check current system setting and compare with defaults and tolerances as specified above
     print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Min Value".ljust(25), "Max Value".ljust(25))
     for checker, min_val, max_val in defaults:
@@ -186,12 +193,12 @@ def check_sensors(kat, defaults):
             current_val = str(eval(checker))
             if type(min_val) is list:
                 if current_val in min_val:
-                    print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
+                    if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
                 else:
                     print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
             else:
                 if (min_val <= float(current_val) and float(current_val) <=  max_val):
-                    print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+                    if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
                 else:
                     print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
         except:
@@ -208,6 +215,9 @@ if __name__ == "__main__":
                       '(default reuses existing connection, or falls back to systems/local.conf)')
     parser.add_option('-d', '--defaults_set', default="karoo", metavar='DEFAULTS',
                       help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
+    parser.add_option('-e', '--errors_only', action='store_true', default=False,
+                      help='Show only values in error, if this switch is included (default="%default")')
+
     (opts, args) = parser.parse_args()
 
     try:
@@ -226,5 +236,5 @@ if __name__ == "__main__":
     print "Using KAT connection with configuration: %s" % (kat.config_file,)
 
     print "Checking current settings....."
-    check_sensors(kat,defaults)
+    check_sensors(kat,defaults,opts.errors_only)
 
