@@ -6,11 +6,8 @@
 ## TODO:
 # 1) Might be better to pull max and min values from the system config in some
 # way rather than specify them again separately here. The ones used here may not
-# be too reliable.
-# 2) Probably also better to factor out code that is used here to get DBE input
-# power levels and also used in auto-attenuate.py
-# 3) Probably better to programmatically generate ant1, ant2, etc in future.
-# 4) Still to add DBE input power level check as per auto-attenuate.py calc.
+# be in sync with the value used for alarms etc.
+# 2) Probably better to programmatically generate ant1, ant2, etc in future.
 
 from optparse import OptionParser
 import time
@@ -131,6 +128,20 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 
 dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
+("kat.dbe7.sensor.dbe_ant1h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant1v_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant2h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant2v_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant3h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant3v_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant4h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant4v_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant5h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant5v_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant6h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant6v_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant7h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant7v_adc_power.get_value()",-27.0,-25.0),
 ]
 
 anc = [# structure is list of tuples with (command to access sensor value, min value, max value)
@@ -186,6 +197,9 @@ def check_sensors(kat, defaults):
         except:
             print "Could not check", checker, "[expected range: %r , %r]" % (min_val,max_val)
 
+connected_antpols = {}
+
+
 if __name__ == "__main__":
 
     parser = OptionParser(usage="%prog [options]",
@@ -213,3 +227,4 @@ if __name__ == "__main__":
 
     print "Checking current settings....."
     check_sensors(kat,defaults)
+
