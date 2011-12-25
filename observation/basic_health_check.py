@@ -140,7 +140,7 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 
 dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
-("kat.dbe7.sensor.capturing.get_value()",['0','1'],'') # command, list of string options, blank string
+("kat.dbe7.sensor.capturing.get_value()",['0','1'],''), # command, list of string options, blank string
 ("kat.dbe7.sensor.dbe_ant1h_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant1v_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant2h_adc_power.get_value()",-27.0,-25.0),
