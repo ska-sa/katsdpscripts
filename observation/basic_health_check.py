@@ -28,7 +28,6 @@ ant1 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant1.sensor.windstow_active.get_value()",0,0),
 ("kat.ant1.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant1.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant1.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -43,7 +42,6 @@ ant2 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant2.sensor.windstow_active.get_value()",0,0),
 ("kat.ant2.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant2.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant2.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -58,7 +56,6 @@ ant3 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant3.sensor.windstow_active.get_value()",0,0),
 ("kat.ant3.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant3.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant3.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -73,7 +70,6 @@ ant4 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant4.sensor.windstow_active.get_value()",0,0),
 ("kat.ant4.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant4.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant4.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -88,7 +84,6 @@ ant5 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant5.sensor.windstow_active.get_value()",0,0),
 ("kat.ant5.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant5.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant5.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -103,7 +98,6 @@ ant6 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant6.sensor.windstow_active.get_value()",0,0),
 ("kat.ant6.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant6.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant6.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -118,7 +112,6 @@ ant7 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant7.sensor.windstow_active.get_value()",0,0),
 ("kat.ant7.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant7.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("kat.ant7.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -137,12 +130,17 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.rfe7.sensor.rfe7_downconverter_ant6_v_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_downconverter_ant7_h_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_downconverter_ant7_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1,1), # more orx units need checking?
+("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx3_states_ok.get_value()", 1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_osc_states_ok.get_value()", 1,1),
 ("","",""), # creates a blank line
 ]
 
 dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
+("kat.dbe7.sensor.capturing.get_value()",['0','1'],'') # command, list of string options, blank string
 ("kat.dbe7.sensor.dbe_ant1h_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant1v_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant2h_adc_power.get_value()",-27.0,-25.0),
@@ -157,6 +155,28 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ("kat.dbe7.sensor.dbe_ant6v_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant7h_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant7v_adc_power.get_value()",-27.0,-25.0),
+("","",""), # creates a blank line
+]
+
+dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
+(" kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
+(" kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
+(" kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
+("","",""), # creates a blank line
+]
+
+tfr = [# structure is list of tuples with (command to access sensor value, min value, max value)
+("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1), # does this include kat-dc1?
+("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1),
+("kat.ant1.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant2.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant3.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant4.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant5.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant6.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant7.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
@@ -181,7 +201,7 @@ lab_rfe7 = [ # structure is list of tuples with (command to access sensor value,
 
 # Dictionary containing multiple sets of default settings, identified by name (user selects these by name at runtime)
 defaults_set = {
-'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7 + dbe7 + anc,
+'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7 + dbe7 + dc + tfr + anc,
 'ant1' : ant1,
 'ant2' : ant2,
 'ant3' : ant3,
@@ -191,6 +211,8 @@ defaults_set = {
 'ant7' : ant7,
 'rfe7' : rfe7,
 'dbe7' : dbe7,
+'dc' : dc,
+'tfr' : tfr,
 'anc' : anc,
 'lab_rfe7' : lab_rfe7,
 'lab' : ant1 + lab_rfe7,
@@ -201,7 +223,7 @@ def check_sensors(kat, defaults, show_only_errors):
     print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Min Value".ljust(25), "Max Value".ljust(25))
     for checker, min_val, max_val in defaults:
         if checker.strip() == '':
-            print "" # print a blank line
+            if not show_only_errors: print "" # print a blank line, but skip this if only showing errors
         else:
             try:
                 current_val = str(eval(checker))
