@@ -29,6 +29,7 @@ ant1 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant1.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant1.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant1.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 ant2 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -43,6 +44,7 @@ ant2 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant2.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant2.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant2.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 ant3 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -57,6 +59,7 @@ ant3 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant3.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant3.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant3.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 ant4 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -71,6 +74,7 @@ ant4 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant4.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant4.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant4.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 ant5 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -85,6 +89,7 @@ ant5 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant5.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant5.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant5.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 ant6 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -99,6 +104,7 @@ ant6 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant6.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant6.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant6.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 ant7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -113,6 +119,7 @@ ant7 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.ant7.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant7.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("kat.ant7.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("","",""), # creates a blank line
 ]
 
 rfe7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
@@ -131,6 +138,7 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 ("kat.rfe7.sensor.rfe7_downconverter_ant7_h_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_downconverter_ant7_v_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1,1), # more orx units need checking?
+("","",""), # creates a blank line
 ]
 
 dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
@@ -149,6 +157,7 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ("kat.dbe7.sensor.dbe_ant6v_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant7h_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant7v_adc_power.get_value()",-27.0,-25.0),
+("","",""), # creates a blank line
 ]
 
 anc = [# structure is list of tuples with (command to access sensor value, min value, max value)
@@ -160,12 +169,14 @@ anc = [# structure is list of tuples with (command to access sensor value, min v
 ("kat.anc.sensor.asc_fire_ok.get_value()", 1,1), # these sensors really should be something like "(not) on fire"
 ("kat.anc.sensor.cc_fire_ok.get_value()", 1,1),
 ("kat.anc.sensor.cmc_fire_ok.get_value()", 1,1),
+("","",""), # creates a blank line
 ]
 
 lab_rfe7 = [ # structure is list of tuples with (command to access sensor value, default value, tolerance)
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1,1),
+("","",""), # creates a blank line
 ]
 
 # Dictionary containing multiple sets of default settings, identified by name (user selects these by name at runtime)
@@ -189,22 +200,23 @@ def check_sensors(kat, defaults, show_only_errors):
     # check current system setting and compare with defaults and tolerances as specified above
     print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Min Value".ljust(25), "Max Value".ljust(25))
     for checker, min_val, max_val in defaults:
-        try:
-            current_val = str(eval(checker))
-            if type(min_val) is list:
-                if current_val in min_val:
-                    if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
+        if checker.strip() == '':
+            print "" # print a blank line
+        else:
+            try:
+                current_val = str(eval(checker))
+                if type(min_val) is list:
+                    if current_val in min_val:
+                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
+                    else:
+                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
                 else:
-                    print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
-            else:
-                if (min_val <= float(current_val) and float(current_val) <=  max_val):
-                    if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
-                else:
-                    print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
-        except:
-            print "Could not check", checker, "[expected range: %r , %r]" % (min_val,max_val)
-
-connected_antpols = {}
+                    if (min_val <= float(current_val) and float(current_val) <=  max_val):
+                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+                    else:
+                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+            except:
+                print "Could not check", checker, "[expected range: %r , %r]" % (min_val,max_val)
 
 
 if __name__ == "__main__":
