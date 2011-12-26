@@ -140,7 +140,7 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 
 dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
-("kat.dbe7.sensor.capturing.get_value()",['0','1'],''), # command, list of string options, blank string
+("kat.dbe7.sensor.capturing.get_value()",['0','1'],''), # does this sensor work?? - showed 0 while capturing
 ("kat.dbe7.sensor.dbe_ant1h_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant1v_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant2h_adc_power.get_value()",-27.0,-25.0),
@@ -159,6 +159,7 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ]
 
 dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
+("kat.dbe7.sensor.k7w_capture_active.get_value()",['0','1'],'')
 ("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
@@ -209,6 +210,7 @@ defaults_set = {
 'ant5' : ant5,
 'ant6' : ant6,
 'ant7' : ant7,
+'ants' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7
 'rfe7' : rfe7,
 'dbe7' : dbe7,
 'dc' : dc,
@@ -269,6 +271,25 @@ if __name__ == "__main__":
         kat = katuilib.tbuild('systems/local.conf')
     print "Using KAT connection with configuration: %s" % (kat.config_file,)
 
-    print "Checking current settings....."
+    ants = katuilib.observe.ant_array(kat,'all')
+    tgts = []
+
+    try:
+        print 'Current system centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.)
+        tgts = []
+        locks = []
+        for ant in ants.devs:
+            tgts.append(ant.sensor.target.get_value())
+            locks.append(ant.sensor.lock.get_value())
+        if len(set(tgts)) == 1 and len(set(locks)) == 1:
+            print 'Current target (all antennas): ' + str(set(tgts).pop())
+            print 'Antennas locked: ' + str(set(locks).pop())
+        else:
+            print 'Current targets :' + str(tgts)
+            print 'Current lock states: ' + str(locks)
+    except:
+        print "Could not retrieve current centre frequency..."
+        
+    print "\nChecking current settings....."
     check_sensors(kat,defaults,opts.errors_only)
 
