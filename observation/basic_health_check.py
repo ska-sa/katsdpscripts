@@ -285,7 +285,7 @@ if __name__ == "__main__":
         else:
             print 'Current targets: ' + str(tgts)
         print 'Antennas locked: ' + str(locks)
-    except
+    except:
         print "Could not retrieve centre frequency or antenna target/lock info..."
         
     print "\nChecking current settings....."
