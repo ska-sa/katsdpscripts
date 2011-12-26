@@ -210,7 +210,7 @@ defaults_set = {
 'ant5' : ant5,
 'ant6' : ant6,
 'ant7' : ant7,
-'ants' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7
+'ants' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7,
 'rfe7' : rfe7,
 'dbe7' : dbe7,
 'dc' : dc,
