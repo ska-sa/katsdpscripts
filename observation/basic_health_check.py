@@ -159,7 +159,7 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ]
 
 dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.dbe7.sensor.k7w_capture_active.get_value()",['0','1'],'')
+("kat.dbe7.sensor.k7w_capture_active.get_value()",['0','1'],''),
 ("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
