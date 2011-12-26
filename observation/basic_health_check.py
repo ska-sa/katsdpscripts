@@ -273,11 +273,10 @@ if __name__ == "__main__":
 
     ants = katuilib.observe.ant_array(kat,'all')
     tgts = []
+    locks = []
 
     try:
         print 'Current system centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.)
-        tgts = []
-        locks = []
         for ant in ants.devs:
             tgts.append(ant.sensor.target.get_value())
             locks.append(ant.sensor.lock.get_value())
