@@ -271,23 +271,22 @@ if __name__ == "__main__":
         kat = katuilib.tbuild('systems/local.conf')
     print "Using KAT connection with configuration: %s" % (kat.config_file,)
 
-    ants = katuilib.observe.ant_array(kat,'all')
-    tgts = []
-    locks = []
-
     try:
         print 'Current system centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.)
+
+        ants = katuilib.observe.ant_array(kat,'all')
+        tgts = []
+        locks = []
         for ant in ants.devs:
             tgts.append(ant.sensor.target.get_value())
             locks.append(ant.sensor.lock.get_value())
-        if len(set(tgts)) == 1 and len(set(locks)) == 1:
-            print 'Current target (all antennas): ' + str(set(tgts).pop())
-            print 'Antennas locked: ' + str(set(locks).pop())
+        if len(set(tgts)) == 1:
+            print 'Current target (all antennas): ' + str(tgts[0])
         else:
-            print 'Current targets :' + str(tgts)
-            print 'Current lock states: ' + str(locks)
-    except:
-        print "Could not retrieve current centre frequency..."
+            print 'Current targets: ' + str(tgts)
+        print 'Antennas locked: ' + str(locks)
+    except
+        print "Could not retrieve centre frequency or antenna target/lock info..."
         
     print "\nChecking current settings....."
     check_sensors(kat,defaults,opts.errors_only)
