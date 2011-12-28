@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Check for basic system health (modified from defaults.py script).
-# Intended for use of an observer.
-# Code: Jasper (jasper at ska dot ac dot za)
+# Intended for the use of an observer.
+# Code: Jasper Horrell (jasper at ska dot ac dot za)
 
 ## TODO:
 # 1) Might be better to pull max and min values from the system config in some
@@ -16,7 +16,7 @@ import sys
 import katuilib
 from katuilib.ansi import col
 
-# Default settings logically grouped in lists
+# Sensor groups
 ant1 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.ped1.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
 ("kat.ped1.sensor.bms_chiller_flow_present.get_value()", 1,1),
@@ -190,6 +190,10 @@ anc = [# structure is list of tuples with (command to access sensor value, min v
 ("kat.anc.sensor.asc_fire_ok.get_value()", 1,1), # these sensors really should be something like "(not) on fire"
 ("kat.anc.sensor.cc_fire_ok.get_value()", 1,1),
 ("kat.anc.sensor.cmc_fire_ok.get_value()", 1,1),
+("kat.anc.sensor.asc_ups_battery_not_discharging.get_value()", 1,1),
+("kat.anc.sensor.asc_ups_ok.get_value()", 1,1),
+("kat.anc.sensor.cc_ups_battery_not_discharging.get_value()", 1,1),
+("kat.anc.sensor.cc_ups_fault.get_value()", 0,0),
 ("","",""), # creates a blank line
 ]
 
@@ -200,8 +204,8 @@ lab_rfe7 = [ # structure is list of tuples with (command to access sensor value,
 ("","",""), # creates a blank line
 ]
 
-# Dictionary containing multiple sets of default settings, identified by name (user selects these by name at runtime)
-defaults_set = {
+# Dictionary containing multiple sensor groups, identified by name (user selects one of these by name at runtime)
+sensor_group = {
 'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7 + dbe7 + dc + tfr + anc,
 'ant1' : ant1,
 'ant2' : ant2,
@@ -220,10 +224,10 @@ defaults_set = {
 'lab' : ant1 + lab_rfe7,
 }
 
-def check_sensors(kat, defaults, show_only_errors):
-    # check current system setting and compare with defaults and tolerances as specified above
-    print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Green Min".ljust(25), "Green Max".ljust(25))
-    for checker, min_val, max_val in defaults:
+def check_sensors(kat, selected_sensors, show_only_errors):
+    # check current system setting and compare with expected range as specified above
+    print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Min Expected".ljust(25), "Max Expected".ljust(25))
+    for checker, min_val, max_val in selected_sensors:
         if checker.strip() == '':
             if not show_only_errors: print "" # print a blank line, but skip this if only showing errors
         else:
@@ -249,17 +253,19 @@ if __name__ == "__main__":
                           description="Perform basic health check of the system for observers.")
     parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
                       '(default reuses existing connection, or falls back to systems/local.conf)')
-    parser.add_option('-d', '--defaults_set', default="karoo", metavar='DEFAULTS',
-                      help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
+    sensor_group_keys = sensor_group.keys()
+    sensor_group_keys.sort(key=str.lower) # for some reason python does not like to do this in one line
+    parser.add_option('-g', '--sensor_group', default="karoo",
+                      help='Selected sensor group to use: ' + '|'.join(sensor_group_keys) + ' (default="%default")')
     parser.add_option('-e', '--errors_only', action='store_true', default=False,
                       help='Show only values in error, if this switch is included (default="%default")')
 
     (opts, args) = parser.parse_args()
 
     try:
-        defaults = defaults_set[opts.defaults_set]
+        selected_sensors = sensor_group[opts.sensor_group]
     except KeyError:
-        print "Unknown defaults set '%s', expected one of %s" % (opts.defaults_set, defaults_set.keys())
+        print "Unknown sensor group '%s', expected one of %s" % (opts.sensor_group, sensor_group_keys)
         sys.exit()
 
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
@@ -274,20 +280,29 @@ if __name__ == "__main__":
     try:
         print 'Current system centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.)
 
+        # Some fancy footwork to list antennas by target after retrieving targets by antenna
         ants = katuilib.observe.ant_array(kat,'all')
-        tgts = []
+        tgt_index = {}
+        ant_list = []
         locks = []
         for ant in ants.devs:
-            tgts.append(ant.sensor.target.get_value())
+            tgt = ant.sensor.target.get_value()
+            if tgt == '' : tgt = 'None'
+            if not tgt_index.has_key(tgt):
+                tgt_index[tgt] = len(tgt_index)
+                ant_list.append([ant.name])
+            else:
+                ant_list[tgt_index[tgt]].append(ant.name)
             locks.append(ant.sensor.lock.get_value())
-        if len(set(tgts)) == 1:
-            print 'Current target (all antennas): ' + str(tgts[0])
-        else:
-            print 'Current targets: ' + str(tgts)
+        print '\nCurrent targets:'
+        tgt_index_keys = tgt_index.keys()
+        tgt_index_keys.sort(key=str.lower) # order targets alphabetically
+        for key in tgt_index_keys:
+            print '  ' + key + ' : ' + str(ant_list[tgt_index[key]])
         print 'Antennas locked: ' + str(locks)
     except:
-        print "Could not retrieve centre frequency or antenna target/lock info..."
+        print " Could not retrieve centre frequency or antenna target/lock info..."
         
     print "\nChecking current settings....."
-    check_sensors(kat,defaults,opts.errors_only)
+    check_sensors(kat,selected_sensors,opts.errors_only)
 
