@@ -250,7 +250,9 @@ def check_sensors(kat, selected_sensors, show_only_errors):
 if __name__ == "__main__":
 
     parser = OptionParser(usage="%prog [options]",
-                          description="Perform basic health check of the system for observers.")
+                          description="Perform basic health check of the system for observers. " +
+                          "Can be run at any time without affecting current settings/observation. " +
+                          "Default is to show all sensors checked, but the -e option to show errors only may prove popular.")
     parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
                       '(default reuses existing connection, or falls back to systems/local.conf)')
     sensor_group_keys = sensor_group.keys()
