@@ -294,14 +294,23 @@ if __name__ == "__main__":
             else:
                 ant_list[tgt_index[tgt]].append(ant.name)
             locks.append(ant.sensor.lock.get_value())
-        print '\nCurrent targets:'
+        print '\nCurrent targets (antennas in green => locked):'
         tgt_index_keys = tgt_index.keys()
         tgt_index_keys.sort(key=str.lower) # order targets alphabetically
+
+        # print list of targets with corresponding antennas (locked ones in green)
         for key in tgt_index_keys:
-            print '  ' + key + ' : ' + str(ant_list[tgt_index[key]])
-        print 'Antennas locked: ' + str(locks)
-    except:
-        print " Could not retrieve centre frequency or antenna target/lock info..."
+            ant_list_str = '['
+            for ant in ant_list[tgt_index[key]]:
+                if locks[int(ant.split('ant')[1])-1] == '1':
+                    ant_list_str = ant_list_str + col("green") + str(ant) + col("normal") + ','
+                else:
+                    ant_list_str = ant_list_str + str(ant) + ','
+            print '  ' + str(key) + ' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
+        print 'Antennas locked: ' + str(locks) # also useful to show locks in this fashion (single glance)
+    except Exception, e:
+        print "Error: could not retrieve centre frequency or antenna target/lock info..."
+        print '(' + str(e) + ')'
         
     print "\nChecking current settings....."
     check_sensors(kat,selected_sensors,opts.errors_only)
