@@ -285,6 +285,7 @@ if __name__ == "__main__":
         tgt_index = {}
         ant_list = []
         locks = []
+        modes = []
         for ant in ants.devs:
             tgt = ant.sensor.target.get_value()
             if tgt == '' : tgt = 'None'
@@ -294,6 +295,7 @@ if __name__ == "__main__":
             else:
                 ant_list[tgt_index[tgt]].append(ant.name)
             locks.append(ant.sensor.lock.get_value())
+            modes.append(ant.sensor.mode.get_value())
         print '\nCurrent targets (antennas in green => locked):'
         tgt_index_keys = tgt_index.keys()
         tgt_index_keys.sort(key=str.lower) # order targets alphabetically
@@ -307,7 +309,8 @@ if __name__ == "__main__":
                 else:
                     ant_list_str = ant_list_str + str(ant) + ','
             print '  ' + str(key) + ' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
-        print 'Antennas locked: ' + str(locks) # also useful to show locks in this fashion (single glance)
+        print 'Antenna locks: ' + str(locks) # also useful to show locks in this fashion (single glance)
+        print 'Antenna modes:' +str(modes)
     except Exception, e:
         print "Error: could not retrieve centre frequency or antenna target/lock info..."
         print '(' + str(e) + ')'
