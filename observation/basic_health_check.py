@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Check for basic system health (modified from defaults.py script).
 # Intended for the use of an observer.
-# Code: Jasper Horrell (jasper at ska dot ac dot za)
+# Code: Jasper Horrell (jasper@ska.ac.za)
 
 ## TODO:
 # 1) Might be better to pull max and min values from the system config in some
@@ -276,14 +276,18 @@ if __name__ == "__main__":
     except ValueError:
         kat = katuilib.tbuild('systems/local.conf')
     print "Using KAT connection with configuration: %s" % (kat.config_file,)
+    print "Current local time: " + time.ctime()
 
     try:
         print 'Current system centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.)
 
-        # Some fancy footwork to list antennas by target after retrieving targets by antenna
+        # Some fancy footwork to list antennas by target after retrieving target per antenna.
+        # There may be a neater/more compact way to do this, but a dict with target strings as keys
+        # and an expanding list of antennas corresponding to each target as values did not work. Hence
+        # the more explicit approach here.
         ants = katuilib.observe.ant_array(kat,'all')
-        tgt_index = {}
-        ant_list = []
+        tgt_index = {} # target strings as keys with values as a zero-based index to ant_list list of lists
+        ant_list = [] # list of lists of antennas per target
         locks = []
         modes = []
         for ant in ants.devs:
@@ -296,7 +300,7 @@ if __name__ == "__main__":
                 ant_list[tgt_index[tgt]].append(ant.name)
             locks.append(ant.sensor.lock.get_value())
             modes.append(ant.sensor.mode.get_value())
-        print '\nCurrent targets (antennas in green => locked):'
+        print '\nCurrent targets for antennas (green = locked):'
         tgt_index_keys = tgt_index.keys()
         tgt_index_keys.sort(key=str.lower) # order targets alphabetically
 
@@ -309,12 +313,12 @@ if __name__ == "__main__":
                 else:
                     ant_list_str = ant_list_str + str(ant) + ','
             print '  ' + str(key) + ' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
-        print 'Antenna locks: ' + str(locks) # also useful to show locks in this fashion (single glance)
-        print 'Antenna modes:' +str(modes)
+        print 'Antenna lock: ' + str(locks) # also useful to show locks in this fashion (single glance)
+        print 'Antenna mode:' +str(modes)
     except Exception, e:
         print "Error: could not retrieve centre frequency or antenna target/lock info..."
         print '(' + str(e) + ')'
         
-    print "\nChecking current settings....."
+    print "\nChecking basic health (red => potential problem) ..."
     check_sensors(kat,selected_sensors,opts.errors_only)
 
