@@ -16,7 +16,12 @@ from scipy import ndimage
 
 import katfile
 import katpoint
-import scape
+from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
+try:
+    import pyfits
+except ImportError:
+    print "PyFITS not installed - script will not produce a FITS image as output"
+    pyfits = None
 
 parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]",
                                description='Produce image from HDF5 data file(s). Please identify '
@@ -26,8 +31,9 @@ parser.add_option('-b', '--bandpass-cal', help="Bandpass calibrator name (**requ
 parser.add_option('-g', '--gain-cal', help="Gain calibrator name (**required**)")
 parser.add_option('-a', '--ants',
                   help="Comma-separated subset of antennas to use (e.g. 'ant1,ant2'), default is all antennas")
-parser.add_option("-f", "--freq-chans", default='200,800',
-                  help="Range of frequency channels to keep (zero-based 'start,end', default = %default)")
+parser.add_option("-f", "--freq-chans",
+                  help="Range of frequency channels to keep (zero-based 'start,end', "
+                       "default is [0.25*num_chans, 0.75*num_chans])")
 parser.add_option("--chan-avg", type='int', default=60,
                   help="Number of adjacent frequency channels to average together in MFS imaging (default = %default)")
 parser.add_option("--time-avg", type='int', default=90,
@@ -67,29 +73,20 @@ if opts.gain_cal is None:
 # opts.time_offset = 0.0
 # opts.time_slice = 30
 # opts.freq_slice = 250
+# opts.bp_flux = 0.
 # import glob
 # args = sorted(glob.glob('*.h5'))
 # args = ['1313238698.h5', '1313240388.h5']
 
-# Frequency channel range to keep, and number of channels to average together into band
-freq_chans = [int(chan_str) for chan_str in opts.freq_chans.split(',')]
-first_chan, one_past_last_chan = freq_chans[0], freq_chans[1]
-channels_per_band, dumps_per_vis = opts.chan_avg, opts.time_avg
-# Slices for plotting
-time_slice = opts.time_slice
-freq_slice = opts.freq_slice - first_chan
-# Turn polarisation label to lower-case to match DBE inputs
-pol = opts.pol.lower()
-
 # Latest KAT-7 antenna positions and H / V cable delays via recent baseline cal (1313748602 dataset, not joint yet)
 new_ants = {
-  'ant1' : ('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 25.0950 -9.0950 0.0450, , 1.22', 23220.506e-9, 23228.551e-9),
-  'ant2' : ('ant2, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 90.2844 26.3804 -0.22636, , 1.22', 23283.799e-9, 23286.823e-9),
-  'ant3' : ('ant3, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 3.98474 26.8929 0.0004046, , 1.22', 23407.970e-9, 23400.221e-9),
-  'ant4' : ('ant4, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -21.6053 25.4936 0.018615, , 1.22', 23514.801e-9, 23514.801e-9),
-  'ant5' : ('ant5, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -38.2720 -2.5917 0.391362, , 1.22', 23676.033e-9, 23668.223e-9),
-  'ant6' : ('ant6, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -61.5945 -79.6989 0.701598, , 1.22', 23782.854e-9, 23782.150e-9),
-  'ant7' : ('ant7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, -87.9881 75.7543 0.138305, , 1.22', 24047.672e-9, 24039.237e-9),
+  'ant1' : ('25.0950 -9.0950 0.0450', 23220.506e-9, 23228.551e-9),
+  'ant2' : ('90.2844 26.3804 -0.22636', 23283.799e-9, 23286.823e-9),
+  'ant3' : ('3.98474 26.8929 0.0004046', 23407.970e-9, 23400.221e-9),
+  'ant4' : ('-21.6053 25.4936 0.018615', 23514.801e-9, 23514.801e-9),
+  'ant5' : ('-38.2720 -2.5917 0.391362', 23676.033e-9, 23668.223e-9),
+  'ant6' : ('-61.5945 -79.6989 0.701598', 23782.854e-9, 23782.150e-9),
+  'ant7' : ('-87.9881 75.7543 0.138305', 24047.672e-9, 24039.237e-9),
 }
 
 katpoint.logger.setLevel(30)
@@ -99,37 +96,46 @@ katpoint.logger.setLevel(30)
 print "Opening data file(s)..."
 
 # Open data files
-data = katfile.open(args, ref_ant=opts.ref_ant, channel_range=(first_chan, one_past_last_chan - 1),
-                    time_offset=opts.time_offset)
+data = katfile.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
 
-# Create antenna objects with latest positions for antennas used in experiment, and list of inputs and cable delays
-ants = dict([(ant.name, katpoint.Antenna(new_ants[ant.name][0])) for ant in data.ants])
-inputs, delays = [], {}
-for ant in sorted(ants):
-    if ant + pol in data.inputs:
-        inputs.append(ant + pol)
-        delays[ant + pol] = new_ants[ant][1 if pol == 'h' else 2]
-# Extract available cross-correlation products, as pairs of indices into input list
-crosscorr = [corrprod for corrprod in data.all_corr_products(inputs) if corrprod[0] != corrprod[1]]
+# Select frequency channel range and only cross-correlation products in data set
+chan_range = slice(*[int(chan_str) for chan_str in opts.freq_chans.split(',')]) \
+             if opts.freq_chans is not None else slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
+active_pol = opts.pol.lower()
+data.select(channels=chan_range, corrprods='cross', pol=active_pol)
+channels_per_band, dumps_per_vis = opts.chan_avg, opts.time_avg
+# Slices for plotting
+time_slice, freq_slice = opts.time_slice, opts.freq_slice - chan_range.start
 
-# Extract frequency information
+# Update antenna objects in data set with latest positions
+for n, ant in enumerate(data.ants):
+    if ant.name in new_ants:
+        fields = ant.description.split(',')
+        if len(fields) < 6:
+            fields.append(' ' + new_ants[ant.name][0])
+        else:
+            fields[5] = ' ' + new_ants[ant.name][0]
+        data.ants[n].__init__(','.join(fields))
+
+# Extract cable delays and frequency information
+delays = {}
+for inp in data.inputs:
+    ant, pol = inp[:-1], inp[-1]
+    delays[inp] = new_ants[ant][1 if pol == 'h' else 2]
 center_freqs = data.channel_freqs
 wavelengths = katpoint.lightspeed / center_freqs
+# Number of turns of phase that signal B is behind signal A due to cable / receiver delay
+cable_delay_turns = np.array([(delays[inpB] - delays[inpA]) * center_freqs for inpA, inpB in data.corr_products]).T
+crosscorr = [(data.inputs.index(inpA), data.inputs.index(inpB)) for inpA, inpB in data.corr_products]
 
-# Create catalogue of targets found in data
-targets = katpoint.Catalogue()
-for scan_ind, cs_ind, state, target in data.scans():
-    if state == 'track' and target.name not in targets:
-        targets.add(target)
-
-image_target = targets[opts.image_target]
+image_target = data.catalogue[opts.image_target]
 if image_target is None:
     raise KeyError("Unknown image target '%s' - data contains targets '%s'" %
-                   (opts.image_target, "', '".join([tgt.name for tgt in targets])))
-bandpass_cal = targets[opts.bandpass_cal]
+                   (opts.image_target, "', '".join([tgt.name for tgt in data.catalogue])))
+bandpass_cal = data.catalogue[opts.bandpass_cal]
 if bandpass_cal is None:
     raise KeyError("Unknown bandpass calibrator '%s' - data contains targets '%s'" %
-                   (opts.bandpass_cal, "', '".join([tgt.name for tgt in targets])))
+                   (opts.bandpass_cal, "', '".join([tgt.name for tgt in data.catalogue])))
 # If bandpass flux is specified on command line, override the existing model
 if opts.bp_flux > 0:
     bandpass_cal.flux_model = katpoint.FluxDensityModel(center_freqs.min() / 1e6 - 1, center_freqs.max() / 1e6 + 1,
@@ -138,10 +144,10 @@ if opts.bp_flux > 0:
 if np.any(np.isnan(bandpass_cal.flux_density(center_freqs / 1e6))):
     raise ValueError(("Bandpass calibrator '%s' has incomplete or absent flux density model '%s'"
                       " - please specify flux via --bp-flux option") % (opts.bandpass_cal, bandpass_cal.flux_model))
-gain_cal = targets[opts.gain_cal]
+gain_cal = data.catalogue[opts.gain_cal]
 if gain_cal is None:
     raise KeyError("Unknown gain calibrator '%s' - data contains targets '%s'" %
-                   (opts.gain_cal, "', '".join([tgt.name for tgt in targets])))
+                   (opts.gain_cal, "', '".join([tgt.name for tgt in data.catalogue])))
 
 ############################## STOP FRINGES ####################################
 
@@ -149,41 +155,30 @@ print "Assembling bandpass calibrator data and checking fringe stopping..."
 
 # Assemble fringe-stopped visibility data for main (bandpass) calibrator
 orig_cal_vis_samples, cal_vis_samples, cal_timestamps = [], [], []
-for scan_ind, cs_ind, state, target in data.scans():
+for scan_ind, state, target in data.scans():
     if state != 'track' or target.name != bandpass_cal.name:
         continue
-    timestamps = data.timestamps()
-    if len(timestamps) < 2:
+    if data.shape[0] < 2:
         continue
-    vis_pre = np.zeros((len(timestamps), len(wavelengths), len(crosscorr)), dtype=np.complex64)
-    vis_post = np.zeros((len(timestamps), len(wavelengths), len(crosscorr)), dtype=np.complex64)
-    # Iterate through baselines and assemble visibilities
-    for n, (indexA, indexB) in enumerate(crosscorr):
-        inputA, inputB = inputs[indexA], inputs[indexB]
-        antA, antB = inputA[:-1], inputB[:-1]
-        vis = data.vis((inputA, inputB))
-        vis_pre[:, :, n] = vis
-        # Get uvw coordinates of A->B baseline
-        u, v, w = target.uvw(ants[antB], timestamps, ants[antA])
-        # Number of turns of phase that signal B is behind signal A due to geometric delay
-        geom_delay_turns = - w[:, np.newaxis] / wavelengths
-        # Number of turns of phase that signal B is behind signal A due to cable / receiver delay
-        cable_delay_turns = (delays[inputB] - delays[inputA]) * center_freqs
-        # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
-        vis *= np.exp(2j * np.pi * (geom_delay_turns + cable_delay_turns))
-        vis_post[:, :, n] = vis
+    vis = data.vis[:]
+    vis_pre = vis.copy()
+    # Number of turns of phase that signal B is behind signal A due to geometric delay
+    geom_delay_turns = - data.w[:, np.newaxis, :] / wavelengths[:, np.newaxis]
+    # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
+    vis *= np.exp(2j * np.pi * (geom_delay_turns + cable_delay_turns))
     orig_cal_vis_samples.append(vis_pre)
-    cal_vis_samples.append(vis_post)
-    cal_timestamps.append(timestamps)
+    cal_vis_samples.append(vis)
+    cal_timestamps.append(data.timestamps[:])
 
 def plot_vis_crosshairs(fig, vis_data, title, upper=True, units='', **kwargs):
     """Create phasor plot (upper or lower triangle of baseline matrix)."""
     fig.subplots_adjust(wspace=0., hspace=0.)
     data_lim = np.max([np.abs(vis).max() for vis in vis_data])
     ax_lim = 1.05 * data_lim
+    num_ants = len(data.ants)
     for n, (indexA, indexB) in enumerate(crosscorr):
-        subplot_index = (len(ants) * indexA + indexB + 1) if upper else (indexA + len(ants) * indexB + 1)
-        ax = fig.add_subplot(len(ants), len(ants), subplot_index)
+        subplot_index = (num_ants * indexA + indexB + 1) if upper else (indexA + num_ants * indexB + 1)
+        ax = fig.add_subplot(num_ants, num_ants, subplot_index)
         for vis in vis_data:
             ax.plot(vis[:, n].real, vis[:, n].imag, **kwargs)
         ax.axhline(0, lw=0.5, color='k')
@@ -198,22 +193,22 @@ def plot_vis_crosshairs(fig, vis_data, title, upper=True, units='', **kwargs):
         if upper:
             if indexA == 0:
                 ax.xaxis.set_label_position('top')
-                ax.set_xlabel(inputs[indexB][3:])
-            if indexB == len(ants) - 1:
+                ax.set_xlabel(data.inputs[indexB][3:])
+            if indexB == len(data.ants) - 1:
                 ax.yaxis.set_label_position('right')
-                ax.set_ylabel(inputs[indexA][3:], rotation='horizontal')
+                ax.set_ylabel(data.inputs[indexA][3:], rotation='horizontal')
         else:
             if indexA == 0:
-                ax.set_ylabel(inputs[indexB][3:], rotation='horizontal')
-            if indexB == len(ants) - 1:
-                ax.set_xlabel(inputs[indexA][3:])
+                ax.set_ylabel(data.inputs[indexB][3:], rotation='horizontal')
+            if indexB == len(data.ants) - 1:
+                ax.set_xlabel(data.inputs[indexA][3:])
     fig.text(0.5, 0.95 if upper else 0.05, title, ha='center', va='bottom' if upper else 'top')
     fig.text(0.95 if upper else 0.05, 0.5, 'Outer radius = %g %s' % (data_lim, units), va='center', rotation='vertical')
 
 fig = plt.figure(1)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in orig_cal_vis_samples],
-                    "'%s' raw vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
+                    "'%s' raw vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + chan_range.start,),
                     upper=True, units='counts', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in orig_cal_vis_samples],
                     "'%s' raw vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
@@ -222,7 +217,7 @@ plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in orig_cal_vis_samples]
 fig = plt.figure(2)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in cal_vis_samples],
-                    "'%s' stopped vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
+                    "'%s' stopped vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + chan_range.start,),
                     upper=True, units='counts', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in cal_vis_samples],
                     "'%s' stopped vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
@@ -233,13 +228,13 @@ plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in cal_vis_samples],
 print "Performing bandpass calibration on '%s'..." % (bandpass_cal.name,)
 
 # Vector that contains real and imaginary gain components for all signal paths
-full_params = np.zeros(2 * len(inputs))
+full_params = np.zeros(2 * len(data.inputs))
 # Indices of gain parameters that will be optimised
 params_to_fit = range(len(full_params))
-ref_input_index = inputs.index(data.ref_ant + pol)
+ref_input_index = data.inputs.index(data.ref_ant + active_pol)
 # Don't fit the imaginary component of the gain on the reference signal path (this is assumed to be zero)
 params_to_fit.pop(2 * ref_input_index + 1)
-initial_gains = np.tile([1., 0.], len(inputs))[params_to_fit]
+initial_gains = np.tile([1., 0.], len(data.inputs))[params_to_fit]
 
 def apply_gains(params, input_pairs, model_vis=1.0):
     """Apply relevant antenna gains to model visibility to estimate measurements.
@@ -275,12 +270,12 @@ def apply_gains(params, input_pairs, model_vis=1.0):
     return np.vstack((reAB * re_model - imAB * im_model, reAB * im_model + imAB * re_model)).squeeze()
 
 # Vector that contains gain phase components for all signal paths
-phase_params = np.zeros(len(inputs))
+phase_params = np.zeros(len(data.inputs))
 # Indices of phase parameters that will be optimised
 phase_params_to_fit = range(len(phase_params))
 # Don't fit the phase on the reference signal path (this is assumed to be zero)
 phase_params_to_fit.pop(ref_input_index)
-initial_phases = np.zeros(len(inputs))[phase_params_to_fit]
+initial_phases = np.zeros(len(data.inputs))[phase_params_to_fit]
 
 def apply_phases(params, input_pairs, model_vis=1.0):
     """Apply relevant antenna phases to model visibility to estimate measurements.
@@ -318,12 +313,12 @@ bandpass_gainsols = []
 bp_source_vis = bandpass_cal.flux_density(center_freqs / 1e6)
 # Iterate over solution intervals
 for solint_vis in cal_vis_samples:
-    gainsol = np.zeros((len(inputs), solint_vis.shape[1]), dtype=np.complex64)
+    gainsol = np.zeros((len(data.inputs), solint_vis.shape[1]), dtype=np.complex64)
     input_pairs = np.tile(np.array(crosscorr).T, solint_vis.shape[0])
     # Iterate over frequency channels
     for n in xrange(solint_vis.shape[1]):
         vis, model_vis = solint_vis[:, n, :].ravel(), bp_source_vis[n]
-        fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis), initial_gains)
+        fitter = NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis), initial_gains)
         fitter.fit(input_pairs, np.vstack((vis.real, vis.imag)))
         full_params[params_to_fit] = fitter.params * np.sign(fitter.params[2 * ref_input_index])
         gainsol[:, n] = full_params.view(np.complex128)
@@ -338,19 +333,19 @@ for solint_vis in cal_vis_samples:
 #     phase_drift = np.arctan2(np.sin(angle_diff).mean(axis=1), np.cos(angle_diff).mean(axis=1))
 #     gain_drift = amp_drift * np.exp(1.0j * phase_drift)
 #     bp_gain /= gain_drift[:, np.newaxis]
-bandpass_gains = np.dstack(bandpass_gainsols).mean(axis=2)
 
-# Apply bandpass gain calibration to cal source visibilities
-bp_cal_vis_samples = [vis.copy() for vis in cal_vis_samples]
-for vis in bp_cal_vis_samples:
-    for n, (indexA, indexB) in enumerate(crosscorr):
-        vis[:, :, n] /= (bandpass_gains[indexA, :] * bandpass_gains[indexB, :].conjugate())
+# Combine bandpass gain solutions into a single solution by averaging over solution intervals
+bandpass_gains = np.dstack(bandpass_gainsols).mean(axis=2)
+# Form bandpass gain product array and apply bandpass gain calibration to cal source visibilities
+bandpass_gain_products = np.column_stack([bandpass_gains[indexA, :] * bandpass_gains[indexB, :].conjugate()
+                                          for indexA, indexB in crosscorr])
+bp_cal_vis_samples = [vis / bandpass_gain_products for vis in cal_vis_samples]
 
 fig = plt.figure(3)
 fig.clear()
 ax = fig.add_subplot(211)
-for n in range(len(inputs)):
-    ax.plot(center_freqs / 1e6, np.abs(bandpass_gains[n]), label=inputs[n][3:])
+for n in range(len(data.inputs)):
+    ax.plot(center_freqs / 1e6, np.abs(bandpass_gains[n]), label=data.inputs[n][3:])
 ax.axis([center_freqs.min() / 1e6, center_freqs.max() / 1e6, 0., ax.get_ylim()[1]])
 ax.set_xticklabels([])
 ax.set_ylabel('Amplitude (linear)')
@@ -365,7 +360,7 @@ ax.set_ylabel('Phase (degrees)')
 fig = plt.figure(4)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in bp_cal_vis_samples],
-                    "'%s' bp-corrected vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
+                    "'%s' bp-corrected vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + chan_range.start,),
                     upper=True, units='Jy', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in bp_cal_vis_samples],
                     "'%s' bp-corrected vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
@@ -378,38 +373,26 @@ print "Averaging all calibrator data into single frequency band..."
 # Assemble visibility data for all calibrators, and average it to a single frequency band
 all_cal_vis_samples, cal_source, all_cal_times = [], [], []
 # Add phase calibrator data
-for scan_ind, cs_ind, state, target in data.scans():
+for scan_ind, state, target in data.scans():
     if state != 'track' or target.name != gain_cal.name:
         continue
-    timestamps = data.timestamps()
-    if len(timestamps) < 2:
+    if data.shape[0] < 2:
         continue
-    # Extract visibilities and uvw coordinates
-    vis_cross = np.zeros((len(timestamps), len(wavelengths), len(crosscorr)), dtype=np.complex64)
-    # Iterate through baselines and assemble visibilities
-    for n, (indexA, indexB) in enumerate(crosscorr):
-        inputA, inputB = inputs[indexA], inputs[indexB]
-        antA, antB = inputA[:-1], inputB[:-1]
-        vis = data.vis((inputA, inputB))
-        # Get uvw coordinates of A->B baseline
-        u, v, w = target.uvw(ants[antB], timestamps, ants[antA])
-        # Number of turns of phase that signal B is behind signal A due to geometric delay
-        geom_delay_turns = - w[:, np.newaxis] / wavelengths
-        # Number of turns of phase that signal B is behind signal A due to cable / receiver delay
-        cable_delay_turns = (delays[inputB] - delays[inputA]) * center_freqs
-        # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
-        vis *= np.exp(2j * np.pi * (geom_delay_turns + cable_delay_turns))
-        # Now apply bandpass calibration
-        vis /= (bandpass_gains[indexA, :] * bandpass_gains[indexB, :].conjugate())
-        vis_cross[:, :, n] = vis
+    vis = data.vis[:]
+    # Number of turns of phase that signal B is behind signal A due to geometric delay
+    geom_delay_turns = - data.w[:, np.newaxis, :] / wavelengths[:, np.newaxis]
+    # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
+    vis *= np.exp(2j * np.pi * (geom_delay_turns + cable_delay_turns))
+    # Now apply bandpass calibration
+    vis /= bandpass_gain_products
     # It should be safe to average all channels into a single band now, for the purpose of gain calibration
-    all_cal_vis_samples.append(vis_cross.mean(axis=1))
+    all_cal_vis_samples.append(vis.mean(axis=1))
     cal_source.append(target)
-    all_cal_times.append(timestamps[len(timestamps) // 2])
+    all_cal_times.append(data.timestamps[data.shape[0] // 2])
 # Add bandpass calibrator data in a similar vein (if not there already)
-for vis_cross, timestamps in zip(bp_cal_vis_samples, cal_timestamps):
+for vis, timestamps in zip(bp_cal_vis_samples, cal_timestamps):
     if timestamps[len(timestamps) // 2] not in all_cal_times:
-        all_cal_vis_samples.append(vis_cross.mean(axis=1))
+        all_cal_vis_samples.append(vis.mean(axis=1))
         cal_source.append(bandpass_cal)
         all_cal_times.append(timestamps[len(timestamps) // 2])
 
@@ -453,7 +436,7 @@ ant_gains = []
 input_pairs = np.array(crosscorr).T
 # Iterate over solution intervals
 for vis, flux in zip(gain_cal_vis, cal_source_vis):
-    fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, flux), initial_gains)
+    fitter = NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, flux), initial_gains)
     fitter.fit(input_pairs, np.vstack((vis.real, vis.imag)))
     full_params[params_to_fit] = fitter.params * np.sign(fitter.params[2 * ref_input_index])
     gainsol = full_params.view(np.complex128).astype(np.complex64)
@@ -462,11 +445,11 @@ ant_gains = np.array(ant_gains).transpose()
 
 # Interpolate gain as a function of time
 amp_interps, phase_interps = [], []
-for n in range(len(inputs)):
-    amp_interp = scape.fitting.PiecewisePolynomial1DFit()
+for n in range(len(data.inputs)):
+    amp_interp = PiecewisePolynomial1DFit()
     amp_interp.fit(gain_times, np.abs(ant_gains[n]))
     amp_interps.append(amp_interp)
-    phase_interp = scape.fitting.PiecewisePolynomial1DFit()
+    phase_interp = PiecewisePolynomial1DFit()
     angle = np.angle(ant_gains[n])
     # Do a quick and dirty angle unwrapping
     angle_diff = np.diff(angle)
@@ -476,20 +459,28 @@ for n in range(len(inputs)):
     phase_interp.fit(gain_times, angle)
     phase_interps.append(phase_interp)
 
+#--------------------------------------------------------------------------------------------------
+#--- FUNCTION :  angle_wrap
+#--------------------------------------------------------------------------------------------------
+
+def angle_wrap(angle, period=2.0 * np.pi):
+    """Wrap the *angle* into the interval -*period* / 2 ... *period* / 2."""
+    return (angle + 0.5 * period) % period - 0.5 * period
+
 fig = plt.figure(6)
 fig.clear()
 fig.subplots_adjust(right=0.8)
 ax = fig.add_subplot(121)
 plot_times = np.arange(gain_times[0] - 1000, gain_times[-1] + 1000, 100.)
-for n in range(len(inputs)):
+for n in range(len(data.inputs)):
     ax.plot(plot_times - gain_times[0], amp_interps[n](plot_times), 'k')
-    ax.plot(gain_times - gain_times[0], np.abs(ant_gains[n]), 'o', label=inputs[n][3:])
+    ax.plot(gain_times - gain_times[0], np.abs(ant_gains[n]), 'o', label=data.inputs[n][3:])
 ax.set_xlabel('Time since start (seconds)')
 ax.set_title('Gain amplitude')
 ax = fig.add_subplot(122)
-for n in range(len(inputs)):
-    ax.plot(plot_times - gain_times[0], katpoint.rad2deg(scape.stats.angle_wrap(phase_interps[n](plot_times))), 'k')
-    ax.plot(gain_times - gain_times[0], katpoint.rad2deg(np.angle(ant_gains[n])), 'o', label=inputs[n][3:])
+for n in range(len(data.inputs)):
+    ax.plot(plot_times - gain_times[0], katpoint.rad2deg(angle_wrap(phase_interps[n](plot_times))), 'k')
+    ax.plot(gain_times - gain_times[0], katpoint.rad2deg(np.angle(ant_gains[n])), 'o', label=data.inputs[n][3:])
 ax.set_xlabel('Time since start (seconds)')
 ax.set_title('Gain phase (degrees)')
 ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0., numpoints=1)
@@ -498,17 +489,18 @@ ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0., numpoi
 corrected_bpcal_vis_samples = [vis.copy() for vis in cal_vis_samples]
 for vis, timestamps in zip(corrected_bpcal_vis_samples, cal_timestamps):
     # Interpolate antenna gains to timestamps of visibilities
-    interp_ant_gains = np.zeros((len(inputs), len(timestamps)), dtype=np.complex64)
-    for n in range(len(inputs)):
+    interp_ant_gains = np.zeros((len(data.inputs), len(timestamps)), dtype=np.complex64)
+    for n in range(len(data.inputs)):
         interp_ant_gains[n, :] = amp_interps[n](timestamps) * np.exp(1.0j * phase_interps[n](timestamps))
-    for n, (indexA, indexB) in enumerate(crosscorr):
-        vis[:, :, n] /= (bandpass_gains[indexA, :] * bandpass_gains[indexB, :].conjugate())
-        vis[:, :, n] /= (interp_ant_gains[indexA, :] * interp_ant_gains[indexB, :].conjugate())[:, np.newaxis]
+    gain_products = np.column_stack([interp_ant_gains[indexA, :] * interp_ant_gains[indexB, :].conjugate()
+                                     for indexA, indexB in crosscorr])
+    vis /= bandpass_gain_products
+    vis /= gain_products[:, np.newaxis, :]
 
 fig = plt.figure(7)
 fig.clear()
 plot_vis_crosshairs(fig, [vis[:, freq_slice, :] for vis in bp_cal_vis_samples],
-                    "'%s' gain-corrected vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + first_chan,),
+                    "'%s' gain-corrected vis for channel %d (all times)" % (bandpass_cal.name, freq_slice + chan_range.start,),
                     upper=True, units='Jy', marker='.', linestyle='-')
 plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in bp_cal_vis_samples],
                     "'%s' gain-corrected vis for scan time sample %d (all channels)" % (bandpass_cal.name, time_slice),
@@ -521,42 +513,36 @@ print "Applying calibration to imaging target..."
 # Assemble visibility data and uvw coordinates for imaging target
 vis_samples_per_scan, uvw_samples_per_scan = [], []
 start_chans = np.arange(0, (len(wavelengths) // channels_per_band) * channels_per_band, channels_per_band)
-for scan_ind, cs_ind, state, target in data.scans():
+for scan_ind, state, target in data.scans():
     if state != 'track' or target.name != image_target.name:
         continue
-    timestamps = data.timestamps()
-    if len(timestamps) < 2:
+    if data.shape[0] < 2:
         continue
-    # Extract visibilities and uvw coordinates
-    vis_cross = np.zeros((len(timestamps), len(wavelengths), len(crosscorr)), dtype=np.complex64)
-    uvw = np.zeros((3, len(timestamps), len(wavelengths), len(crosscorr)))
+    vis = data.vis[:]
+    timestamps = data.timestamps[:]
     # Interpolate antenna gains to timestamps of visibilities
-    interp_ant_gains = np.zeros((len(inputs), len(timestamps)), dtype=np.complex64)
-    for n in range(len(inputs)):
+    interp_ant_gains = np.zeros((len(data.inputs), len(timestamps)), dtype=np.complex64)
+    for n in range(len(data.inputs)):
         interp_ant_gains[n, :] = amp_interps[n](timestamps) * np.exp(1.0j * phase_interps[n](timestamps))
-    # Iterate through baselines and assemble visibilities
-    for n, (indexA, indexB) in enumerate(crosscorr):
-        inputA, inputB = inputs[indexA], inputs[indexB]
-        antA, antB = inputA[:-1], inputB[:-1]
-        vis = data.vis((inputA, inputB))
-        # Get uvw coordinates of A->B baseline as multiples of the channel wavelength
-        uvw[:, :, :, n] = np.array(target.uvw(ants[antB], timestamps, ants[antA]))[:, :, np.newaxis] / wavelengths
-        # Number of turns of phase that signal B is behind signal A due to cable / receiver delay
-        cable_delay_turns = (delays[inputB] - delays[inputA]) * center_freqs
-        # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
-        vis *= np.exp(2j * np.pi * (- uvw[2, :, :, n] + cable_delay_turns))
-        # Now also apply results of bandpass and gain calibration
-        vis /= (bandpass_gains[indexA, :] * bandpass_gains[indexB, :].conjugate())
-        vis /= (interp_ant_gains[indexA, :] * interp_ant_gains[indexB, :].conjugate())[:, np.newaxis]
-        vis_cross[:, :, n] = vis
+    gain_products = np.column_stack([interp_ant_gains[indexA, :] * interp_ant_gains[indexB, :].conjugate()
+                                     for indexA, indexB in crosscorr])
+    # Get uvw coordinates of all baselines as multiples of the channel wavelength
+    uvw = np.array([data.u, data.v, data.w])[:, :, np.newaxis, :] / wavelengths[:, np.newaxis]
+    # Number of turns of phase that signal B is behind signal A due to geometric delay
+    geom_delay_turns = - uvw[2]
+    # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
+    vis *= np.exp(2j * np.pi * (geom_delay_turns + cable_delay_turns))
+    # Now also apply results of bandpass and gain calibration
+    vis /= bandpass_gain_products
+    vis /= gain_products[:, np.newaxis, :]
     # Average over adjacent time and frequency bins to create coarser bins, which reduces processing load
     start_times = np.arange(0, (len(timestamps) // dumps_per_vis) * dumps_per_vis, dumps_per_vis)
     averaged_vis = np.zeros((len(start_times), len(start_chans), len(crosscorr)), dtype=np.complex64)
     averaged_uvw = np.zeros((3, len(start_times), len(start_chans), len(crosscorr)))
     for m, start_time in enumerate(start_times):
         for n, start_chan in enumerate(start_chans):
-            averaged_vis[m, n, :] = vis_cross[start_time:(start_time + dumps_per_vis),
-                                              start_chan:(start_chan + channels_per_band), :].mean(axis=0).mean(axis=0)
+            averaged_vis[m, n, :] = vis[start_time:(start_time + dumps_per_vis),
+                                        start_chan:(start_chan + channels_per_band), :].mean(axis=0).mean(axis=0)
             averaged_uvw[:, m, n, :] = uvw[:, start_time:(start_time + dumps_per_vis),
                                               start_chan:(start_chan + channels_per_band), :].mean(axis=1).mean(axis=1)
     vis_samples_per_scan.append(averaged_vis)
@@ -587,7 +573,7 @@ print "Producing dirty image of '%s'..." % (image_target.name,)
 # Set up image grid coordinates (in radians)
 # First get some basic data parameters together (center freq in Hz, primary beamwidth in rads)
 band_center = center_freqs[len(center_freqs) // 2]
-ref_ant = ants[data.ref_ant]
+ref_ant = [ant for ant in data.ants if ant.name == data.ref_ant][0]
 primary_beam_width = ref_ant.beamwidth * katpoint.lightspeed / band_center / ref_ant.diameter
 # The pixel size is a fixed fraction of the synthesised beam width
 image_grid_step = 0.1 / uvdist.max()
@@ -910,21 +896,131 @@ ax.axis('image')
 ax.set_xlim(ax.get_xlim()[::-1])
 ax.images[0].set_cmap(mpl.cm.gist_heat)
 
-# Save final image to FITS
-ra0, dec0 = image_target.radec()
-fits_filename = '%s_%.0fMHz.fits' % (image_target.name.replace(' ', ''), band_center / 1e6)
-# The PyFITS package has a problem with the clobber flag, therefore remove any existing file or face a crash
-if os.path.isfile(fits_filename):
-    print "Overwriting existing file '%s'" % (fits_filename,)
-    os.remove(fits_filename)
-# Normalise image by the beam volume to get to Jy/beam units
-scape.plots_basic.save_fits_image(fits_filename,
-                                  katpoint.rad2deg(ra0 + l_range[::-1]), katpoint.rad2deg(dec0 + m_range),
-                                  np.fliplr(final_image / restoring_beam.sum()), target_name=image_target.name,
-                                  coord_system='radec', projection_type='SIN', data_unit='Jy/beam',
-                                  observe_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(data.start_time)),
-                                  create_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
-                                  telescope='KAT-7', observer=data.observer)
+#--------------------------------------------------------------------------------------------------
+#--- FUNCTION :  save_fits_image
+#--------------------------------------------------------------------------------------------------
+
+def save_fits_image(filename, x, y, Z, target_name='', coord_system='radec',
+                    projection_type='ARC', data_unit='', freq_Hz=0.,
+                    bandwidth_Hz=0., pol=None, observe_date='', create_date='',
+                    telescope='', instrument='', observer='', clobber=False):
+    """Save image data to FITS file.
+
+    This produces a FITS file from 2D spatial image data. It optionally allows
+    degenerate frequency and Stokes axes, in order to specify the RF frequency
+    and polarisation of the image data.
+
+    Parameters
+    ----------
+    filename : string
+        Name of FITS file to create
+    x : real array-like, shape (N,)
+        Vector of x coordinates, in degrees
+    y : real array-like, shape (M,)
+        Vector of y coordinates, in degrees
+    Z : real array-like, shape (M, N)
+        Matrix of z values, with rows associated with *y* and columns with *x*
+    target_name : string, optional
+        Name of source being imaged
+    coord_system : {'radec', 'azel', 'lm'}, optional
+        Spherical coordinate system serving as basis for *x* and *y*
+    projection_type : {'ARC', 'SIN', 'TAN', 'STG', 'CAR'}, optional
+        Type of spherical projection used to obtain *x*-*y* plane
+    data_unit : string, optional
+        Unit of z data
+    freq_Hz : float, optional
+        Centre frequency of z data, in Hz (if bigger than 0, add a frequency axis)
+    bandwidth_Hz : float, optional
+        Bandwidth of z data, in Hz
+    pol : {None, 'I', 'Q', 'U', 'V', 'HH', 'VV', 'VH', 'HV', 'XX', 'YY', 'XY', 'YX'}, optional
+        Polarisation of z data (if not None, add a Stokes axis)
+    observe_date : string, optional
+        UT timestamp of start of observation (format YYYY-MM-DD[Thh:mm:ss[.sss]])
+    create_date : string, optional
+        UT timestamp of file creation (format YYYY-MM-DD[Thh:mm:ss[.sss]])
+    telescope : string, optional
+        Telescope that performed the observation
+    instrument : string, optional
+        Instrument that recorded the data
+    observer : string, optional
+        Person responsible for the observation
+    clobber : {False, True}, optional
+        True if FITS file should be replaced if it already exists
+
+    Raises
+    ------
+    ValueError
+        If coordinate system is unknown
+
+    """
+    if coord_system == 'azel':
+        axes = ['AZ---' + projection_type, 'EL---' + projection_type]
+    elif coord_system == 'radec':
+        axes = ['RA---' + projection_type, 'DEC--' + projection_type]
+    elif coord_system == 'lm':
+        axes = ['L', 'M']
+    else:
+        raise ValueError('Unknown coordinate system for FITS image')
+    if data_unit == 'counts':
+        data_unit = 'count'
+    # Pick centre pixel as reference, out of convenience
+    ref_pixel = [(len(x) // 2 + 1), (len(y) // 2) + 1]
+    ref_world = [x[ref_pixel[0] - 1], y[ref_pixel[1] - 1]]
+    world_per_pixel = [(x[-1] - x[0]) / (len(x) - 1), (y[-1] - y[0]) / (len(y) - 1)]
+    # If frequency is specified, add a frequency axis
+    if freq_Hz > 0:
+        axes.append('FREQ')
+        ref_pixel.append(1)
+        ref_world.append(freq_Hz)
+        world_per_pixel.append(bandwidth_Hz)
+        Z = Z[np.newaxis]
+    # If polarisation is specified, add a Stokes axis
+    if pol is not None:
+        stokes_code = {'I' : 1, 'Q' : 2, 'U' : 3, 'V' : 4,
+                       'XX' : -5, 'YY' : -6, 'XY' : -7, 'YX' : -8,
+                       'HH' : -5, 'VV' : -6, 'HV' : -7, 'VH' : -8}
+        axes.append('STOKES')
+        ref_pixel.append(1)
+        ref_world.append(stokes_code[pol])
+        world_per_pixel.append(1)
+        Z = Z[np.newaxis]
+
+    phdu = pyfits.PrimaryHDU(Z)
+    phdu.update_header()
+    phdu.header.update('DATE', create_date, comment='UT file creation time')
+    phdu.header.update('ORIGIN', 'SKA SA', 'institution that created file')
+    phdu.header.update('DATE-OBS', observe_date, comment='UT observation start time')
+    phdu.header.update('TELESCOP', telescope)
+    phdu.header.update('INSTRUME', instrument)
+    phdu.header.update('OBSERVER', observer)
+    phdu.header.update('OBJECT', target_name, comment='source name')
+    phdu.header.update('EQUINOX', 2000.0, comment='equinox of ra dec')
+    phdu.header.update('BUNIT', data_unit, comment='units of flux')
+    for n, (ax_type, ref_pix, ref_val, ref_delt) in enumerate(zip(axes, ref_pixel, ref_world, world_per_pixel)):
+        phdu.header.update('CTYPE%d' % (n+1), ax_type)
+        phdu.header.update('CRPIX%d' % (n+1), ref_pix)
+        phdu.header.update('CRVAL%d' % (n+1), ref_val)
+        phdu.header.update('CDELT%d' % (n+1), ref_delt)
+        phdu.header.update('CROTA%d' % (n+1), 0)
+    phdu.header.update('DATAMAX', Z.max(), comment='max pixel value')
+    phdu.header.update('DATAMIN', Z.min(), comment='min pixel value')
+    pyfits.writeto(filename, phdu.data, phdu.header, clobber=clobber)
+
+# Save final image to FITS, if PyFITS is installed
+if pyfits:
+    ra0, dec0 = image_target.radec()
+    fits_filename = '%s_%.0fMHz.fits' % (image_target.name.replace(' ', ''), band_center / 1e6)
+    # The PyFITS package has a problem with the clobber flag, therefore remove any existing file or face a crash
+    if os.path.isfile(fits_filename):
+        print "Overwriting existing file '%s'" % (fits_filename,)
+        os.remove(fits_filename)
+    # Normalise image by the beam volume to get to Jy/beam units
+    save_fits_image(fits_filename, katpoint.rad2deg(ra0 + l_range[::-1]), katpoint.rad2deg(dec0 + m_range),
+                    np.fliplr(final_image / restoring_beam.sum()), target_name=image_target.name,
+                    coord_system='radec', projection_type='SIN', data_unit='Jy/beam',
+                    observe_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(data.start_time)),
+                    create_date=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+                    telescope='KAT-7', observer=data.observer)
 
 ################################# SELF-CAL #####################################
 
@@ -963,13 +1059,13 @@ scape.plots_basic.save_fits_image(fits_filename,
 # fig.clear()
 # fig.subplots_adjust(right=0.8)
 # ax = fig.add_subplot(121)
-# for n in range(len(inputs)):
-#     ax.plot(np.abs(selfcal_gains[n]), 'o', label=inputs[n][3:])
+# for n in range(len(data.inputs)):
+#     ax.plot(np.abs(selfcal_gains[n]), 'o', label=data.inputs[n][3:])
 # ax.set_xlabel('Solution intervals')
 # ax.set_title('Gain amplitude')
 # ax = fig.add_subplot(122)
-# for n in range(len(inputs)):
-#     ax.plot(katpoint.rad2deg(np.angle(selfcal_gains[n])), 'o', label=inputs[n][3:])
+# for n in range(len(data.inputs)):
+#     ax.plot(katpoint.rad2deg(np.angle(selfcal_gains[n])), 'o', label=data.inputs[n][3:])
 # ax.set_xlabel('Solution intervals')
 # ax.set_title('Gain phase (degrees)')
 # ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0., numpoints=1)
