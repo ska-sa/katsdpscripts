@@ -140,7 +140,6 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 
 dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
-("kat.dbe7.sensor.capturing.get_value()",['0','1'],''), # does this sensor work?? - showed 0 while capturing
 ("kat.dbe7.sensor.dbe_ant1h_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant1v_adc_power.get_value()",-27.0,-25.0),
 ("kat.dbe7.sensor.dbe_ant2h_adc_power.get_value()",-27.0,-25.0),
@@ -159,7 +158,7 @@ dbe7 = [# structure is list of tuples with (command to access sensor value, min 
 ]
 
 dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.dbe7.sensor.k7w_capture_active.get_value()",['0','1'],''),
+("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],''),
 ("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
@@ -250,7 +249,7 @@ def check_sensors(kat, selected_sensors, show_only_errors):
 if __name__ == "__main__":
 
     parser = OptionParser(usage="%prog [options]",
-                          description="Perform basic health check of the system for observers. " +
+                          description="Perform basic status (blue = busy) and health check of the system for observers. " +
                           "Can be run at any time without affecting current settings/observation. " +
                           "Default is to show all sensors checked, but the -e option to show errors only may prove popular.")
     parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
@@ -281,7 +280,23 @@ if __name__ == "__main__":
     print "Current local time: " + time.ctime()
 
     try:
-        print 'Current system centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.)
+        if kat.dbe7.sensor.k7w_script_status.get_value() == 'busy':
+            print 'Current script running: %s' \
+                  % ( col('blue') + kat.dbe7.sensor.k7w_script_name.get_value() + \
+                  ' (' + kat.dbe7.sensor.k7w_script_description.get_value() + ') with status: "' +  \
+                  " ".join(kat.dbe7.sensor.k7w_script_log.get_value().split()) + '"' + col('normal') )
+            print 'Current observer: %s' % (col('blue') + kat.dbe7.sensor.k7w_script_observer.get_value() + col('normal'))
+        else:
+            print 'Current script running: none'
+        dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
+        if dbe_mode == 'wbc':
+            print 'Current DBE7 mode: %s' % str(dbe_mode)
+        elif dbe_mode == 'wbc8k':
+            print 'Current DBE7 mode: %s' % (col('brown') + str(dbe_mode) + col('normal'))
+        else:
+            print 'Current DBE7 mode: %s' % (col('red') + 'unknown' + col('normal'))
+        print 'Current centre frequency: %s MHz' % (str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
+
 
         # Some fancy footwork to list antennas by target after retrieving target per antenna.
         # There may be a neater/more compact way to do this, but a dict with target strings as keys
@@ -314,9 +329,18 @@ if __name__ == "__main__":
                     ant_list_str = ant_list_str + col("green") + str(ant) + col("normal") + ','
                 else:
                     ant_list_str = ant_list_str + str(ant) + ','
-            print '  ' + str(key) + ' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
+            if str(key) is not 'None':
+                print '  ' + col('blue') + str(key) + col('normal') +' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
+            else:
+                print '  ' + str(key) +' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
         print 'Antenna lock: ' + str(locks) # also useful to show locks in this fashion (single glance)
-        print 'Antenna mode:' +str(modes)
+        ant_mode_str = '['
+        for mode in modes:
+            if mode == 'POINT':
+                ant_mode_str = ant_mode_str + col('blue') + str(mode) + col('normal') + ', '
+            else:
+                ant_mode_str = ant_mode_str + str(mode) + ', '
+        print 'Antenna mode:' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
     except Exception, e:
         print "Error: could not retrieve centre frequency or antenna target/lock info..."
         print '(' + str(e) + ')'
