@@ -5,9 +5,12 @@
 
 ## TODO:
 # 1) Might be better to pull max and min values from the system config in some
-# way rather than specify them again separately here. The ones used here may not
-# be in sync with the value used for alarms etc.
-# 2) Probably better to programmatically generate ant1, ant2, etc in future.
+# way rather than specify them again separately here. The ones used here are aimed
+# at what an observer should look out for (rather than perhaps an engineer) and so
+# may not be in sync with the value used for alarms etc.
+# 2) Could possibly pull the "per antenna" things like rfe7 and dbe7 channels into
+# the ant_group below. Would neaten/shorten code a bit, but dilutes some of the per
+# subsystem groupings.
 
 from optparse import OptionParser
 import time
@@ -17,103 +20,28 @@ import katuilib
 from katuilib.ansi import col
 
 # Sensor groups
-ant1 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped1.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped1.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped1.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped1.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped1.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped1.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant1.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant1.sensor.windstow_active.get_value()",0,0),
-("kat.ant1.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant1.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+
+# programmatically generate ant1, ant2, ... ant7 sensor groups
+ant_group = [ # structure is list of tuples with (command to access sensor value, min value, max value)
+("kat.ped#.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
+("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1),
+("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1),
+("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
+("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
+("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
+("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
+("kat.ant#.sensor.windstow_active.get_value()",0,0),
+("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
+("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ("","",""), # creates a blank line
 ]
 
-ant2 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped2.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped2.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped2.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped2.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped2.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped2.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant2.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant2.sensor.windstow_active.get_value()",0,0),
-("kat.ant2.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant2.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
-]
+for i in range(1,8):
+    antvar = 'ant' + str(i)
+    vars()[antvar] = []
+    for sensor in ant_group:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
 
-ant3 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped3.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped3.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped3.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped3.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped3.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped3.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant3.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant3.sensor.windstow_active.get_value()",0,0),
-("kat.ant3.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant3.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
-]
-
-ant4 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped4.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped4.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped4.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped4.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped4.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped4.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant4.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant4.sensor.windstow_active.get_value()",0,0),
-("kat.ant4.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant4.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
-]
-
-ant5 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped5.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped5.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped5.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped5.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped5.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped5.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant5.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant5.sensor.windstow_active.get_value()",0,0),
-("kat.ant5.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant5.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
-]
-
-ant6 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped6.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped6.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped6.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped6.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped6.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped6.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant6.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant6.sensor.windstow_active.get_value()",0,0),
-("kat.ant6.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant6.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
-]
-
-ant7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped7.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
-("kat.ped7.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped7.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped7.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped7.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
-("kat.ped7.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant7.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
-("kat.ant7.sensor.windstow_active.get_value()",0,0),
-("kat.ant7.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant7.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
-]
 
 rfe7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1,1), # do we actually need these to be checked?
@@ -234,14 +162,18 @@ def check_sensors(kat, selected_sensors, show_only_errors):
                 current_val = str(eval(checker))
                 if type(min_val) is list:
                     if current_val in min_val:
-                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
+                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65),\
+                         current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
                     else:
-                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
+                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25),\
+                         '' + col("normal"))
                 else:
                     if (min_val <= float(current_val) and float(current_val) <=  max_val):
-                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65),\
+                         current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
                     else:
-                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25),\
+                         str(max_val).ljust(25) + col("normal"))
             except:
                 print "Could not check", checker, "[expected range: %r , %r]" % (min_val,max_val)
 
