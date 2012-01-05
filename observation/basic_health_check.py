@@ -151,31 +151,48 @@ sensor_group = {
 'lab' : ant1 + lab_rfe7,
 }
 
+sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
+
 def check_sensors(kat, selected_sensors, show_only_errors):
-    # check current system setting and compare with expected range as specified above
-    print "%s %s %s %s" % ("Sensor".ljust(65), "Current Value".ljust(25),"Min Expected".ljust(25), "Max Expected".ljust(25))
+    # Check current system setting and compare with expected range as specified above.
+    # Things appear red if out of expected range or if sensor status is one of the error states as defined above.
+    print "%s %s %s %s" % ("Sensor".ljust(65), "Value (sensor status)".ljust(25),"Min Expected".ljust(25), "Max Expected".ljust(25))
     for checker, min_val, max_val in selected_sensors:
         if checker.strip() == '':
             if not show_only_errors: print "" # print a blank line, but skip this if only showing errors
         else:
             try:
                 current_val = str(eval(checker))
+                sensor_status = str(eval(checker.split(".get_value()")[0] + ".status"))
+
                 if type(min_val) is list:
-                    if current_val in min_val:
-                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65),\
-                         current_val.ljust(25), str(min_val).ljust(25), '' + col("normal"))
+                    if current_val in min_val and sensor_status not in sensor_status_errors:
+                        if not show_only_errors:
+                            if sensor_status == 'warn':
+                                print "%s %s %s %s" % (col("brown") + checker.ljust(65),\
+                                (current_val+" (" + sensor_status + ")").ljust(25),str(min_val).ljust(25), '' + col("normal"))
+                            else:
+                                print "%s %s %s %s" % (col("green") + checker.ljust(65),current_val.ljust(25),\
+                                 str(min_val).ljust(25), '' + col("normal"))
                     else:
-                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25),\
-                         '' + col("normal"))
+                        print "%s %s %s %s" % (col("red") + checker.ljust(65), (current_val+" (" + sensor_status + ")").ljust(25),\
+                        str(min_val).ljust(25),'' + col("normal"))
                 else:
-                    if (min_val <= float(current_val) and float(current_val) <=  max_val):
-                        if not show_only_errors: print "%s %s %s %s" % (col("green") + checker.ljust(65),\
-                         current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+                    if (min_val <= float(current_val) and float(current_val) <=  max_val) and sensor_status not in sensor_status_errors:
+                        if not show_only_errors:
+                            if sensor_status == 'warn':
+                                print "%s %s %s %s" % (col("brown") + checker.ljust(65),\
+                                (current_val+" (" + sensor_status + ")").ljust(25), str(min_val).ljust(25),\
+                                str(max_val).ljust(25) + col("normal"))
+                            else:
+                                print "%s %s %s %s" % (col("green") + checker.ljust(65),\
+                                 current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
                     else:
-                        print "%s %s %s %s" % (col("red") + checker.ljust(65), current_val.ljust(25), str(min_val).ljust(25),\
-                         str(max_val).ljust(25) + col("normal"))
-            except:
+                        print "%s %s %s %s" % (col("red") + checker.ljust(65), (current_val+" (" + sensor_status + ")").ljust(25),\
+                        str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+            except Exception, e:
                 print "Could not check", checker, "[expected range: %r , %r]" % (min_val,max_val)
+                print e
 
 
 if __name__ == "__main__":
