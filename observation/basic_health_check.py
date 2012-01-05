@@ -7,10 +7,10 @@
 # 1) Might be better to pull max and min values from the system config in some
 # way rather than specify them again separately here. The ones used here are aimed
 # at what an observer should look out for (rather than perhaps an engineer) and so
-# may not be in sync with the value used for alarms etc.
-# 2) Could possibly pull the "per antenna" things like rfe7 and dbe7 channels into
-# the ant_group below. Would neaten/shorten code a bit, but dilutes some of the per
-# subsystem groupings.
+# necessarily may not be in sync with the value used for alarms etc. although one
+# would hope that there would not be major differences. The script does currently
+# display the sensor status along with the current values which, over time, will help
+# to iron out any discrepancies between the two sources of expected sensor ranges.
 
 from optparse import OptionParser
 import time
@@ -21,8 +21,8 @@ from katuilib.ansi import col
 
 # Sensor groups
 
-# programmatically generate ant1, ant2, ... ant7 sensor groups
-ant_group = [ # structure is list of tuples with (command to access sensor value, min value, max value)
+# programmatically generate various sensor groups e.g. ant1, ant2, ... ant7
+ant_template = [ # structure is list of tuples with (command to access sensor value, min value, max value)
 ("kat.ped#.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
 ("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1),
@@ -33,31 +33,30 @@ ant_group = [ # structure is list of tuples with (command to access sensor value
 ("kat.ant#.sensor.windstow_active.get_value()",0,0),
 ("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
-("","",""), # creates a blank line
+]
+
+rfe7_downconverter_template = [
+("kat.rfe7.sensor.rfe7_downconverter_ant#_h_powerswitch.get_value()", 1,1), # do we actually need these to be checked?
+("kat.rfe7.sensor.rfe7_downconverter_ant#_v_powerswitch.get_value()", 1,1),
+]
+
+dbe7_adc_power_template = [
+("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-27.0,-25.0),
+("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-27.0,-25.0),
 ]
 
 for i in range(1,8):
     antvar = 'ant' + str(i)
     vars()[antvar] = []
-    for sensor in ant_group:
+    for sensor in ant_template:
         vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
-
+    for sensor in rfe7_downconverter_template:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+    for sensor in dbe7_adc_power_template:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+    vars()[antvar].append(("","",""))
 
 rfe7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1,1), # do we actually need these to be checked?
-("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant2_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant2_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant3_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant3_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant4_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant4_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant5_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant5_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant6_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant6_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant7_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant7_v_powerswitch.get_value()", 1,1),
 ("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1),
 ("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1),
 ("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1),
@@ -66,26 +65,8 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 ("","",""), # creates a blank line
 ]
 
-dbe7 = [# structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
-("kat.dbe7.sensor.dbe_ant1h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant1v_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant2h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant2v_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant3h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant3v_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant4h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant4v_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant5h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant5v_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant6h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant6v_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant7h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant7v_adc_power.get_value()",-27.0,-25.0),
-("","",""), # creates a blank line
-]
-
 dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
+("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
 ("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],''),
 ("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
@@ -97,6 +78,7 @@ tfr = [# structure is list of tuples with (command to access sensor value, min v
 ("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1),
 ("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1), # does this include kat-dc1?
 ("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1),
 ("kat.ant1.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("kat.ant2.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("kat.ant3.sensor.antenna_acu_ntp_time.get_value()",1,1),
@@ -133,7 +115,7 @@ lab_rfe7 = [ # structure is list of tuples with (command to access sensor value,
 
 # Dictionary containing multiple sensor groups, identified by name (user selects one of these by name at runtime)
 sensor_group = {
-'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7 + dbe7 + dc + tfr + anc,
+'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7 + dc + tfr + anc,
 'ant1' : ant1,
 'ant2' : ant2,
 'ant3' : ant3,
@@ -143,7 +125,6 @@ sensor_group = {
 'ant7' : ant7,
 'ants' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7,
 'rfe7' : rfe7,
-'dbe7' : dbe7,
 'dc' : dc,
 'tfr' : tfr,
 'anc' : anc,
@@ -200,7 +181,8 @@ if __name__ == "__main__":
     parser = OptionParser(usage="%prog [options]",
                           description="Perform basic status (blue = busy) and health check of the system for observers. " +
                           "Can be run at any time without affecting current settings/observation. " +
-                          "Default is to show all sensors checked, but the -e option to show errors only may prove popular.")
+                          "Default is to show all sensors checked, but the -e option to show errors only may prove popular.",
+                          epilog = 'Examples: "basic_health_check.py -e", or "basic_health_check.py -g ants"')
     parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
                       '(default reuses existing connection, or falls back to systems/local.conf)')
     sensor_group_keys = sensor_group.keys()
