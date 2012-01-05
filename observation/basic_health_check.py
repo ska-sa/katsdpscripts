@@ -23,7 +23,7 @@ from katuilib.ansi import col
 
 # programmatically generate various sensor groups e.g. ant1, ant2, ... ant7
 ant_template = [ # structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.ped#.sensor.cryo_lna_temperature.get_value()", 70.0,76.0),
+("kat.ped#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0),
 ("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
