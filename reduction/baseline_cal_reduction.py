@@ -34,7 +34,7 @@ parser.add_option("-f", "--freq-chans", default='98,417',
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
 parser.add_option('-p', '--pol', type='choice', choices=['H', 'V'], default='H',
                   help="Polarisation term to use ('H' or 'V'), default is %default")
-parser.add_option('-r', '--ref', help="Reference antenna, default is first antenna in file")
+parser.add_option('-r', '--ref', dest='ref_ant', help="Reference antenna, default is first antenna in file")
 parser.add_option('-s', '--max-sigma', type='float', default=0.2,
                   help="Threshold on std deviation of normalised group delay, default is %default")
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
@@ -42,105 +42,128 @@ parser.add_option("-t", "--time-offset", type='float', default=0.0,
 parser.add_option('-x', '--exclude', default='', help="Comma-separated list of sources to exclude from fit")
 (opts, args) = parser.parse_args()
 
+# Quick way to set options for use with cut-and-pasting of script bits
+# opts = optparse.Values()
+# opts.ants = 'ant2,ant3,ant5,ant6,ant7'
+# opts.freq_chans = '200,700'
+# opts.pol = 'H'
+# opts.ref_ant = 'ant2'
+# opts.max_sigma = 0.2
+# opts.time_offset = 0.0
+# opts.exclude = ''
+# import glob
+# args = sorted(glob.glob('*.h5'))
+# args = ['/Users/schwardt/Downloads/1315991422_baselinecal.h5']
+
 if len(args) < 1:
     raise RuntimeError('Please specify HDF5 data file(s) to use as arguments of the script')
-channel_range = [int(chan) for chan in opts.freq_chans.split(',')]
+
+katpoint.logger.setLevel(30)
 
 print "\nLoading and processing data...\n"
+data = katfile.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
 
-data = katfile.open(args, opts.ref, channel_range, opts.time_offset)
-
-# Filter available antennas via script --ants option, if provided
-ants = [ant for ant in data.ants if opts.ants is None or ant.name in opts.ants]
-ref_ant_ind = [ant.name for ant in ants].index(data.ref_ant)
-# Form desired signal paths and obtain all baselines connecting them
-signals = [ant.name + opts.pol.lower() for ant in ants]
-baselines = data.all_corr_products(signals)
-# Throw out autocorrelations
-baselines = [(antA, antB) for antA, antB in baselines if antA != antB]
-baseline_names = ['%s - %s' % (ants[antA].name, ants[antB].name) for antA, antB in baselines]
-num_bls = len(baselines)
+# Select frequency channel range and only cross-correlation products in data set
+chan_range = slice(*[int(chan_str) for chan_str in opts.freq_chans.split(',')]) \
+             if opts.freq_chans is not None else slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
+active_pol = opts.pol.lower()
+data.select(channels=chan_range, corrprods='cross', pol=active_pol)
+if opts.ants is not None:
+    data.select(ants=opts.ants, reset='')
+ref_ant_ind = [ant.name for ant in data.ants].index(data.ref_ant)
+baseline_inds = [(data.inputs.index(inpA), data.inputs.index(inpB)) for inpA, inpB in data.corr_products]
+baseline_names = [('%s - %s' % (inpA[:-1], inpB[:-1])) for inpA, inpB in data.corr_products]
+num_bls = data.shape[2]
 if num_bls == 0:
     raise RuntimeError('No baselines based on the requested antennas and polarisation found in data set')
 
 # Reference antenna and excluded sources
 excluded_targets = opts.exclude.split(',')
-old_positions = np.array([ant.position_enu for ant in ants])
-old_cable_lengths = np.array([ped_to_losberg[ant.name] for ant in ants])
+old_positions = np.array([ant.position_enu for ant in data.ants])
+old_cable_lengths = np.array([ped_to_losberg[ant.name] for ant in data.ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
 
 # Phase differences are associated with frequencies at midpoints between channels
 mid_freqs = np.convolve(data.channel_freqs, [0.5, 0.5], mode='valid')
 freq_diff = np.abs(np.diff(data.channel_freqs))
-num_chans, sample_period = len(data.channel_freqs), 1. / data.dump_rate
+num_chans, sample_period = len(data.channel_freqs), data.dump_period
 
 # Since phase slope is sampled in frequency, the derived delay exhibits aliasing with period of 1 / channel_bandwidth
 # The maximum delay that can be reliably represented is therefore +- 0.5 delay_period
-delay_period = 1. / data.channel_bw
+delay_period = 1. / data.channel_width
 # Maximum standard deviation of delay occurs when delay samples are uniformly distributed between +- max_delay
 # In this case, delay is completely random / unknown, and its estimate cannot be trusted
 # The division by sqrt(N-1) converts the per-channel standard deviation to a per-snapshot deviation
 max_sigma_delay = delay_period / np.sqrt(12) / np.sqrt(num_chans - 1)
 
-ant_list = ', '.join([(ant.name + ' (*ref*)' if ind == ref_ant_ind else ant.name) for ind, ant in enumerate(ants)])
-print 'antennas (%d): %s [pol %s]' % (len(ants), ant_list, opts.pol)
-print 'baselines (%d): %s' % (num_bls, ' '.join([('%d-%d' % (antA, antB)) for antA, antB in baselines]))
+ant_list = ', '.join([(ant.name + ' (*ref*)' if ind == ref_ant_ind else ant.name) for ind, ant in enumerate(data.ants)])
+print 'antennas (%d): %s [pol %s]' % (len(data.ants), ant_list, opts.pol)
+print 'baselines (%d): %s' % (num_bls, ' '.join([('%d-%d' % (indA, indB)) for indA, indB in baseline_inds]))
 
-# Iterate through scans (as indicated by activity sensor)
+# Create an extended baseline difference matrix mapping antenna parameters to baselines
+# This array has shape (B P, 4), where B is number of baselines and P = 4 A is total number of parameters
+# This will be used to assemble target direction vectors with the appropriate sign to form design matrix
+# Since baseline AB = (ant B - ant A) positions, the bl'th set of P rows has a negative identity matrix
+# in the position of ant A and a positive identity matrix in the position of ant B
+num_params = 4 * len(data.ants)
+bl_parameter_map = np.zeros((num_bls * num_params, 4))
+for bl, (indA, indB) in enumerate(baseline_inds):
+    bl_parameter_map[(bl * num_params + 4 * indA):(bl * num_params + 4 * indA + 4), :] = -np.eye(4)
+    bl_parameter_map[(bl * num_params + 4 * indB):(bl * num_params + 4 * indB + 4), :] = +np.eye(4)
+
+# Iterate through scans
 augmented_targetdir, group_delay, sigma_delay = [], [], []
 scan_targets, scan_mid_az, scan_mid_el, scan_timestamps, scan_phase = [], [], [], [], []
-for scan_ind, compscan_ind, state, target in data.scans():
-    ts = data.timestamps()
+for scan_ind, state, target in data.scans():
+    num_ts = data.shape[0]
     if state != 'track':
-        print "scan %3d (%4d samples) skipped '%s'" % (scan_ind, len(ts), state)
+        print "scan %3d (%4d samples) skipped '%s'" % (scan_ind, num_ts, state)
         continue
-    if len(ts) < 2:
-        print "scan %3d (%4d samples) skipped - too short" % (scan_ind, len(ts))
+    if num_ts < 2:
+        print "scan %3d (%4d samples) skipped - too short" % (scan_ind, num_ts)
         continue
     if target.name in excluded_targets:
-        print "scan %3d (%4d samples) skipped - excluded '%s'" % (scan_ind, len(ts), target.name)
+        print "scan %3d (%4d samples) skipped - excluded '%s'" % (scan_ind, num_ts, target.name)
         continue
+    # Extract visibilities for scan as an array of shape (T, F, B)
+    vis = data.vis[:]
+    ts = data.timestamps[:]
     # Obtain unit vectors pointing from array antenna to target for each timestamp in scan
     az, el = target.azel(ts, array_ant)
     targetdir = np.array(katpoint.azel_to_enu(az, el))
     # Invert sign of target vector, as positive dot product with baseline implies negative delay / advance
-    # Augment target vector with a 1, as this allows fitting of constant (receiver) delay
+    # Augment target vector with a 1 to be 4-dimensional, as this allows fitting of constant (receiver) delay
+    # This array has shape (4, T), with the augmented target vectors as columns
     scan_augmented_targetdir = np.vstack((-targetdir, np.ones(len(el))))
-    scan_rel_sigma_delay, bl_phase = [], []
-    for antA, antB in baselines:
-        # Extract visibility of the selected baseline
-        vis = data.vis((signals[antA], signals[antB]))
-        bl_phase.append(np.angle(vis).T)
-        # Group delay is proportional to phase slope across the band - estimate this as
-        # the phase difference between consecutive frequency channels calculated via np.diff.
-        # Pick antenna 1 as reference antenna -> correlation product XY* means we
-        # actually measure phase(antenna1) - phase(antenna2), therefore flip the sign.
-        # Also divide by channel frequency difference, which correctly handles gaps in frequency coverage.
-        phase_diff_per_Hz = np.diff(-np.angle(vis), axis=1) / freq_diff
-        # Convert to a delay in seconds
-        delay = phase_diff_per_Hz / (-2.0 * np.pi)
-        # Obtain robust periodic statistics for *per-channel* phase difference
-        delay_stats_mu, delay_stats_sigma = scape.stats.periodic_mu_sigma(delay, axis=1, period=delay_period)
-        # The estimated mean group delay is the average of N-1 per-channel differences. Since this is less
-        # variable than the per-channel data itself, we have to divide the data sigma by sqrt(N-1).
-        delay_stats_sigma /= np.sqrt(num_chans - 1)
-        group_delay.append(delay_stats_mu)
-        sigma_delay.append(delay_stats_sigma)
-        # Insert augmented direction block into proper spot to build design matrix
-        augm_block = np.zeros((4 * len(ants), len(ts)))
-        # Since baseline AB = (ant B - ant A) positions, insert target dirs with appropriate sign
-        # This fulfills the role of the baseline difference matrix mapping antennas to baselines
-        augm_block[(4 * antA):(4 * antA + 4), :] = -scan_augmented_targetdir
-        augm_block[(4 * antB):(4 * antB + 4), :] = scan_augmented_targetdir
-        augmented_targetdir.append(augm_block)
-        scan_rel_sigma_delay.append(delay_stats_sigma.mean() / max_sigma_delay)
+    # Create section of design matrix with shape (B P, T), by inserting target dir vectors in right places
+    augm_block = np.dot(bl_parameter_map, scan_augmented_targetdir)
+    # Rearrange shape to (P, B T) to be compatible with ravelled delay data, which has shape (B T,)
+    augm_block = augm_block.reshape(num_bls, num_params, num_ts).swapaxes(0, 1).reshape(num_params, -1)
+    augmented_targetdir.append(augm_block)
+    # Group delay is proportional to phase slope across the band - estimate this as the phase difference between
+    # consecutive frequency channels calculated via np.diff. Pick antenna 1 as reference antenna -> correlation
+    # product XY* means we actually measure phase(antenna1) - phase(antenna2), therefore flip the sign.
+    # Also divide by channel frequency difference, which correctly handles gaps in frequency coverage.
+    phase_diff_per_Hz = np.diff(-np.angle(vis), axis=1) / freq_diff[:, np.newaxis]
+    # Convert to a delay in seconds
+    delay = phase_diff_per_Hz / (-2.0 * np.pi)
+    # Obtain robust periodic statistics for *per-channel* phase difference, as arrays of shape (T, B)
+    delay_stats_mu, delay_stats_sigma = scape.stats.periodic_mu_sigma(delay, axis=1, period=delay_period)
+    # The estimated mean group delay is the average of N-1 per-channel differences. Since this is less
+    # variable than the per-channel data itself, we have to divide the data sigma by sqrt(N-1).
+    delay_stats_sigma /= np.sqrt(num_chans - 1)
+    # Rearrange measurements to shape (B T,)
+    group_delay.append(delay_stats_mu.T.ravel())
+    sigma_delay.append(delay_stats_sigma.T.ravel())
     scan_targets.append(target.name)
     scan_mid_az.append(np.median(az))
     scan_mid_el.append(np.median(el))
-    scan_timestamps.append(ts - data.start_time)
-    scan_phase.append(np.vstack(bl_phase))
+    scan_timestamps.append(ts - data.start_time.secs)
+    # Rearrange vis phase to have shape (B F, T), which will form one column in fringe plot
+    scan_phase.append(np.angle(vis).T.reshape(-1, num_ts))
+    scan_rel_sigma_delay = delay_stats_sigma.mean(axis=0) / max_sigma_delay
     print "scan %3d (%4d samples) %s '%s'" % \
-          (scan_ind, len(ts), ' '.join([('%.3f' % rel_sigma) for rel_sigma in scan_rel_sigma_delay]), target.name)
+          (scan_ind, num_ts, ' '.join([('%.3f' % rel_sigma) for rel_sigma in scan_rel_sigma_delay]), target.name)
 if not augmented_targetdir:
     raise RuntimeError('No usable scans found (are you tracking any targets?)')
 # Concatenate per-baseline arrays into a single array for data set
@@ -201,7 +224,7 @@ new_predicted_delay = np.dot(new_delay_model, augmented_targetdir)
 new_resid = unwrapped_group_delay - new_predicted_delay
 
 # Output results
-for n, ant in enumerate(ants):
+for n, ant in enumerate(data.ants):
     print "\nAntenna", ant.name, ' (*REFERENCE*)' if n == ref_ant_ind else ''
     print "------------"
     print "E (m):               %7.3f +- %.5f (was %7.3f)%s" % \
@@ -287,7 +310,7 @@ plt.clf()
 ax = plt.axes(polar=True)
 eastnorth_radius = np.sqrt(old_positions[:, 0] ** 2 + old_positions[:, 1] ** 2)
 eastnorth_angle = np.arctan2(old_positions[:, 0], old_positions[:, 1])
-for ant, theta, r in zip(ants, eastnorth_angle, eastnorth_radius):
+for ant, theta, r in zip(data.ants, eastnorth_angle, eastnorth_radius):
     ax.text(np.pi/2. - theta, r * 0.9 * np.pi/2. / eastnorth_radius.max(), ant.name,
             ha='center', va='center').set_bbox(dict(facecolor='b', lw=1, alpha=0.3))
 # Quality of delays obtained from source, with 0 worst and 1 best
