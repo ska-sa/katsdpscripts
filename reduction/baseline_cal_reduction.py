@@ -30,8 +30,9 @@ cable_lightspeed = katpoint.lightspeed / 1.4
 parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]")
 parser.add_option('-a', '--ants',
                   help="Comma-separated subset of antennas to use in fit (e.g. 'ant1,ant2'), default is all antennas")
-parser.add_option("-f", "--freq-chans", default='98,417',
-                  help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
+parser.add_option("-f", "--freq-chans",
+                  help="Range of frequency channels to keep (zero-based inclusive 'first_chan,last_chan', "
+                       "default is [0.25*num_chans, 0.75*num_chans))")
 parser.add_option('-p', '--pol', type='choice', choices=['H', 'V'], default='H',
                   help="Polarisation term to use ('H' or 'V'), default is %default")
 parser.add_option('-r', '--ref', dest='ref_ant', help="Reference antenna, default is first antenna in file")
@@ -45,7 +46,7 @@ parser.add_option('-x', '--exclude', default='', help="Comma-separated list of s
 # Quick way to set options for use with cut-and-pasting of script bits
 # opts = optparse.Values()
 # opts.ants = 'ant2,ant3,ant5,ant6,ant7'
-# opts.freq_chans = '200,700'
+# opts.freq_chans = '200,699'
 # opts.pol = 'H'
 # opts.ref_ant = 'ant2'
 # opts.max_sigma = 0.2
@@ -53,7 +54,7 @@ parser.add_option('-x', '--exclude', default='', help="Comma-separated list of s
 # opts.exclude = ''
 # import glob
 # args = sorted(glob.glob('*.h5'))
-# args = ['/Users/schwardt/Downloads/1315991422_baselinecal.h5']
+# args = ['1315991422.h5']
 
 if len(args) < 1:
     raise RuntimeError('Please specify HDF5 data file(s) to use as arguments of the script')
@@ -63,9 +64,13 @@ katpoint.logger.setLevel(30)
 print "\nLoading and processing data...\n"
 data = katfile.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
 
-# Select frequency channel range and only cross-correlation products in data set
-chan_range = slice(*[int(chan_str) for chan_str in opts.freq_chans.split(',')]) \
-             if opts.freq_chans is not None else slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
+# Select frequency channel range and only keep cross-correlation products and single pol in data set
+if opts.freq_chans is not None:
+    freq_chans = [int(chan_str) for chan_str in opts.freq_chans.split(',')]
+    first_chan, last_chan = freq_chans[0], freq_chans[1]
+    chan_range = slice(first_chan, last_chan + 1)
+else:
+    chan_range = slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
 active_pol = opts.pol.lower()
 data.select(channels=chan_range, corrprods='cross', pol=active_pol)
 if opts.ants is not None:

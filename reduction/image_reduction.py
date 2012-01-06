@@ -32,8 +32,8 @@ parser.add_option('-g', '--gain-cal', help="Gain calibrator name (**required**)"
 parser.add_option('-a', '--ants',
                   help="Comma-separated subset of antennas to use (e.g. 'ant1,ant2'), default is all antennas")
 parser.add_option("-f", "--freq-chans",
-                  help="Range of frequency channels to keep (zero-based 'start,end', "
-                       "default is [0.25*num_chans, 0.75*num_chans])")
+                  help="Range of frequency channels to keep (zero-based inclusive 'first_chan,last_chan', "
+                       "default is [0.25*num_chans, 0.75*num_chans))")
 parser.add_option("--chan-avg", type='int', default=60,
                   help="Number of adjacent frequency channels to average together in MFS imaging (default = %default)")
 parser.add_option("--time-avg", type='int', default=90,
@@ -65,7 +65,7 @@ if opts.gain_cal is None:
 # opts.bandpass_cal = '3C 273'
 # opts.gain_cal = 'PKS 1421-490'
 # opts.ants = None
-# opts.freq_chans = '200,800'
+# opts.freq_chans = '200,799'
 # opts.chan_avg = 60
 # opts.time_avg = 90
 # opts.pol = 'H'
@@ -98,9 +98,13 @@ print "Opening data file(s)..."
 # Open data files
 data = katfile.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
 
-# Select frequency channel range and only cross-correlation products in data set
-chan_range = slice(*[int(chan_str) for chan_str in opts.freq_chans.split(',')]) \
-             if opts.freq_chans is not None else slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
+# Select frequency channel range and only keep cross-correlation products and single pol in data set
+if opts.freq_chans is not None:
+    freq_chans = [int(chan_str) for chan_str in opts.freq_chans.split(',')]
+    first_chan, last_chan = freq_chans[0], freq_chans[1]
+    chan_range = slice(first_chan, last_chan + 1)
+else:
+    chan_range = slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
 active_pol = opts.pol.lower()
 data.select(channels=chan_range, corrprods='cross', pol=active_pol)
 channels_per_band, dumps_per_vis = opts.chan_avg, opts.time_avg
