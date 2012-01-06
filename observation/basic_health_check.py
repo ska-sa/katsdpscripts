@@ -146,7 +146,10 @@ def check_sensors(kat, selected_sensors, show_only_errors):
                 current_val = str(eval(checker))
                 sensor_status = str(eval(checker.split(".get_value()")[0] + ".status"))
 
-                if type(min_val) is list:
+                if current_val == 'None':
+                    print "%s %s %s %s" % (col("red") + checker.ljust(65), ("<no value> (" + sensor_status + ")").ljust(25),\
+                    str(min_val).ljust(25), str(max_val).ljust(25) + col("normal"))
+                elif type(min_val) is list:
                     if current_val in min_val and sensor_status not in sensor_status_errors:
                         if not show_only_errors:
                             if sensor_status == 'warn':
