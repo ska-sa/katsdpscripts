@@ -247,8 +247,8 @@ def run(kat, opts, selected_sensors):
         ants = katuilib.observe.ant_array(kat,opts.ants)
         tgt_index = {} # target strings as keys with values as a zero-based index to ant_list list of lists
         ant_list = [] # list of lists of antennas per target
-        locks = []
-        modes = []
+        locks = {}
+        modes = {}
         for ant in ants.devs:
             tgt = ant.sensor.target.get_value()
             if tgt == '' : tgt = 'None'
@@ -257,8 +257,8 @@ def run(kat, opts, selected_sensors):
                 ant_list.append([ant.name])
             else:
                 ant_list[tgt_index[tgt]].append(ant.name)
-            locks.append(ant.sensor.lock.get_value())
-            modes.append(ant.sensor.mode.get_value())
+            locks[ant.name] = ant.sensor.lock.get_value()
+            modes[ant.name] = ant.sensor.mode.get_value()
         print '\nCurrent targets for antennas (green = locked):'
         tgt_index_keys = tgt_index.keys()
         tgt_index_keys.sort(key=str.lower) # order targets alphabetically
@@ -267,7 +267,7 @@ def run(kat, opts, selected_sensors):
         for key in tgt_index_keys:
             ant_list_str = '['
             for ant in ant_list[tgt_index[key]]:
-                if locks[int(ant.split('ant')[1])-1] == '1':
+                if locks[ant] == '1':
                     ant_list_str = ant_list_str + col('green') + str(ant) + col('normal') + ','
                 else:
                     ant_list_str = ant_list_str + str(ant) + ','
@@ -275,14 +275,24 @@ def run(kat, opts, selected_sensors):
                 print '  ' + col('blue') + str(key) + col('normal') +' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra comma
             else:
                 print '  ' + str(key) +' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
-        print 'Antenna lock: ' + str(locks) # also useful to show single-glance locks
+
+        # print antenna locks and modes on a line each (provide single glance view)
+        all_ants = modes.keys()
+        all_ants.sort(key=str.lower) # sort alphabetically
+        ant_lock_str = '['
         ant_mode_str = '['
-        for mode in modes:
-            if mode == 'POINT':
-                ant_mode_str = ant_mode_str + col('blue') + str(mode) + col('normal') + ', '
+        for ant in all_ants:
+            if locks[ant] == '1':
+                ant_lock_str = ant_lock_str + col('green') + str(ant) +':' + str(locks[ant]) + col('normal') + ', '
             else:
-                ant_mode_str = ant_mode_str + str(mode) + ', '
+                ant_lock_str = ant_lock_str + str(ant) +':' + str(locks[ant]) + ', '
+            if modes[ant] == 'POINT':
+                ant_mode_str = ant_mode_str + col('blue') + str(ant) +':' + str(modes[ant]) + col('normal') + ', '
+            else:
+                ant_mode_str = ant_mode_str + str(ant) +':' + str(modes[ant]) + ', '
+        print 'Antenna lock: ' + ant_lock_str[0:len(ant_lock_str)-2] + ']'
         print 'Antenna mode:' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
+
     except Exception, e:
         print col('red') + '\nERROR: could not retrieve status info... ' + col('normal')
         print col('red') + '(' + str(e) + ')' + col('normal')
@@ -341,15 +351,20 @@ if __name__ == '__main__':
     if opts.refresh > 0:
         if opts.max_duration > 0: end_time = time.time() + float(opts.max_duration)
         ended = False
-        while (not ended):
-            print '\nCurrent local time: ' + time.ctime()
-            run(kat,opts,selected_sensors)
-            if opts.max_duration > opts.refresh:
-                if time.time() > end_time: ended = True
-                print 'Checking every ' + opts.refresh + ' secs (ends in ' + str(int(end_time-time.time())) + ' secs or Control-c to break)'
-            else:
-                print 'Checking every ' + opts.refresh + ' secs (Control-c to break)'
-            time.sleep(max(1.0,float(opts.refresh))) # don't try go faster than 1 sec
+        try:
+            while (not ended):
+                print '\nCurrent local time: ' + time.ctime()
+                run(kat,opts,selected_sensors)
+                if long(opts.max_duration) > long(opts.refresh):
+                    if time.time() > end_time: ended = True
+                    time_left = max(0,int(end_time-time.time()))
+                    hrs_left = time_left/3600.0
+                    print 'Checking every ' + opts.refresh + ' secs. Monitoring ends in %s secs (%.3f hours) - ctrl-c to exit' % (time_left,hrs_left)
+                else:
+                    print 'Checking every ' + opts.refresh + ' secs - ctrl-c to exit'
+                time.sleep(max(1.0,float(opts.refresh))) # don't try go faster than 1 sec
+        except KeyboardInterrupt:
+            print '\nKeyboard Interrupt detected. Exiting gracefully :)'
     else:
         print '\nCurrent local time: ' + time.ctime()
         run(kat,opts,selected_sensors)
