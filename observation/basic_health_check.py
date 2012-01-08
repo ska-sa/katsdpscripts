@@ -11,6 +11,7 @@
 # would hope that there would not be major differences. The script does currently
 # display the sensor status along with the current values which, over time, will help
 # to iron out any discrepancies between the two sources of expected sensor ranges.
+# 2) Create a switch to only include specified antennas e.g. -a 'ant1,ant2,ant4'
 
 from optparse import OptionParser
 import time
@@ -19,44 +20,29 @@ import sys
 import katuilib
 from katuilib.ansi import col
 
-# Sensor groups
+# Sensor groups (and templates for creating sensor groups)
+# Structure is list of tuples with either (command to access sensor value, min value, max value)
+# or (command, list of string options, blank string)
 
-# programmatically generate various sensor groups e.g. ant1, ant2, ... ant7
-ant_template = [ # structure is list of tuples with (command to access sensor value, min value, max value)
+ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
 ("kat.ped#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0),
 ("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
 ("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
-("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''), # command, list of string options, blank string
+("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''),
 ("kat.ant#.sensor.windstow_active.get_value()",0,0),
 ("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ]
 
-rfe7_downconverter_template = [
-("kat.rfe7.sensor.rfe7_downconverter_ant#_h_powerswitch.get_value()", 1,1), # do we actually need these to be checked?
+rfe7_template = [
+("kat.rfe7.sensor.rfe7_downconverter_ant#_h_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_downconverter_ant#_v_powerswitch.get_value()", 1,1),
 ]
 
-dbe7_adc_power_template = [
-("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-27.0,-25.0),
-("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-27.0,-25.0),
-]
-
-for i in range(1,8):
-    antvar = 'ant' + str(i)
-    vars()[antvar] = []
-    for sensor in ant_template:
-        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
-    for sensor in rfe7_downconverter_template:
-        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
-    for sensor in dbe7_adc_power_template:
-        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
-    vars()[antvar].append(("","",""))
-
-rfe7 = [ # structure is list of tuples with (command to access sensor value, min value, max value)
+rfe7_base = [
 ("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1),
 ("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1),
 ("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1),
@@ -65,8 +51,17 @@ rfe7 = [ # structure is list of tuples with (command to access sensor value, min
 ("","",""), # creates a blank line
 ]
 
-dc = [# structure is list of tuples with (command to access sensor value, min value, max value)
-("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''), # command, list of string options, blank string
+dbe7_template = [
+("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-27.0,-20.0),
+("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-27.0,-20.0),
+]
+
+dbe7_base = [
+("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''),
+("","",""), # creates a blank line
+]
+
+dc = [
 ("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],''),
 ("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
 ("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
@@ -74,23 +69,20 @@ dc = [# structure is list of tuples with (command to access sensor value, min va
 ("","",""), # creates a blank line
 ]
 
-tfr = [# structure is list of tuples with (command to access sensor value, min value, max value)
+tfr_template = [
+("kat.ant#.sensor.antenna_acu_ntp_time.get_value()",1,1),
+]
+
+tfr_base = [
 ("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1),
 ("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1), # does this include kat-dc1?
 ("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1),
 ("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1),
-("kat.ant1.sensor.antenna_acu_ntp_time.get_value()",1,1),
-("kat.ant2.sensor.antenna_acu_ntp_time.get_value()",1,1),
-("kat.ant3.sensor.antenna_acu_ntp_time.get_value()",1,1),
-("kat.ant4.sensor.antenna_acu_ntp_time.get_value()",1,1),
-("kat.ant5.sensor.antenna_acu_ntp_time.get_value()",1,1),
-("kat.ant6.sensor.antenna_acu_ntp_time.get_value()",1,1),
-("kat.ant7.sensor.antenna_acu_ntp_time.get_value()",1,1),
 ("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1),
 ("","",""), # creates a blank line
 ]
 
-anc = [# structure is list of tuples with (command to access sensor value, min value, max value)
+anc = [
 ("kat.anc.sensor.asc_asc_air_temperature.get_value()", 0.0,32.0),
 ("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 6.0,22.0),
 ("kat.anc.sensor.cc_cc_air_temperature.get_value()", 0.0,30.0),
@@ -106,16 +98,39 @@ anc = [# structure is list of tuples with (command to access sensor value, min v
 ("","",""), # creates a blank line
 ]
 
-lab_rfe7 = [ # structure is list of tuples with (command to access sensor value, default value, tolerance)
+lab_rfe7 = [
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1,1),
 ("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1,1),
 ("","",""), # creates a blank line
 ]
 
+dbe7_ants = [] # per antenna dbe7 sensors
+rfe7_ants = [] # per antenna rfe7 sensors
+tfr_ants = [] # per antenna tfr sensors
+
+# Create the per antenna sensors programmatically
+
+for i in range(1,8): # just want the selected antennas here (TODO #2). Need to generate this after options specified later....
+    antvar = 'ant' + str(i)
+    vars()[antvar] = []
+    for sensor in ant_template:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+    for sensor in rfe7_template:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+        rfe7_ants.append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+    for sensor in dbe7_template:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+        dbe7_ants.append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+    for sensor in tfr_template:
+        vars()[antvar].append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+        tfr_ants.append((sensor[0].replace("#",str(i)),sensor[1],sensor[2]))
+    vars()[antvar].append(("","","")) # add a blank line to the per antenna group
+
+
 # Dictionary containing multiple sensor groups, identified by name (user selects one of these by name at runtime)
 sensor_group = {
-'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7 + dc + tfr + anc,
+'karoo' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7 + rfe7_base + dbe7_base + dc + tfr_base + anc,
 'ant1' : ant1,
 'ant2' : ant2,
 'ant3' : ant3,
@@ -124,9 +139,10 @@ sensor_group = {
 'ant6' : ant6,
 'ant7' : ant7,
 'ants' : ant1 + ant2 + ant3 + ant4 + ant5 + ant6 + ant7,
-'rfe7' : rfe7,
+'rfe7' : rfe7_ants + rfe7_base,
+'dbe7' : dbe7_ants + dbe7_base,
 'dc' : dc,
-'tfr' : tfr,
+'tfr' : tfr_ants + tfr_base,
 'anc' : anc,
 'lab_rfe7' : lab_rfe7,
 'lab' : ant1 + lab_rfe7,
@@ -191,9 +207,12 @@ if __name__ == "__main__":
     sensor_group_keys = sensor_group.keys()
     sensor_group_keys.sort(key=str.lower) # for some reason python does not like to do this in one line
     parser.add_option('-g', '--sensor_group', default="karoo",
-                      help='Selected sensor group to use: ' + '|'.join(sensor_group_keys) + ' (default="%default")')
+                      help="Selected sensor group to use: " + "|".join(sensor_group_keys) + " (default='%default')")
+    # parser.add_option('-a', '--ants', default='all',
+    #                   help="Comma-separated list of antennas to include (e.g. 'ant1,ant2'), "+
+    #                   "or 'all' for all antennas (default='%default')")
     parser.add_option('-e', '--errors_only', action='store_true', default=False,
-                      help='Show only values in error, if this switch is included (default="%default")')
+                      help="Show only values in error, if this switch is included (default='%default')")
 
     (opts, args) = parser.parse_args()
 
