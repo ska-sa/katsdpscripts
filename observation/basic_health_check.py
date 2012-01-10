@@ -16,6 +16,20 @@
 # sensor status along with the current sensor values. In time, this will help
 # to iron out any discrepancies between the two sources of expected sensor ranges.
 
+# TODO:
+# - add check for SCAN mode - also make blue - DONE
+# - change -f to -v (verbose) - DONE
+# - fix -h examples - DONE
+# - add activity sensor in the status and in the ants group - DONE
+# - streamline output - ONGOING
+# - option to hide header (status) or show every nth time.
+# - "stealth/alarm" option only show when errors happen
+# - neaten up timing at end of run (waits on 0 secs)
+# - add h5 file name to status area
+# - option to write output to file as well as display on screen??
+# - option to load sensors of interest from file.
+# - show estimate of script end time (if sensor available)
+
 from optparse import OptionParser
 import time
 import sys
@@ -35,6 +49,7 @@ ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
 ("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
 ("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
 ("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''),
+("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop"],''),
 ("kat.ant#.sensor.windstow_active.get_value()",0,0),
 ("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
@@ -110,20 +125,21 @@ lab_rfe7_group = [
 
 
 # Dictionary containing selectable sensor groups, identified by name (user selects one of these at runtime).
-# Where there are empty lists, entries get added by the generate_sensor_groups() method at run-time.
-# Had thoughts of generating the per antenna entries progammatically here based on selected antennas only,
-# but these need to exist for the basic script help i.e. before the kat object is interrogated.
+# Where there are empty lists, (usually per antenna) entries get added by the generate_sensor_groups()
+# method at run-time. Had thoughts of generating the per antenna entries progammatically here based on
+# selected antennas only, but these need to exist for the basic script help i.e. before the kat object is
+#interrogated.
 sensor_group_dict = {
-'karoo' : [] + rfe7_base_group + dbe7_base_group + dc_group + tfr_base_group + anc_group, # antenna groups get added to this
+'karoo' : [] + rfe7_base_group + dbe7_base_group + dc_group + tfr_base_group + anc_group,
 'ant1' : [],'ant2' : [],'ant3' : [],'ant4' : [],'ant5' : [],'ant6' : [],'ant7' : [],
 'ants' : [],
-'rfe7' : [], # per antenna sensors get added
-'dbe7' : [], # per antenna sensors get added
+'rfe7' : [],
+'dbe7' : [],
 'dc' : dc_group,
-'tfr' : [], #per antenna sensors get added
+'tfr' : [],
 'anc' : anc_group,
 'lab_rfe7' : lab_rfe7_group,
-'lab' : [], # per antenna sensors get added
+'lab' : [],
 }
 
 def generate_sensor_groups(kat,selected_ants,sensor_groups):
@@ -159,12 +175,16 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
 
 sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
 
+def print_header():
+    print '%s %s %s %s' % ('\nSensor (red => potential problem)'.ljust(65), 'Value (sensor status)'.ljust(25),\
+          'Min Expected'.ljust(25), 'Max Expected'.ljust(25))
+
 def check_sensors(kat, selected_sensors, opts):
     """ Check current system setting and compare with expected range as specified above.
     Things appear colour-coded according to whether in expected range and if sensor status.
     """
-
-    print '%s %s %s %s' % ('Sensor'.ljust(65), 'Value (sensor status)'.ljust(25),'Min Expected'.ljust(25), 'Max Expected'.ljust(25))
+    
+    header_printed = False
     potential_problems = False
     
     if len(selected_sensors) == 0:
@@ -173,7 +193,7 @@ def check_sensors(kat, selected_sensors, opts):
     
     for checker, min_val, max_val in selected_sensors:
         if checker.strip() == '':
-            if opts.show_full: print '' # print a blank line, but skip this if only showing errors
+            if opts.verbose: print '' # print a blank line, but skip this if only showing errors
         else:
             try:
                 current_val = str(eval(checker))
@@ -181,11 +201,13 @@ def check_sensors(kat, selected_sensors, opts):
 
                 if current_val == 'None':
                     potential_problems = True
+                    if not header_printed: print_header(); header_printed = True
                     print '%s %s %s %s' % (col('red') + checker.ljust(65), ('<no value> (' + sensor_status + ')').ljust(25),\
                     str(min_val).ljust(25), str(max_val).ljust(25) + col('normal'))
                 elif type(min_val) is list:
                     if current_val in min_val and sensor_status not in sensor_status_errors:
-                        if opts.show_full:
+                        if opts.verbose:
+                            if not header_printed: print_header(); header_printed = True
                             if sensor_status == 'warn':
                                 print '%s %s %s %s' % (col('brown') + checker.ljust(65),\
                                 (current_val+' (' + sensor_status + ')').ljust(25),str(min_val).ljust(25), '' + col('normal'))
@@ -194,11 +216,13 @@ def check_sensors(kat, selected_sensors, opts):
                                  str(min_val).ljust(25), '' + col('normal'))
                     else:
                         potential_problems = True
+                        if not header_printed: print_header(); header_printed = True
                         print '%s %s %s %s' % (col('red') + checker.ljust(65), (current_val+' (' + sensor_status + ')').ljust(25),\
                         str(min_val).ljust(25),'' + col('normal'))
                 else:
                     if (min_val <= float(current_val) and float(current_val) <=  max_val) and sensor_status not in sensor_status_errors:
-                        if opts.show_full:
+                        if opts.verbose:
+                            if not header_printed: print_header(); header_printed = True
                             if sensor_status == 'warn':
                                 print '%s %s %s %s' % (col('brown') + checker.ljust(65),\
                                 (current_val+' (' + sensor_status + ')').ljust(25), str(min_val).ljust(25),\
@@ -208,37 +232,38 @@ def check_sensors(kat, selected_sensors, opts):
                                  current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col('normal'))
                     else:
                         potential_problems = True
+                        if not header_printed: print_header(); header_printed = True
                         print '%s %s %s %s' % (col('red') + checker.ljust(65), (current_val+' (' + sensor_status + ')').ljust(25),\
                         str(min_val).ljust(25), str(max_val).ljust(25) + col('normal'))
             except Exception, e:
                 potential_problems = True
+                if not header_printed: print_header(); header_printed = True
                 print col('red') + 'Could not check ',checker, ' [expected range: %r , %r]' % (min_val,max_val)
                 print str(e) + col('normal')
 
     if potential_problems:
-        print col('red') + 'Some potential problems found' + col('normal')
+        print '\n' + col('red') + 'Potential problems found' + col('normal')
     else:
-        print col('green') + 'All seems well :)' + col('normal')
+        print '\n' + col('green') + 'All seems well :)' + col('normal')
 
 def run(kat, opts, selected_sensors):
     try:
         if kat.dbe7.sensor.k7w_script_status.get_value() == 'busy':
-            print 'Current script running: %s' \
+            print '## Script running: %s' \
                   % ( col('blue') + kat.dbe7.sensor.k7w_script_name.get_value() + \
-                  ' (' + kat.dbe7.sensor.k7w_script_description.get_value() + ') with status: "' +  \
-                  ' '.join(kat.dbe7.sensor.k7w_script_log.get_value().split()) + '"' + col('normal') )
-            print 'Current observer: %s' % (col('blue') + kat.dbe7.sensor.k7w_script_observer.get_value() + col('normal'))
+                  ' - "' + kat.dbe7.sensor.k7w_script_description.get_value() + '" by '+ \
+                  kat.dbe7.sensor.k7w_script_observer.get_value() + col('normal') )
         else:
-            print 'Current script running: none'
+            print '## Script running: none'
         dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
         if dbe_mode == 'wbc':
-            print 'Current DBE7 mode: %s' % str(dbe_mode)
+            print '## DBE7 mode & centre freq: %s (%s MHz)' % (str(dbe_mode),str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
         elif dbe_mode == 'wbc8k':
-            print 'Current DBE7 mode: %s' % (col('brown') + str(dbe_mode) + col('normal'))
+            print '## DBE7 mode & centre freq: %s (%s MHz)' % (col('brown') + str(dbe_mode) + col('normal'),\
+               str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
         else:
-            print 'Current DBE7 mode: %s' % (col('red') + 'unknown' + col('normal'))
-        print 'Current centre frequency: %s MHz' % (str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
-
+            print '## DBE7 mode & centre freq: %s (%s MHz)' % ((col('red') + 'unknown' + col('normal')),\
+               str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
 
         # Some fancy footwork to list antennas by target after retrieving target per antenna.
         # There may be a neater/more compact way to do this, but a dict with target strings as keys
@@ -247,8 +272,7 @@ def run(kat, opts, selected_sensors):
         ants = katuilib.observe.ant_array(kat,opts.ants)
         tgt_index = {} # target strings as keys with values as a zero-based index to ant_list list of lists
         ant_list = [] # list of lists of antennas per target
-        locks = {}
-        modes = {}
+        locks, modes, activity = {}, {}, {}
         for ant in ants.devs:
             tgt = ant.sensor.target.get_value()
             if tgt == '' : tgt = 'None'
@@ -259,7 +283,8 @@ def run(kat, opts, selected_sensors):
                 ant_list[tgt_index[tgt]].append(ant.name)
             locks[ant.name] = ant.sensor.lock.get_value()
             modes[ant.name] = ant.sensor.mode.get_value()
-        print '\nCurrent targets for antennas (green = locked):'
+            activity[ant.name] = ant.sensor.activity.get_value()
+        print '\n## Targets & antennas (green => locked):'
         tgt_index_keys = tgt_index.keys()
         tgt_index_keys.sort(key=str.lower) # order targets alphabetically
 
@@ -268,13 +293,13 @@ def run(kat, opts, selected_sensors):
             ant_list_str = '['
             for ant in ant_list[tgt_index[key]]:
                 if locks[ant] == '1':
-                    ant_list_str = ant_list_str + col('green') + str(ant) + col('normal') + ','
+                    ant_list_str = ant_list_str + col('green') + str(ant) + ':'+ str(activity[ant]) + col('normal') + ', '
                 else:
-                    ant_list_str = ant_list_str + str(ant) + ','
+                    ant_list_str = ant_list_str + str(ant) + ':' + str(activity[ant]) + ', '
             if str(key) is not 'None':
-                print '  ' + col('blue') + str(key) + col('normal') +' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra comma
+                print '  ' + col('blue') + str(key) + col('normal') +' : ' + ant_list_str[0:len(ant_list_str)-2] + ']' # remove extra comma
             else:
-                print '  ' + str(key) +' : ' + ant_list_str[0:len(ant_list_str)-1] + ']' # remove extra trailing comma
+                print '  ' + str(key) +' : ' + ant_list_str[0:len(ant_list_str)-2] + ']' # remove extra trailing comma
 
         # print antenna locks and modes on a line each (provide single glance view)
         all_ants = modes.keys()
@@ -286,29 +311,28 @@ def run(kat, opts, selected_sensors):
                 ant_lock_str = ant_lock_str + col('green') + str(ant) +':' + str(locks[ant]) + col('normal') + ', '
             else:
                 ant_lock_str = ant_lock_str + str(ant) +':' + str(locks[ant]) + ', '
-            if modes[ant] == 'POINT':
+            if modes[ant] == 'POINT' or modes[ant] == 'SCAN':
                 ant_mode_str = ant_mode_str + col('blue') + str(ant) +':' + str(modes[ant]) + col('normal') + ', '
             else:
                 ant_mode_str = ant_mode_str + str(ant) +':' + str(modes[ant]) + ', '
-        print 'Antenna lock: ' + ant_lock_str[0:len(ant_lock_str)-2] + ']'
-        print 'Antenna mode:' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
+        print '## Ant locks: ' + ant_lock_str[0:len(ant_lock_str)-2] + ']'
+        print '## Ant modes: ' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
 
     except Exception, e:
         print col('red') + '\nERROR: could not retrieve status info... ' + col('normal')
         print col('red') + '(' + str(e) + ')' + col('normal')
-    
+
     if not opts.busy_only:
-        print '\nChecking basic health (red => potential problem) ...'
         check_sensors(kat,selected_sensors,opts)
     else:
-        print 'No checking of sensors performed (as per user selection).'
+        print '\nNo health checks performed.'
 
 if __name__ == '__main__':
 
     parser = OptionParser(usage='%prog [options]',
                           description='Perform basic status (blue = busy) and health check of the system for observers. ' +
                           'Can be run at any time without affecting current settings/observation.',
-                          epilog = 'Examples: "basic_health_check.py -e", or "basic_health_check.py -g ants"')
+                          epilog = "Examples: basic_health_check.py -a 'ant1,ant3' -r 5 -m 20, or basic_health_check.py -g ants")
     parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
                       '(default reuses existing connection, or falls back to systems/local.conf)')
     sensor_group_dict_keys = sensor_group_dict.keys()
@@ -318,8 +342,8 @@ if __name__ == '__main__':
     parser.add_option('-a', '--ants', default='all',
                       help="Comma-separated list of antennas to include (e.g. 'ant1,ant2'), "+
                       "or 'all' for all antennas (default='%default').")
-    parser.add_option('-f', '--show_full', action='store_true', default=False,
-                      help='Show all sensors that are checked. Default is to only show values in error. (default="%default")')
+    parser.add_option('-v', '--verbose', action='store_true', default=False,
+                    help='Verbose. Show all sensors that are checked. Default is to only show values in error.(default="%default")')
     parser.add_option('-b', '--busy_only', action='store_true', default=False,
                     help='Show only header (busy) info. Skip error checks. (default="%default")')
     parser.add_option('-r', '--refresh', default=0,
