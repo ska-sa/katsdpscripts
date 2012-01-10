@@ -21,8 +21,9 @@
 # - change -f to -v (verbose) - DONE
 # - fix -h examples - DONE
 # - add activity sensor in the status and in the ants group - DONE
-# - streamline output - ONGOING
-# - option to hide header (status) or show every nth time.
+# - streamline output - ONGOING...
+# - drop single glance locks line?
+# - option to hide header or show every nth time?? think about it.
 # - "stealth/alarm" option only show when errors happen
 # - neaten up timing at end of run (waits on 0 secs)
 # - add h5 file name to status area
@@ -284,11 +285,22 @@ def run(kat, opts, selected_sensors):
             locks[ant.name] = ant.sensor.lock.get_value()
             modes[ant.name] = ant.sensor.mode.get_value()
             activity[ant.name] = ant.sensor.activity.get_value()
-        print '\n## Targets & antennas (green => locked):'
-        tgt_index_keys = tgt_index.keys()
-        tgt_index_keys.sort(key=str.lower) # order targets alphabetically
+
+        # print antenna modes
+        all_ants = modes.keys()
+        all_ants.sort(key=str.lower) # sort alphabetically
+        ant_mode_str = '['
+        for ant in all_ants:
+            if modes[ant] == 'POINT' or modes[ant] == 'SCAN':
+                ant_mode_str = ant_mode_str + col('blue') + str(ant) +':' + str(modes[ant]) + col('normal') + ', '
+            else:
+                ant_mode_str = ant_mode_str + str(ant) +':' + str(modes[ant]) + ', '
+        print '\n## Ant modes: ' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
 
         # print list of targets with corresponding antennas (locked ones in green)
+        print '## Targets & antennas (green => locked):'
+        tgt_index_keys = tgt_index.keys()
+        tgt_index_keys.sort(key=str.lower) # order targets alphabetically
         for key in tgt_index_keys:
             ant_list_str = '['
             for ant in ant_list[tgt_index[key]]:
@@ -297,26 +309,9 @@ def run(kat, opts, selected_sensors):
                 else:
                     ant_list_str = ant_list_str + str(ant) + ':' + str(activity[ant]) + ', '
             if str(key) is not 'None':
-                print '  ' + col('blue') + str(key) + col('normal') +' : ' + ant_list_str[0:len(ant_list_str)-2] + ']' # remove extra comma
+                print '   ' + col('blue') + str(key) + col('normal') +' : ' + ant_list_str[0:len(ant_list_str)-2] + ']' # remove extra comma
             else:
-                print '  ' + str(key) +' : ' + ant_list_str[0:len(ant_list_str)-2] + ']' # remove extra trailing comma
-
-        # print antenna locks and modes on a line each (provide single glance view)
-        all_ants = modes.keys()
-        all_ants.sort(key=str.lower) # sort alphabetically
-        ant_lock_str = '['
-        ant_mode_str = '['
-        for ant in all_ants:
-            if locks[ant] == '1':
-                ant_lock_str = ant_lock_str + col('green') + str(ant) +':' + str(locks[ant]) + col('normal') + ', '
-            else:
-                ant_lock_str = ant_lock_str + str(ant) +':' + str(locks[ant]) + ', '
-            if modes[ant] == 'POINT' or modes[ant] == 'SCAN':
-                ant_mode_str = ant_mode_str + col('blue') + str(ant) +':' + str(modes[ant]) + col('normal') + ', '
-            else:
-                ant_mode_str = ant_mode_str + str(ant) +':' + str(modes[ant]) + ', '
-        print '## Ant locks: ' + ant_lock_str[0:len(ant_lock_str)-2] + ']'
-        print '## Ant modes: ' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
+                print '   ' + str(key) +' : ' + ant_list_str[0:len(ant_list_str)-2] + ']' # remove extra trailing comma
 
     except Exception, e:
         print col('red') + '\nERROR: could not retrieve status info... ' + col('normal')
