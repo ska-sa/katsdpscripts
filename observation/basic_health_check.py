@@ -22,14 +22,18 @@
 # - fix -h examples - DONE
 # - add activity sensor in the status and in the ants group - DONE
 # - streamline output - ONGOING...
-# - drop single glance locks line?
-# - option to hide header or show every nth time?? think about it.
-# - "stealth/alarm" option only show when errors happen
+# - drop single glance locks line? - DONE
+# - show more info in header re running script - DONE
+
+# - "--alarm" option only show when errors happen
 # - neaten up timing at end of run (waits on 0 secs)
-# - add h5 file name to status area
-# - option to write output to file as well as display on screen??
-# - option to load sensors of interest from file.
+# - show az,el per target for array centre
+
+# - option to write output to file as well as display on screen?
+# - option to load sensors of interest from file ("custom" group).
 # - show estimate of script end time (if sensor available)
+# - show h5 filename and MB written, if available
+
 
 from optparse import OptionParser
 import time
@@ -50,7 +54,7 @@ ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
 ("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", 0,0),
 ("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", 0,0),
 ("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''),
-("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop"],''),
+("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop","stow"],''),
 ("kat.ant#.sensor.windstow_active.get_value()",0,0),
 ("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
@@ -175,14 +179,16 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
 
 
 sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
+busy_colour = 'blue'
 
-def print_header():
-    print '%s %s %s %s' % ('\nSensor (red => potential problem)'.ljust(65), 'Value (sensor status)'.ljust(25),\
+def print_checks_header():
+    print '\n%s %s %s %s' % ('Sensor (red => potential problem)'.ljust(65), 'Value (sensor status)'.ljust(25),\
           'Min Expected'.ljust(25), 'Max Expected'.ljust(25))
 
-def check_sensors(kat, selected_sensors, opts):
+def check_sensors(kat, opts, selected_sensors):
     """ Check current system setting and compare with expected range as specified above.
     Things appear colour-coded according to whether in expected range and if sensor status.
+    Might want to split out presentation from logic soon...
     """
     
     header_printed = False
@@ -202,13 +208,13 @@ def check_sensors(kat, selected_sensors, opts):
 
                 if current_val == 'None':
                     potential_problems = True
-                    if not header_printed: print_header(); header_printed = True
+                    if not header_printed: print_checks_header(); header_printed = True
                     print '%s %s %s %s' % (col('red') + checker.ljust(65), ('<no value> (' + sensor_status + ')').ljust(25),\
                     str(min_val).ljust(25), str(max_val).ljust(25) + col('normal'))
                 elif type(min_val) is list:
                     if current_val in min_val and sensor_status not in sensor_status_errors:
                         if opts.verbose:
-                            if not header_printed: print_header(); header_printed = True
+                            if not header_printed: print_checks_header(); header_printed = True
                             if sensor_status == 'warn':
                                 print '%s %s %s %s' % (col('brown') + checker.ljust(65),\
                                 (current_val+' (' + sensor_status + ')').ljust(25),str(min_val).ljust(25), '' + col('normal'))
@@ -217,13 +223,13 @@ def check_sensors(kat, selected_sensors, opts):
                                  str(min_val).ljust(25), '' + col('normal'))
                     else:
                         potential_problems = True
-                        if not header_printed: print_header(); header_printed = True
+                        if not header_printed: print_checks_header(); header_printed = True
                         print '%s %s %s %s' % (col('red') + checker.ljust(65), (current_val+' (' + sensor_status + ')').ljust(25),\
                         str(min_val).ljust(25),'' + col('normal'))
                 else:
                     if (min_val <= float(current_val) and float(current_val) <=  max_val) and sensor_status not in sensor_status_errors:
                         if opts.verbose:
-                            if not header_printed: print_header(); header_printed = True
+                            if not header_printed: print_checks_header(); header_printed = True
                             if sensor_status == 'warn':
                                 print '%s %s %s %s' % (col('brown') + checker.ljust(65),\
                                 (current_val+' (' + sensor_status + ')').ljust(25), str(min_val).ljust(25),\
@@ -233,12 +239,12 @@ def check_sensors(kat, selected_sensors, opts):
                                  current_val.ljust(25), str(min_val).ljust(25), str(max_val).ljust(25) + col('normal'))
                     else:
                         potential_problems = True
-                        if not header_printed: print_header(); header_printed = True
+                        if not header_printed: print_checks_header(); header_printed = True
                         print '%s %s %s %s' % (col('red') + checker.ljust(65), (current_val+' (' + sensor_status + ')').ljust(25),\
                         str(min_val).ljust(25), str(max_val).ljust(25) + col('normal'))
             except Exception, e:
                 potential_problems = True
-                if not header_printed: print_header(); header_printed = True
+                if not header_printed: print_checks_header(); header_printed = True
                 print col('red') + 'Could not check ',checker, ' [expected range: %r , %r]' % (min_val,max_val)
                 print str(e) + col('normal')
 
@@ -247,24 +253,51 @@ def check_sensors(kat, selected_sensors, opts):
     else:
         print '\n' + col('green') + 'All seems well :)' + col('normal')
 
-def run(kat, opts, selected_sensors):
+def show_status_header(kat, opts, selected_sensors):
+    # Might want to split out presentation from logic soon...
     try:
+        dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
+        if dbe_mode == 'wbc': dbe_mode_colour = 'normal'
+        elif dbe_mode == 'wbc8k': dbe_mode_colour = 'brown'
+        else: dbe_mode = 'unknown'; dbe_mode_color = 'red'
+        system_centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200. # most reliable place to get this
+        
         if kat.dbe7.sensor.k7w_script_status.get_value() == 'busy':
-            print '## Script running: %s' \
-                  % ( col('blue') + kat.dbe7.sensor.k7w_script_name.get_value() + \
-                  ' - "' + kat.dbe7.sensor.k7w_script_description.get_value() + '" by '+ \
-                  kat.dbe7.sensor.k7w_script_observer.get_value() + col('normal') )
+
+            # Retrieve some script relevant info
+            script_name = kat.dbe7.sensor.k7w_script_name.get_value()
+            script_description = kat.dbe7.sensor.k7w_script_description.get_value()
+            observer = kat.dbe7.sensor.k7w_script_observer.get_value()
+            start_time =  float(kat.dbe7.sensor.k7w_script_starttime.get_value())
+            script_arguments = kat.dbe7.sensor.k7w_script_arguments.get_value()
+
+            dump_rate_str = kat.dbe7.sensor.k7w_script_rf_params.get_value().split('Dump rate=')[1] # will produce string e.g. '1 Hz'
+            packets_captured = kat.dbe7.sensor.k7w_packets_captured.get_value()
+            data_file = ''
+            data_file_req = kat.dbe7.req.k7w_get_current_file()
+            if len(data_file_req) == 2: data_file = data_file_req[1].split('/')[-1] # should produce e.g. '1326186470.writing.h5'
+
+            max_duration_ok = False
+            if script_arguments.find("-m") != -1:
+                max_duration = float(script_arguments.split('-m ')[1].split()[0])
+                max_duration_ok = True
+
+            if dbe_mode_colour == 'normal': dbe_mode_colour = busy_colour
+
+            print '## Script running: %s' % ( col(busy_colour) + script_name + ' - "' + script_description + '" by '+ observer + col('normal') )
+            print '## Data file: %s %s' % (col(busy_colour) + data_file, '(' + str(packets_captured) + ' packets captured)' + col('normal') )
+            print '## DBE7 mode & RF centre freq: %s (%s dumps) @ %s' \
+              % (col(dbe_mode_colour)+dbe_mode+col('normal'),col(busy_colour)+dump_rate_str,str(system_centre_freq)+ ' MHz' +col('normal'))
+
+            if max_duration_ok:
+                print '## Run times (local time): %s - %s (%.2f hours)%s' \
+                  % (col(busy_colour) + time.ctime(start_time),time.ctime(start_time+max_duration),max_duration/3600.0,col('normal'))
+            else:
+                print '## Start time (localtime): %s' % (col(busy_colour) + time.ctime(start_time) + col('normal'))
+
         else:
             print '## Script running: none'
-        dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-        if dbe_mode == 'wbc':
-            print '## DBE7 mode & centre freq: %s (%s MHz)' % (str(dbe_mode),str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
-        elif dbe_mode == 'wbc8k':
-            print '## DBE7 mode & centre freq: %s (%s MHz)' % (col('brown') + str(dbe_mode) + col('normal'),\
-               str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
-        else:
-            print '## DBE7 mode & centre freq: %s (%s MHz)' % ((col('red') + 'unknown' + col('normal')),\
-               str(kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.))
+            print '## DBE7 mode and RF centre freq: %s @ %s MHz' % (col(dbe_mode_colour)+dbe_mode+col('normal'),system_centre_freq)
 
         # Some fancy footwork to list antennas by target after retrieving target per antenna.
         # There may be a neater/more compact way to do this, but a dict with target strings as keys
@@ -317,11 +350,6 @@ def run(kat, opts, selected_sensors):
         print col('red') + '\nERROR: could not retrieve status info... ' + col('normal')
         print col('red') + '(' + str(e) + ')' + col('normal')
 
-    if not opts.busy_only:
-        check_sensors(kat,selected_sensors,opts)
-    else:
-        print '\nNo health checks performed.'
-
 if __name__ == '__main__':
 
     parser = OptionParser(usage='%prog [options]',
@@ -339,15 +367,28 @@ if __name__ == '__main__':
                       "or 'all' for all antennas (default='%default').")
     parser.add_option('-v', '--verbose', action='store_true', default=False,
                     help='Verbose. Show all sensors that are checked. Default is to only show values in error.(default="%default")')
-    parser.add_option('-b', '--busy_only', action='store_true', default=False,
-                    help='Show only header (busy) info. Skip error checks. (default="%default")')
-    parser.add_option('-r', '--refresh', default=0,
-                      help='Re-run every r secs where min non-zero value is 1 sec (default="%default")')
+    parser.add_option('-b', '--header_only', action='store_true', default=False,
+                    help='Show only status header (busy) info. Skip error checks. (default="%default")')
+    parser.add_option('-r', '--refresh', default=-1,
+                      help='Re-run every r secs where min non-zero value is 1 sec (default="%default" - no refresh)')
+    # parser.add_option('--alarm', action='store_true', default=False,
+    #               help='Alarm mode. Only update output when new error occurs or error clears. Ignores options ' +
+    #               '-v and -b. Will apply -r 5 if refresh not specified. (default="%default")')
     parser.add_option('-m', '--max_duration', default=-1,
                     help='Stop refreshing after specified secs. Works with the -r option e.g. set to length of ' +
                     'observation run. Default is to continue indefinitely if -r option is used. (default="%default")')
 
     (opts, args) = parser.parse_args()
+
+    # Don't refresh faster than 1 sec
+    if float(opts.refresh) > 0.0 and float(opts.refresh) < 1.0:
+        print "Error: Min refresh is 1 sec. Exiting."
+        sys.exit()
+    # # Override some options if in alarm mode.
+    # if opts.alarm:
+    #     opts.verbose = False;
+    #     opts.header_only = False
+    #     if opts.refresh == -1: opts.refresh = 5 # turn on refresh for alarm mode
 
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
@@ -373,17 +414,24 @@ if __name__ == '__main__':
         try:
             while (not ended):
                 print '\nCurrent local time: ' + time.ctime()
-                run(kat,opts,selected_sensors)
+                show_status_header(kat,opts,selected_sensors)
+                if not opts.header_only:
+                    check_sensors(kat,opts,selected_sensors)
+                else:
+                    print '\nNo health checks performed.'
+
                 if long(opts.max_duration) > long(opts.refresh):
                     if time.time() > end_time: ended = True
                     time_left = max(0,int(end_time-time.time()))
                     hrs_left = time_left/3600.0
-                    print 'Checking every ' + opts.refresh + ' secs. Monitoring ends in %s secs (%.3f hours) - ctrl-c to exit' % (time_left,hrs_left)
+                    print 'Checking every %s secs. Monitoring ends in %s secs (%.3f hours) - ctrl-c to exit' % (opts.refresh,time_left,hrs_left)
                 else:
-                    print 'Checking every ' + opts.refresh + ' secs - ctrl-c to exit'
-                time.sleep(max(1.0,float(opts.refresh))) # don't try go faster than 1 sec
+                    print 'Checking every %s secs - ctrl-c to exit' % (opts.refresh)
+                if not ended: time.sleep(max(1.0,float(opts.refresh))) # don't try go faster than 1 sec
         except KeyboardInterrupt:
             print '\nKeyboard Interrupt detected. Exiting gracefully :)'
     else:
         print '\nCurrent local time: ' + time.ctime()
-        run(kat,opts,selected_sensors)
+        show_status_header(kat,opts,selected_sensors)
+        if not opts.header_only:
+            check_sensors(kat,opts,selected_sensors)
