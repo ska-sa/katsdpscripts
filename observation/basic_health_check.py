@@ -227,24 +227,20 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                         print_sensor(error_colour,checker,'<no value>',min_val,max_val,quiet,'trigger')
                 elif type(min_val) is list:
                     if current_val in min_val and sensor_status not in sensor_status_errors:
-                        if opts.verbose:
-                            if sensor_status == 'warn':
-                                print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
-                            else:
-                                if not quiet or (quiet and update_alarm(alarms,checker,'clear')):
-                                    print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
+                        if opts.verbose and sensor_status == 'warn':
+                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
+                        elif not quiet or (quiet and update_alarm(alarms,checker,'clear')):
+                            print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
                     else:
                         potential_problems = True
                         if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
                             print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,'',quiet,'trigger')
                 else:
                     if (min_val <= float(current_val) and float(current_val) <=  max_val) and sensor_status not in sensor_status_errors:
-                        if opts.verbose:
-                            if sensor_status == 'warn':
-                                print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
-                            else:
-                                if not quiet or (quiet and update_alarm(alarms,checker,'clear')):
-                                    print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
+                        if opts.verbose and sensor_status == 'warn':
+                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
+                        elif not quiet or (quiet and update_alarm(alarms,checker,'clear')):
+                            print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
                     else:
                         potential_problems = True
                         if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
