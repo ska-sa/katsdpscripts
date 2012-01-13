@@ -17,16 +17,26 @@
 # to iron out any discrepancies between the two sources of expected sensor ranges.
 
 # TODO:
-# - finish up quiet mode implementation (partially in place) - add in r (refresh) key input
+# - add in r (refresh) key input a la print_sensors in katuilib.utility
 # - option to write output to file as well as display on screen?
 # - option to load sensors of interest from file ("custom" group).
-
+# - update sensors groups ped -> ant when time comes for new code deployment in karoo
 
 from optparse import OptionParser
 import sys, math, time
 
 import katuilib, katpoint
-from katuilib.ansi import col, getKeyIf
+from katuilib.ansi import col #, getKeyIf
+
+# Some globals
+busy_colour = 'blue'
+ok_colour = 'green'
+error_colour = 'red'
+warn_colour = 'brown'
+normal_colour = 'normal'
+sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
+K7 = katpoint.Antenna('K7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0') # array centre position
+quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (under the hood)
 
 
 # Sensor groups (and templates for creating sensor groups).
@@ -115,7 +125,6 @@ lab_rfe7_group = [
 ("","",""), # creates a blank line
 ]
 
-
 # Dictionary containing selectable sensor groups, identified by name (user selects one of these at runtime).
 # Where there are empty lists, (usually per antenna) entries get added by the generate_sensor_groups()
 # method at run-time. Had thoughts of generating the per antenna entries progammatically here based on
@@ -134,18 +143,12 @@ sensor_group_dict = {
 'lab' : [],
 }
 
-busy_colour = 'blue'
-ok_colour = 'green'
-error_colour = 'red'
-warn_colour = 'brown'
-normal_colour = 'normal'
-sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
-K7 = katpoint.Antenna('K7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0') # array centre position
-quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (under the hood)
-
 def generate_sensor_groups(kat,selected_ants,sensor_groups):
 
-    """Create the per antenna sensor groups programmatically based on the selected antennas
+    """Create the per antenna sensor groups programmatically based on the selected antennas.
+    The way this set up, a sensor may be shared between multiple sensor groups. This is handy
+    for example if one wants to see all the dbe7 power levels together (-g dbe7) and also see
+    the per antenna dbe7 power levels with each antenna (-g ants)
     """
     dbe7_ants_group = [] # per antenna dbe7 sensors
     rfe7_ants_group = [] # per antenna rfe7 sensors
@@ -176,14 +179,15 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
 
 def print_sensor(colour,sensor,val,min_val,max_val,quiet,action=''):
     if quiet and sensor != '' and action == 'trigger':
-        print '%s - %s %s %s %s' % (col(colour)+time.ctime()+' (trigger)',sensor.ljust(65),\
-          (val).ljust(25),str(min_val).ljust(25),str(max_val).ljust(25)+col(normal_colour))
-    if quiet and sensor != '' and action == 'clear':
-        print '%s - %s %s %s %s' % (col(colour)+time.ctime()+ '(clear)',sensor.ljust(65),\
-          (val).ljust(25),str(min_val).ljust(25),str(max_val).ljust(25)+col(normal_colour))
+        print '%s - %s : (%s, %s, %s)' % (col(colour)+time.ctime()+' (trigger)',sensor, val,\
+        str(min_val),str(max_val)+col(normal_colour))
+    elif quiet and sensor != '' and action == 'clear':
+        print '%s - %s : (%s, %s, %s)' % (col(colour)+time.ctime()+' (clear)',sensor, val,\
+        str(min_val),str(max_val)+col(normal_colour))
     else:
         print '%s %s %s %s' % (col(colour)+sensor.ljust(65),\
           (val).ljust(25),str(min_val).ljust(25),str(max_val).ljust(25)+col(normal_colour))
+
 
 def update_alarm(alarms,sensor,action):
     updated = False
@@ -196,6 +200,7 @@ def update_alarm(alarms,sensor,action):
             alarms.pop(sensor) # remove sensor from alarm
             updated = True
     return updated
+
 
 def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
     """ Check current system setting and compare with expected range as specified above.
@@ -219,7 +224,7 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                 if current_val == 'None':
                     potential_problems = True
                     if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
-                        print_sensor(error_colour,checker,'<no value>',min_val,max_val,quiet)
+                        print_sensor(error_colour,checker,'<no value>',min_val,max_val,quiet,'trigger')
                 elif type(min_val) is list:
                     if current_val in min_val and sensor_status not in sensor_status_errors:
                         if opts.verbose:
@@ -227,11 +232,11 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                                 print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
                             else:
                                 if not quiet or (quiet and update_alarm(alarms,checker,'clear')):
-                                    print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet)
+                                    print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
                     else:
                         potential_problems = True
                         if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
-                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,'',quiet)
+                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,'',quiet,'trigger')
                 else:
                     if (min_val <= float(current_val) and float(current_val) <=  max_val) and sensor_status not in sensor_status_errors:
                         if opts.verbose:
@@ -239,11 +244,11 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                                 print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
                             else:
                                 if not quiet or (quiet and update_alarm(alarms,checker,'clear')):
-                                    print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet)
+                                    print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
                     else:
                         potential_problems = True
                         if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
-                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
+                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet,'trigger')
             except Exception, e:
                 potential_problems = True
                 print col(error_colour) + 'Could not check ',checker, ' [expected range: %r , %r]' % (min_val,max_val)
@@ -308,7 +313,7 @@ def show_status_header(kat, opts, selected_sensors):
         locks, modes, activity = {}, {}, {}
         for ant in ants.devs:
             tgt = ant.sensor.target.get_value()
-            if tgt == '' : tgt = 'None'
+            if tgt == '' or tgt == None: tgt = 'None'
             if not tgt_index.has_key(tgt):
                 tgt_index[tgt] = len(tgt_index)
                 ant_list.append([ant.name])
@@ -353,8 +358,12 @@ def show_status_header(kat, opts, selected_sensors):
         print col(error_colour) + '(' + str(e) + ')' + col(normal_colour)
 
 
-def print_checks_header():
-    print '\n%s %s %s %s' % ('Sensor (red => potential problem)'.ljust(65), 'Value (sensor status)'.ljust(25),\
+def print_checks_header(quiet=False):
+    if quiet:
+        print '\nTimestamp - %s : (%s,%s,%s)' % ('Sensor (red => problem, green => clear)','Value & sensor status',\
+        'Min Expected','Max Expected')
+    else:
+        print '\n%s %s %s %s' % ('Sensor (red => potential problem)'.ljust(65), 'Value (sensor status)'.ljust(25),\
           'Min Expected'.ljust(25), 'Max Expected'.ljust(25))
 
 def print_check_result(potential_problems):
@@ -364,32 +373,32 @@ def print_check_result(potential_problems):
         print '\n' + col(ok_colour) + 'All seems well :)' + col(normal_colour)
 
 
-def print_msg(quiet=False, header_only=False, refresh=-1, duration=-1, end_time=-1):
+def print_msg(quiet, header_only, refresh, duration, end_time):
 
     if duration >= 1.0:
         time_left = end_time - time.time()
 
     # Cater for the following possibilities:
-    if not quiet and header_only and refresh == -1: # - no alarm: status header only, no refresh
+    if not quiet and header_only and refresh is None: # - no alarm: status header only, no refresh
         print "Single pass status only, no sensor checks"
-    elif not quiet and header_only and refresh >= 1.0 and duration == -1: # - no alarm: status header only, refresh, no max duration
+    elif not quiet and header_only and refresh >= 1.0 and duration is None: # - no alarm: status header only, refresh, no max duration
         print "Status only, updated every %s secs - cntrl-c to exit" % (refresh)
     elif not quiet and header_only and refresh >= 1.0 and duration >= 1.0: # - no alarm: status header only, refresh, max duration
         print "Status only, updated every % secs, ending in %.3f hours - cntrl-c to exit" % (refresh, time_left/3600.0)
-    elif not quiet and refresh == -1: # - no alarm: no refresh (=> one-shot, no max_duration allowed)
+    elif not quiet and refresh is None: # - no alarm: no refresh (=> one-shot, no max_duration allowed)
         print "Single pass health and status check"
-    elif not quiet and refresh >= 1.0 and duration == -1: # - no alarm: refresh, no max duration
+    elif not quiet and refresh >= 1.0 and duration is None: # - no alarm: refresh, no max duration
         print "Health and status check every %s secs - ctrl-c to exit" %(refresh)
     elif not quiet and refresh >= 1.0 and duration >= 1.0: # - no alarm: refresh, max duration
         print "Health and status check every %s secs, ending in %.3f hours - cntrl-c to exit" %(refresh,time_left/3600.0)
-    elif quiet and refresh == -1 and duration == -1: # - alarm: no refresh, no max duration
+    elif quiet and refresh is None and duration is None: # - alarm: no refresh, no max duration
         print "\nQuiet mode - cntrl-c to exit"
-    elif quiet and refresh == -1 and duration >= 1.0: # - alarm: no refresh, max duration
+    elif quiet and refresh is None and duration >= 1.0: # - alarm: no refresh, max duration
         print "\nQuiet mode - ending in %.3f hours - ctrl-c to exit." %(time_left/3600.0)
-    elif quiet and refresh >= 1.0 and duration == -1: # - alarm: refresh, no max duration
-        print  "\nQuiet mode - full refresh every ~%s secs - cntrl-c to exit" %(refresh)
+    elif quiet and refresh >= 1.0 and duration is None: # - alarm: refresh, no max duration
+        print  "\nQuiet mode - full refresh every %s secs - cntrl-c to exit" %(refresh)
     elif quiet and refresh >= 1.0 and duration >= 1.0: # - alarm: refresh, max duration
-        print  "\nQuiet mode - full refresh every ~%s secs, ending in %.3f hours - cntl-c to exit" %(refresh, time_left/3600.0)
+        print  "\nQuiet mode - full refresh every %s secs, ending in %.3f hours - cntl-c to exit" %(refresh, time_left/3600.0)
     else:
         print "Unknown/unsupported combination of options in print_msg()"
         sys.exit()
@@ -422,7 +431,7 @@ if __name__ == '__main__':
     sensor_group_dict_keys = sensor_group_dict.keys()
     sensor_group_dict_keys.sort(key=str.lower) # for some reason python does not like to do this in one line
     parser.add_option('-g', '--sensor_group', default='karoo',
-                      help='Selected sensor group to use: ' + '|'.join(sensor_group_dict_keys) + ' (default="%default")')
+                      help='Selected sensor group to use. Options are: ' + '|'.join(sensor_group_dict_keys) + ' (default="%default")')
     parser.add_option('-a', '--ants', default='all',
                       help="Comma-separated list of antennas to include (e.g. 'ant1,ant2'), "+
                       "or 'all' for all antennas (default='%default').")
@@ -430,13 +439,13 @@ if __name__ == '__main__':
                     help='Verbose. Show all sensors that are checked. Default is to only show values in error.(default="%default")')
     parser.add_option('-b', '--header_only', action='store_true', default=False,
                     help='Show only status header (busy) info. Skip error checks. (default="%default")')
-    parser.add_option('-r', '--refresh', default=-1,
+    parser.add_option('-r', '--refresh', type='float',
                       help='Refresh display of header and sensors every r secs where min non-zero value is 1 sec. (default="%default" - no refresh)')
     parser.add_option('-q', '--quiet', action='store_true', default=False,
                   help='Quiet mode. Only update sensor check output when new error occurs or error clears. Cannot select with ' +
                   '-v and -b options. Will check sensors every 5 secs under the hood and also print a time every 30 mins ' +
                   'to indicate that it is still alive (default="%default")')
-    parser.add_option('-m', '--max_duration', default=-1,
+    parser.add_option('-m', '--max_duration', type='float',
                     help='Exit programme after specified secs. Works with the -r and/or --quiet options e.g. set to length of ' +
                     'observation run. Default is to continue indefinitely if refresh is specified or in quiet mode. Error if used ' +
                     'outside of refresh or quiet modes (default="%default")')
@@ -449,18 +458,15 @@ if __name__ == '__main__':
     if opts.show_usage_examples:
         print USAGE
         sys.exit()
-
-    opts.refresh = float(opts.refresh)
-    opts.max_duration = float(opts.max_duration)
     
     # some option checks
-    if opts.refresh != -1 and opts.refresh < 1.0:
+    if opts.refresh and opts.refresh < 1.0:
         print "Error: Min refresh is 1 sec. Exiting."
         sys.exit()
-    if opts.max_duration != -1 and opts.max_duration < 1.0:
+    if opts.max_duration and opts.max_duration < 1.0:
         print "Error: Max duration must be >= 1 sec"
         sys.exit()
-    if opts.max_duration >= 1.0 and opts.refresh == -1 and not opts.quiet:
+    if opts.max_duration >= 1.0 and opts.refresh is None and not opts.quiet:
         print "Error: Max duration only applies to refresh and quiet modes"
         sys.exit()
     if opts.max_duration >= 1.0 and opts.refresh > opts.max_duration:
@@ -472,7 +478,7 @@ if __name__ == '__main__':
     if opts.quiet and opts.header_only:
         print "Error: Cannot select header only and quiet mode together"
         sys.exit()
-    if opts.quiet and opts.refresh != -1 and opts.refresh < quiet_check_refresh:
+    if opts.quiet and opts.refresh and opts.refresh < quiet_check_refresh:
         # does not make sense to have full refresh (incl header) at shorter period than quiet refresh in quiet mode
         print "Error: Min refresh in quiet mode is %s secs" %(quiet_check_refresh)
         sys.exit()
@@ -515,12 +521,12 @@ if __name__ == '__main__':
                     print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time)
                 else:
                     print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time) # message before sensor check loop
-                    print_checks_header()
-                    quiet_cycle_start = time.time()
+                    print_checks_header(opts.quiet)
                     quiet_cycle_ended = False
                     quiet_cycles = 0
+                    quiet_cycle_start = time.time()
                     while not quiet_cycle_ended and not ended:
-                        #print quiet_cycles
+                        this_cycle_start = time.time()
                         if (quiet_cycles % 360) == 0: # 360 -> 30 mins for 5 sec quiet_cycle_refresh
                             print 'In quiet loop: Current local time: ' + time.ctime()
                         check_sensors(kat,opts,selected_sensors,opts.quiet,alarms)
@@ -530,12 +536,12 @@ if __name__ == '__main__':
                         if opts.max_duration > 1.0:
                             if time_now > end_time: ended = True
                         if not ended and not quiet_cycle_ended:
-                            time.sleep(max(0.0,float((quiet_cycle_start + quiet_check_refresh) - time_now)))
+                            time.sleep(max(0.0,this_cycle_start + quiet_check_refresh - time_now))
                             quiet_cycles = quiet_cycles + 1
             else:
                 print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time)
 
-            if (time.time() >= end_time) or (not opts.quiet and opts.refresh == -1):
+            if (time.time() >= end_time) or (not opts.quiet and opts.refresh is None):
                 ended = True
 
             if not ended: time.sleep(max(0.0,float((refresh_cycle_start + opts.refresh)-time.time())))
