@@ -404,19 +404,25 @@ def print_msg(quiet, header_only, refresh, duration, end_time):
 
 USAGE="""
 Usage examples:
-    - basic_health_check.py (single pass check: show status and errors only in a single pass)
-    - basic_health_check.py -v (verbose: show status and all sensors checked in a single pass)
-    - basic_health_check.py -q (quiet mode: show status once and errors when they first occur or are cleared)
-    - basic_health_check.py -q -m 1000 (run in quiet mode for 1000 secs, the quit)
-    - basic_health_check.py -r 10 (refresh single pass check every 10 secs)
-    - basic_health_check.py -r 10 -m 50 (refresh single pass check every 10 secs, ending in 50 secs)
-    - basic_health_check.py -v -r 50 (show all sensors every 50 secs)
+    - basic_health_check.py (show status and errors only in a single pass, then quit)
+    - basic_health_check.py -q (quiet mode: show status at start and errors when they first occur or are cleared, continue indefinitely)
+    - basic_health_check.py -q -r 600 (run in quiet mode with full refesh every 600 secs)
+    - basic_health_check.py -q -m 1000 (run in quiet mode for 1000 secs, then quit)
+    - basic_health_check.py -q -r 200 -m 1000 (run in quiet mode for 1000 secs, with full refresh every 200 secs, then quit)
+    - basic_health_check.py -v (verbose: show status and all sensors checked in a single pass - not only errors)
+    - basic_health_check.py -v -r 20 (refresh verbose listing every 20 secs)
+    - basic_health_check.py -v -r 20 -m 100 (refresh verbose listing every 20 secs for 100 secs, then quit)
+    - basic_health_check.py -b (show only the status info - no sensor checks, then quit)
+    - basic_health_check.py -b -r 10 (show only the status info and refresh every 10 secs, continuing indefinitely)
+    - basic_health_check.py -r 10 (show status and errors every 10 secs, continuing indefinitely)
+    - basic_health_check.py -r 10 -m 50 (show status and errors every 10 secs for 50 secs, then quit)
     - basic_health_check.py -g 'ants' (single pass check showing only the 'ants' sensor group)
     - basic_health_check.py -a 'ant1,ant7' (limit status and checks to antennas 1 and 7)
     - basic_health_check.py -a 'ant1,ant7' -g ant1 (limit status to antennas 1 and 7 and checks to ant1 only)
     - basic_health_check.py -a 'ant1,ant7' -g ant4 (limit status to antennas 1 and 7 and checks to ant4 only -> no checks done)
     - basic_health_check.py -a 'ant1,ant7' -g anc -v (limit status to antennas 1 and 7 and verbose checks to 'anc' sensor group)
-    etc. (script can handle most combinations of switches)
+    - basic_health_check.py -a 'ant2,ant4,ant5' -q -r 600 -m 8000 (quiet mode status and errors for ant2,4,5 with 600 sec refresh, quit in 8000 secs)
+    - etc. (script can handle most combinations of switches)
 """
 
 
@@ -430,24 +436,25 @@ if __name__ == '__main__':
     sensor_group_dict_keys = sensor_group_dict.keys()
     sensor_group_dict_keys.sort(key=str.lower) # for some reason python does not like to do this in one line
     parser.add_option('-g', '--sensor_group', default='karoo',
-                      help='Selected sensor group to use. Options are: ' + '|'.join(sensor_group_dict_keys) + ' (default="%default")')
+                      help='Selected sensor group to use. Options are: ' + '|'.join(sensor_group_dict_keys) + '. (default="%default")')
     parser.add_option('-a', '--ants', default='all',
                       help="Comma-separated list of antennas to include (e.g. 'ant1,ant2'), "+
-                      "or 'all' for all antennas (default='%default').")
+                      "or 'all' for all antennas (default='%default')")
     parser.add_option('-v', '--verbose', action='store_true', default=False,
-                    help='Verbose. Show all sensors that are checked. Default is to only show values in error.(default="%default")')
+                    help='Verbose. Show all sensors that are checked. Default is to only show values in error. (default="%default")')
     parser.add_option('-b', '--header_only', action='store_true', default=False,
                     help='Show only status header (busy) info. Skip error checks. (default="%default")')
     parser.add_option('-r', '--refresh', type='float',
-                      help='Refresh display of header and sensors every r secs where min non-zero value is 1 sec. (default="%default" - no refresh)')
+                      help='Refresh display of header and sensors every specified secs where min non-zero value is 1 sec. '+
+                      '(default="%default" -> no refresh)')
     parser.add_option('-q', '--quiet', action='store_true', default=False,
-                  help='Quiet mode. Only update sensor check output when new error occurs or error clears. Cannot select with ' +
-                  '-v and -b options. Will check sensors every 5 secs under the hood and also print a time every 30 mins ' +
-                  'to indicate that it is still alive (default="%default")')
+                  help='Quiet mode. Only update sensor check output when new error occurs or error clears. Error if selected with ' +
+                  '-v and -b options. Check sensors at 5 secs intervals under-the-hood and also prints a time every 30 mins ' +
+                  'to indicate that it is still alive. (default="%default")')
     parser.add_option('-m', '--max_duration', type='float',
-                    help='Exit programme after specified secs. Works with the -r and/or --quiet options e.g. set to length of ' +
+                    help='Quit programme after specified secs. Works with the -r and/or -q options e.g. set to length of ' +
                     'observation run. Default is to continue indefinitely if refresh is specified or in quiet mode. Error if used ' +
-                    'outside of refresh or quiet modes (default="%default")')
+                    'outside of refresh or quiet modes. (default="%default")')
     parser.add_option('-u', '--show_usage_examples', action='store_true', default=False,
                     help='Show usage examples and exit. (default="%default")')
 
