@@ -17,16 +17,15 @@
 # to iron out any discrepancies between the two sources of expected sensor ranges.
 
 # TODO:
-# - add in r (refresh) key input a la print_sensors in katuilib.utility
-# - option to write output to file as well as display on screen?
 # - option to load sensors of interest from file ("custom" group).
 # - update sensors groups ped -> ant when time comes for new code deployment in karoo
+# - option to write output to file as well as display on screen?
 
 from optparse import OptionParser
 import sys, math, time
 
 import katuilib, katpoint
-from katuilib.ansi import col #, getKeyIf
+from katuilib.ansi import col, getKeyIf
 
 # Some globals
 busy_colour = 'blue'
@@ -379,23 +378,25 @@ def print_msg(quiet, header_only, refresh, duration, end_time):
     if not quiet and header_only and refresh is None: # - no alarm: status header only, no refresh
         print "Single pass status only, no sensor checks"
     elif not quiet and header_only and refresh >= 1.0 and duration is None: # - no alarm: status header only, refresh, no max duration
-        print "Status only, updated every %s secs - cntrl-c to exit" % (refresh)
+        print "Status only, updated every %s secs - cntrl-c to exit (r to refresh)" % (refresh)
     elif not quiet and header_only and refresh >= 1.0 and duration >= 1.0: # - no alarm: status header only, refresh, max duration
-        print "Status only, updated every % secs, ending in %.3f hours - cntrl-c to exit" % (refresh, time_left/3600.0)
+        print "Status only, updated every % secs, ending in %.3f hours - cntrl-c to exit (r to refresh)" % (refresh, time_left/3600.0)
     elif not quiet and refresh is None: # - no alarm: no refresh (=> one-shot, no max_duration allowed)
         print "Single pass health and status check"
     elif not quiet and refresh >= 1.0 and duration is None: # - no alarm: refresh, no max duration
-        print "Health and status check every %s secs - ctrl-c to exit" %(refresh)
+        print "Health and status check every %s secs - ctrl-c to exit (r to refresh)" %(refresh)
     elif not quiet and refresh >= 1.0 and duration >= 1.0: # - no alarm: refresh, max duration
-        print "Health and status check every %s secs, ending in %.3f hours - cntrl-c to exit" %(refresh,time_left/3600.0)
+        print "Health and status check every %s secs, ending in %.3f hours - cntrl-c to exit (r to refresh)" %(refresh,time_left/3600.0)
     elif quiet and refresh is None and duration is None: # - alarm: no refresh, no max duration
-        print "\nQuiet mode (%s sec sensor checks) - ctrl-c to exit" %(quiet_check_refresh)
+        print "\nQuiet mode (%s sec sensor checks) - ctrl-c to exit (r to refresh)" %(quiet_check_refresh)
     elif quiet and refresh is None and duration >= 1.0: # - alarm: no refresh, max duration
-        print "\nQuiet mode (%s sec sensor checks) - ending in %.3f hours - ctrl-c to exit." %(quiet_check_refresh,time_left/3600.0)
+        print "\nQuiet mode (%s sec sensor checks) - ending in %.3f hours - ctrl-c to exit (r to refresh)" \
+         %(quiet_check_refresh,time_left/3600.0)
     elif quiet and refresh >= 1.0 and duration is None: # - alarm: refresh, no max duration
-        print  "\nQuiet mode (%s sec sensor checks) - full refresh every %s secs - cntrl-c to exit" %(quiet_check_refresh,refresh)
+        print  "\nQuiet mode (%s sec sensor checks) - full refresh every %s secs - cntrl-c to exit (r to refresh)" \
+         %(quiet_check_refresh,refresh)
     elif quiet and refresh >= 1.0 and duration >= 1.0: # - alarm: refresh, max duration
-        print  "\nQuiet mode (%s sec sensor checks) - full refresh every %s secs, ending in %.3f hours - cntl-c to exit" \
+        print  "\nQuiet mode (%s sec sensor checks) - full refresh every %s secs, ending in %.3f hours - cntl-c to exit (r to refresh)" \
         %(quiet_check_refresh,refresh, time_left/3600.0)
     else:
         print "Unknown/unsupported combination of options in print_msg()"
@@ -449,14 +450,13 @@ if __name__ == '__main__':
                     'outside of refresh or quiet modes (default="%default")')
     parser.add_option('-u', '--show_usage_examples', action='store_true', default=False,
                     help='Show usage examples and exit. (default="%default")')
-                    
 
     (opts, args) = parser.parse_args()
 
     if opts.show_usage_examples:
         print USAGE
         sys.exit()
-    
+
     # some option checks
     if opts.refresh and opts.refresh < 1.0:
         print "Error: Min refresh is 1 sec. Exiting."
@@ -499,6 +499,7 @@ if __name__ == '__main__':
         print 'Unknown sensor group "%s", expected one of %s' % (opts.sensor_group, sensor_group_dict_keys)
         sys.exit()
 
+    # end_time is the end time for the whole programme
     if opts.max_duration >= 1.0:
         end_time = time.time() + float(opts.max_duration)
     else:
@@ -508,6 +509,7 @@ if __name__ == '__main__':
         ended = False
         while (not ended):
             refresh_cycle_start =  time.time()
+            refresh_forced = False # keyboard input forced refresh
             print '\nCurrent local time: %s' % (time.ctime(refresh_cycle_start))
             alarms = {} # reset any alarms when full refresh
             show_status_header(kat,opts,selected_sensors)
@@ -520,20 +522,23 @@ if __name__ == '__main__':
                 else:
                     print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time) # message before sensor check loop
                     print_checks_header(opts.quiet)
-                    quiet_cycle_ended = False
+                    quiet_cycles_ended = False
                     quiet_cycles = 0
-                    quiet_cycle_start = time.time()
-                    while not quiet_cycle_ended and not ended:
+                    quiet_cycles_start = time.time()
+                    while not quiet_cycles_ended and not ended:
                         this_cycle_start = time.time()
                         if (quiet_cycles % 360) == 0: # 360 -> 30 mins for 5 sec quiet_cycle_refresh
                             print 'In quiet loop: Current local time: ' + time.ctime()
                         check_sensors(kat,opts,selected_sensors,opts.quiet,alarms)
                         time_now = time.time()
                         if opts.refresh > 1.0:
-                            if time_now > quiet_cycle_start + opts.refresh: quiet_cycle_ended = True
+                            if time_now > quiet_cycles_start + opts.refresh: quiet_cycles_ended = True
+                        if getKeyIf(6) == 'r': # forced refresh
+                            quiet_cycles_ended = True
+                            refresh_forced  = True
                         if opts.max_duration > 1.0:
                             if time_now > end_time: ended = True
-                        if not ended and not quiet_cycle_ended:
+                        if not ended and not quiet_cycles_ended:
                             time.sleep(max(0.0,this_cycle_start + quiet_check_refresh - time_now))
                             quiet_cycles = quiet_cycles + 1
             else:
@@ -542,7 +547,18 @@ if __name__ == '__main__':
             if (time.time() >= end_time) or (not opts.quiet and opts.refresh is None):
                 ended = True
 
-            if not ended: time.sleep(max(0.0,float((refresh_cycle_start + opts.refresh)-time.time())))
+            if not ended and not refresh_forced and (refresh_cycle_start + opts.refresh - time.time() > 0):
+                in_refresh_sleep = True
+                while in_refresh_sleep:
+                    time_now = time.time()
+                    if time_now < end_time and getKeyIf(6) != 'r' and (refresh_cycle_start + opts.refresh - time_now > 0):
+                        time.sleep(0.5)
+                    else:
+                        in_refresh_sleep = False
+
+            if time.time() >= end_time: # do another check since the refresh sleep loop takes up time
+                ended = True
+
     except KeyboardInterrupt:
         print '\nKeyboard Interrupt detected... exiting gracefully :)'
 
