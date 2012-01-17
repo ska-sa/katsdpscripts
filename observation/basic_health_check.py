@@ -22,7 +22,6 @@
 # - option to write output to file as well as display on screen?
 # - think about some way to optionally auto select to the script ants (else at least
 #   display them) in the status - a bit tricky since requires refresh to change
-# - think about a switch to show warnings in quiet mode.
 # - think about adding a m/n specification to a sensor check.
 
 from optparse import OptionParser
@@ -75,8 +74,8 @@ rfe7_base_group = [
 ]
 
 dbe7_template = [
-("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-28.0,-22.0),
-("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-28.0,-22.0),
+("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-28.0,-20.0), # ideally should be -28,-24, need m/n calc
+("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-28.0,-20.0), # ideally should be -28,-24, need m/n calc
 ("kat.dbe7.sensor.dbe_ant#h_fft_overrange.get_value()", 0,0),
 ("kat.dbe7.sensor.dbe_ant#v_fft_overrange.get_value()", 0,0),
 # ("kat.dbe7.sensor.dbe_ant#h_adc_overrange.get_value()", 0,0), # omitting these for now, need m/n calc
@@ -231,6 +230,7 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                 current_val = str(eval(checker))
                 sensor_status = str(eval(checker.split('.get_value()')[0] + '.status'))
                 sensor_ok = False
+                quiet_warning = False
 
                 if current_val == 'None':
                     potential_problems = True
@@ -243,6 +243,10 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                         sensor_ok = True
                 elif (min_val <= float(current_val) and float(current_val) <=  max_val) and sensor_status not in sensor_status_errors:
                     sensor_ok = True
+                
+                if quiet and opts.warn and sensor_status == 'warn' and sensor_ok == True:
+                    sensor_ok = False
+                    quiet_warning = True
 
                 if sensor_ok:
                     if opts.verbose: # won't be verbose in quiet mode (check is performed earlier)
@@ -255,7 +259,11 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                 else:
                     potential_problems = True
                     if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
-                        print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet,'trigger')
+                        if quiet_warning:
+                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet,'trigger')
+                        else:
+                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet,'trigger')
+                            
             except Exception, e:
                 potential_problems = True
                 print col(error_colour) + 'Could not check ',checker, ' [expected range: %r , %r]' % (min_val,max_val)
@@ -417,6 +425,7 @@ USAGE="""
 Usage examples:
     - basic_health_check.py (show status and errors only in a single pass, then quit)
     - basic_health_check.py -q (quiet mode: show status at start and errors when they first occur or are cleared, continue indefinitely)
+    - basic_health_check.py -q -w (quiet mode with warnings: run indefinitely in quiet mode and also show warnings)
     - basic_health_check.py -q -r 600 (run in quiet mode with full refesh every 600 secs)
     - basic_health_check.py -q -m 1000 (run in quiet mode for 1000 secs, then quit)
     - basic_health_check.py -q -r 200 -m 1000 (run in quiet mode for 1000 secs, with full refresh every 200 secs, then quit)
@@ -462,6 +471,8 @@ if __name__ == '__main__':
                   help='Quiet mode. Only update sensor check output when new error occurs or error clears. Error if selected with ' +
                   '-v and -b options. Check sensors at 5 secs intervals under-the-hood and also prints a time every 30 mins ' +
                   'to indicate that it is still alive. (default="%default")')
+    parser.add_option('-w', '--warn', action='store_true', default=False,
+                help='Include warnings in quiet mode. (default="%default")')
     parser.add_option('-m', '--max_duration', type='float',
                     help='Quit programme after specified secs. Works with the -r and/or -q options e.g. set to length of ' +
                     'observation run. Default is to continue indefinitely if refresh is specified or in quiet mode. Error if used ' +
@@ -497,6 +508,9 @@ if __name__ == '__main__':
     if opts.quiet and opts.refresh and opts.refresh < quiet_check_refresh:
         # does not make sense to have full refresh (incl header) at shorter period than quiet refresh in quiet mode
         print "Error: Min refresh in quiet mode is %s secs" %(quiet_check_refresh)
+        sys.exit()
+    if opts.warn and not opts.quiet:
+        print "Error: Cannot select warn option when quiet mode not selected. Warns are shown by default with verbose mode."
         sys.exit()
 
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
