@@ -20,6 +20,10 @@
 # - option to load sensors of interest from file ("custom" group).
 # - update sensors groups ped -> ant when time comes for new code deployment in karoo
 # - option to write output to file as well as display on screen?
+# - think about some way to optionally auto select to the script ants (else at least
+#   display them) in the status - a bit tricky since requires refresh to change
+# - think about a switch to show warnings in quiet mode.
+# - think about adding a m/n specification to a sensor check.
 
 from optparse import OptionParser
 import sys, math, time
@@ -71,11 +75,18 @@ rfe7_base_group = [
 ]
 
 dbe7_template = [
-("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-27.0,-20.0),
-("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-27.0,-20.0),
+("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-28.0,-22.0),
+("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-28.0,-22.0),
+("kat.dbe7.sensor.dbe_ant#h_fft_overrange.get_value()", 0,0),
+("kat.dbe7.sensor.dbe_ant#v_fft_overrange.get_value()", 0,0),
+# ("kat.dbe7.sensor.dbe_ant#h_adc_overrange.get_value()", 0,0), # omitting these for now, need m/n calc
+# ("kat.dbe7.sensor.dbe_ant#v_adc_overrange.get_value()", 0,0), # omitting these for now, need m/n calc
+("kat.dbe7.sensor.dbe_ant#h_adc_terminated.get_value()", 0,0),
+("kat.dbe7.sensor.dbe_ant#v_adc_terminated.get_value()", 0,0),
 ]
 
 dbe7_base_group = [
+("kat.dbe7.sensor.dbe_corr_lru_available.get_value()", 1,1),
 ("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''),
 ("","",""), # creates a blank line
 ]
@@ -106,7 +117,7 @@ anc_group = [
 ("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 6.0,22.0),
 ("kat.anc.sensor.cc_cc_air_temperature.get_value()", 0.0,30.0),
 ("kat.anc.sensor.cc_chiller_water_temperature.get_value()", 6.0,18.0),
-("kat.anc.sensor.asc_wind_speed.get_value()", 0.0,15.2),
+("kat.anc.sensor.asc_wind_speed.get_value()", -0.5,15.2), # the occassional small negative windspeeds are 'interesting'
 ("kat.anc.sensor.asc_fire_ok.get_value()", 1,1), # these sensors really should be something like "(not) on fire"
 ("kat.anc.sensor.cc_fire_ok.get_value()", 1,1),
 ("kat.anc.sensor.cmc_fire_ok.get_value()", 1,1),
