@@ -49,19 +49,20 @@ ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
 ("kat.ped#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0),
 ("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1),
+("kat.ped#.sensor.rfe3_psu_ok.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
+("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_ok.get_value()", 1,1),
 ("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", ['0','1'],''),
 ("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", ['0','1'],''),
 ("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''),
-("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop","stow"],''),
-("kat.ant#.sensor.windstow_active.get_value()",0,0),
+("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop","stow"],''), # wind_stow will show as error
 ("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
 ("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
 ]
 
 rfe7_template = [
-("kat.rfe7.sensor.rfe7_downconverter_ant#_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant#_v_powerswitch.get_value()", 1,1),
+# ("kat.rfe7.sensor.rfe7_downconverter_ant#_h_powerswitch.get_value()", 1,1), # redundant
+# ("kat.rfe7.sensor.rfe7_downconverter_ant#_v_powerswitch.get_value()", 1,1), # redundant
 ]
 
 rfe7_base_group = [
@@ -116,7 +117,7 @@ anc_group = [
 ("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 6.0,22.0),
 ("kat.anc.sensor.cc_cc_air_temperature.get_value()", 0.0,30.0),
 ("kat.anc.sensor.cc_chiller_water_temperature.get_value()", 6.0,18.0),
-("kat.anc.sensor.asc_wind_speed.get_value()", -0.5,15.2), # the occassional small negative windspeeds are 'interesting'
+("kat.anc.sensor.asc_wind_speed.get_value()", -0.5,12.5), # the occassional small negative windspeeds are 'interesting'
 ("kat.anc.sensor.asc_fire_ok.get_value()", 1,1), # these sensors really should be something like "(not) on fire"
 ("kat.anc.sensor.cc_fire_ok.get_value()", 1,1),
 ("kat.anc.sensor.cmc_fire_ok.get_value()", 1,1),
