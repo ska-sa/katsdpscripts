@@ -186,7 +186,7 @@ class CaptureSession(object):
             dbe.req.k7w_write_hdf5(1)
 
             # Log the script parameters (if config manager is around)
-            if kat.has_connected_device('cfg'):
+            if kat.has_connected_client('cfg'):
                 kat.cfg.req.set_script_param("script-starttime",
                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
                 kat.cfg.req.set_script_param("script-endtime", "")
@@ -194,7 +194,7 @@ class CaptureSession(object):
                 kat.cfg.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
                 kat.cfg.req.set_script_param("script-status", "busy")
         except Exception, e:
-            if kat.has_connected_device('cfg'):
+            if kat.has_connected_client('cfg'):
                 kat.cfg.req.set_script_param("script-endtime",
                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
                 kat.cfg.req.set_script_param("script-status", "failed")
@@ -326,7 +326,7 @@ class CaptureSession(object):
         user_logger.info(nd_info + " while performing canned commands")
 
         # Log the script parameters (if config manager is around)
-        if kat.has_connected_device('cfg'):
+        if kat.has_connected_client('cfg'):
             kat.cfg.req.set_script_param("script-observer", observer)
             kat.cfg.req.set_script_param("script-description", description)
             kat.cfg.req.set_script_param("script-experiment-id", experiment_id)
@@ -964,7 +964,7 @@ class CaptureSession(object):
         msg = 'Ended data capturing session with experiment ID %s' % (session.experiment_id,)
         user_logger.info(msg)
         activity_logger.info(msg)
-        if kat.has_connected_device('cfg'):
+        if kat.has_connected_client('cfg'):
             kat.cfg.req.set_script_param("script-endtime",
                                          time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
             kat.cfg.req.set_script_param("script-status", "ended")
