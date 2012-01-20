@@ -49,8 +49,8 @@ with verify_and_connect(opts) as kat:
             if opts.dry_run:
                 current_az, current_el = session.ants[0][2:]
             else:
-                current_az = session.ants.devs[0].sensor.pos_actual_scan_azim.get_value()
-                current_el = session.ants.devs[0].sensor.pos_actual_scan_elev.get_value()
+                current_az = session.ants.clients[0].sensor.pos_actual_scan_azim.get_value()
+                current_el = session.ants.clients[0].sensor.pos_actual_scan_elev.get_value()
             current_pos = katpoint.construct_azel_target(katpoint.deg2rad(current_az), katpoint.deg2rad(current_el))
             # Get closest strong source that is up
             strong_sources = kat.sources.filter(el_limit_deg=[15, 75], flux_limit_Jy=100, flux_freq_MHz=opts.centre_freq)

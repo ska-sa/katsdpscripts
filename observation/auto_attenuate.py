@@ -190,7 +190,7 @@ with verify_and_connect(opts) as kat:
 
     # Create device array of antennas, based on specification string
     ants = ant_array(kat, opts.ants)
-    user_logger.info('Using antennas: %s' % (' '.join([dev.name for dev in ants.devs]),))
+    user_logger.info('Using antennas: %s' % (' '.join([dev.name for dev in ants.clients]),))
 
     # Switch data handler to requested DBE
     kat.dh.register_dbe(selected_dbe)
@@ -224,7 +224,7 @@ with verify_and_connect(opts) as kat:
     user_logger.info('Input: --dBm->| RFE5 |--dBm->| RFE7 |--dBm->| DBE |')
     user_logger.info('Desired:      | RFE5 | %-4.1f | RFE7 | %-4.1f | DBE |' %
                      (opts.rfe5_desired_power, opts.dbe_desired_power))
-    for ant in ants.devs:
+    for ant in ants.clients:
         for pol in ('h', 'v'):
             if '%s, %s' % (ant.name, pol) not in connected_antpols:
                 user_logger.info('%s %s: not connected to DBE' % (ant.name, pol.upper()))

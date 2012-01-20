@@ -77,10 +77,10 @@ try:
 
         # wait for antennas to lock onto target
         locks = 0
-        for ant_x in ants.devs:
+        for ant_x in ants.clients:
             if ant_x.wait("lock", True, 300): locks += 1
 
-        if len(ants.devs) == locks:
+        if len(ants.clients) == locks:
             targets_tracked += 1
             # continue tracking the target for specified time
             time.sleep(on_target_duration)

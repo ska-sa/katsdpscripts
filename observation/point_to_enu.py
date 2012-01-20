@@ -87,7 +87,7 @@ with verify_and_connect(opts) as kat:
 
         ants = session.ants
         ants.req.drive_strategy('shortest-slew')
-        for ant in ants.devs:
+        for ant in ants.clients:
             antenna = katpoint.Antenna(ant.sensor.observer.get_value())
             enu = np.asarray(target_enu) - np.asarray(antenna.position_enu)
             if np.all(enu == 0):
