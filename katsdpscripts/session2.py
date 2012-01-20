@@ -18,7 +18,7 @@ import katpoint
 from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
 
 from .array import Array
-from .katcp_client import KATDevice
+from .katcp_client import KATClient
 from .defaults import user_logger, activity_logger
 from .misc import dynamic_doc
 
@@ -35,7 +35,7 @@ def ant_array(kat, ants, name='ants'):
     ----------
     kat : :class:`utility.KATHost` object
         KAT connection object
-    ants : :class:`Array` or :class:`KATDevice` object, or list, or string
+    ants : :class:`Array` or :class:`KATClient` object, or list, or string
         Antennas specified by an Array object containing antenna devices, or
         a single antenna device or a list of antenna devices, or a string of
         comma-separated antenna names, or the string 'all' for all antennas
@@ -54,7 +54,7 @@ def ant_array(kat, ants, name='ants'):
     """
     if isinstance(ants, Array):
         return ants
-    elif isinstance(ants, KATDevice):
+    elif isinstance(ants, KATClient):
         return Array(name, [ants])
     elif isinstance(ants, basestring):
         if ants.strip() == 'all':
@@ -73,7 +73,7 @@ class ScriptLogHandler(logging.Handler):
 
     Parameters
     ----------
-    dbe : :class:`KATDevice` object
+    dbe : :class:`KATClient` object
         DBE proxy device for the session
 
     """
@@ -125,7 +125,7 @@ class CaptureSession(object):
         try:
             self.kat = kat
             # If not a device itself, assume dbe is the name of the device
-            if not isinstance(dbe, KATDevice):
+            if not isinstance(dbe, KATClient):
                 try:
                     dbe = getattr(kat, dbe)
                 except AttributeError:
@@ -220,7 +220,7 @@ class CaptureSession(object):
 
         Parameters
         ----------
-        ants : :class:`Array` or :class:`KATDevice` object, or list, or string
+        ants : :class:`Array` or :class:`KATClient` object, or list, or string
             Antennas that will participate in the capturing session, as an Array
             object containing antenna devices, or a single antenna device or a
             list of antenna devices, or a string of comma-separated antenna
@@ -259,7 +259,7 @@ class CaptureSession(object):
         session, kat, dbe = self, self.kat, self.dbe
 
         session.ants = ants = ant_array(kat, ants)
-        ant_names = [ant.name for ant in ants.devs]
+        ant_names = [ant.name for ant in ants.clients]
         # Override provided session parameters (or initialize them from existing parameters if not provided)
         session.experiment_id = experiment_id = session.experiment_id if experiment_id is None else experiment_id
         session.nd_params = nd_params = session.nd_params if nd_params is None else nd_params
@@ -308,7 +308,7 @@ class CaptureSession(object):
 
         # If the DBE is simulated, it will have position update commands
         if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
-            first_ant = ants.devs[0]
+            first_ant = ants.clients[0]
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
             update_period_seconds = 0.4 / dump_rate
             # Tell the position sensors to report their values periodically at this rate
@@ -352,7 +352,7 @@ class CaptureSession(object):
             return False
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
-        for ant in self.ants.devs:
+        for ant in self.ants.clients:
             if not ant.is_connected():
                 continue
             if (ant.sensor.target.get_value() != target) or (ant.sensor.mode.get_value() != 'POINT') or \
@@ -395,7 +395,7 @@ class CaptureSession(object):
         # Include an average time to slew to the target (worst case about 90 seconds, so half that)
         now = time.time() + 45.
         average_el, visible_before, visible_after = [], [], []
-        for ant in self.ants.devs:
+        for ant in self.ants.clients:
             if not ant.is_connected():
                 continue
             antenna = katpoint.Antenna(ant.sensor.observer.get_value())
@@ -849,7 +849,7 @@ class TimeSession(object):
     def __init__(self, kat, dbe='dbe', **kwargs):
         self.kat = kat
         # If not a device itself, assume dbe is the name of the device
-        if not isinstance(dbe, KATDevice):
+        if not isinstance(dbe, KATClient):
             try:
                 dbe = getattr(kat, dbe)
             except AttributeError:
@@ -959,7 +959,7 @@ class TimeSession(object):
                        dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate."""
         self.ants = ant_array(self.kat, ants)
-        for ant in self.ants.devs:
+        for ant in self.ants.clients:
             try:
                 self._fake_ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),
                                         ant.sensor.mode.get_value(),
