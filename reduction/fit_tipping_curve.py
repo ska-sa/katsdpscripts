@@ -42,6 +42,7 @@ class Sky_temp:
         try:
             hdulist = pyfits.open(inputfile)
             self.Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
+            self.Data_imshow = np.flipud(hdulist[0].data) # data is in the first element of the fits file
             def Tsky(ra,dec):
                 return self.Data[self.dec(dec),self.ra(ra)]*(self.nu/1420.0)**(-(2-self.alpha))
             self.data_freq = 1420.0
@@ -62,13 +63,14 @@ class Sky_temp:
 
     def plot_sky(self,ra=None,dec=None,figure_no=9):
         plt.figure(figure_no)
+        plt.clf()
         if not ra is None :
             Ra_obs = ra
             Dec_obs = dec
             plt.plot(Ra_obs,Dec_obs,'ro')
         plt.xlabel("RA(J2000) [degrees]")
         plt.ylabel("Dec(J2000) [degrees]")
-        plt.imshow(self.Data*(self.nu/self.data_freq)**(-(2-self.alpha)), extent=[360,0,-90,90],vmax=50)
+        plt.imshow(np.fliplr(self.Data)*(self.nu/self.data_freq)**(-(2-self.alpha)), extent=[360,0,-90,90],vmax=50)
 
 class Spill_Temp:
     """Load spillover models and interpolate to centre observing frequency."""
@@ -113,7 +115,7 @@ class System_Temp:
         """ First extract total power in each scan (both mean and standard deviation) """
         T_skytemp = Sky_temp(inputfile=path)
         T_skytemp.set_freq( d.freqs[0])
-        T_sky =  Sky_temp().Tsky
+        T_sky =  T_skytemp.Tsky
         self.units = d.data_unit
         self.name = d.antenna.name
         self.filename = args[0]
@@ -297,3 +299,14 @@ logger.info('Chi square for HH is: %.6f ' % (fit_HH['chisq'],))
 logger.info('Chi square for VV is: %.6f ' % (fit_VV['chisq'],))
 
 plot_data(T_SysTemp,fit_HH,fit_VV)
+#
+# Save option to be added
+#
+save =  raw_input('Press s to save files, enter to continue: ')
+if save=='s' or save=='S':
+    outfilebase = args[0]+ '_' +d.antenna.name+'_tipping'
+    plt.figure(10)
+    plt.savefig(outfilebase+'.png', dpi=100)
+    outfilebase = args[0]+ '_' +d.antenna.name+'_sky'
+    plt.figure(9)
+    plt.savefig(outfilebase+'.png', dpi=100)
