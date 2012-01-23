@@ -22,7 +22,6 @@
 # - option to write output to file as well as display on screen?
 # - think about some way to optionally auto select to the script ants (else at least
 #   display them) in the status - a bit tricky since requires refresh to change
-# - think about adding a m/n specification to a sensor check.
 
 from optparse import OptionParser
 import sys, math, time
@@ -42,97 +41,100 @@ quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (unde
 
 
 # Sensor groups (and templates for creating sensor groups).
-# Structure is list of tuples with either (command to access sensor value, min value, max value)
-# or (command, list of string options, blank string)
+
+# Structure is a list of tuples with either:
+#   (command to access sensor value, min value, max value, m, n) or
+#   (command, list of string options, blank string, m, n)
+# where:
+#   m and n specify an "m from n" check for quiet mode
+#   (error is raised if sensor falls in error range in m out of n consecutive checks)
 
 ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
-("kat.ped#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0),
-("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1),
-("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1),
-("kat.ped#.sensor.rfe3_psu_ok.get_value()", 1,1),
-("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1),
-("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_ok.get_value()", 1,1),
-("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", ['0','1'],''),
-("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", ['0','1'],''),
-("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],''),
-("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop","stow"],''), # wind_stow will show as error
-("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0),
-("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0),
+("kat.ped#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0,1,1),
+("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1,1,1),
+("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1,1,1),
+("kat.ped#.sensor.rfe3_psu_ok.get_value()", 1,1,1,1),
+("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1,1,1),
+("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_ok.get_value()", 1,1,1,1),
+("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", ['0','1'],'',1,1),
+("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", ['0','1'],'',1,1),
+("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],'',1,1),
+("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop","stow"],'',1,1), # wind_stow will show as error
+("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0,1,1),
+("kat.ant#.sensor.pos_actual_scan_elev.get_value()",2.0,95.0,1,1),
 ]
 
-rfe7_template = [
-# ("kat.rfe7.sensor.rfe7_downconverter_ant#_h_powerswitch.get_value()", 1,1), # redundant
-# ("kat.rfe7.sensor.rfe7_downconverter_ant#_v_powerswitch.get_value()", 1,1), # redundant
+rfe7_template = [ # used to check powerswitch sensors here.
 ]
 
 rfe7_base_group = [
-("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx3_states_ok.get_value()", 1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_osc_states_ok.get_value()", 1,1),
-("","",""), # creates a blank line
+("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
+("","","","",""), # creates a blank line
 ]
 
 dbe7_template = [
-("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-28.0,-20.0), # ideally should be -28,-24, need m/n calc
-("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-28.0,-20.0), # ideally should be -28,-24, need m/n calc
-("kat.dbe7.sensor.dbe_ant#h_fft_overrange.get_value()", 0,0),
-("kat.dbe7.sensor.dbe_ant#v_fft_overrange.get_value()", 0,0),
-# ("kat.dbe7.sensor.dbe_ant#h_adc_overrange.get_value()", 0,0), # omitting these for now, need m/n calc
-# ("kat.dbe7.sensor.dbe_ant#v_adc_overrange.get_value()", 0,0), # omitting these for now, need m/n calc
-("kat.dbe7.sensor.dbe_ant#h_adc_terminated.get_value()", 0,0),
-("kat.dbe7.sensor.dbe_ant#v_adc_terminated.get_value()", 0,0),
+("kat.dbe7.sensor.dbe_ant#h_adc_power.get_value()",-28.0,-24.0,4,6),
+("kat.dbe7.sensor.dbe_ant#v_adc_power.get_value()",-28.0,-24.0,4,6),
+("kat.dbe7.sensor.dbe_ant#h_fft_overrange.get_value()", 0,0,1,1),
+("kat.dbe7.sensor.dbe_ant#v_fft_overrange.get_value()", 0,0,1,1),
+("kat.dbe7.sensor.dbe_ant#h_adc_overrange.get_value()", 0,0,2,5),
+("kat.dbe7.sensor.dbe_ant#v_adc_overrange.get_value()", 0,0,2,5),
+("kat.dbe7.sensor.dbe_ant#h_adc_terminated.get_value()", 0,0,1,1),
+("kat.dbe7.sensor.dbe_ant#v_adc_terminated.get_value()", 0,0,1,1),
 ]
 
 dbe7_base_group = [
-("kat.dbe7.sensor.dbe_corr_lru_available.get_value()", 1,1),
-("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],''),
-("","",""), # creates a blank line
+("kat.dbe7.sensor.dbe_corr_lru_available.get_value()", 1,1,1,1),
+("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],'',1,1),
+("","","","",""), # creates a blank line
 ]
 
 dc_group = [
-("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],''),
-("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1),
-("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1),
-("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1),
-("","",""), # creates a blank line
+("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],'',1,1),
+("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1,1,1),
+("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1,1,1),
+("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1,1,1),
+("","","","",""), # creates a blank line
 ]
 
 tfr_template = [
-("kat.ant#.sensor.antenna_acu_ntp_time.get_value()",1,1),
+("kat.ant#.sensor.antenna_acu_ntp_time.get_value()",1,1,1,1),
 ]
 
 tfr_base_group = [
-("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1),
-("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1), # does this include kat-dc1?
-("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1),
-("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1),
-("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1),
-("","",""), # creates a blank line
+("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
+("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1,1,1),
+("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1,1,1),
+("","","","",""), # creates a blank line
 ]
 
 anc_group = [
-("kat.anc.sensor.asc_asc_air_temperature.get_value()", 0.0,32.0),
-("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 6.0,22.0),
-("kat.anc.sensor.cc_cc_air_temperature.get_value()", 0.0,30.0),
-("kat.anc.sensor.cc_chiller_water_temperature.get_value()", 6.0,18.0),
-("kat.anc.sensor.asc_wind_speed.get_value()", -0.5,12.5), # the occassional small negative windspeeds are 'interesting'
-("kat.anc.sensor.asc_fire_ok.get_value()", 1,1), # these sensors really should be something like "(not) on fire"
-("kat.anc.sensor.cc_fire_ok.get_value()", 1,1),
-("kat.anc.sensor.cmc_fire_ok.get_value()", 1,1),
-("kat.anc.sensor.asc_ups_battery_not_discharging.get_value()", 1,1),
-("kat.anc.sensor.asc_ups_ok.get_value()", 1,1),
-("kat.anc.sensor.cc_ups_battery_not_discharging.get_value()", 1,1),
-("kat.anc.sensor.cc_ups_fault.get_value()", 0,0),
-("","",""), # creates a blank line
+("kat.anc.sensor.asc_asc_air_temperature.get_value()", 0.0,32.0,4,6),
+("kat.anc.sensor.asc_chiller_water_temperature.get_value()", 6.0,22.0,1,1),
+("kat.anc.sensor.cc_cc_air_temperature.get_value()", 0.0,30.0,4,6),
+("kat.anc.sensor.cc_chiller_water_temperature.get_value()", 6.0,18.0,1,1),
+("kat.anc.sensor.asc_wind_speed.get_value()", -0.5,12.5,10,20), # the occasional small negative windspeeds are 'interesting'
+("kat.anc.sensor.asc_fire_ok.get_value()", 1,1,1,1), # these sensors really should be something like "(not) on fire"
+("kat.anc.sensor.cc_fire_ok.get_value()", 1,1,1,1),
+("kat.anc.sensor.cmc_fire_ok.get_value()", 1,1,1,1),
+("kat.anc.sensor.asc_ups_battery_not_discharging.get_value()", 1,1,1,1),
+("kat.anc.sensor.asc_ups_ok.get_value()", 1,1,1,1),
+("kat.anc.sensor.cc_ups_battery_not_discharging.get_value()", 1,1,1,1),
+("kat.anc.sensor.cc_ups_fault.get_value()", 0,0,1,1),
+("","","","",""), # creates a blank line
 ]
 
 lab_rfe7_group = [
-("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1,1),
-("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1,1),
-("","",""), # creates a blank line
+("kat.rfe7.sensor.rfe7_downconverter_ant1_h_powerswitch.get_value()", 1,1,1,1),
+("kat.rfe7.sensor.rfe7_downconverter_ant1_v_powerswitch.get_value()", 1,1,1,1),
+("kat.rfe7.sensor.rfe7_orx1_powerswitch.get_value()", 1,1,1,1),
+("","","","",""), # creates a blank line
 ]
 
 # Dictionary containing selectable sensor groups, identified by name (user selects one of these at runtime).
@@ -168,17 +170,17 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
     for ant in ants.clients:
         i = ant.name.split('ant')[1]
         for sensor in ant_template:
-            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
+            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
         for sensor in rfe7_template:
-            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
-            rfe7_ants_group.append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
+            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
+            rfe7_ants_group.append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
         for sensor in dbe7_template:
-            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
-            dbe7_ants_group.append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
+            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
+            dbe7_ants_group.append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
         for sensor in tfr_template:
-            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
-            tfr_ants_group.append((sensor[0].replace('#',str(i)),sensor[1],sensor[2]))
-        sensor_groups[ant.name].append(("","","")) # add a blank line to the per antenna group
+            sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
+            tfr_ants_group.append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
+        sensor_groups[ant.name].append(("","","","","")) # add a blank line to the per antenna group
         sensor_groups['ants'] =  sensor_groups['ants'] + sensor_groups[ant.name]
     sensor_groups['karoo'] = sensor_groups['ants'] + sensor_groups['karoo']
     sensor_groups['dbe7'] = dbe7_ants_group + dbe7_base_group
@@ -187,28 +189,49 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
     sensor_groups['lab'] = sensor_groups['ant1'] + lab_rfe7_group
 
 
-def print_sensor(colour,sensor,val,min_val,max_val,quiet,action=''):
+def print_sensor(colour,sensor,val,min_val,max_val,m,n,quiet,action=''):
     if quiet and sensor != '' and action == 'trigger':
-        print '%s - %s : (%s, %s, %s)%s' % (col(colour)+time.ctime()+' (trigger)',sensor, val,\
-        str(min_val),str(max_val),col(normal_colour))
+        print '%s - %s : (%s, %s, %s, %s/%s)%s' % (col(colour)+time.ctime()+' (trigger)',sensor, val,\
+        str(min_val),str(max_val),str(m),str(n),col(normal_colour))
     elif quiet and sensor != '' and action == 'clear':
-        print '%s - %s : (%s, %s, %s)%s' % (col(colour)+time.ctime()+' (cleared)',sensor, val,\
-        str(min_val),str(max_val),col(normal_colour))
+        print '%s - %s : (%s, %s, %s, %s/%s )%s' % (col(colour)+time.ctime()+' (cleared)',sensor, val,\
+        str(min_val),str(max_val),str(m),str(n),col(normal_colour))
     else:
         print '%s %s %s %s' % (col(colour)+sensor.ljust(65),\
           (val).ljust(25),str(min_val).ljust(25),str(max_val).ljust(25)+col(normal_colour))
 
 
-def update_alarm(alarms,sensor,action):
+def update_alarm(alarms,sensor,m,n,action):
     updated = False
-    if action == 'trigger':
+    if m==1 and n==1: # if not m from n case
+        if action == 'trigger':
+            if not alarms.has_key(sensor):
+                alarms[sensor] = 1 # the 1 is arb and not used currently
+                updated = True
+        elif action == 'clear':
+            if alarms.has_key(sensor):
+                alarms.pop(sensor) # remove sensor from alarm
+                updated = True
+    else: # for an m from n case:
         if not alarms.has_key(sensor):
-            alarms[sensor] = 1 # the 1 is arb and not used currently
-            updated = True
-    elif action == 'clear':
-        if alarms.has_key(sensor):
-            alarms.pop(sensor) # remove sensor from alarm
-            updated = True
+            if action == 'trigger':
+                alarms[sensor] = [1,1] # 1 from 1
+            else: # action must be 'clear'
+                alarms[sensor] = [0,1] # 0 from 1
+        else:
+            if alarms[sensor][1] < n:
+                alarms[sensor][1] = alarms[sensor][1] + 1
+                if action == 'trigger':
+                    alarms[sensor][0] = alarms[sensor][0] + 1
+                    if alarms[sensor][0] == m:
+                        updated = True
+            else: # n values have already been checked
+                if action == 'trigger' and alarms[sensor][0] < n:
+                    alarms[sensor][0] = alarms[sensor][0] + 1
+                    if alarms[sensor][0] == m: updated = True
+                else: # action must be 'clear'
+                    if alarms[sensor][0] == m: updated = True
+                    alarms[sensor][0] = max(alarms[sensor][0] - 1,0)
     return updated
 
 
@@ -223,7 +246,7 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
         potential_problems = True
         print col(error_colour) + 'No sensors to check! Are you sure this device is connected?' + col(normal_colour)
     
-    for checker, min_val, max_val in selected_sensors:
+    for checker, min_val, max_val, m, n in selected_sensors:
         if checker.strip() == '':
             if opts.verbose: print '' # print a blank line, but skip this if only showing errors
         else:
@@ -235,8 +258,8 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
 
                 if current_val == 'None':
                     potential_problems = True
-                    if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
-                        print_sensor(error_colour,checker,'<no value>',min_val,max_val,quiet,'trigger')
+                    if not quiet or (quiet and update_alarm(alarms,checker,m,n,'trigger')):
+                        print_sensor(error_colour,checker,'<no value>',min_val,max_val,m,n,quiet,'trigger')
                     return potential_problems
                 
                 if type(min_val) is list:
@@ -252,18 +275,18 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
                 if sensor_ok:
                     if opts.verbose: # won't be verbose in quiet mode (check is performed earlier)
                         if sensor_status == 'warn':
-                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet)
+                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,m,n,quiet)
                         else:
-                            print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
-                    elif quiet and update_alarm(alarms,checker,'clear'): # quiet mode where sensor alarm toggles to 'clear'
-                        print_sensor(ok_colour,checker,current_val,min_val,max_val,quiet,'clear')
+                            print_sensor(ok_colour,checker,current_val,min_val,max_val,m,n,quiet,'clear')
+                    elif quiet and update_alarm(alarms,checker,m,n,'clear'): # quiet mode where sensor alarm toggles to 'clear'
+                        print_sensor(ok_colour,checker,current_val,min_val,max_val,m,n,quiet,'clear')
                 else:
                     potential_problems = True
-                    if not quiet or (quiet and update_alarm(alarms,checker,'trigger')):
+                    if not quiet or (quiet and update_alarm(alarms,checker,m,n,'trigger')):
                         if quiet_warning:
-                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet,'trigger')
+                            print_sensor(warn_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,m,n,quiet,'trigger')
                         else:
-                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,quiet,'trigger')
+                            print_sensor(error_colour,checker,str(current_val)+' (' + sensor_status + ')',min_val,max_val,m,n,quiet,'trigger')
                             
             except Exception, e:
                 potential_problems = True
