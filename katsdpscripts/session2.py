@@ -419,7 +419,7 @@ class CaptureSession(object):
             user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
-    def fire_noise_diode(self, diode='coupler', on=10.0, off=10.0, period=0.0, announce=True):
+    def fire_noise_diode(self, diode='coupler', on=10.0, off=10.0, period=0.0, align=True, announce=True):
         """Switch noise diode on and off.
 
         This switches the selected noise diode on and off for all the antennas
@@ -446,6 +446,9 @@ class CaptureSession(object):
             time is determined by the duration of individual slews and scans,
             which are considered atomic and won't be interrupted.) If 0, fire
             diode unconditionally. If negative, don't fire diode at all.
+        align : {True, False}, optional
+            True if noise diode transitions should be aligned with correlator
+            dump boundaries, or False if they should happen as soon as possible
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -470,24 +473,66 @@ class CaptureSession(object):
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
             return False
 
+        if align:
+            # Get dump period in seconds
+            dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
+            if dump_period == 0.0:
+                user_logger.warning("Noise diode firings cannot be aligned with dumps, "
+                                    "as dump period is 0 (has capturing started)?")
+                align = False
+            else:
+                # Round "on" duration up to the nearest integer multiple of dump period
+                on = np.ceil(float(on) / dump_period) * dump_period
+                last_dump = float(dbe.req.k7w_get_last_dump_timestamp().messages[0].arguments[1])
+                if last_dump == 0.0:
+                    user_logger.warning("Noise diode firings cannot be aligned with dumps, "
+                                        "as last dump timestamp is 0 (has capturing started)?")
+                    align = False
+                else:
+                    # The last fully complete dump is more than 1 dump in the past
+                    next_dump = last_dump + 2 * dump_period
+                    # The delay in setting up noise diode firing - next dump should be at least this far in future
+                    lead_time = 0.25
+                    # Find next suitable dump boundary
+                    while next_dump < time.time() + lead_time:
+                        next_dump += dump_period
+
         if announce:
             user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
         else:
             user_logger.info('firing noise diode')
 
-        # Switch noise diode on on all antennas
-        ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
-        # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
-        if hasattr(dbe.req, 'dbe_fire_nd'):
-            dbe.req.dbe_fire_nd(on)
-        time.sleep(on)
-        # Mark on -> off transition as last firing
-        session.last_nd_firing = time.time()
-        # Switch noise diode off on all antennas
-        ants.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
-        time.sleep(off)
-        user_logger.info('noise diode fired')
+        if align:
+            # Schedule noise diode switch-on on all antennas at the next suitable dump boundary
+            ants.req.rfe3_rfe15_noise_source_on(diode, 1, 1000 * next_dump, 0)
+            # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
+            if hasattr(dbe.req, 'dbe_fire_nd') and dump_period > 0:
+                time.sleep(max(next_dump - time.time(), 0))
+                dbe.req.dbe_fire_nd(np.ceil(float(on) / dump_period))
+            # Wait until the noise diode is on
+            time.sleep(max(next_dump + 0.5 * on - time.time(), 0))
+            # Schedule noise diode switch-off on all antennas a duration of "on" seconds later
+            ants.req.rfe3_rfe15_noise_source_on(diode, 0, 1000 * (next_dump + on), 0)
+            time.sleep(max(next_dump + on + off - time.time(), 0))
+            # Mark on -> off transition as last firing
+            session.last_nd_firing = next_dump + on
+        else:
+            # Switch noise diode on on all antennas
+            ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
+            # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
+            if hasattr(dbe.req, 'dbe_fire_nd'):
+                # Get dump period in seconds
+                dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
+                if dump_period > 0:
+                    dbe.req.dbe_fire_nd(np.ceil(float(on) / dump_period))
+            time.sleep(on)
+            # Mark on -> off transition as last firing
+            session.last_nd_firing = time.time()
+            # Switch noise diode off on all antennas
+            ants.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
+            time.sleep(off)
 
+        user_logger.info('noise diode fired')
         return True
 
     def set_target(self, target):
