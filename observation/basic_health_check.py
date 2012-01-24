@@ -167,7 +167,7 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
     tfr_ants_group = [] # per antenna tfr sensors
 
     ants = katuilib.observe.ant_array(kat,selected_ants)
-    for ant in ants.clients:
+    for ant in ants:
         i = ant.name.split('ant')[1]
         for sensor in ant_template:
             sensor_groups[ant.name].append((sensor[0].replace('#',str(i)),sensor[1],sensor[2],sensor[3],sensor[4]))
@@ -350,7 +350,7 @@ def show_status_header(kat, opts, selected_sensors):
         tgt_index = {} # target strings as keys with values as a zero-based index to ant_list list of lists
         ant_list = [] # list of lists of antennas per target
         locks, modes, activity = {}, {}, {}
-        for ant in ants.clients:
+        for ant in ants:
             tgt = ant.sensor.target.get_value()
             if tgt == '' or tgt == None: tgt = 'None'
             if not tgt_index.has_key(tgt):

@@ -81,7 +81,7 @@ with verify_and_connect(opts) as kat:
             nd_params = session.nd_params
             session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
             session.capture_start()
-            user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants.clients]),))
+            user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
 
             for target in targets:
                 user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
@@ -93,10 +93,10 @@ with verify_and_connect(opts) as kat:
                 # Perform multiple scans across the target with the scan antennas only
                 for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
                     session.ants = scan_ants
-                    user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants.clients]),))
+                    user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                     session.scan(target, duration=opts.scan_duration, start=start, end=end,
                                  index=scan_index, projection=opts.projection, label='')
                     # Provide opportunity for noise diode to fire on all antennas
                     session.ants = all_ants
-                    user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants.clients]),))
+                    user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                     session.fire_noise_diode(announce=False, **nd_params)
