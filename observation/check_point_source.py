@@ -47,7 +47,7 @@ with verify_and_connect(opts) as kat:
         else:
             # Get current position of first antenna in the list (assume the rest are the same or close)
             if opts.dry_run:
-                current_az, current_el = session.ants[0][2:]
+                current_az, current_el = session._fake_ants[0][2:]
             else:
                 current_az = session.ants.clients[0].sensor.pos_actual_scan_azim.get_value()
                 current_el = session.ants.clients[0].sensor.pos_actual_scan_elev.get_value()
