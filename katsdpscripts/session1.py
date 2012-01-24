@@ -309,7 +309,7 @@ class CaptureSession(object):
         # its data to the k7writer daemon (set via configuration)
         dbe.req.capture_setup(1000.0 / dump_rate, effective_lo_freq)
 
-        user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants.clients]),))
+        user_logger.info("Antennas used = %s" % (' '.join([ant.name for ant in ants]),))
         user_logger.info("Observer = %s" % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info("Experiment ID = %s" % (experiment_id,))
@@ -337,7 +337,7 @@ class CaptureSession(object):
 
         # If the DBE is simulated, it will have position update commands
         if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
-            first_ant = ants.clients[0]
+            first_ant = ants[0]
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
             update_period_seconds = 0.4 / dump_rate
             # Tell the position sensors to report their values periodically at this rate
@@ -380,7 +380,7 @@ class CaptureSession(object):
             return False
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
-        for ant in self.ants.clients:
+        for ant in self.ants:
             if not ant.is_connected():
                 continue
             if (ant.sensor.target.get_value() != target) or (ant.sensor.mode.get_value() != 'POINT') or \
@@ -423,7 +423,7 @@ class CaptureSession(object):
         # Include an average time to slew to the target (worst case about 90 seconds, so half that)
         now = time.time() + 45.
         average_el, visible_before, visible_after = [], [], []
-        for ant in self.ants.clients:
+        for ant in self.ants:
             if not ant.is_connected():
                 continue
             antenna = katpoint.Antenna(ant.sensor.observer.get_value())
@@ -1094,7 +1094,7 @@ class TimeSession(object):
                        dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate."""
         self.ants = ant_array(self.kat, ants)
-        for ant in self.ants.clients:
+        for ant in self.ants:
             try:
                 self._fake_ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),
                                         ant.sensor.mode.get_value(),
