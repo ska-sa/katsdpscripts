@@ -188,7 +188,7 @@ with verify_and_connect(opts) as kat:
             user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
             sys.exit(0)
     elif opts.dbe == 'dbe7':
-        dbe_mode = kat.dbe7.req.dbe_mode()[1]
+        dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
         if dbe_mode == 'wbc':
             user_logger.info("dbe7 mode is 'wbc', as expected :)")
         else:
@@ -210,7 +210,7 @@ with verify_and_connect(opts) as kat:
 
     # Create device array of antennas, based on specification string
     ants = ant_array(kat, opts.ants)
-    user_logger.info('Using antennas: %s' % (' '.join([dev.name for dev in ants.devs]),))
+    user_logger.info('Using antennas: %s' % (' '.join([ant.name for ant in ants]),))
 
     # Switch data handler to requested DBE
     kat.dh.register_dbe(selected_dbe)
