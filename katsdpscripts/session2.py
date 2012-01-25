@@ -139,6 +139,8 @@ class CaptureSession(object):
             self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
+            self.dump_period = 0.0
+            self._end_of_previous_session = dbe.sensor.k7w_last_dump_timestamp.get_value()
 
             # Prepare the capturing system, which opens the HDF5 file
             reply = dbe.req.k7w_capture_init()
@@ -269,6 +271,8 @@ class CaptureSession(object):
         ants.req.sensor_sampling('lock', 'event')
         ants.req.sensor_sampling('scan.status', 'event')
         ants.req.sensor_sampling('mode', 'event')
+        dbe.req.sensor_sampling('k7w.spead_dump_period', 'event')
+        dbe.req.sensor_sampling('k7w.last_dump_timestamp', 'event')
 
         # Set centre frequency in RFE stage 7 (and read it right back to verify)
         if centre_freq is not None:
@@ -464,6 +468,11 @@ class CaptureSession(object):
         fired : {True, False}
             True if noise diode fired
 
+        Raises
+        ------
+        CaptureInitError
+            If dump period or first correlator dump does not arrive in time
+
         Notes
         -----
         When the function returns, data will still be recorded to the HDF5 file.
@@ -475,34 +484,38 @@ class CaptureSession(object):
         if self.ants is None:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         # Create references to allow easy copy-and-pasting from this function
-        session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
+        session, kat, ants, dbe, dump_period = self, self.kat, self.ants, self.dbe, self.dump_period
+
+        # Wait for the dump period to become known, as it is needed to set a good timeout for the first dump
+        if dump_period == 0.0:
+            if not dbe.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1., poll_period=0.1):
+                raise CaptureInitError('The SPEAD metadata header is overdue at k7_capture - capturing failed')
+            # Get actual dump period in seconds (as opposed to the requested period)
+            dump_period = session.dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
+        # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
+        last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
+        if last_dump == self._end_of_previous_session:
+            user_logger.info('waiting for first correlator dump')
+            # Wait for the first correlator dump to appear
+            if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > self._end_of_previous_session,
+                            timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
+                raise CaptureInitError('The first correlator dump is overdue at k7_capture - capturing failed')
+            user_logger.info('first correlator dump arrived')
+
         # If period is non-negative, quit if it is not yet time to fire the noise diode
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
             return False
 
         if align:
-            # Get dump period in seconds
-            dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
-            if dump_period == 0.0:
-                user_logger.warning("Noise diode firings cannot be aligned with dumps, "
-                                    "as dump period is 0 (has capturing started)?")
-                align = False
-            else:
-                # Round "on" duration up to the nearest integer multiple of dump period
-                on = np.ceil(float(on) / dump_period) * dump_period
-                last_dump = float(dbe.req.k7w_get_last_dump_timestamp().messages[0].arguments[1])
-                if last_dump == 0.0:
-                    user_logger.warning("Noise diode firings cannot be aligned with dumps, "
-                                        "as last dump timestamp is 0 (has capturing started)?")
-                    align = False
-                else:
-                    # The last fully complete dump is more than 1 dump in the past
-                    next_dump = last_dump + 2 * dump_period
-                    # The delay in setting up noise diode firing - next dump should be at least this far in future
-                    lead_time = 0.25
-                    # Find next suitable dump boundary
-                    while next_dump < time.time() + lead_time:
-                        next_dump += dump_period
+            # Round "on" duration up to the nearest integer multiple of dump period
+            on = np.ceil(float(on) / dump_period) * dump_period
+            # The last fully complete dump is more than 1 dump period in the past
+            next_dump = last_dump + 2 * dump_period
+            # The delay in setting up noise diode firing - next dump should be at least this far in future
+            lead_time = 0.25
+            # Find next suitable dump boundary
+            while next_dump < time.time() + lead_time:
+                next_dump += dump_period
 
         if announce:
             user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
@@ -528,10 +541,7 @@ class CaptureSession(object):
             ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
             # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
             if hasattr(dbe.req, 'dbe_fire_nd'):
-                # Get dump period in seconds
-                dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
-                if dump_period > 0:
-                    dbe.req.dbe_fire_nd(np.ceil(float(on) / dump_period))
+                dbe.req.dbe_fire_nd(np.ceil(float(on) / dump_period))
             time.sleep(on)
             # Mark on -> off transition as last firing
             session.last_nd_firing = time.time()
@@ -906,8 +916,9 @@ class TimeSession(object):
         self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
         self.last_nd_firing = 0.
         self.output_file = ''
+        self.dump_period = self._requested_dump_period = 0.0
 
-        self.start_time = time.time()
+        self.start_time = self._end_of_previous_session = time.time()
         self.time = self.start_time
         self.projection = ('ARC', 0., 0.)
 
@@ -1014,6 +1025,7 @@ class TimeSession(object):
         self.experiment_id = experiment_id = self.experiment_id if experiment_id is None else experiment_id
         self.nd_params = nd_params = self.nd_params if nd_params is None else nd_params
         self.stow_when_done = stow_when_done = self.stow_when_done if stow_when_done is None else stow_when_done
+        self._requested_dump_period = 1.0 / dump_rate
 
         user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self._fake_ants]),))
         user_logger.info('Observer = %s' % (observer,))
@@ -1090,6 +1102,12 @@ class TimeSession(object):
         """Estimate time taken to fire noise diode."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
+        if self.dump_period == 0.0:
+            # Wait for the first correlator dump to appear
+            user_logger.info('waiting for first correlator dump')
+            self.dump_period = self._requested_dump_period
+            time.sleep(self.dump_period)
+            user_logger.info('first correlator dump arrived')
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
         if announce:
