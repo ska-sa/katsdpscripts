@@ -327,8 +327,15 @@ class CaptureSession(object):
         self.dbe.req.dbe_capture_start('k7')
 
     def label(self, label):
-        """Add timestamped label to HDF5 file."""
-        self.dbe.req.k7w_set_label(label)
+        """Add timestamped label to HDF5 file.
+
+        The label is typically a single word used to indicate the start of a
+        new compound scan.
+
+        """
+        if label:
+            self.dbe.req.k7w_set_label(label)
+            user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target.
@@ -565,7 +572,7 @@ class CaptureSession(object):
             azel = katpoint.rad2deg(np.array(target.azel()))
             dbe.req.dbe_test_target(azel[0], azel[1], 100.)
 
-    def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
+    def track(self, target, duration=20.0, drive_strategy='shortest-slew', announce=True):
         """Track a target.
 
         This tracks the specified target with all antennas involved in the
@@ -582,8 +589,6 @@ class CaptureSession(object):
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that will permit the longest possible track before
             the target sets.
-        label : string, optional
-            Label associated with compound scan in HDF5 file, usually single word.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -617,7 +622,6 @@ class CaptureSession(object):
         # Set the drive strategy for how antenna moves between targets, and the target
         ants.req.drive_strategy(drive_strategy)
         session.set_target(target)
-        session.label(label)
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
@@ -642,7 +646,7 @@ class CaptureSession(object):
 
     @dynamic_doc("', '".join(projections), default_proj)
     def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
-             projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Scan across a target.
 
         This scans across a target with all antennas involved in the session,
@@ -674,8 +678,6 @@ class CaptureSession(object):
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that is nearest to the antenna's current position,
             thereby saving time.
-        label : string, optional
-            Label associated with compound scan in HDF5 file, usually single word.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -718,7 +720,6 @@ class CaptureSession(object):
         # Set the drive strategy for how antenna moves between targets, and the target
         ants.req.drive_strategy(drive_strategy)
         session.set_target(target)
-        session.label(label)
 
         session.fire_noise_diode(announce=False, **session.nd_params)
 
@@ -744,8 +745,7 @@ class CaptureSession(object):
 
     @dynamic_doc("', '".join(projections), default_proj)
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
-                    label='raster', announce=True):
+                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Perform raster scan on target.
 
         A *raster scan* is a series of scans across a target performed by all
@@ -787,8 +787,6 @@ class CaptureSession(object):
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that is nearest to the antenna's current position,
             thereby saving time.
-        label : string, optional
-            Label associated with compound scan in HDF5 file, usually single word.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -843,7 +841,7 @@ class CaptureSession(object):
         # Perform multiple scans across the target
         for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
             session.scan(target, duration=scan_duration, start=start, end=end, index=scan_index,
-                         projection=projection, drive_strategy=drive_strategy, label=label, announce=False)
+                         projection=projection, drive_strategy=drive_strategy, announce=False)
         return True
 
     def end(self, cancel=False):
@@ -1043,7 +1041,8 @@ class TimeSession(object):
 
     def label(self, label):
         """Adding label has no timing effect."""
-        pass
+        if label:
+            user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
@@ -1087,7 +1086,7 @@ class TimeSession(object):
             user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
-    def fire_noise_diode(self, diode='coupler', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
+    def fire_noise_diode(self, diode='coupler', on=10.0, off=10.0, period=0.0, align=True, announce=True):
         """Estimate time taken to fire noise diode."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1108,7 +1107,7 @@ class TimeSession(object):
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
 
-    def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
+    def track(self, target, duration=20.0, drive_strategy='shortest-slew', announce=True):
         """Estimate time taken to perform track."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1118,7 +1117,7 @@ class TimeSession(object):
         if not self.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
-        self.fire_noise_diode(label='', announce=False, **self.nd_params)
+        self.fire_noise_diode(announce=False, **self.nd_params)
         if not self.on_target(target):
             user_logger.info('slewing to target')
             self._slew_to(target)
@@ -1132,7 +1131,7 @@ class TimeSession(object):
         return True
 
     def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
-             projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Estimate time taken to perform single linear scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1143,7 +1142,7 @@ class TimeSession(object):
         if not self.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
-        self.fire_noise_diode(label='', announce=False, **self.nd_params)
+        self.fire_noise_diode(announce=False, **self.nd_params)
         projection = Offset.PROJECTIONS[projection]
         self.projection = (projection, start[0], start[1])
         user_logger.info('slewing to start of %s' % (scan_name,))
@@ -1160,8 +1159,7 @@ class TimeSession(object):
         return True
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
-                    label='raster', announce=True):
+                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Estimate time taken to perform raster scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1183,7 +1181,7 @@ class TimeSession(object):
         # Flip sign of elevation offsets to ensure that the first scan always starts at the top left of target
         scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
         scan_ends = zip(-scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, scanning_coord)
-        self.fire_noise_diode(label='', announce=False, **self.nd_params)
+        self.fire_noise_diode(announce=False, **self.nd_params)
         # Perform multiple scans across the target
         for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
             self.projection = (projection, start[0], start[1])

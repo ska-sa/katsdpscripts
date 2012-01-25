@@ -83,7 +83,7 @@ class CaptureScan(object):
     ----------
     kat : :class:`utility.KATHost` object
         KAT connection object associated with this experiment
-    label : string
+    scan_label : string
         Label for scan in HDF5 file, usually a single computer-parseable word.
         If this is an empty string, do not create a new Scan group in the file.
     dbe : :class:`KATClient` object
@@ -96,20 +96,20 @@ class CaptureScan(object):
         only proper scans.
 
     """
-    def __init__(self, kat, label, dbe, record_slews):
+    def __init__(self, kat, scan_label, dbe, record_slews):
         self.kat = kat
-        self.label = label
+        self.scan_label = scan_label
         self.dbe = dbe
         self.record_slews = record_slews
 
     def __enter__(self):
         """Start with scan and start/unpause capturing if necessary."""
         # Do nothing if we want to slew and slews are not to be recorded
-        if self.label == 'slew' and not self.record_slews:
+        if self.scan_label == 'slew' and not self.record_slews:
             return self
         # Create new Scan group in HDF5 file, if label is non-empty
-        if self.label:
-            self.dbe.req.k7w_new_scan(self.label)
+        if self.scan_label:
+            self.dbe.req.k7w_new_scan(self.scan_label)
         # Unpause HDF5 file output (redundant if output is never paused anyway)
         self.dbe.req.k7w_write_hdf5(1)
         # If we haven't yet, start recording data from the correlator (which creates the data file)
@@ -170,6 +170,7 @@ class CaptureSession(object):
             self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
+            self._label = ''
 
             activity_logger.info("----- Script starting  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
@@ -355,8 +356,15 @@ class CaptureSession(object):
         pass
 
     def label(self, label):
-        """Add timestamped label to HDF5 file (ignored in version 1)."""
-        pass
+        """Add timestamped label to HDF5 file.
+
+        The label is typically a single word used to indicate the start of a
+        new compound scan.
+
+        """
+        self._label = label
+        if label:
+            user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target.
@@ -447,7 +455,7 @@ class CaptureSession(object):
             user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
-    def start_scan(self, label):
+    def start_scan(self, scan_label):
         """Set up start and shutdown of scan (the basic unit of an experiment).
 
         This returns a *context manager* to be used in a *with* statement, which
@@ -457,7 +465,7 @@ class CaptureSession(object):
 
         Parameters
         ----------
-        label : string
+        scan_label : string
             Label for scan in HDF5 file, usually single computer-parseable word.
             If this is an empty string, do not create new Scan group in the file.
 
@@ -467,13 +475,13 @@ class CaptureSession(object):
             Context manager that encapsulates capturing of a single scan
 
         """
-        return CaptureScan(self.kat, label, self.dbe, self.record_slews)
+        return CaptureScan(self.kat, scan_label, self.dbe, self.record_slews)
 
-    def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
+    def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, scan_label='cal', announce=True):
         """Switch noise diode on and off.
 
         This switches the selected noise diode on and off for all the antennas
-        doing the observation. If a label is provided, a new Scan group is
+        doing the observation. If a scan label is provided, a new Scan group is
         created in the HDF5 file. The target and compound scan are not changed.
 
         The on and off durations can be specified. Additionally, setting the
@@ -502,7 +510,7 @@ class CaptureSession(object):
             time is determined by the duration of individual slews and scans,
             which are considered atomic and won't be interrupted.) If 0, fire
             diode unconditionally. If negative, don't fire diode at all.
-        label : string, optional
+        scan_label : string, optional
             Label for scan in HDF5 file, usually single computer-parseable word.
             If this is an empty string, do not create new Scan group in the file.
         announce : {True, False}, optional
@@ -528,7 +536,7 @@ class CaptureSession(object):
         else:
             user_logger.info('firing noise diode')
 
-        with session.start_scan(label):
+        with session.start_scan(scan_label):
             # Switch noise diode on on all antennas
             ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
             time.sleep(on)
@@ -541,7 +549,7 @@ class CaptureSession(object):
 
         return True
 
-    def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
+    def track(self, target, duration=20.0, drive_strategy='shortest-slew', announce=True):
         """Track a target.
 
         This tracks the specified target while recording data.
@@ -552,9 +560,10 @@ class CaptureSession(object):
         will typically be discarded during processing.
 
         Data capturing is started before the track starts, if it isn't running
-        yet. If a label or a new target is supplied, a new compound scan will be
-        created in the HDF5 data file, with an optional 'slew' scan followed by
-        a 'scan' scan. The antennas all track the same target in parallel.
+        yet. If a compound scan label or a new target is supplied, a new
+        compound scan will be created in the HDF5 data file, with an optional
+        'slew' scan followed by a 'scan' scan. The antennas all track the same
+        target in parallel.
 
         When the function returns, the antennas will still track the target and
         data will still be recorded to the HDF5 file. The specified *duration*
@@ -573,11 +582,6 @@ class CaptureSession(object):
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that will permit the longest possible track before
             the target sets.
-        label : string, optional
-            Label for compound scan in HDF5 file, usually a single word. If this
-            is an empty string and *target* matches the target of the current
-            compound scan being written, do not create new CompoundScan group
-            in the file.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -590,7 +594,7 @@ class CaptureSession(object):
         if self.ants is None:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         # Create references to allow easy copy-and-pasting from this function
-        session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
+        session, kat, ants, dbe, label = self, self.kat, self.ants, self.dbe, self._label
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
@@ -622,7 +626,9 @@ class CaptureSession(object):
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         if label:
             dbe.req.k7w_new_compound_scan(target, label, 'cal')
-            session.fire_noise_diode(label='', announce=False, **session.nd_params)
+            # Consume the label on creation of new compound scan
+            session.label('')
+            session.fire_noise_diode(scan_label='', announce=False, **session.nd_params)
         else:
             session.fire_noise_diode(announce=False, **session.nd_params)
 
@@ -649,7 +655,7 @@ class CaptureSession(object):
 
     @dynamic_doc("', '".join(projections), default_proj)
     def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
-             projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Scan across a target.
 
         This scans across a target, either in azimuth or elevation (depending on
@@ -664,9 +670,10 @@ class CaptureSession(object):
         will typically be discarded during processing.
 
         Data capturing is started before the scan starts, if it isn't running yet.
-        If a label or a new target is supplied, a new compound scan will be
-        created in the HDF5 data file, with an optional 'slew' scan followed by
-        a 'scan' scan. The antennas all scan across the same target in parallel.
+        If a compound scan label or a new target is supplied, a new compound scan
+        will be created in the HDF5 data file, with an optional 'slew' scan
+        followed by a 'scan' scan. The antennas all scan across the same target
+        in parallel.
 
         When the function returns, the antennas will still track the end-point of
         the scan and data will still be recorded to the HDF5 file. The specified
@@ -694,11 +701,6 @@ class CaptureSession(object):
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that is nearest to the antenna's current position,
             thereby saving time.
-        label : string, optional
-            Label for compound scan in HDF5 file, usually a single word. If this
-            is an empty string and *target* matches the target of the current
-            compound scan being written, do not create new CompoundScan group
-            in the file.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -721,7 +723,7 @@ class CaptureSession(object):
         if self.ants is None:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         # Create references to allow easy copy-and-pasting from this function
-        session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
+        session, kat, ants, dbe, label = self, self.kat, self.ants, self.dbe, self._label
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
         scan_name = 'scan' if index < 0 else 'scan %d' % (index,)
@@ -752,7 +754,9 @@ class CaptureSession(object):
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         if label:
             dbe.req.k7w_new_compound_scan(target, label, 'cal')
-            session.fire_noise_diode(label='', announce=False, **session.nd_params)
+            # Consume the label on creation of new compound scan
+            session.label('')
+            session.fire_noise_diode(scan_label='', announce=False, **session.nd_params)
         else:
             session.fire_noise_diode(announce=False, **session.nd_params)
 
@@ -780,8 +784,7 @@ class CaptureSession(object):
 
     @dynamic_doc("', '".join(projections), default_proj)
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
-                    label='raster', announce=True):
+                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Perform raster scan on target.
 
         A *raster scan* is a series of scans across a target, scanning in either
@@ -803,10 +806,10 @@ class CaptureSession(object):
 
         Data capturing is started before the first scan, if it isn't running yet.
         All scans in the raster scan are grouped together in a single compound
-        scan in the HDF5 data file, as they share the same target. If a label or
-        a new target is supplied, a new compound scan will be created, otherwise
-        the existing one will be re-used.The antennas all perform the same raster
-        scan across the given target, in parallel.
+        scan in the HDF5 data file, as they share the same target. If a compound
+        scan label or a new target is supplied, a new compound scan will be
+        created, otherwise the existing one will be re-used.The antennas all
+        perform the same raster scan across the given target, in parallel.
 
         When the function returns, the antennas will still track the end-point of
         the last scan and data will still be recorded to the HDF5 file. The
@@ -840,11 +843,6 @@ class CaptureSession(object):
             target is in azimuth overlap region of antenna. The default is to
             go to the wrap that is nearest to the antenna's current position,
             thereby saving time.
-        label : string, optional
-            Label for compound scan in HDF5 file, usually a single word. If this
-            is an empty string and *target* matches the target of the current
-            compound scan being written, do not create new CompoundScan group
-            in the file.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -866,7 +864,7 @@ class CaptureSession(object):
         if self.ants is None:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         # Create references to allow easy copy-and-pasting from this function
-        session, kat, ants, dbe = self, self.kat, self.ants, self.dbe
+        session, kat, ants, dbe, label = self, self.kat, self.ants, self.dbe, self._label
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
@@ -902,7 +900,9 @@ class CaptureSession(object):
         # If desired, create new CompoundScan group in HDF5 file, which automatically also creates the first Scan group
         if label:
             dbe.req.k7w_new_compound_scan(target, label, 'cal')
-            session.fire_noise_diode(label='', announce=False, **session.nd_params)
+            # Consume the label on creation of new compound scan
+            session.label('')
+            session.fire_noise_diode(scan_label='', announce=False, **session.nd_params)
         else:
             session.fire_noise_diode(announce=False, **session.nd_params)
 
@@ -977,6 +977,7 @@ class CaptureSession(object):
         user_logger.info("==========================")
 
         activity_logger.info("----- Script ended  %s (%s) Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), session.output_file))
+
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
@@ -1135,8 +1136,9 @@ class TimeSession(object):
         pass
 
     def label(self, label):
-        """Add timestamped label to HDF5 file (ignored in version 1)."""
-        pass
+        """Add timestamped label to HDF5 file."""
+        if label:
+            user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
         """Determine whether antennas are tracking a given target."""
@@ -1180,11 +1182,11 @@ class TimeSession(object):
             user_logger.warning("Target '%s' will rise or set during requested period" % (target.name,))
         return False
 
-    def start_scan(self, label):
+    def start_scan(self, scan_label):
         """Starting scan has no major timing effect."""
         pass
 
-    def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, label='cal', announce=True):
+    def fire_noise_diode(self, diode='pin', on=10.0, off=10.0, period=0.0, scan_label='cal', announce=True):
         """Estimate time taken to fire noise diode."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1200,7 +1202,7 @@ class TimeSession(object):
         user_logger.info('fired noise diode')
         return True
 
-    def track(self, target, duration=20.0, drive_strategy='shortest-slew', label='track', announce=True):
+    def track(self, target, duration=20.0, drive_strategy='shortest-slew', announce=True):
         """Estimate time taken to perform track."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1210,7 +1212,7 @@ class TimeSession(object):
         if not self.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
-        self.fire_noise_diode(label='', announce=False, **self.nd_params)
+        self.fire_noise_diode(scan_label='', announce=False, **self.nd_params)
         if not self.on_target(target):
             user_logger.info('slewing to target')
             self._slew_to(target)
@@ -1224,7 +1226,7 @@ class TimeSession(object):
         return True
 
     def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
-             projection=default_proj, drive_strategy='shortest-slew', label='scan', announce=True):
+             projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Estimate time taken to perform single linear scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1235,7 +1237,7 @@ class TimeSession(object):
         if not self.target_visible(target, duration):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
-        self.fire_noise_diode(label='', announce=False, **self.nd_params)
+        self.fire_noise_diode(scan_label='', announce=False, **self.nd_params)
         projection = Offset.PROJECTIONS[projection]
         self.projection = (projection, start[0], start[1])
         user_logger.info('slewing to start of %s' % (scan_name,))
@@ -1252,8 +1254,7 @@ class TimeSession(object):
         return True
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew',
-                    label='raster', announce=True):
+                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew', announce=True):
         """Estimate time taken to perform raster scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1275,7 +1276,7 @@ class TimeSession(object):
         # Flip sign of elevation offsets to ensure that the first scan always starts at the top left of target
         scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
         scan_ends = zip(-scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, scanning_coord)
-        self.fire_noise_diode(label='', announce=False, **self.nd_params)
+        self.fire_noise_diode(scan_label='', announce=False, **self.nd_params)
         # Perform multiple scans across the target
         for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
             self.projection = (projection, start[0], start[1])
