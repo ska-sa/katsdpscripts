@@ -3,10 +3,13 @@
 import optparse
 import uuid
 
+import katpoint
+
 from .defaults import user_logger
 from .utility import tbuild
 from .session1 import CaptureSession as CaptureSession1, TimeSession as TimeSession1
 from .session2 import CaptureSession as CaptureSession2, TimeSession as TimeSession2, projections, default_proj, ant_array
+
 
 def standard_script_options(usage, description):
     """Create option parser pre-populated with standard observation script options.
@@ -52,6 +55,7 @@ def standard_script_options(usage, description):
                                                     "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
 
     return parser
+
 
 def verify_and_connect(opts):
     """Verify command-line options, build KAT configuration and connect to devices.
@@ -110,6 +114,7 @@ def verify_and_connect(opts):
 
     return kat
 
+
 def start_session(kat, dbe='dbe', dry_run=False, **kwargs):
     """Start capture session (real or fake).
 
@@ -148,40 +153,60 @@ def start_session(kat, dbe='dbe', dry_run=False, **kwargs):
     else:
         raise ValueError("Unknown DBE proxy device specified - should be 'dbe' (FF) or 'dbe7' (KAT-7)")
 
-def lookup_targets(kat, args):
-    """Look up targets by name in default catalogue, or keep as description string.
+
+def collect_targets(kat, args):
+    """Collect targets specified by name, description string or catalogue file.
 
     Parameters
     ----------
     kat : :class:`utility.KATHost` object
         KAT connection object associated with this experiment
     args : list of strings
-        Argument list containing mixture of target names and description strings
+        Argument list containing mixture of target names, description strings
+        and / or catalogue file names
 
     Returns
     -------
-    targets : list of strings and :class:`katpoint.Target` objects
-        Targets as objects or description strings
+    targets : :class:`katpoint.Catalogue` object
+        Catalogue containing all targets found
 
     Raises
     ------
     ValueError
-        If final target list is empty
+        If final catalogue is empty
 
     """
-    # Look up target names in catalogue, and keep target description strings as is
-    targets = []
+    from_names = from_strings = from_catalogues = num_catalogues = 0
+    targets = katpoint.Catalogue(antenna=kat.sources.antenna)
     for arg in args:
-        # With no comma in the target string, assume it's the name of a target to be looked up in the standard catalogue
-        if arg.find(',') < 0:
-            target = kat.sources[arg]
-            if target is None:
-                user_logger.info("Unknown source '%s', skipping it" % (arg,))
+        try:
+            # First assume the string is a catalogue file name
+            count_before_add = len(targets)
+            try:
+                targets.add(file(arg))
+            except ValueError:
+                user_logger.warning("Catalogue %r contains bad targets" % (arg,))
+            from_catalogues += len(targets) - count_before_add
+            num_catalogues += 1
+        except IOError:
+            # If the file failed to load, assume it is a name or description string
+            # With no comma in target string, assume it's the name of a target to be looked up in standard catalogue
+            if arg.find(',') < 0:
+                target = kat.sources[arg]
+                if target is None:
+                    user_logger.warning("Unknown target or catalogue %r, skipping it" % (arg,))
+                else:
+                    targets.add(target)
+                    from_names += 1
             else:
-                targets.append(target)
-        else:
-            # Assume the argument is a target description string
-            targets.append(arg)
+                # Assume the argument is a target description string
+                try:
+                    targets.add(arg)
+                    from_strings += 1
+                except ValueError, err:
+                    user_logger.warning("Invalid target %r, skipping it [%s]" % (arg, err))
     if len(targets) == 0:
-        raise ValueError("No known targets found")
+        raise ValueError("No known targets found in argument list")
+    user_logger.info("Found %d target(s): %d from %d catalogue(s), %d from default catalogue and %d as target string(s)"
+                     % (len(targets), from_catalogues, num_catalogues, from_names, from_strings))
     return targets
