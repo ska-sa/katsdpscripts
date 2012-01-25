@@ -9,15 +9,15 @@ from cStringIO import StringIO
 import datetime
 import time
 
-from katuilib.observe import lookup_targets, standard_script_options, verify_and_connect, start_session, user_logger
+from katuilib.observe import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] [<catalogue files>] [target strings]",
+parser = standard_script_options(usage="%prog [options] [<'target/catalogue'> ...]",
                                  description="Perform mini (Zorro) raster scans across (point) sources for pointing "
-                                             "model fits and gain curve calculation. Use the specified catalogue(s) "
-                                             "or the default. This script is aimed at fast scans across a large range "
-                                             "of sources. Some options are **required**.")
+                                             "model fits and gain curve calculation. Use the specified target(s) and "
+                                             "catalogue(s) or the default. This script is aimed at fast scans across "
+                                             "a large range of sources. Some options are **required**.")
 # Add experiment-specific options
 parser.add_option('-e', '--scan-in-elevation', action="store_true", default=False,
                   help="Scan in elevation rather than in azimuth (default=%default)")
@@ -32,34 +32,20 @@ parser.add_option('--source-strength', type='choice', default='auto', choices=('
                        "Auto is based on flux density specified in catalogue.")
 parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, 3 scans of 15 seconds over 5 degrees spaced 0.5 apart at 2Hz sample rate.')
-
-
 parser.add_option('--horizon', type="float", default=5.0, help="Horizon limit in degrees (default=%default)")
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()
 
 with verify_and_connect(opts) as kat:
-
-    # Load pointing calibrator catalogues and command line targets
     if len(args) > 0:
-        args_target_list = []
-        pointing_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-        for catfile in args:
-            try:
-                pointing_sources.add(file(catfile))
-            except IOError: # If the file failed to load assume it is a target string
-                args_target_list.append(catfile)
-        num_catalogue_targets = len(pointing_sources.targets)
-        args_target_obj = []
-        if len(args_target_list) > 0 :
-            args_target_obj = lookup_targets(kat,args_target_list)
-            pointing_sources.add(args_target_obj)
-        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
+        # Load pointing calibrator catalogues and command line targets
+        pointing_sources = collect_targets(kat, args)
     else:
         # Default catalogue contains the radec sources in the standard kat database
         pointing_sources = kat.sources.filter(tags='radec')
-    user_logger.info("Loaded point source catalogue with %d targets" % (len(pointing_sources.targets),))
+        user_logger.info("No valid targets specified, loaded default catalogue with %d targets" %
+                         (len(pointing_sources),))
 
     # Remove sources in skip catalogue file, if provided
     if opts.skip_catalogue is not None and os.path.exists(opts.skip_catalogue):

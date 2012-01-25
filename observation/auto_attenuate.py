@@ -19,7 +19,7 @@ import sys
 import optparse
 import numpy as np
 
-from katuilib.observe import verify_and_connect, ant_array, lookup_targets, user_logger
+from katuilib.observe import verify_and_connect, ant_array, collect_targets, user_logger
 from katuilib import colors
 import katpoint
 
@@ -224,13 +224,11 @@ with verify_and_connect(opts) as kat:
 
     # Move all antennas onto calibration source and wait for lock
     try:
-        targets = lookup_targets(kat, [opts.target])
+        targets = collect_targets(kat, [opts.target]).targets
     except ValueError:
         user_logger.info("No valid targets specified. Antenna will not be moved.")
-        targets = []
-    if len(targets) > 0:
-        target = targets[0] if isinstance(targets[0], katpoint.Target) else katpoint.Target(targets[0])
-        user_logger.info("Slewing antennas to target '%s'" % (target.name,))
+    else:
+        user_logger.info("Slewing antennas to target '%s'" % (targets[0].name,))
         ants.req.target(targets[0])
         ants.req.mode('POINT')
         ants.req.sensor_sampling('lock', 'event')

@@ -4,11 +4,11 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 import time
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import katpoint
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] <'target 1'> [<'target 2'> ...] [catalogue files] ",
+parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='Track one or more sources for a specified time. At least one '
                                              'target must be specified. Note also some **required** options below.')
 # Add experiment-specific options
@@ -30,22 +30,7 @@ if len(args) == 0:
 start_time = time.time()
 el_lim = 4.0
 with verify_and_connect(opts) as kat:
-
-    # Load the catalogues and the command line targets
-    if len(args) > 0:
-        args_target_list = []
-        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-        for catfile in args:
-            try:
-                observation_sources.add(file(catfile))
-            except IOError: # If the file failed to load assume it is a target string
-                args_target_list.append(catfile)
-        num_catalogue_targets = len(observation_sources.targets)
-        args_target_obj = []
-        if len(args_target_list) > 0 :
-            args_target_obj = lookup_targets(kat,args_target_list)
-            observation_sources.add(args_target_obj)
-        user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " % (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
+    observation_sources = collect_targets(kat, args)
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
@@ -57,6 +42,7 @@ with verify_and_connect(opts) as kat:
             for target in observation_sources:
                 target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
                 if katpoint.rad2deg(target.azel()[1]) > el_lim and  ( opts.max_duration is None or ( time.time() - start_time)< opts.max_duration):
+                    session.label('track')
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                 elif ( opts.max_duration is not  None and  ( time.time() - start_time)> opts.max_duration):
                     user_logger.warning("Unable to track target '%s' as max-duration has elapsed" % (target.name,))
@@ -64,7 +50,6 @@ with verify_and_connect(opts) as kat:
                     user_logger.warning("Unable to track target '%s' as its elevation is %f" % (target.name,katpoint.rad2deg(target.azel()[1]),))
                 # Split the total track on one target into segments lasting as long as the noise diode period
                 # This ensures the maximum number of noise diode firings
-                session.label('track')
                 total_track_time = 0.
                 while  ( total_track_time < opts.track_duration ) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and katpoint.rad2deg(target.azel()[1]) > el_lim:
                     next_track = opts.track_duration - total_track_time

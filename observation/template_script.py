@@ -5,10 +5,10 @@
 from __future__ import with_statement
 
 # Import script helper functions from observe.py
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] <'argument 1'> [<'argument 2'> ...]",
+parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='Explain what the script does and how to run it. '
                                              'Note also some **required** options below.')
 # Add experiment-specific options
@@ -28,8 +28,9 @@ if len(args) == 0:
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
 
-    # If the arguments are a list of target names, look them up in the default kat.sources catalogue
-    targets = lookup_targets(kat, args)
+    # The default target collector extracts targets from the argument list containing a mixture of catalogue files,
+    # target description strings and / or target names (the latter looked up in the default kat.sources catalogue)
+    targets = collect_targets(kat, args)
 
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:

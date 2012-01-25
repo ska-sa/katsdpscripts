@@ -4,12 +4,11 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-import katpoint
 import time
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] [<catalogue files>] [target strings]",
+parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description="Perform an imaging run of a specified target, visiting the bandpass " +
                                              "and gain calibrators along the way. The calibrators are identified " +
                                              "by tags in their description strings ('bpcal' and 'gaincal', " +
@@ -37,21 +36,7 @@ if len(args) == 0:
     raise ValueError("Please specify the target(s) and calibrator(s) to observe as arguments, either as "
                      "description strings or catalogue filenames")
 with verify_and_connect(opts) as kat:
-    args_target_list = []
-    sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    for catfile in args:
-        try:
-            sources.add(file(catfile))
-        except IOError:
-            # If the file failed to load assume it is a target string
-            args_target_list.append(catfile)
-    num_catalogue_targets = len(sources.targets)
-    args_target_obj = []
-    if len(args_target_list) > 0:
-        args_target_obj = lookup_targets(kat,args_target_list)
-        sources.add(args_target_obj)
-    user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " %
-                     (len(args_target_obj), num_catalogue_targets, len(args) - len(args_target_list)))
+    sources = collect_targets(kat, args)
 
     user_logger.info("Imaging targets are [%s]" %
                      (', '.join([("'%s'" % (target.name,)) for target in sources.filter(['~bpcal', '~gaincal'])]),))

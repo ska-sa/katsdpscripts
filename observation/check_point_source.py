@@ -12,7 +12,7 @@ try:
 except ImportError:
     plt = None
 
-from katuilib.observe import standard_script_options, verify_and_connect, lookup_targets, start_session, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import arutils
 import katpoint
 import katfile
@@ -43,7 +43,7 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
         # Pick a target, either explicitly or the closest strong one
         if len(args) > 0:
-            target = lookup_targets(kat, [args[0]])[0]
+            target = collect_targets(kat, [args[0]]).targets[0]
         else:
             # Get current position of first antenna in the list (assume the rest are the same or close)
             if opts.dry_run:
@@ -55,6 +55,7 @@ with verify_and_connect(opts) as kat:
             # Get closest strong source that is up
             strong_sources = kat.sources.filter(el_limit_deg=[15, 75], flux_limit_Jy=100, flux_freq_MHz=opts.centre_freq)
             target = strong_sources.targets[np.argmin([t.separation(current_pos) for t in strong_sources])]
+            user_logger.info("No target specified, picked the closest strong source")
 
         session.label('raster')
         session.fire_noise_diode('coupler', 4, 4)
