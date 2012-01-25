@@ -90,6 +90,7 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
+                    session.label('raster')
                     # Do different raster scan on strong and weak targets
                     if not opts.quick :
                         if (opts.source_strength == 'strong' or (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0)):

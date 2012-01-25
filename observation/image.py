@@ -78,6 +78,7 @@ with verify_and_connect(opts) as kat:
                 if opts.bpcal_interval is not None and time.time() - time_of_last_bpcal >= opts.bpcal_interval:
                     time_of_last_bpcal = time.time()
                     for bpcal in sources.filter('bpcal'):
+                        session.label('track')
                         session.track(bpcal, duration=duration['bpcal'])
                 # Visit source if it is not a bandpass calibrator (or bandpass calibrators are not treated specially)
                 if opts.bpcal_interval is None or 'bpcal' not in source.tags:
@@ -85,6 +86,7 @@ with verify_and_connect(opts) as kat:
                     track_duration = opts.target_duration
                     for tag in source.tags:
                         track_duration = duration.get(tag, track_duration)
+                    session.label('track')
                     source_observed[n] = session.track(source, duration=track_duration)
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
                     user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))

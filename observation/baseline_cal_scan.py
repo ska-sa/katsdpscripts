@@ -48,6 +48,7 @@ with verify_and_connect(opts) as kat:
         while keep_going:
             # Iterate through baseline sources that are up
             for target in baseline_sources.iterfilter(el_limit_deg=5):
+                session.label('track')
                 session.track(target, duration=120.0)
                 targets_observed.append(target.name)
                 # The default is to do only one iteration through source list

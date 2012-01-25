@@ -76,6 +76,8 @@ session.track(target, duration=10.0)
 session.scan(target, duration=10.0, start=(-3.0, 0.0), end=(3.0, 0.0))
 # For the grand finale, perform a raster scan on the target, consisting of 3 scans lasting 10 seconds
 # each and spanning 6 degrees in azimuth, with a 0.5-degree spacing between scans in elevation
+# Also indicate that this is a new compound scan by setting the session label
+session.label('raster')
 session.raster_scan(target, num_scans=3, scan_duration=10.0, scan_extent=6.0, scan_spacing=0.5)
 
 # Finally, stop the correlator and close off the HDF5 file when you are done.

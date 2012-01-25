@@ -67,6 +67,7 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
 
         for target in observation_sources:
+            session.label('raster')
             session.raster_scan(target, num_scans=opts.num_scans, scan_duration=opts.scan_duration,
                                 scan_extent=opts.scan_extent, scan_spacing=opts.scan_spacing,
                                 scan_in_azimuth=not opts.scan_in_elevation, projection=opts.projection)

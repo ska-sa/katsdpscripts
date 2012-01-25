@@ -56,6 +56,7 @@ with verify_and_connect(opts) as kat:
             strong_sources = kat.sources.filter(el_limit_deg=[15, 75], flux_limit_Jy=100, flux_freq_MHz=opts.centre_freq)
             target = strong_sources.targets[np.argmin([t.separation(current_pos) for t in strong_sources])]
 
+        session.label('raster')
         session.fire_noise_diode('coupler', 4, 4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
         # Obtain archive name where file will be stored

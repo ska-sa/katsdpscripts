@@ -38,12 +38,14 @@ with verify_and_connect(opts) as kat:
         start_time = time.time()
         azimuth_angle = abs(-90.0 - 270.0) / 4. # should be 90 deg.
         target1 = 'azel, %f, %f' % (-90. + azimuth_angle, (el_end + el_start) / 2.)
+        session.label('raster')
         session.raster_scan(target1, num_scans=num_scans, scan_duration=scan_duration, scan_extent=scan_extent,
                             scan_spacing=scan_spacing, scan_in_azimuth=True, projection='plate-carree')
         user_logger.info("Observed horizon part 1/2 for %d seconds" % (time.time() - start_time))
         # Second Half
         half_time = time.time()
         target2 = 'azel, %f, %f' % (-90. + azimuth_angle * 3., (el_end + el_start) / 2.)
+        session.label('raster')
         session.raster_scan(target2, num_scans=num_scans, scan_duration=scan_duration, scan_extent=scan_extent,
                             scan_spacing=scan_spacing, scan_in_azimuth=True, projection='plate-carree')
         user_logger.info("Observed horizon part 2/2 for %d Seconds (%d Seconds in Total)" %

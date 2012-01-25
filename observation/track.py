@@ -64,6 +64,7 @@ with verify_and_connect(opts) as kat:
                     user_logger.warning("Unable to track target '%s' as its elevation is %f" % (target.name,katpoint.rad2deg(target.azel()[1]),))
                 # Split the total track on one target into segments lasting as long as the noise diode period
                 # This ensures the maximum number of noise diode firings
+                session.label('track')
                 total_track_time = 0.
                 while  ( total_track_time < opts.track_duration ) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and katpoint.rad2deg(target.azel()[1]) > el_lim:
                     next_track = opts.track_duration - total_track_time
@@ -71,6 +72,6 @@ with verify_and_connect(opts) as kat:
                         next_track =  opts.max_duration - (time.time() - start_time) #Cut the track short if short on time
                     if opts.nd_params['period'] > 0:
                         next_track = min(next_track, opts.nd_params['period'])
-                    session.track(target, duration=next_track, label='', announce=False)
+                    session.track(target, duration=next_track, announce=False)
                     total_track_time += next_track
 

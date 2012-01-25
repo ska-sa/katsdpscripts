@@ -86,8 +86,10 @@ with verify_and_connect(opts) as kat:
             for target in targets:
                 user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
                                  % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
+                # The entire sequence of commands on the same target forms a single compound scan
+                session.label('holo')
                 # Slew all antennas onto the target (don't spend any more time on it though)
-                session.track(target, duration=0, label='holo', announce=False)
+                session.track(target, duration=0, announce=False)
                 # Provide opportunity for noise diode to fire on all antennas
                 session.fire_noise_diode(announce=False, **nd_params)
                 # Perform multiple scans across the target with the scan antennas only
@@ -95,7 +97,7 @@ with verify_and_connect(opts) as kat:
                     session.ants = scan_ants
                     user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                     session.scan(target, duration=opts.scan_duration, start=start, end=end,
-                                 index=scan_index, projection=opts.projection, label='')
+                                 index=scan_index, projection=opts.projection)
                     # Provide opportunity for noise diode to fire on all antennas
                     session.ants = all_ants
                     user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))

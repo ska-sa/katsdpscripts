@@ -39,5 +39,6 @@ with verify_and_connect(opts) as kat:
         if opts.tip_both_directions :
             spacings += list(np.arange(90.0,9.,-opts.spacing))
         for el in spacings:
+            session.label('track')
             session.track('azel, %f, %f' % (opts.az, el), duration=15.0)
             session.fire_noise_diode('coupler', on=10, off=10)
