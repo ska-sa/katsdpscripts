@@ -50,14 +50,14 @@ quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (unde
 #   (error is raised if sensor falls in error range in m out of n consecutive checks)
 
 ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
-("kat.ped#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0,1,1),
-("kat.ped#.sensor.bms_chiller_flow_present.get_value()", 1,1,1,1),
-("kat.ped#.sensor.rfe3_psu_on.get_value()", 1,1,1,1),
-("kat.ped#.sensor.rfe3_psu_ok.get_value()", 1,1,1,1),
-("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1,1,1),
-("kat.ped#.sensor.rfe3_rfe15_rfe1_lna_psu_ok.get_value()", 1,1,1,1),
-("kat.ped#.sensor.rfe3_rfe15_noise_pin_on.get_value()", ['0','1'],'',1,1),
-("kat.ped#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", ['0','1'],'',1,1),
+("kat.ant#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0,1,1),
+("kat.ant#.sensor.bms_chiller_flow_present.get_value()", 1,1,1,1),
+("kat.ant#.sensor.rfe3_psu_on.get_value()", 1,1,1,1),
+("kat.ant#.sensor.rfe3_psu_ok.get_value()", 1,1,1,1),
+("kat.ant#.sensor.rfe3_rfe15_rfe1_lna_psu_on.get_value()", 1,1,1,1),
+("kat.ant#.sensor.rfe3_rfe15_rfe1_lna_psu_ok.get_value()", 1,1,1,1),
+("kat.ant#.sensor.rfe3_rfe15_noise_pin_on.get_value()", ['0','1'],'',1,1),
+("kat.ant#.sensor.rfe3_rfe15_noise_coupler_on.get_value()", ['0','1'],'',1,1),
 ("kat.ant#.sensor.mode.get_value()",["POINT","STOP","STOW","SCAN"],'',1,1),
 ("kat.ant#.sensor.activity.get_value()",["track","slew","scan_ready","scan","scan_complete","stop","stow"],'',1,1), # wind_stow will show as error
 ("kat.ant#.sensor.pos_actual_scan_azim.get_value()",-185.0,275.0,1,1),
