@@ -3,6 +3,7 @@
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
+
 import time
 from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import katpoint
@@ -23,15 +24,18 @@ parser.add_option( '--repeat', action="store_true" , default=False,
 parser.set_defaults(description='Target track')
 # Parse the command line
 opts, args = parser.parse_args()
-# Check options and arguments, and build KAT configuration, connecting to proxies and devices
+
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument "
-                     "(via name, e.g. 'Cygnus A' or description, e.g. 'azel, 20, 30')")
+    raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
+                     "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+
 start_time = time.time()
 el_lim = 4.0
+# Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
 
+    # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()

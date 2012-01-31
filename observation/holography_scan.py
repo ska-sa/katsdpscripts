@@ -34,8 +34,8 @@ parser.set_defaults(description='Holography scan')
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument, as a name ('Cen A')"
-                     " or description ('azel, 20, 30') or catalogue ('cat.csv')")
+    raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
+                     "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
 # Create start and end positions of each scan, based on scan parameters
 scan_levels = np.arange(-(opts.num_scans // 2), opts.num_scans // 2 + 1)
