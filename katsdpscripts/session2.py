@@ -121,7 +121,7 @@ class CaptureSession(object):
         Ignore any other keyword arguments (simplifies passing options as dict)
 
     """
-    def __init__(self, kat, dbe='dbe', **kwargs):
+    def __init__(self, kat, dbe='dbe7', **kwargs):
         try:
             self.kat = kat
             # If not a device itself, assume dbe is the name of the device
@@ -899,7 +899,7 @@ class CaptureSession(object):
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, dbe='dbe', **kwargs):
+    def __init__(self, kat, dbe='dbe7', **kwargs):
         self.kat = kat
         # If not a device itself, assume dbe is the name of the device
         if not isinstance(dbe, KATClient):
