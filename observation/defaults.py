@@ -5,8 +5,8 @@ from optparse import OptionParser
 import time
 import sys
 
-import katuilib
-from katuilib.ansi import col
+import katcorelib
+from katmisc.utils.ansi import col
 
 # Default settings logically grouped in lists
 ant1 = [ # structure is list of tuples with (command to access sensor value, default value, command to set default)
@@ -178,10 +178,10 @@ if __name__ == "__main__":
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = katuilib.tbuild(opts.system)
+        kat = katcorelib.tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
-        kat = katuilib.tbuild('systems/local.conf')
+        kat = katcorelib.tbuild('systems/local.conf')
     print "Using KAT connection with configuration: %s" % (kat.config_file,)
 
     print "Checking current settings....."

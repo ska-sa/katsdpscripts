@@ -5,7 +5,7 @@ from optparse import OptionParser
 import sys
 import time
 
-import katuilib
+import katcorelib
 
 # Parse command-line options that allow the defaults to be overridden
 parser = OptionParser(usage="usage: %prog [options]\n\n"+
@@ -27,10 +27,10 @@ if opts.ants is None:
 # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
 # This connects to all the proxies and devices and queries their commands and sensors
 try:
-    kat = katuilib.tbuild(opts.system)
+    kat = katcorelib.tbuild(opts.system)
 # Fall back to *local* configuration to prevent inadvertent use of the real hardware
 except ValueError:
-    kat = katuilib.tbuild('systems/local.conf')
+    kat = katcorelib.tbuild('systems/local.conf')
 print "Using KAT connection with configuration: %s" % (kat.config_file,)
 
 
@@ -39,7 +39,7 @@ if opts.ants.strip() == 'all':
     ants = kat.ants
 else:
     try:
-        ants = katuilib.Array('ants', [getattr(kat, ant_x.strip()) for ant_x in opts.ants.split(",")])
+        ants = katcorelib.Array('ants', [getattr(kat, ant_x.strip()) for ant_x in opts.ants.split(",")])
     except AttributeError:
         raise ValueError("Antenna '%s' not found" % ant_x)
 

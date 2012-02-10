@@ -20,7 +20,7 @@ import optparse
 import numpy as np
 
 from katuilib.observe import verify_and_connect, ant_array, collect_targets, user_logger
-from katuilib import colors
+from katmisc.utils.ansi import colors
 import katpoint
 
 wait_secs = 0.5 # time to wait in secs to allow power levels to settle after changing attenuators
