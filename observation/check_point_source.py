@@ -12,7 +12,7 @@ try:
 except ImportError:
     plt = None
 
-from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import arutils
 import katpoint
 import katfile

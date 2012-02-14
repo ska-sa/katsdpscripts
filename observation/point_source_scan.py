@@ -9,7 +9,7 @@ from cStringIO import StringIO
 import datetime
 import time
 
-from katuilib.observe import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
+from katcorelib import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
 # Set up standard script options

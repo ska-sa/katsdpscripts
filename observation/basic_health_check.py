@@ -27,7 +27,7 @@ from optparse import OptionParser
 import sys, math, time
 
 import katcorelib, katpoint
-from katuilib import observe
+from katcorelib import observe
 from katmisc.utils.ansi import col, getKeyIf
 
 # Some globals

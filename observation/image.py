@@ -5,7 +5,7 @@
 from __future__ import with_statement
 
 import time
-from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",

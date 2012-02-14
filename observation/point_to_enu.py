@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from katuilib.observe import standard_script_options, verify_and_connect, start_session, user_logger
+from katcorelib import standard_script_options, verify_and_connect, start_session, user_logger
 import uuid
 import sys
 import time

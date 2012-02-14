@@ -5,7 +5,7 @@
 from __future__ import with_statement
 
 # Import script helper functions from observe.py
-from katuilib.observe import standard_script_options, verify_and_connect, collect_targets, \
+from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
                              start_session, user_logger, ant_array
 import numpy as np
 

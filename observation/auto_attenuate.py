@@ -19,7 +19,7 @@ import sys
 import optparse
 import numpy as np
 
-from katuilib.observe import verify_and_connect, ant_array, collect_targets, user_logger
+from katcorelib import verify_and_connect, ant_array, collect_targets, user_logger
 from katmisc.utils.ansi import colors
 import katpoint
 
