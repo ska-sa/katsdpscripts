@@ -4,7 +4,7 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
-from katuilib.observe import standard_script_options, verify_and_connect, start_session, user_logger
+from katcorelib.observe import standard_script_options, verify_and_connect, start_session, user_logger
 import numpy as np
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
