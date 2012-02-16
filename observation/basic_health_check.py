@@ -69,11 +69,11 @@ rfe7_template = [ # used to check powerswitch sensors here.
 ]
 
 rfe7_base_group = [
-("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -96,9 +96,9 @@ dbe7_base_group = [
 
 dc_group = [
 ("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],'',1,1),
-("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1,1,1),
-("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1,1,1),
-("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1,1,1),
+("find_sensor_value_satus(kat,'k7capture_running')",1,1,1,1),
+("find_sensor_value_satus(kat,'k7aug_running')",1,1,1,1),
+("find_sensor_value_satus(kat,'k7arch_running')",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -107,10 +107,10 @@ tfr_template = [
 ]
 
 tfr_base_group = [
-("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
-("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1,1,1),
+("kat.sensors.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
+("kat.sensors.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
+("kat.sensors.agg_anc_css_ut1_current.get_value()",1,1,1,1),
+("kat.sensors.agg_anc_css_tle_current.get_value()",1,1,1,1),
 ("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
@@ -155,6 +155,15 @@ sensor_group_dict = {
 'lab_rfe7' : lab_rfe7_group,
 'lab' : [],
 }
+
+def find_sensor_value_satus(kat, name):
+    """Find the sensor with this 'unprefixed' name where ever it is in the system.
+       E.g. on any nm_... or mon_..."""
+    actual_name = kat.list_sensors(name,tuple=True)[0][0]
+    obj = getattr(kat.sensors,actual_name)
+    obj.get_value()
+    return obj.value, obj.status
+
 
 def generate_sensor_groups(kat,selected_ants,sensor_groups):
 
@@ -252,8 +261,13 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
             if opts.verbose: print '' # print a blank line, but skip this if only showing errors
         else:
             try:
-                current_val = str(eval(checker))
-                sensor_status = str(eval(checker.split('.get_value()')[0] + '.status'))
+                if checker.startswith("find_sensor"):
+                    current_val, sensor_status = eval(checker)
+                    current_val = str(current_val)
+                    sensor_status = str(sensor_status)
+                else:
+                    current_val = str(eval(checker))
+                    sensor_status = str(eval(checker.split('.get_value()')[0] + '.status'))
                 sensor_ok = False
                 quiet_warning = False
 
