@@ -96,9 +96,9 @@ dbe7_base_group = [
 
 dc_group = [
 ("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],'',1,1),
-("find_sensor_value_satus(kat,'k7capture_running')",1,1,1,1),
-("find_sensor_value_satus(kat,'k7aug_running')",1,1,1,1),
-("find_sensor_value_satus(kat,'k7arch_running')",1,1,1,1),
+("find_sensor_value_status(kat,'k7capture_running')",1,1,1,1),
+("find_sensor_value_status(kat,'k7aug_running')",1,1,1,1),
+("find_sensor_value_status(kat,'k7arch_running')",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -156,7 +156,7 @@ sensor_group_dict = {
 'lab' : [],
 }
 
-def find_sensor_value_satus(kat, name):
+def find_sensor_value_status(kat, name):
     """Find the sensor with this 'unprefixed' name where ever it is in the system.
        E.g. on any nm_... or mon_..."""
     actual_name = kat.list_sensors(name,tuple=True)[0][0]
