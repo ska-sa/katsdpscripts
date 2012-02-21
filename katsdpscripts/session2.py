@@ -15,15 +15,15 @@ import os.path
 import numpy as np
 import katpoint
 # This is used to document available spherical projections (and set them in case of TimeSession)
-from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
+from katcorelib.targets import Offset
 
 from .array import Array
 from .katcp_client import KATClient
 from .defaults import user_logger, activity_logger
-from .misc import dynamic_doc
+from katmisc.utils.utils import dynamic_doc
 
 # Obtain list of spherical projections and the default projection from antenna proxy
-projections, default_proj = AntennaProxyModel.PROJECTIONS, AntennaProxyModel.DEFAULT_PROJECTION
+projections, default_proj = Offset.PROJECTIONS.keys(), Offset.DEFAULT_PROJECTION
 # Move default projection to front of list
 projections.remove(default_proj)
 projections.insert(0, default_proj)
@@ -121,7 +121,7 @@ class CaptureSession(object):
         Ignore any other keyword arguments (simplifies passing options as dict)
 
     """
-    def __init__(self, kat, dbe='dbe7', **kwargs):
+    def __init__(self, kat, dbe='dbe', **kwargs):
         try:
             self.kat = kat
             # If not a device itself, assume dbe is the name of the device
@@ -899,7 +899,7 @@ class CaptureSession(object):
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, dbe='dbe7', **kwargs):
+    def __init__(self, kat, dbe='dbe', **kwargs):
         self.kat = kat
         # If not a device itself, assume dbe is the name of the device
         if not isinstance(dbe, KATClient):

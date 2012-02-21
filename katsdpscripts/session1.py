@@ -18,15 +18,15 @@ import os.path
 import numpy as np
 import katpoint
 # This is used to document available spherical projections (and set them in case of TimeSession)
-from katcore.proxy.antenna_proxy import AntennaProxyModel, Offset
+from katcorelib.targets import Offset
 
 from .array import Array
 from .katcp_client import KATClient
 from .defaults import user_logger, activity_logger
-from .misc import dynamic_doc
+from katmisc.utils.utils import dynamic_doc
 
 # Obtain list of spherical projections and the default projection from antenna proxy
-projections, default_proj = AntennaProxyModel.PROJECTIONS, AntennaProxyModel.DEFAULT_PROJECTION
+projections, default_proj = Offset.PROJECTIONS.keys(), Offset.DEFAULT_PROJECTION
 # Move default projection to front of list
 projections.remove(default_proj)
 projections.insert(0, default_proj)
