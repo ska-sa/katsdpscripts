@@ -75,7 +75,7 @@ with verify_and_connect(opts) as kat:
                     session.ants = scan_ants
                     user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                     # Perform radial scan at specified angle across target
-                    offset = np.array((np.cos(angle), -np.sin(angle))) * opts.scan_extent / 2. * (-1) ** ind
+                    offset = np.array((np.cos(angle), -np.sin(angle))) * opts.scan_extent / 2. * (-1) ** scan_index
                     session.scan(target, duration=opts.scan_duration, start=-offset, end=offset, index=scan_index,
                                  projection=opts.projection, announce=False)
                     # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
