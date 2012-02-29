@@ -4,6 +4,8 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
+import time
+
 # Import script helper functions from observe.py
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
                        start_session, user_logger, ant_array
@@ -24,6 +26,8 @@ parser.add_option('-t', '--scan-duration', type='float', default=20.0,
                   help='Minimum duration of each scan across target, in seconds (default=%default)')
 parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
+parser.add_option('-m', '--min-time', type='float', default=-1.0,
+                  help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan')
 # Parse the command line
@@ -50,30 +54,44 @@ with verify_and_connect(opts) as kat:
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         session.capture_start()
-        user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
 
-        for target in targets:
-            # The entire sequence of commands on the same target forms a single compound scan
-            session.label('holo')
-            user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
-                             % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
-            # Slew all antennas onto the target (don't spend any more time on it though)
-            session.track(target, duration=0, announce=False)
-            # Provide opportunity for noise diode to fire on all antennas
-            session.fire_noise_diode(announce=False, **nd_params)
-            # Perform multiple scans across the target at various angles with the scan antennas only
-            for scan_index, angle in enumerate(np.arange(0., np.pi, np.pi / opts.num_scans)):
-                session.ants = scan_ants
-                user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                # Perform radial scan at specified angle across target
-                offset = np.array((np.cos(angle), -np.sin(angle))) * opts.scan_extent / 2. * (-1) ** ind
-                session.scan(target, duration=opts.scan_duration, start=-offset, end=offset, index=scan_index,
-                             projection=opts.projection, announce=False)
-                # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
-                session.ants = track_ants
-                user_logger.info("Using track antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+        # Keep going until the time is up
+        start_time = time.time()
+        targets_observed = []
+        keep_going = True
+        while keep_going:
+            for target in targets:
+                # The entire sequence of commands on the same target forms a single compound scan
+                session.label('holo')
+                user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
+                                 % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
+                user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                # Slew all antennas onto the target (don't spend any more time on it though)
                 session.track(target, duration=0, announce=False)
                 # Provide opportunity for noise diode to fire on all antennas
-                session.ants = all_ants
-                user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                 session.fire_noise_diode(announce=False, **nd_params)
+                # Perform multiple scans across the target at various angles with the scan antennas only
+                for scan_index, angle in enumerate(np.arange(0., np.pi, np.pi / opts.num_scans)):
+                    session.ants = scan_ants
+                    user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                    # Perform radial scan at specified angle across target
+                    offset = np.array((np.cos(angle), -np.sin(angle))) * opts.scan_extent / 2. * (-1) ** ind
+                    session.scan(target, duration=opts.scan_duration, start=-offset, end=offset, index=scan_index,
+                                 projection=opts.projection, announce=False)
+                    # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
+                    session.ants = track_ants
+                    user_logger.info("Using track antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                    session.track(target, duration=0, announce=False)
+                    # Provide opportunity for noise diode to fire on all antennas
+                    session.ants = all_ants
+                    user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                    session.fire_noise_diode(announce=False, **nd_params)
+                # The default is to do only one iteration through source list
+                targets_observed.append(target.name)
+                if opts.min_time <= 0.0:
+                    keep_going = False
+                # If the time is up, stop immediately
+                elif time.time() - start_time >= opts.min_time:
+                    keep_going = False
+                    break
+        user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
