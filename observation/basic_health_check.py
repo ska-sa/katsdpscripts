@@ -350,7 +350,7 @@ def show_status_header(kat, opts, selected_sensors):
             print '# Air pressure: %s' %(col(busy_colour)+str(air_pressure)+' mbar'+col(normal_colour))
             print '# Air humidity: %s' %(col(busy_colour)+str(air_humidity)+' percent'+col(normal_colour))
             print '# Air temperature: %s' %(col(busy_colour)+str(air_temperature)+' degC'+col(normal_colour))
-            print '# Wind direction: %s' %(col(busy_colour)+str(wind_direction)+' dec'+col(normal_colour))
+            print '# Wind direction: %s' %(col(busy_colour)+str(wind_direction)+' deg'+col(normal_colour))
             print '# Wind speed: %s' %(col(busy_colour)+str(wind_speed)+' m/s'+col(normal_colour))
             print '# Floodlights are: %s' %(col(lights_colour)+lights_str+col(normal_colour))
 
@@ -360,7 +360,7 @@ def show_status_header(kat, opts, selected_sensors):
             print '# Air pressure: %s' %(col(busy_colour)+str(air_pressure)+' mbar'+col(normal_colour))
             print '# Air humidity: %s' %(col(busy_colour)+str(air_humidity)+' percent'+col(normal_colour))
             print '# Air temperature: %s' %(col(busy_colour)+str(air_temperature)+' degC'+col(normal_colour))
-            print '# Wind direction: %s' %(col(busy_colour)+str(wind_direction)+' dec'+col(normal_colour))
+            print '# Wind direction: %s' %(col(busy_colour)+str(wind_direction)+' deg'+col(normal_colour))
             print '# Wind speed: %s' %(col(busy_colour)+str(wind_speed)+' m/s'+col(normal_colour))
             print '# Floodlights are: %s' %(col(lights_colour)+lights_str+col(normal_colour))
 
