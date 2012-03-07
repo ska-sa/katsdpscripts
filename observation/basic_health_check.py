@@ -26,9 +26,8 @@
 from optparse import OptionParser
 import sys, math, time
 
-import katcorelib, katpoint
-from katcorelib import observe
-from katmisc.utils.ansi import col, getKeyIf
+import katuilib, katpoint
+from katuilib.ansi import col, getKeyIf
 
 # Some globals
 busy_colour = 'blue'
@@ -69,11 +68,11 @@ rfe7_template = [ # used to check powerswitch sensors here.
 ]
 
 rfe7_base_group = [
-("kat.sensors.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
-("kat.sensors.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
-("kat.sensors.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
-("kat.sensors.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
-("kat.sensors.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -96,9 +95,9 @@ dbe7_base_group = [
 
 dc_group = [
 ("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],'',1,1),
-("find_sensor_value_status(kat,'k7capture_running')",1,1,1,1),
-("find_sensor_value_status(kat,'k7aug_running')",1,1,1,1),
-("find_sensor_value_status(kat,'k7arch_running')",1,1,1,1),
+("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1,1,1),
+("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1,1,1),
+("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -107,10 +106,10 @@ tfr_template = [
 ]
 
 tfr_base_group = [
-("kat.sensors.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
-("kat.sensors.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
-("kat.sensors.agg_anc_css_ut1_current.get_value()",1,1,1,1),
-("kat.sensors.agg_anc_css_tle_current.get_value()",1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
+("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1,1,1),
+("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1,1,1),
 ("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
@@ -156,15 +155,6 @@ sensor_group_dict = {
 'lab' : [],
 }
 
-def find_sensor_value_status(kat, name):
-    """Find the sensor with this 'unprefixed' name where ever it is in the system.
-       E.g. on any nm_... or mon_..."""
-    actual_name = kat.list_sensors(name,tuple=True)[0][0]
-    obj = getattr(kat.sensors,actual_name)
-    obj.get_value()
-    return obj.value, obj.status
-
-
 def generate_sensor_groups(kat,selected_ants,sensor_groups):
 
     """Create the per antenna sensor groups programmatically based on the selected antennas.
@@ -176,7 +166,7 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
     rfe7_ants_group = [] # per antenna rfe7 sensors
     tfr_ants_group = [] # per antenna tfr sensors
 
-    ants = observe.ant_array(kat,selected_ants)
+    ants = katuilib.observe.ant_array(kat,selected_ants)
     for ant in ants:
         i = ant.name.split('ant')[1]
         for sensor in ant_template:
@@ -261,13 +251,8 @@ def check_sensors(kat, opts, selected_sensors, quiet=False, alarms={}):
             if opts.verbose: print '' # print a blank line, but skip this if only showing errors
         else:
             try:
-                if checker.startswith("find_sensor"):
-                    current_val, sensor_status = eval(checker)
-                    current_val = str(current_val)
-                    sensor_status = str(sensor_status)
-                else:
-                    current_val = str(eval(checker))
-                    sensor_status = str(eval(checker.split('.get_value()')[0] + '.status'))
+                current_val = str(eval(checker))
+                sensor_status = str(eval(checker.split('.get_value()')[0] + '.status'))
                 sensor_ok = False
                 quiet_warning = False
 
@@ -318,7 +303,17 @@ def show_status_header(kat, opts, selected_sensors):
         elif dbe_mode == 'wbc8k': dbe_mode_colour = warn_colour
         else: dbe_mode = 'unknown'; dbe_mode_color = error_colour
         system_centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200. # most reliable place to get this
-        
+
+        # Retrieve weather info
+        air_pressure = kat.anc.sensor.asc_air_pressure.get_value()
+        air_humidity = kat.anc.sensor.asc_air_relative_humidity.get_value()
+        air_temperature= kat.anc.sensor.asc_air_temperature.get_value()
+        wind_direction = kat.anc.sensor.asc_wind_direction.get_value()
+        wind_speed = kat.anc.sensor.asc_wind_speed.get_value()
+        lights = kat.anc.sensor.asccombo_floodlights_on.get_value()
+        lights_str = '**ON**' if lights == '1' else 'Off'
+        lights_colour = normal_colour if lights == '1' else busy_colour
+
         if kat.dbe7.sensor.k7w_script_status.get_value() == 'busy':
 
             # Retrieve some script relevant info
@@ -352,16 +347,28 @@ def show_status_header(kat, opts, selected_sensors):
             print '# DBE7 mode & dump rate: %s (%s)%s' \
               % (col(dbe_mode_colour)+dbe_mode+col(normal_colour),col(busy_colour)+dump_rate_str,col(normal_colour))
             print '# RF centre freq: %s' %(col(busy_colour)+str(system_centre_freq)+' MHz'+col(normal_colour))
+            print '# Air pressure: %s' %(col(busy_colour)+str(air_pressure)+' mbar'+col(normal_colour))
+            print '# Air humidity: %s' %(col(busy_colour)+str(air_humidity)+' percent'+col(normal_colour))
+            print '# Air temperature: %s' %(col(busy_colour)+str(air_temperature)+' degC'+col(normal_colour))
+            print '# Wind direction: %s' %(col(busy_colour)+str(wind_direction)+' dec'+col(normal_colour))
+            print '# Wind speed: %s' %(col(busy_colour)+str(wind_speed)+' m/s'+col(normal_colour))
+            print '# Floodlights are: %s' %(col(lights_colour)+lights_str+col(normal_colour))
 
         else:
             print '# Script running: none'
             print '# DBE7 mode and RF centre freq: %s @ %s MHz' % (col(dbe_mode_colour)+dbe_mode+col(normal_colour),system_centre_freq)
+            print '# Air pressure: %s' %(col(busy_colour)+str(air_pressure)+' mbar'+col(normal_colour))
+            print '# Air humidity: %s' %(col(busy_colour)+str(air_humidity)+' percent'+col(normal_colour))
+            print '# Air temperature: %s' %(col(busy_colour)+str(air_temperature)+' degC'+col(normal_colour))
+            print '# Wind direction: %s' %(col(busy_colour)+str(wind_direction)+' dec'+col(normal_colour))
+            print '# Wind speed: %s' %(col(busy_colour)+str(wind_speed)+' m/s'+col(normal_colour))
+            print '# Floodlights are: %s' %(col(lights_colour)+lights_str+col(normal_colour))
 
         # Some fancy footwork to list antennas by target after retrieving target per antenna.
         # There may be a neater/more compact way to do this, but a dict with target strings as keys
         # and an expanding list of antennas corresponding to each target as values did not work. Hence
         # the more explicit approach here.
-        ants = observe.ant_array(kat,opts.ants)
+        ants = katuilib.observe.ant_array(kat,opts.ants)
         tgt_index = {} # target strings as keys with values as a zero-based index to ant_list list of lists
         ant_list = [] # list of lists of antennas per target
         locks, modes, activity = {}, {}, {}
@@ -555,10 +562,10 @@ if __name__ == '__main__':
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = katcorelib.tbuild(opts.system)
+        kat = katuilib.tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
-        kat = katcorelib.tbuild('systems/local.conf')
+        kat = katuilib.tbuild('systems/local.conf')
     print 'Using KAT connection with configuration: %s' % (kat.config_file,)
 
     # construct the per antenna sensor groups (restricting to those that were selected)
