@@ -494,12 +494,13 @@ class CaptureSession(object):
             dump_period = session.dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
         # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
         last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
-        if last_dump == self._end_of_previous_session:
+        if last_dump == session._end_of_previous_session:
             user_logger.info('waiting for first correlator dump')
             # Wait for the first correlator dump to appear
-            if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > self._end_of_previous_session,
+            if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > session._end_of_previous_session,
                             timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
                 raise CaptureInitError('The first correlator dump is overdue at k7_capture - capturing failed')
+            last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
             user_logger.info('first correlator dump arrived')
 
         # If period is non-negative, quit if it is not yet time to fire the noise diode
@@ -514,7 +515,8 @@ class CaptureSession(object):
             # The delay in setting up noise diode firing - next dump should be at least this far in future
             lead_time = 0.25
             # Find next suitable dump boundary
-            while next_dump < time.time() + lead_time:
+            now = time.time()
+            while next_dump < now + lead_time:
                 next_dump += dump_period
 
         if announce:
