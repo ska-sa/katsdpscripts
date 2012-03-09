@@ -19,8 +19,8 @@ import sys
 import optparse
 import numpy as np
 
-from katcorelib import verify_and_connect, ant_array, collect_targets, user_logger
-from katmisc.utils.ansi import colors
+from katuilib.observe import verify_and_connect, ant_array, collect_targets, user_logger
+from katuilib import colors
 import katpoint
 
 wait_secs = 0.5 # time to wait in secs to allow power levels to settle after changing attenuators
@@ -105,7 +105,7 @@ def get_dbe_input_power(kat, inputs, dbe):
     for ant_name,pol in inputs:
         if dbe == 'dbe':
             # Proceed as per Jason Manley's email suggestion 30/6/2011 plus sqrt fix in rms_inp_in_volts line:
-            dbe_input = connected_antpols['%s, %s' % (ant_name, pol)]
+            dbe_input = connected_antpols['%s, %s' % (ant_name, pol.lower())]
             voltage_samples = kat.dh.get_snapshot('adc', dbe_input) + 0.5
             rms_inp_in_volts = np.sqrt(np.average(voltage_samples*voltage_samples)) / 368.0 # mysterious cal factor...
             sensor_val.append( 10*np.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000))
