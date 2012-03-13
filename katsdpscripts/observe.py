@@ -110,7 +110,7 @@ def verify_and_connect(opts):
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
         kat = tbuild('systems/local.conf')
-    user_logger.info("Using KAT connection with configuration: %s" % (kat.config_file,))
+    user_logger.info("Using KAT connection with configuration: %s" % (kat.system,))
 
     return kat
 
