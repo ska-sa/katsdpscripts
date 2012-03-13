@@ -566,7 +566,7 @@ if __name__ == '__main__':
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
         kat = katuilib.tbuild('systems/local.conf')
-    print 'Using KAT connection with configuration: %s' % (kat.config_file,)
+    print 'Using KAT connection with configuration: %s' % (kat.system,)
 
     # construct the per antenna sensor groups (restricting to those that were selected)
     generate_sensor_groups(kat,opts.ants,sensor_group_dict)

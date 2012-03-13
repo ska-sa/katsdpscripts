@@ -182,7 +182,7 @@ if __name__ == "__main__":
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
         kat = katcorelib.tbuild('systems/local.conf')
-    print "Using KAT connection with configuration: %s" % (kat.config_file,)
+    print "Using KAT connection with configuration: %s" % (kat.system,)
 
     print "Checking current settings....."
     check_sensors(kat,defaults)

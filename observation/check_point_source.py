@@ -64,7 +64,7 @@ with verify_and_connect(opts) as kat:
         archive_name = session.dbe.sensor.archiver_archive.get_value()
 
 if not opts.dry_run:
-    cfg = kat.config_file
+    cfg = kat.system
     h5file = session.output_file
     if not h5file:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')

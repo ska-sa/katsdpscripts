@@ -31,7 +31,7 @@ try:
 # Fall back to *local* configuration to prevent inadvertent use of the real hardware
 except ValueError:
     kat = katcorelib.tbuild('systems/local.conf')
-print "Using KAT connection with configuration: %s" % (kat.config_file,)
+print "Using KAT connection with configuration: %s" % (kat.system,)
 
 
 # Create a list of the specified antenna devices, and complain if they are not found
