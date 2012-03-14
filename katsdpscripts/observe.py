@@ -115,7 +115,7 @@ def verify_and_connect(opts):
     return kat
 
 
-def start_session(kat, dbe='dbe', dry_run=False, **kwargs):
+def start_session(kat, dbe='dbe7', dry_run=False, **kwargs):
     """Start capture session (real or fake).
 
     This starts a capture session initialised with the given arguments, choosing
