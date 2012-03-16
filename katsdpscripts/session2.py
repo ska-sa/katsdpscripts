@@ -68,6 +68,18 @@ def ant_array(kat, ants, name='ants'):
         # The default assumes that *ants* is a list of antenna devices
         return Array(name, ants)
 
+def report_compact_traceback(tb):
+    """Produce a compact traceback report."""
+    print '--------------------------------------------------------'
+    print 'Session interrupted while doing (most recent call last):'
+    print '--------------------------------------------------------'
+    while tb:
+        f = tb.tb_frame
+        print '%s %s(), line %d' % (f.f_code.co_filename, f.f_code.co_name, f.f_lineno)
+        tb = tb.tb_next
+    print '--------------------------------------------------------'
+
+
 class ScriptLogHandler(logging.Handler):
     """Logging handler that writes logging records to HDF5 file via k7writer.
 
@@ -120,6 +132,13 @@ class CaptureSession(object):
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
+    Raises
+    ------
+    ValueError
+        If DBE proxy is unknown or not connected
+    CaptureInitError
+        If capturing system failed to initialise
+
     """
     def __init__(self, kat, dbe='dbe7', **kwargs):
         try:
@@ -130,6 +149,9 @@ class CaptureSession(object):
                     dbe = getattr(kat, dbe)
                 except AttributeError:
                     raise ValueError("DBE proxy '%s' not found (i.e. no kat.%s exists)" % (dbe, dbe))
+            if not dbe.is_connected():
+                raise ValueError("DBE proxy '%s' is not connected "
+                                 "(is the KAT system running?)" % (dbe.name,))
             self.dbe = dbe
 
             # Default settings for session parameters (in case standard_setup is not called)
@@ -189,14 +211,26 @@ class CaptureSession(object):
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the data capturing session, closing the data file."""
         if exc_value is not None:
-            msg = 'Session interrupted by exception (%s)' % (exc_value,)
-            user_logger.error(msg)
-            activity_logger.error(msg)
-            self.end(cancel=True)
+            exc_msg = str(exc_value)
+            msg = "Session interrupted by exception (%s%s)" % \
+                  (exc_value.__class__.__name__,
+                   (": '%s'" % (exc_msg,)) if exc_msg else '')
+            if exc_type is KeyboardInterrupt:
+                user_logger.warning(msg)
+                activity_logger.warning(msg)
+            else:
+                user_logger.error(msg)
+                activity_logger.error(msg)
+            self.end(interrupted=True)
         else:
-            self.end(cancel=False)
-        # Do not suppress any exceptions that occurred in the body of with-statement
-        return False
+            self.end(interrupted=False)
+        # Suppress KeyboardInterrupt so as not to scare the lay user,
+        # but allow other exceptions that occurred in the body of with-statement
+        if exc_type is KeyboardInterrupt:
+            report_compact_traceback(traceback)
+            return True
+        else:
+            return False
 
     def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
                        dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
@@ -856,7 +890,7 @@ class CaptureSession(object):
                          projection=projection, drive_strategy=drive_strategy, announce=False)
         return True
 
-    def end(self, cancel=False):
+    def end(self, interrupted=False):
         """End the session, which stops data capturing and closes the data file.
 
         This does not affect the antennas, which continue to perform their
@@ -864,40 +898,42 @@ class CaptureSession(object):
 
         Parameters
         ----------
-        cancel : {False, True}, optional
-            True if session got cancelled via an exception
+        interrupted : {False, True}, optional
+            True if session got interrupted via an exception
 
         """
-        # Create references to allow easy copy-and-pasting from this function
-        session, ants, dbe = self, self.ants, self.dbe
+        try:
+            # Create references to allow easy copy-and-pasting from this function
+            session, ants, dbe = self, self.ants, self.dbe
 
-        # Obtain the name of the file currently being written to
-        reply = dbe.req.k7w_get_current_file()
-        outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
-        user_logger.info('Scans complete, data captured to %s' % (outfile,))
-        # The final output file name after augmentation
-        session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
+            # Obtain the name of the file currently being written to
+            reply = dbe.req.k7w_get_current_file()
+            outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
+            user_logger.info('Scans complete, data captured to %s' % (outfile,))
+            # The final output file name after augmentation
+            session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
 
-        # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, but the HDF5 file is left open)
-        dbe.req.dbe_capture_stop('k7')
-        user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
-        dbe.req.k7w_set_script_param('script-endtime', time.time())
-        dbe.req.k7w_set_script_param('script-status', 'cancelled' if cancel else 'completed')
-        activity_logger.info('Ended data capturing session (%s) with experiment ID %s' % ('cancelled' if cancel else 'completed', session.experiment_id,))
+            # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, but the HDF5 file is left open)
+            dbe.req.dbe_capture_stop('k7')
+            user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
+            dbe.req.k7w_set_script_param('script-endtime', time.time())
+            dbe.req.k7w_set_script_param('script-status', 'interrupted' if interrupted else 'completed')
+            activity_logger.info('Ended data capturing session (%s) with experiment ID %s' %
+                                 ('interrupted' if interrupted else 'completed', session.experiment_id,))
 
-        if session.stow_when_done and self.ants is not None:
-            user_logger.info('stowing dishes')
-            activity_logger.info('Stowing dishes')
-            ants.req.mode('STOW')
+            if session.stow_when_done and self.ants is not None:
+                user_logger.info('stowing dishes')
+                activity_logger.info('Stowing dishes')
+                ants.req.mode('STOW')
 
-        user_logger.info('==========================')
+            user_logger.info('==========================')
 
-        # Disable logging to HDF5 file
-        user_logger.removeHandler(self._script_log_handler)
-        # Finally close the HDF5 file and prepare for augmentation after all logging and parameter settings are done
-        dbe.req.k7w_capture_done()
-
-        activity_logger.info("----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
+        finally:
+            # Disable logging to HDF5 file
+            user_logger.removeHandler(self._script_log_handler)
+            # Finally close the HDF5 file and prepare for augmentation after all logging and parameter settings are done
+            dbe.req.k7w_capture_done()
+            activity_logger.info("----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
@@ -937,7 +973,7 @@ class TimeSession(object):
             if isinstance(handler, logging.StreamHandler):
                 form = handler.formatter
                 form.old_datefmt = form.datefmt
-                form.datefmt = '~ ' + (form.datefmt if form.datefmt else '%Y-%m-%d %H:%M:%S %Z')
+                form.datefmt = 'DRY-RUN: ' + (form.datefmt if form.datefmt else '%Y-%m-%d %H:%M:%S %Z')
             else:
                 handler.old_level = handler.level
                 handler.setLevel(100)
