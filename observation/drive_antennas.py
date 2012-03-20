@@ -27,10 +27,10 @@ if opts.ants is None:
 # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
 # This connects to all the proxies and devices and queries their commands and sensors
 try:
-    kat = katcorelib.tbuild(opts.system)
+    kat = katcorelib.tbuild(opts.system, host_clients = 'all', controlled_clients = 'all')
 # Fall back to *local* configuration to prevent inadvertent use of the real hardware
 except ValueError:
-    kat = katcorelib.tbuild('systems/local.conf')
+    kat = katcorelib.tbuild('systems/local.conf', host_clients = 'all', controlled_clients = 'all')
 print "Using KAT connection with configuration: %s" % (kat.system,)
 
 
