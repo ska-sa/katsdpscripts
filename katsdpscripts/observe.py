@@ -106,10 +106,10 @@ def verify_and_connect(opts):
     # Try to build KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = tbuild(opts.system)
+        kat = tbuild(opts.system, host_clients = 'all', controlled_clients = 'all')
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
-        kat = tbuild('systems/local.conf')
+        kat = tbuild('systems/local.conf', host_clients = 'all', controlled_clients = 'all')
     user_logger.info("Using KAT connection with configuration: %s" % (kat.system,))
 
     return kat
