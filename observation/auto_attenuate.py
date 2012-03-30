@@ -189,8 +189,8 @@ with verify_and_connect(opts) as kat:
             sys.exit(0)
     elif opts.dbe == 'dbe7':
         dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-        if dbe_mode == 'wbc':
-            user_logger.info("dbe7 mode is 'wbc', as expected :)")
+        if dbe_mode == 'wbc' or dbe_mode == 'wbc8k':
+            user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
         else:
             user_logger.info("dbe7 mode is %s. Please run kat.dbe7.req.dbe_mode('wbc') to reset KAT-7 correlator mode. Exiting." % (dbe_mode))
             sys.exit(0)
