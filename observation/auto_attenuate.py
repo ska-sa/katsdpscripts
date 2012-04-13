@@ -156,7 +156,7 @@ parser.add_option('-s', '--system', help='System configuration file to use, rela
                   '(default reuses existing connection, or falls back to systems/local.conf)')
 parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
                   "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
-parser.add_option('-f', '--centre-freq', type='float', help='Centre frequency, in MHz (ignored by default)')
+parser.add_option('-f', '--centre-freq', type='float', help='Centre frequency, in MHz (left unchanged by default)')
 parser.add_option('-t', '--target', default='',
                   help="Radio source on which to calibrate the attenuators (default='%default'). "+
                   "Won't drive antennas if not set.")
