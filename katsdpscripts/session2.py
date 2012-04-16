@@ -398,7 +398,8 @@ class CaptureSession(object):
         # Turn target object into description string (or use string as is)
         target = getattr(target, 'description', target)
         for ant in self.ants:
-            if not ant.is_connected():
+            # Ignore disconnected antennas or ones with missing sensors
+            if not ant.is_connected() or any([s not in ant.sensor for s in ('target', 'mode', 'lock')]):
                 continue
             if (ant.sensor.target.get_value() != target) or (ant.sensor.mode.get_value() != 'POINT') or \
                (ant.sensor.lock.get_value() != '1'):
@@ -440,10 +441,15 @@ class CaptureSession(object):
         # Include an average time to slew to the target (worst case about 90 seconds, so half that)
         now = time.time() + 45.
         average_el, visible_before, visible_after = [], [], []
-        for ant in self.ants:
-            if not ant.is_connected():
-                continue
-            antenna = katpoint.Antenna(ant.sensor.observer.get_value())
+        # Ignore disconnected antennas or ones with missing sensors
+        ant_descriptions = [ant.sensor.observer.get_value() for ant in self.ants
+                            if ant.is_connected() and 'observer' in ant.sensor]
+        # Also ignore antennas with empty or missing observer strings
+        antennas = [katpoint.Antenna(descr) for descr in ant_descriptions if descr]
+        if not antennas:
+            user_logger.warning("No usable antennas found - target '%s' assumed to be down" % (target.name,))
+            return False
+        for antenna in antennas:
             az, el = target.azel(now, antenna)
             average_el.append(katpoint.rad2deg(el))
             # If not up yet, see if the target will pop out before the timeout
