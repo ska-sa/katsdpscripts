@@ -187,18 +187,18 @@ class CaptureSession(object):
             dbe.req.k7w_write_hdf5(1)
 
             # Log the script parameters (if config manager is around)
-            if kat.has_connected_client('ctl'):
-                kat.ctl.req.set_script_param("script-starttime",
+            if kat.has_connected_client('sys'):
+                kat.sys.req.set_script_param("script-starttime",
                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
-                kat.ctl.req.set_script_param("script-endtime", "")
-                kat.ctl.req.set_script_param("script-name", sys.argv[0])
-                kat.ctl.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
-                kat.ctl.req.set_script_param("script-status", "busy")
+                kat.sys.req.set_script_param("script-endtime", "")
+                kat.sys.req.set_script_param("script-name", sys.argv[0])
+                kat.sys.req.set_script_param("script-arguments", ' '.join(sys.argv[1:]))
+                kat.sys.req.set_script_param("script-status", "busy")
         except Exception, e:
-            if kat.has_connected_client('ctl'):
-                kat.ctl.req.set_script_param("script-endtime",
+            if kat.has_connected_client('sys'):
+                kat.sys.req.set_script_param("script-endtime",
                                              time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
-                kat.ctl.req.set_script_param("script-status", "failed")
+                kat.sys.req.set_script_param("script-status", "failed")
             msg = "CaptureSession failed to initialise (%s)" % (e,)
             user_logger.error(msg)
             activity_logger.error(msg)
@@ -327,13 +327,13 @@ class CaptureSession(object):
         user_logger.info(nd_info + " while performing canned commands")
 
         # Log the script parameters (if config manager is around)
-        if kat.has_connected_client('ctl'):
-            kat.ctl.req.set_script_param("script-observer", observer)
-            kat.ctl.req.set_script_param("script-description", description)
-            kat.ctl.req.set_script_param("script-experiment-id", experiment_id)
-            kat.ctl.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
+        if kat.has_connected_client('sys'):
+            kat.sys.req.set_script_param("script-observer", observer)
+            kat.sys.req.set_script_param("script-description", description)
+            kat.sys.req.set_script_param("script-experiment-id", experiment_id)
+            kat.sys.req.set_script_param("script-rf-params", "Freq=%g MHz, Dump rate=%g Hz, Keep slews=%s" %
                                                              (centre_freq, dump_rate, record_slews))
-            kat.ctl.req.set_script_param("script-nd-params", "Diode=%s, On=%g s, Off=%g s, Period=%g s" %
+            kat.sys.req.set_script_param("script-nd-params", "Diode=%s, On=%g s, Off=%g s, Period=%g s" %
                                          (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
 
         # If the DBE is simulated, it will have position update commands
@@ -964,10 +964,10 @@ class CaptureSession(object):
         msg = 'Ended data capturing session with experiment ID %s' % (session.experiment_id,)
         user_logger.info(msg)
         activity_logger.info(msg)
-        if kat.has_connected_client('ctl'):
-            kat.ctl.req.set_script_param("script-endtime",
+        if kat.has_connected_client('sys'):
+            kat.sys.req.set_script_param("script-endtime",
                                          time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(time.time())))
-            kat.ctl.req.set_script_param("script-status", "ended")
+            kat.sys.req.set_script_param("script-status", "ended")
 
         if session.stow_when_done and ants is not None:
             user_logger.info("Stowing dishes.")
