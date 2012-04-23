@@ -18,7 +18,6 @@
 
 # TODO:
 # - option to load sensors of interest from file ("custom" group).
-# - update sensors groups ped -> ant when time comes for new code deployment in karoo
 # - option to write output to file as well as display on screen?
 # - think about some way to optionally auto select to the script ants (else at least
 #   display them) in the status - a bit tricky since requires refresh to change
