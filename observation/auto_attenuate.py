@@ -199,7 +199,7 @@ with verify_and_connect(opts) as kat:
         sys.exit(0)
 
     # set the default dbe gain for all freq channels as a starting point (these not adjusted further currently)
-    gain = {"dbe": 3000, "dbe7": 300}[opts.dbe]
+    gain = {"dbe": 3000, "dbe7": 160}[opts.dbe]
     selected_dbe.req.set_gains(gain)
     user_logger.info("Set digital gain on selected DBE to %d." % gain)
 
