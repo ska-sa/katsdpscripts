@@ -65,7 +65,7 @@ if opts.gain_cal is None:
 # opts.bandpass_cal = '3C 273'
 # opts.gain_cal = 'PKS 1421-490'
 # opts.ants = None
-# opts.freq_chans = '200,799'
+# opts.freq_chans = '200,749'
 # opts.chan_avg = 60
 # opts.time_avg = 90
 # opts.pol = 'H'
