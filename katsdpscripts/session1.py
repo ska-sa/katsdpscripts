@@ -337,6 +337,17 @@ class CaptureSession(object):
 
         # If the DBE is simulated, it will have position update commands
         if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
+
+            def listener_actual_azim(update_seconds, value_seconds, status, value):
+                #Listener callback now inlcudes status, use it here
+                if status == 'nominal':
+                    dbe.req.dbe_pointing_az(value)
+
+            def listener_actual_elev(update_seconds, value_seconds, status, value):
+                #Listener callback now inlcudes status, use it here
+                if status == 'nominal':
+                    dbe.req.dbe_pointing_el(value)
+
             first_ant = ants[0]
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
             update_period_seconds = 0.4 / dump_rate
@@ -345,8 +356,8 @@ class CaptureSession(object):
             first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(int(1000 * update_period_seconds)))
             first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(int(1000 * update_period_seconds)))
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
-            first_ant.sensor.pos_actual_scan_azim.register_listener(dbe.req.dbe_pointing_az, update_period_seconds)
-            first_ant.sensor.pos_actual_scan_elev.register_listener(dbe.req.dbe_pointing_el, update_period_seconds)
+            first_ant.sensor.pos_actual_scan_azim.register_listener(listener_actual_azim, update_period_seconds)
+            first_ant.sensor.pos_actual_scan_elev.register_listener(listener_actual_elev, update_period_seconds)
             user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
         user_logger.info("--------------------------")
 
