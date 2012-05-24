@@ -10,7 +10,7 @@ from katuilib.observe import standard_script_options, verify_and_connect, start_
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
                                  description="Perform a rfi scan with the KAT-7. Scan over constant elevation "
-                                             "with 3 scans at 2,8,14 degrees. This takes the form of 2x180 raster scans "
+                                             "with 3 scans at 3.1,9.1,15.1 degrees. This takes the form of 2x180 raster scans "
                                              "in opposite directions, with 180 seconds per scan. "
                                              "There are non-optional options.(Antennas)")
 # Add experiment-specific options
@@ -26,8 +26,8 @@ parser.set_defaults(description='Basic RFI Scan')
 # Parse the command line
 opts, args = parser.parse_args()
 
-el_start =  2.
-el_end =14.0
+el_start =  3.1
+el_end =15.1
 scan_spacing = 6.0
 num_scans = 3
 scan_duration = 180.
