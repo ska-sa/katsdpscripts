@@ -26,7 +26,7 @@ from optparse import OptionParser
 import sys, math, time
 
 import katuilib, katpoint
-from katuilib.ansi import col, getKeyIf
+from katmisc.utils.ansi import col, getKeyIf
 
 # Some globals
 busy_colour = 'blue'
