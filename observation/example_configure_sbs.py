@@ -68,7 +68,8 @@ def main():
     today = time.strftime('%Y-%m-%d', time.gmtime())     # Get the current date string (GMT)
     obs.sb.desired_start_time = datetime.strptime(today+" 21:00:00", "%Y-%m-%d %H:%M:%S")
     obs.sb.expected_duration_seconds =  timedelta(minutes=30).seconds
-    obs.sb.instruction_set = "%run basic_health_check.py"
+    #Instruction set must start with "run .." and should not specify -a antennas and -o observer
+    obs.sb.instruction_set = "run ~/scripts/observation/auto_attenuate.py"
     obs.sb.save()
     print "\n===obs.sb CHANGED==="
     print obs.sb

@@ -25,7 +25,7 @@
 from optparse import OptionParser
 import sys, math, time
 
-import katuilib, katpoint
+import katcorelib, katpoint
 from katmisc.utils.ansi import col, getKeyIf
 
 # Some globals
@@ -165,7 +165,7 @@ def generate_sensor_groups(kat,selected_ants,sensor_groups):
     rfe7_ants_group = [] # per antenna rfe7 sensors
     tfr_ants_group = [] # per antenna tfr sensors
 
-    ants = katuilib.observe.ant_array(kat,selected_ants)
+    ants = katcorelib.observe.ant_array(kat,selected_ants)
     for ant in ants:
         i = ant.name.split('ant')[1]
         for sensor in ant_template:
@@ -367,7 +367,7 @@ def show_status_header(kat, opts, selected_sensors):
         # There may be a neater/more compact way to do this, but a dict with target strings as keys
         # and an expanding list of antennas corresponding to each target as values did not work. Hence
         # the more explicit approach here.
-        ants = katuilib.observe.ant_array(kat,opts.ants)
+        ants = katcorelib.observe.ant_array(kat,opts.ants)
         tgt_index = {} # target strings as keys with values as a zero-based index to ant_list list of lists
         ant_list = [] # list of lists of antennas per target
         locks, modes, activity = {}, {}, {}
@@ -561,10 +561,10 @@ if __name__ == '__main__':
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = katuilib.tbuild(opts.system)
+        kat = katcorelib.tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError:
-        kat = katuilib.tbuild('systems/local.conf')
+        kat = katcorelib.tbuild('systems/local.conf')
     print 'Using KAT connection with configuration: %s' % (kat.system,)
 
     # construct the per antenna sensor groups (restricting to those that were selected)

@@ -64,6 +64,12 @@ def main():
     obs.sb.save()
     print obs.sb
 
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe7,rfe7')
+    obs.sb.type = ScheduleBlockTypes.OBSERVATION
+    obs.sb.instruction_set = "run ~/scripts/observation/raster_scan.py -k 6"
+    obs.sb.save()
+    print obs.sb
+
     sb_id_code = obs.sb.new(owner='test', antenna_spec='min 5', controlled_resource='dbe7,rfe7')
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
@@ -71,6 +77,12 @@ def main():
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resource='dbe,rfe7')
     obs.sb.type = ScheduleBlockTypes.MANUAL
+    obs.sb.save()
+    print obs.sb
+
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe7,rfe7')
+    obs.sb.type = ScheduleBlockTypes.OBSERVATION
+    obs.sb.instruction_set = "run ~/scripts/observation/auto_attenuate.py"
     obs.sb.save()
     print obs.sb
 
