@@ -49,7 +49,7 @@ quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (unde
 #   (error is raised if sensor falls in error range in m out of n consecutive checks)
 
 ant_template = [ # the rfe7_template and dbe7_template sensors get added to this
-("kat.ant#.sensor.cryo_lna_temperature.get_value()", 60.0,80.0,1,1),
+("kat.ant#.sensor.cryo_lna_temperature.get_value()", 67.0,87.0,1,1),
 ("kat.ant#.sensor.bms_chiller_flow_present.get_value()", 1,1,1,1),
 ("kat.ant#.sensor.rfe3_psu_on.get_value()", 1,1,1,1),
 ("kat.ant#.sensor.rfe3_psu_ok.get_value()", 1,1,1,1),
