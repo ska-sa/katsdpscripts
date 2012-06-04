@@ -56,10 +56,21 @@ def main():
     print "===obs.status()==="
     obs.status()
 
-    #Display the created sb
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resource='dbe,rfe7')
+    #Create a new sb
+
+    # antenna_spec is one of:
+    #   'none'  no antennas required (e.g. for a maintenance task on anc, rfe7, dbe, or dbe7)
+    #   'all'   all antennas required
+    #   'available' all antennas available at that time
+    #   'min 3' at least 3 antennas - but up to all available
+    # controlled resources is a selection from "anc,rfe7,dbe,dbe7"
+    #   'none'  no additional controlled resources required
+    #   'rfe7, dbe7'    a list of the required controlled resources
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe,rfe7')
+    obs.sb.description = "Auto attenuate script on available antennas"
     print "===NEW SB CREATED===", sb_id_code
 
+    #Display the created sb
     print "\n===obs.sb==="
     print obs.sb
 
