@@ -66,45 +66,45 @@ def main():
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe7,rfe7')
-    obs.sb.description = "Test observation for available ants - raster scan"
+    obs.sb.description = "Raster scan test for available ants"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
-    obs.sb.instruction_set = "run ~/scripts/observation/raster_scan.py -k 6"
+    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/raster_scan.py -k 6 'Cygnus A'"
     obs.sb.save()
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='min 5', controlled_resource='dbe7,rfe7')
-    obs.sb.description = "Test manual for min 5 ants"
+    obs.sb.description = "Manual test for min 5 ants"
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resource='dbe,rfe7')
-    obs.sb.description = "Test manual FF for ants 2&4"
+    obs.sb.description = "Manual FF test for ants 2&4"
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe7,rfe7')
-    obs.sb.description = "Test observation for available ants - auto_attenuate"
+    obs.sb.description = "Auto-attenuatet test for available ants"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
-    obs.sb.instruction_set = "run ~/scripts/observation/auto_attenuate.py"
+    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/auto_attenuate.py"
     obs.sb.save()
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='ant1,ant3,ant7', controlled_resource='dbe7,rfe7')
-    obs.sb.description = "Test manual for ants 1&3&7"
+    obs.sb.description = "Manual test for ants 1&3&7"
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='ant3', controlled_resource='none')
-    obs.sb.description = "Test maintenance for ants 3"
+    obs.sb.description = "Replace acs motor drive"
     obs.sb.type = ScheduleBlockTypes.MAINTENANCE
     obs.sb.save()
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='none', controlled_resource='anc')
-    obs.sb.description = "Test maintenance for anc"
+    obs.sb.description = "Install acromag combo modules in the ASC"
     obs.sb.type = ScheduleBlockTypes.MAINTENANCE
     obs.sb.save()
     print obs.sb
