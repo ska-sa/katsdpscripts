@@ -132,7 +132,7 @@ def verify_and_connect(opts):
             kat = configure_core(sb_id_code = opts.sb_id_code)
         else:
             #Temporarily give the user override options
-            print colors.Red, "\nBuilding without a schedule block id is deprecated.\nTHERE MAY BE CONTROL CLASHES!!!!\nBut for one last time we will allow it ...", colors.Normal
+            print colors.Red, "\nBuilding without a schedule block id code is deprecated.\nTHERE MAY BE CONTROL CLASHES!!!!\nBut for one last time we will allow it ...", colors.Normal
             choice = raw_input(colors.Red+"Do you want to cancel this build? y/n ...."+colors.Normal)
             if choice not in ['n', 'N']:
                 raise ValueError("Cancelled build of KAT host object connection for site=%s system=%s" % (site, system))
