@@ -19,7 +19,7 @@ import sys
 import optparse
 import numpy as np
 
-from katcorelib.observe import verify_and_connect, ant_array, collect_targets, user_logger
+from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger
 from katcorelib import colors
 import katpoint
 
@@ -148,28 +148,22 @@ def adjust(kat, inputs, get_att, set_att, dbe, desired_power, min_att, max_att, 
 
 ############################### Main script ###################################
 
-# Parse command-line opts and arguments
-parser = optparse.OptionParser(usage="%prog [opts]",
+# Set up standard script options
+parser = standard_script_options(usage="%prog [opts]",
                                description="This automatically adjusts RFE5 and RFE7 attenuator settings "
                                            "to achieve optimal power levels. Some options are **required**.")
-parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
-                  '(default reuses existing connection, or falls back to systems/local.conf)')
-parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
-                  "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
-parser.add_option('-f', '--centre-freq', type='float', help='Centre frequency, in MHz (left unchanged by default)')
+
+# Add extra command-line opts and arguments
 parser.add_option('-t', '--target', default='',
                   help="Radio source on which to calibrate the attenuators (default='%default'). "+
                   "Won't drive antennas if not set.")
 parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', default=-47.0,
                   help='Desired RFE5 output power, in dBm (default=%default).')
-parser.add_option('-d', '--dbe-desired', type='float', dest='dbe_desired_power', default=-26.0,
+parser.add_option('--dbe-desired', type='float', dest='dbe_desired_power', default=-26.0,
                   help='Desired DBE input power, in dBm (default=%default). Success will be within 1 dBm of this value.')
-parser.add_option('--dbe', default='dbe7', help="DBE proxy / correlator to use for experiment "
-                                                "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
+
 # Parse the command line
 opts, args = parser.parse_args()
-# The standard option verification routine below requires this option (otherwise ignored)
-opts.observer = 'Otto Attenuator'
 
 with verify_and_connect(opts) as kat:
 
