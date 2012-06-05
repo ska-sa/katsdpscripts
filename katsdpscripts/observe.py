@@ -83,7 +83,7 @@ def verify_and_connect(opts):
     ----------
     opts : :class:`optparse.Values` object
         Parsed command-line options (will be updated by this function). Should
-        contain at least the options *ants*, *observer* and *system*.
+        contain at least the options *ants* and *observer* and in future *schedule-block-id*.
 
     Returns
     -------
@@ -97,6 +97,8 @@ def verify_and_connect(opts):
 
     """
     # Various non-optional options...
+    if not hasattr(opts, 'ants') or opts.ants is None:
+        raise ValueError('Please specify the antennas to use via -a option (yes, this is a non-optional option...)')
     if not hasattr(opts, 'observer') or opts.observer is None:
         raise ValueError('Please specify the observer name via -o option (yes, this is a non-optional option...)')
     #if not hasattr(opts, 'schedule-block-id') or opts.schedule_block_id is None:
