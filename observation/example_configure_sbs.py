@@ -59,42 +59,48 @@ def main():
     #Create a new sb
 
     # antenna_spec is one of:
-    #   'none'  no antennas required (e.g. for a maintenance task on anc, rfe7, dbe, or dbe7)
-    #   'all'   all antennas required
-    #   'available' all antennas available at that time
-    #   'min 3' at least 3 antennas - but up to all available
-    # controlled resources is a selection from "anc,rfe7,dbe,dbe7"
-    #   'none'  no additional controlled resources required
-    #   'rfe7, dbe7'    a list of the required controlled resources
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe,rfe7')
-    obs.sb.description = "Auto attenuate script on available antennas"
+    #   'none'          no antennas required (e.g. for a maintenance task on anc, rfe7, dbe, or dbe7)
+    #   'all'           all antennas required
+    #   'available'     all antennas available at that time
+    #   'min N'         at least N antennas - but up to all available
+    # controlled resources is a selection from "anc,rfe7,dbe,dbe7" or "none"
+    #   'none'          no additional controlled resources required
+    #   'rfe7,dbe7'     a list of the required controlled resources
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='all', controlled_resources='dbe,rfe7')
     print "===NEW SB CREATED===", sb_id_code
 
     #Display the created sb
     print "\n===obs.sb==="
     print obs.sb
 
+    #
     #Make some changes
+    #
+    obs.sb.description = "Auto attenuate script on available antennas"
+    obs.sb.notes = "This has to be run early in the morning!"
+    # obs.sb.type is ScheduleBlockTypes.MANUAL, MAINTENANCE or OBSERVATION
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
+    obs.sb.priority = ScheduleBlockPriorities.HIGH  # or ScheduleBlockPriorities.LOW
     today = time.strftime('%Y-%m-%d', time.gmtime())     # Get the current date string (GMT)
     obs.sb.desired_start_time = datetime.strptime(today+" 21:00:00", "%Y-%m-%d %H:%M:%S")
     obs.sb.expected_duration_seconds =  timedelta(minutes=30).seconds
     #Instruction set must start with "run .." and should not specify -a antennas and -o observer
-    obs.sb.instruction_set = "run ~/scripts/observation/auto_attenuate.py"
+    #Those will be added by katexecutor from the schedule block details
+    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/auto_attenuate.py"
     obs.sb.save()
     print "\n===obs.sb CHANGED==="
     print obs.sb
 
     #Make some resource changes
-    obs.sb.antenna_spec = "all"
-    obs.sb.controlled_resource='dbe7,rfe7'
+    obs.sb.antenna_spec = "available"
+    obs.sb.controlled_resources='dbe7,rfe7'
     obs.sb.save()
     print "\n===obs.sb RESOURCES CHANGED==="
     print obs.sb
 
     #Revert some changes
     obs.sb.antenna_spec = "ant5,ant6"
-    obs.sb.controlled_resource='dbe'
+    obs.sb.controlled_resources='dbe'
     obs.sb.reset()
     print "\n===obs.sb RESOURCES UNCHANGED==="
     print obs.sb

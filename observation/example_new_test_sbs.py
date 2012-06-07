@@ -56,7 +56,7 @@ def main():
     obs = obsbuild(user='test', db_uri=db_uri)
     obs.status()
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resource='dbe7,rfe7')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resources='dbe7,rfe7')
     obs.sb.description = "Test observation for ants 2&4 - empty instruction"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
     #today = time.strftime('%Y-%m-%d', time.gmtime())     # Get the current date string (GMT)
@@ -65,45 +65,45 @@ def main():
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe7,rfe7')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resources='dbe7,rfe7')
     obs.sb.description = "Raster scan test for available ants"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
     obs.sb.instruction_set = "run-obs-script ~/scripts/observation/raster_scan.py -k 6 'Cygnus A'"
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='min 5', controlled_resource='dbe7,rfe7')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='min 5', controlled_resources='dbe7,rfe7')
     obs.sb.description = "Manual test for min 5 ants"
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resource='dbe,rfe7')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant2,ant4', controlled_resources='dbe,rfe7')
     obs.sb.description = "Manual FF test for ants 2&4"
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resource='dbe7,rfe7')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resources='dbe7,rfe7')
     obs.sb.description = "Auto-attenuatet test for available ants"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
     obs.sb.instruction_set = "run-obs-script ~/scripts/observation/auto_attenuate.py"
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant1,ant3,ant7', controlled_resource='dbe7,rfe7')
-    obs.sb.description = "Manual test for ants 1&3&7"
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant1,ant3,ant7', controlled_resources='dbe7,rfe7')
+    obs.sb.description = "Test for ants 1&3&7"
     obs.sb.type = ScheduleBlockTypes.MANUAL
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant3', controlled_resource='none')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='ant3', controlled_resources='none')
     obs.sb.description = "Replace acs motor drive"
     obs.sb.type = ScheduleBlockTypes.MAINTENANCE
     obs.sb.save()
     print obs.sb
 
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='none', controlled_resource='anc')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='none', controlled_resources='anc')
     obs.sb.description = "Install acromag combo modules in the ASC"
     obs.sb.type = ScheduleBlockTypes.MAINTENANCE
     obs.sb.save()
