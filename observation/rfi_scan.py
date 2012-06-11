@@ -26,6 +26,8 @@ parser.set_defaults(description='Basic RFI Scan')
 # Parse the command line
 opts, args = parser.parse_args()
 
+opts.description = ("Basic RFI Scan: %s" % (opts.description,)) if opts.description != "Basic RFI Scan" else opts.description
+
 el_start =  3.1
 el_end =15.1
 scan_spacing = 6.0
