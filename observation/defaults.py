@@ -167,6 +167,8 @@ if __name__ == "__main__":
                       help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
     parser.add_option('-r', '--reset', action='store_true', default=False,
                       help='Reset system to default values, if this switch is included (default="%default")')
+    parser.add_option('--sb_id_code', metavar='SB_ID_CODE',
+                      help='Optional schedule block id to reset system to defaults')
     (opts, args) = parser.parse_args()
 
     try:
@@ -175,13 +177,23 @@ if __name__ == "__main__":
         print "Unknown defaults set '%s', expected one of %s" % (opts.defaults_set, defaults_set.keys())
         sys.exit()
 
+    if not opts.system:
+        site, system = katcorelib.conf.get_system_configuration()
+        opts.system = system
+
+    if opts.reset and not opts.sb_id_code:
+        raise ValueError("To reset system to defaults you need to specify the schedule block: use --sb_id_code, or run without -r")
+
     # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        kat = katcorelib.tbuild(opts.system, host_clients = 'all', controlled_clients = 'all')
+        if opts.sb_id_code:
+            kat = katcorelib.tbuild(opts.system, sb_id_code = opts.sb_id_code)
+        else:
+            kat = katcorelib.tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
-    except ValueError:
-        kat = katcorelib.tbuild('systems/local.conf', host_clients = 'all', controlled_clients = 'all')
+    except ValueError, err:
+        raise ValueError("Could not build host for %s (%s)" % opts.system, err)
     print "Using KAT connection with configuration: %s" % (kat.system,)
 
     print "Checking current settings....."
