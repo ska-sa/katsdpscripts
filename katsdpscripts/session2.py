@@ -415,7 +415,7 @@ class CaptureSession(object):
                 return False
         return True
 
-    def target_visible(self, target, duration=0., timeout=300., horizon=2.):
+    def target_visible(self, target, duration=0., timeout=300., horizon=3.):
         """Check whether target is visible for given duration.
 
         This checks whether the *target* is currently above the given *horizon*
