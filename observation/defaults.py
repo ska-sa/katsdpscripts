@@ -6,6 +6,8 @@ import time
 import sys
 
 import katcorelib
+from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger
+
 from katmisc.utils.ansi import col
 
 # Default settings logically grouped in lists
@@ -159,16 +161,12 @@ def reset_defaults(kat, defaults):
 
 if __name__ == "__main__":
 
-    parser = OptionParser(usage="%prog [options]",
+    parser = standard_script_options(usage="%prog [options]",
                           description="Check the system against the expected default values and optionally reset to these defaults.")
-    parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
-                      '(default reuses existing connection, or falls back to systems/local.conf)')
     parser.add_option('-d', '--defaults_set', default="karoo", metavar='DEFAULTS',
                       help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
     parser.add_option('-r', '--reset', action='store_true', default=False,
                       help='Reset system to default values, if this switch is included (default="%default")')
-    parser.add_option('--sb_id_code', metavar='SB_ID_CODE',
-                      help='Optional schedule block id to reset system to defaults')
     (opts, args) = parser.parse_args()
 
     try:
@@ -188,7 +186,7 @@ if __name__ == "__main__":
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
         if opts.sb_id_code:
-            kat = katcorelib.tbuild(opts.system, sb_id_code = opts.sb_id_code)
+            kat = verify_and_connect(opts)
         else:
             kat = katcorelib.tbuild(opts.system)
     # Fall back to *local* configuration to prevent inadvertent use of the real hardware
