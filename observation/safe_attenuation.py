@@ -8,7 +8,7 @@ import sys
 import optparse
 import numpy as np
 
-from katuilib.observe import verify_and_connect, ant_array, collect_targets, user_logger
+from katuilib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger
 from katuilib import colors
 import katpoint
 
@@ -69,7 +69,7 @@ connected_antpols = {}
 ############################### Main script ###################################
 
 # Parse command-line opts and arguments
-parser = optparse.OptionParser(usage="%prog [opts]",
+parser = standard_script_options(usage="%prog [opts]",
                                description="This automatically max's out  RFE5 and RFE7 attenuator settings "
                                            "to achieve safe levels for work on the antenna. Some options are **required**.")
 parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
