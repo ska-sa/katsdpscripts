@@ -66,7 +66,7 @@ def main():
     # controlled resources is a selection from "anc,rfe7,dbe,dbe7" or "none"
     #   'none'          no additional controlled resources required
     #   'rfe7,dbe7'     a list of the required controlled resources
-    sb_id_code = obs.sb.new(owner='test', antenna_spec='all', controlled_resources='dbe,rfe7')
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resources='dbe,rfe7')
     print "===NEW SB CREATED===", sb_id_code
 
     #Display the created sb
