@@ -32,7 +32,6 @@ parser.add_option('--source-strength', type='choice', default='auto', choices=('
                        "Auto is based on flux density specified in catalogue.")
 parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, 3 scans of 15 seconds over 5 degrees spaced 0.5 apart at 2Hz sample rate.')
-parser.add_option('--horizon', type="float", default=5.0, help="Horizon limit in degrees (default=%default)")
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()

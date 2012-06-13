@@ -30,7 +30,6 @@ if len(args) == 0:
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
 start_time = time.time()
-el_lim = 4.0
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
@@ -41,11 +40,11 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
         loop_once = True
         if opts.max_duration is None : opts.repeat = False
-        while (opts.repeat or loop_once) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and len(observation_sources.filter(el_limit_deg=el_lim).targets) > 0:
+        while (opts.repeat or loop_once) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and len(observation_sources.filter(el_limit_deg=opts.horizon).targets) > 0:
             loop_once = False
             for target in observation_sources:
                 target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
-                if katpoint.rad2deg(target.azel()[1]) > el_lim and  ( opts.max_duration is None or ( time.time() - start_time)< opts.max_duration):
+                if katpoint.rad2deg(target.azel()[1]) > opts.horizon and  ( opts.max_duration is None or ( time.time() - start_time)< opts.max_duration):
                     session.label('track')
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                 elif ( opts.max_duration is not  None and  ( time.time() - start_time)> opts.max_duration):
@@ -55,7 +54,7 @@ with verify_and_connect(opts) as kat:
                 # Split the total track on one target into segments lasting as long as the noise diode period
                 # This ensures the maximum number of noise diode firings
                 total_track_time = 0.
-                while  ( total_track_time < opts.track_duration ) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and katpoint.rad2deg(target.azel()[1]) > el_lim:
+                while  ( total_track_time < opts.track_duration ) and ( opts.max_duration is None or  ( time.time() - start_time)< opts.max_duration) and katpoint.rad2deg(target.azel()[1]) > opts.horizon:
                     next_track = opts.track_duration - total_track_time
                     if  opts.max_duration is not None and opts.max_duration - ( time.time() - start_time) < next_track :
                         next_track =  opts.max_duration - (time.time() - start_time) #Cut the track short if short on time

@@ -37,13 +37,15 @@ session = katuilib.start_session(kat, dbe='dbe')
 # - a list of antenna devices: [kat.ant1, kat.ant2]
 # - an antenna device array: kat.ants
 # - the keyword 'all' to use all antennas in the system
-# You can optionally also set the dump rate in Hz, centre frequency in MHz and
-# noise diode firing strategy (which diode to use and how often to fire it on and
-# off during the canned commands, in seconds). If you don't specify these
-# settings, they are left unchanged (except for the dump rate, which will be set).
+# You can optionally also set the dump rate in Hz, the centre frequency in MHz,
+# the noise diode firing strategy (which diode to use and how often to fire it
+# on and off during the canned commands, in seconds) and the elevation limit
+# (session horizon) in degrees. If you don't specify these settings, they are
+# left unchanged (except for the dump rate, which will be set).
 session.standard_setup(ants='ant1,ant2', observer='me', description='Testing testing...',
                        centre_freq=1822.0, dump_rate=1.0,
-                       nd_params={'diode' : 'coupler', 'on' : 10.0, 'off' : 10.0, 'period' : 180.})
+                       nd_params={'diode' : 'coupler', 'on' : 10.0, 'off' : 10.0, 'period' : 180.},
+                       horizon=5.0)
 
 # The data actually starts flowing once you call capture_start(). [Note: on the
 # Fringe Finder system this action is postponed even further, until you actually
@@ -66,8 +68,8 @@ kat.ant1.req.mode('POINT')
 
 # Checks whether all antennas are locked on the specified target
 session.on_target(target)
-# Checks whether the target remains above 2 degrees elevation for the next 30 seconds for all antennas
-session.target_visible(target, duration=30., horizon=2.)
+# Checks whether the target remains above session horizon for the next 30 seconds for all antennas
+session.target_visible(target, duration=30.)
 # Switch the coupler diode on for 10 seconds
 session.fire_noise_diode(diode='coupler', on=10.0)
 # Track the target for 10 seconds

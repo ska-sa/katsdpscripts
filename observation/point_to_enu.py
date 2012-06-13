@@ -96,7 +96,7 @@ with verify_and_connect(opts) as kat:
             az, el = enu_to_azel(*enu)
             az, el = katpoint.rad2deg(az), katpoint.rad2deg(el)
             # Go to nearest point on horizon if target is below elevation limit
-            el = max(el, 2.0)
+            el = max(el, 2.5)
             target_description = "%s, azel, %f, %f" % (target, az, el)
             user_logger.info("From antenna '%s', target '%s' with enu = (%g, %g, %g) has azel = (%g, %g)" % \
                   (antenna.name, target, enu[0], enu[1], enu[2], az, el))
