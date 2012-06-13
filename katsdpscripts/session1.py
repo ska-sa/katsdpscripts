@@ -170,6 +170,7 @@ class CaptureSession(object):
             self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
+            self.horizon = 3.0
             self._label = ''
 
             activity_logger.info("----- Script starting  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
@@ -216,8 +217,9 @@ class CaptureSession(object):
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
-    def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
-                       dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
+    def standard_setup(self, ants, observer, description, experiment_id=None,
+                       centre_freq=None, dump_rate=1.0, nd_params=None,
+                       record_slews=None, stow_when_done=None, horizon=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -272,6 +274,8 @@ class CaptureSession(object):
         stow_when_done : {False, True}, optional
             If True, stow the antennas when the capture session completes
             (unchanged by default)
+        horizon : float, optional
+            Elevation limit serving as horizon for session, in degrees
         kwargs : dict, optional
             Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -290,6 +294,7 @@ class CaptureSession(object):
         session.nd_params = nd_params = session.nd_params if nd_params is None else nd_params
         session.record_slews = record_slews = session.record_slews if record_slews is None else record_slews
         session.stow_when_done = stow_when_done = session.stow_when_done if stow_when_done is None else stow_when_done
+        session.horizon = session.horizon if horizon is None else horizon
 
         # Setup strategies for the sensors we might be wait()ing on
         ants.req.sensor_sampling("lock", "event")
@@ -406,10 +411,10 @@ class CaptureSession(object):
                 return False
         return True
 
-    def target_visible(self, target, duration=0., timeout=300., horizon=2.):
+    def target_visible(self, target, duration=0., timeout=300.):
         """Check whether target is visible for given duration.
 
-        This checks whether the *target* is currently above the given *horizon*
+        This checks whether the *target* is currently above the session horizon
         and also above the horizon for the next *duration* seconds, taking into
         account the *timeout* on slewing to the target. If the target is not
         visible, an appropriate message is logged. The target location is not
@@ -424,8 +429,6 @@ class CaptureSession(object):
             Duration of observation of target, in seconds
         timeout : float, optional
             Timeout involved when antenna cannot reach the target
-        horizon : float, optional
-            Elevation limit serving as horizon, in degrees
 
         Returns
         -------
@@ -437,7 +440,7 @@ class CaptureSession(object):
             return False
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
-        horizon = katpoint.deg2rad(horizon)
+        horizon = katpoint.deg2rad(self.horizon)
         # Include an average time to slew to the target (worst case about 90 seconds, so half that)
         now = time.time() + 45.
         average_el, visible_before, visible_after = [], [], []
@@ -1009,10 +1012,13 @@ class TimeSession(object):
         self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
         self.last_nd_firing = 0.
         self.output_file = ''
+        self.horizon = 3.0
 
         self.start_time = time.time()
         self.time = self.start_time
         self.projection = ('ARC', 0., 0.)
+        # Actual antenna elevation limit (as opposed to user-requested session horizon)
+        self.el_limit = 2.5
 
         # Usurp time module functions that deal with the passage of real time, and connect them to session time instead
         self._realtime, self._realsleep = time.time, time.sleep
@@ -1061,7 +1067,7 @@ class TimeSession(object):
         for m in range(len(self._fake_ants)):
             antenna = self._fake_ants[m][0]
             az, el = self._azel(target, self.time, antenna)
-            self._fake_ants[m] = (antenna, mode, az, max(el, 2.))
+            self._fake_ants[m] = (antenna, mode, az, max(el, self.el_limit))
 
     def _slew_to(self, target, mode='POINT', timeout=300.):
         """Slew antennas to target (or nearest point on horizon), with timeout."""
@@ -1072,7 +1078,7 @@ class TimeSession(object):
                 # Target position right now
                 az, el = self._azel(target, timestamp, ant)
                 # If target is below horizon, aim at closest point on horizon
-                az_dist, el_dist = np.abs(az - ant_az), np.abs(max(el, 2.) - ant_el)
+                az_dist, el_dist = np.abs(az - ant_az), np.abs(max(el, self.el_limit) - ant_el)
                 # Ignore azimuth wraps and drive strategies
                 az_dist = az_dist if az_dist < 180. else 360. - az_dist
                 # Assume az speed of 2 deg/s, el speed of 1 deg/s and overhead of 1 second
@@ -1086,13 +1092,14 @@ class TimeSession(object):
             # Ensure slew does not take longer than timeout
             slew_time = min(slew_time, timeout)
             # If source is below horizon, handle timeout and potential rise in that interval
-            if el2 < 2.:
+            if el2 < self.el_limit:
                 # Position after timeout
                 az_after_timeout, el_after_timeout = self._azel(target, self.time + timeout, ant)
                 # If source is still down, slew time == timeout, else estimate rise time through linear interpolation
-                slew_time = (2. - el1) / (el_after_timeout - el1) * timeout if el_after_timeout > 2. else timeout
+                slew_time = (self.el_limit - el1) / (el_after_timeout - el1) * timeout \
+                            if el_after_timeout > self.el_limit else timeout
                 az2, el2 = self._azel(target, self.time + slew_time, ant)
-                el2 = max(el2, 2.)
+                el2 = max(el2, self.el_limit)
             slew_times.append(slew_time)
 #            print "%s slewing from (%.1f, %.1f) to (%.1f, %.1f) in %.1f seconds" % \
 #                  (ant.name, ant_az, ant_el, az2, el2, slew_time)
@@ -1161,13 +1168,13 @@ class TimeSession(object):
                 return False
         return True
 
-    def target_visible(self, target, duration=0., timeout=300., horizon=2., operation='scan'):
+    def target_visible(self, target, duration=0., timeout=300., operation='scan'):
         """Check whether target is visible for given duration."""
         if not self._fake_ants:
             return False
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
-        horizon = katpoint.deg2rad(horizon)
+        horizon = katpoint.deg2rad(self.horizon)
         # Include an average time to slew to the target (worst case about 90 seconds, so half that)
         now = self.time + 45.
         average_el, visible_before, visible_after = [], [], []
