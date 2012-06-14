@@ -53,8 +53,8 @@ def standard_script_options(usage, description):
 #    parser.add_option('-w', '--discard-slews', dest='record_slews', action='store_false', default=True,
 #                      help='Do not record all the time, i.e. pause while antennas are slewing to the next target')
     parser.add_option('-n', '--nd-params', default='coupler,10,10,180',
-                      help="Noise diode parameters as 'diode,on,off,period', "
-                      "in seconds (default='%default')")
+                      help="Noise diode parameters as '<diode>,<on>,<off>,<period>', "
+                      "in seconds or 'off' for no noise diode firing (default='%default')")
     parser.add_option('-p', '--projection', type='choice',
                       choices=projections, default=default_proj,
                       help="Spherical projection in which to perform scans, "
@@ -125,6 +125,9 @@ def verify_and_connect(opts):
 
     # If given, verify noise diode parameters (should be 'string,number,number,number') and convert to dict
     if hasattr(opts, 'nd_params'):
+        # Shortcut for switching off noise diodes
+        if opts.nd_params.lower() == 'off':
+            opts.nd_params = 'coupler,0,0,-1'
         try:
             opts.nd_params = eval("{'diode':'%s', 'on':%s, 'off':%s, 'period':%s}" %
                                   tuple(opts.nd_params.split(',')), {})
