@@ -26,6 +26,7 @@ from optparse import OptionParser
 import sys, math, time
 
 import katcorelib, katpoint
+from katcorelib.defaults import activity_logger, user_logger
 from katmisc.utils.ansi import col, getKeyIf
 
 # Some globals
@@ -67,11 +68,11 @@ rfe7_template = [ # used to check powerswitch sensors here.
 ]
 
 rfe7_base_group = [
-("kat.mon_kat_proxy.sensor.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_psu_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_orx1_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_orx2_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_orx3_states_ok.get_value()", 1,1,1,1),
+("kat.sensors.agg_rfe7_osc_states_ok.get_value()", 1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -105,10 +106,10 @@ tfr_template = [
 ]
 
 tfr_base_group = [
-("kat.mon_kat_proxy.sensor.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
-("kat.mon_kat_proxy.sensor.agg_anc_css_ut1_current.get_value()",1,1,1,1),
-("kat.mon_kat_proxy.sensor.agg_anc_css_tle_current.get_value()",1,1,1,1),
+("kat.sensors.agg_anc_tfr_time_synced.get_value()",1,1,1,1),
+("kat.sensors.agg_anc_css_ntp_synch.get_value()",1,1,1,1), # does this include kat-dc1?
+("kat.sensors.agg_anc_css_ut1_current.get_value()",1,1,1,1),
+("kat.sensors.agg_anc_css_tle_current.get_value()",1,1,1,1),
 ("kat.dbe7.sensor.dbe_ntp_synchronised.get_value()",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
@@ -496,8 +497,6 @@ if __name__ == '__main__':
     parser = OptionParser(usage='%prog [options]',
                           description='Perform basic status (blue = busy) and health check of the system for observers. ' +
                           'Can be run at any time without affecting current settings/observation.')
-    parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
-                      '(default reuses existing connection, or falls back to systems/local.conf)')
     sensor_group_dict_keys = sensor_group_dict.keys()
     sensor_group_dict_keys.sort(key=str.lower) # for some reason python does not like to do this in one line
     parser.add_option('-g', '--sensor_group', default='karoo',
@@ -558,13 +557,13 @@ if __name__ == '__main__':
         print "Error: Cannot select warn option when quiet mode not selected. Warns are shown by default with verbose mode."
         sys.exit()
 
-    # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
+    # Try to build the KAT configuration
     # This connects to all the proxies and devices and queries their commands and sensors
+    site, system = katcorelib.conf.get_system_configuration()
     try:
-        kat = katcorelib.tbuild(opts.system)
-    # Fall back to *local* configuration to prevent inadvertent use of the real hardware
+        kat = katcorelib.tbuild(system)
     except ValueError:
-        kat = katcorelib.tbuild('systems/local.conf')
+        raise ValueError("Could not build KAT connection for %s" % (system,))
     print 'Using KAT connection with configuration: %s' % (kat.system,)
 
     # construct the per antenna sensor groups (restricting to those that were selected)
@@ -576,6 +575,8 @@ if __name__ == '__main__':
         print 'Unknown sensor group "%s", expected one of %s' % (opts.sensor_group, sensor_group_dict_keys)
         sys.exit()
 
+    activity_logger.info("basic_health_check.py: start")
+    user_logger.info("basic_health_check.py: start")
     # end_time is the end time for the whole programme
     if opts.max_duration >= 1.0:
         end_time = time.time() + float(opts.max_duration)
@@ -586,6 +587,8 @@ if __name__ == '__main__':
         ended = False
         while (not ended):
             refresh_cycle_start =  time.time()
+            user_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
+            activity_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
             refresh_forced = False # keyboard input forced refresh
             print '\nCurrent local time: %s' % (time.ctime(refresh_cycle_start))
             alarms = {} # reset any alarms when full refresh
@@ -635,7 +638,10 @@ if __name__ == '__main__':
 
             if time.time() >= end_time: # do another check since the refresh sleep loop takes up time
                 ended = True
-
     except KeyboardInterrupt:
         print '\nKeyboard Interrupt detected... exiting gracefully :)'
+        user_logger.info("basic_health_check.py: KeyboardInterrupt")
+  
+    user_logger.info("basic_health_check.py: stop")
+    activity_logger.info("basic_health_check.py: stop")
 
