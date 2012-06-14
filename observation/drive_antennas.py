@@ -6,33 +6,30 @@ import sys
 import time
 
 import katcorelib
+from katcorelib.observe import standard_script_options, verify_and_connect
+from katcorelib.defaults import activity_logger, user_logger
 
 # Parse command-line options that allow the defaults to be overridden
-parser = OptionParser(usage="usage: %prog [options]\n\n"+
-                            "Track sources all around the sky for a few seconds each without recording data\n"+
+parser = standard_script_options(usage="usage: %prog [options]",
+                            description="Track sources all around the sky for a few seconds each without recording data\n"+
                             "(mostly to keep tourists or antennas amused). Uses the standard catalogue,\n"+
                             "but excludes the extremely strong sources (Sun, Afristar). Some options\n"+
                             "are **required**.")
-parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
-                  '(default reuses existing connection, or falls back to systems/local.conf)')
-parser.add_option('-a', '--ants', metavar='ANTS', help="Comma-separated list of antennas to include in scan " +
-                  "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required - safety reasons)")
 (opts, args) = parser.parse_args()
 
-# Force antennas to be specified to sensitise the user to what will physically move
-if opts.ants is None:
-    print 'Please specify the antennas to use via -a option (yes, this is a non-optional option..., -h for help)'
-    sys.exit(1)
-
-# Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
+activity_logger.info("drive_antennas.py : start")
+user_logger.info("drive_antennas.py: start")
+# Try to build the  KAT configuration
 # This connects to all the proxies and devices and queries their commands and sensors
 try:
-    kat = katcorelib.tbuild(opts.system, host_clients = 'all', controlled_clients = 'all')
-# Fall back to *local* configuration to prevent inadvertent use of the real hardware
-except ValueError:
-    kat = katcorelib.tbuild('systems/local.conf', host_clients = 'all', controlled_clients = 'all')
+    kat = verify_and_connect(opts)
+except ValueError, err:
+    activity_logger.info("drive_antennas.py : could not build host for sb-id-code %s (%s) " % (opts.sb_id_code, err))
+    user_logger.info("drive_antennas.py : could not build host for sb-id-code %s (%s) " % (opts.sb_id_code, err))
+    raise ValueError("Could not build host for sb-id-code %s (%s)" % (opts.sb_id_code, err))
 print "Using KAT connection with configuration: %s" % (kat.system,)
 
+user_logger.info("drive_antennas.py: built %s" % kat.system)
 
 # Create a list of the specified antenna devices, and complain if they are not found
 if opts.ants.strip() == 'all':
@@ -42,6 +39,7 @@ else:
         ants = katcorelib.Array('ants', [getattr(kat, ant_x.strip()) for ant_x in opts.ants.split(",")])
     except AttributeError:
         raise ValueError("Antenna '%s' not found" % ant_x)
+
 
 #Setup strategies for the sensors we are interested in
 kat.ants.req.sensor_sampling("lock","event")
@@ -93,7 +91,12 @@ finally:
     print '\nelapsed_time: %.2f mins' % ((end_time - start_time) / 60.0,)
     print 'targets completed: ', total_target_count
     print 'target lock achieved: ', targets_tracked, '\n'
+    user_logger.info('elapsed_time: %.2f mins' % ((end_time - start_time) / 60.0,))
+    user_logger.info('targets completed: %d' % (total_target_count,))
+    user_logger.info('target lock achieved: %d' % (targets_tracked,))
 
     # exit
-    print "setting drive-strategy back to the default"
+    print "setting drive-strategy back to the longest-track"
     ants.req.drive_strategy("longest-track") # set back to the default
+    user_logger.info("drive_antennas.py: stop")
+    activity_logger.info("drive_antennas.py: stop")

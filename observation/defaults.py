@@ -163,9 +163,9 @@ if __name__ == "__main__":
 
     parser = standard_script_options(usage="%prog [options]",
                           description="Check the system against the expected default values and optionally reset to these defaults.")
-    parser.add_option('-d', '--defaults_set', default="karoo", metavar='DEFAULTS',
+    parser.add_option('--defaults_set', default="karoo", metavar='DEFAULTS',
                       help='Selected defaults set to use, ' + '|'.join(defaults_set.keys()) + ' (default="%default")')
-    parser.add_option('-r', '--reset', action='store_true', default=False,
+    parser.add_option('--reset', action='store_true', default=False,
                       help='Reset system to default values, if this switch is included (default="%default")')
     (opts, args) = parser.parse_args()
 
@@ -175,31 +175,33 @@ if __name__ == "__main__":
         print "Unknown defaults set '%s', expected one of %s" % (opts.defaults_set, defaults_set.keys())
         sys.exit()
 
-    if not opts.system:
-        site, system = katcorelib.conf.get_system_configuration()
-        opts.system = system
-
     if opts.reset and not opts.sb_id_code:
-        raise ValueError("To reset system to defaults you need to specify the schedule block: use --sb_id_code, or run without -r")
+        raise ValueError("To reset system to defaults you need to specify the schedule block: use --sb-id-code, or run without --reset")
 
-    # Try to build the given KAT configuration (which might be None, in which case try to reuse latest active connection)
+    # Try to build the  KAT configuration
     # This connects to all the proxies and devices and queries their commands and sensors
     try:
-        if opts.sb_id_code:
-            kat = verify_and_connect(opts)
-        else:
-            kat = katcorelib.tbuild(opts.system)
-    # Fall back to *local* configuration to prevent inadvertent use of the real hardware
+        kat = verify_and_connect(opts)
     except ValueError, err:
-        raise ValueError("Could not build host for %s (%s)" % opts.system, err)
+        raise ValueError("Could not build host for sb-id-code %s (%s)" % (opts.sb_id_code, err))
     print "Using KAT connection with configuration: %s" % (kat.system,)
 
-    print "Checking current settings....."
+    user_logger.info("defaults.py: start")
+    smsg = "Checking current settings....."
+    user_logger.info(smsg)
+    print smsg
+
     check_sensors(kat,defaults)
 
     if opts.reset:
-        print "\nResetting to default settings..."
+        smsg = "Resetting to default settings..."
+        user_logger.info(smsg)
+        print "\n"+smsg
         reset_defaults(kat, defaults)
-        print "\nRechecking settings...."
+        smsg = "Rechecking settings...."
+        user_logger.info(smsg)
+        print "\n"+smsg
         time.sleep(1.5) # wait a little time for sensor to update
         check_sensors(kat, defaults)
+
+    user_logger.info("defaults.py: stop")
