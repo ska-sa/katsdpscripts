@@ -1,5 +1,6 @@
 #!/usr/bin/python
-# Perform mini (Zorro) raster scans across (point) sources from a catalogue for pointing model fits and gain curve calculation.
+# Perform mini (Zorro) raster scans across (point) sources from a catalogue
+# for pointing model fits and gain curve calculation.
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
@@ -31,10 +32,13 @@ parser.add_option('--source-strength', type='choice', default='auto', choices=('
                   help="Scanning strategy based on source strength, one of 'strong', 'weak' or 'auto' (default). "
                        "Auto is based on flux density specified in catalogue.")
 parser.add_option( '--quick', action="store_true" , default=False,
-                  help='Do a quick "Zorro" type scan, 3 scans of 15 seconds over 5 degrees spaced 0.5 apart at 2Hz sample rate.')
+                  help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
+                       'spaced 0.5 degrees apart with 2 Hz dump rate.')
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()
+if opts.quick:
+    opts.dump_rate = 2.0
 
 with verify_and_connect(opts) as kat:
     if len(args) > 0:
@@ -51,17 +55,17 @@ with verify_and_connect(opts) as kat:
         skip_sources = katpoint.Catalogue(file(opts.skip_catalogue))
         for target in skip_sources:
             pointing_sources.remove(target.name)
-        user_logger.info("After skipping, %d targets are left" % (len(pointing_sources.targets),))
+        user_logger.info("After skipping, %d targets are left" % (len(pointing_sources),))
 
     # Quit early if there are no sources to observe
-    if len(pointing_sources.targets) == 0:
+    if len(pointing_sources) == 0:
         user_logger.warning("Empty point source catalogue or all targets are skipped")
-    elif len(pointing_sources.filter(el_limit_deg=opts.horizon).targets) == 0:
-        user_logger.warning("No targets in catalogue are currently visible - please re-run the script later")
+    elif len(pointing_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        user_logger.warning("No targets are currently visible - please re-run the script later")
     else:
         # Observed targets will be written back to catalogue file, or into the void
-        skip_file = file(opts.skip_catalogue, "a") if opts.skip_catalogue is not None and not opts.dry_run else StringIO()
-        if opts.quick :opts.dump_rate = 2.0
+        skip_file = file(opts.skip_catalogue, "a") \
+                    if opts.skip_catalogue is not None and not opts.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
             session.standard_setup(**vars(opts))
             session.capture_start()
@@ -77,16 +81,17 @@ with verify_and_connect(opts) as kat:
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label('raster')
                     # Do different raster scan on strong and weak targets
-                    if not opts.quick :
-                        if (opts.source_strength == 'strong' or (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0)):
+                    if not opts.quick:
+                        if opts.source_strength == 'strong' or \
+                           (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
                             session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                        else :
+                        else:
                             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                    else :
+                    else:
                         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                             scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
@@ -100,7 +105,7 @@ with verify_and_connect(opts) as kat:
                     elif time.time() - start_time >= opts.min_time:
                         keep_going = False
                         break
-                if len(targets_observed) == targets_before_loop:
+                if keep_going and len(targets_observed) == targets_before_loop:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                     keep_going = False
             user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
