@@ -183,7 +183,7 @@ class CaptureSession(object):
             # Start with a clean state, by stopping the DBE
             dbe.req.capture_stop()
             # Set data output directory (typically on ff-dc machine)
-            dbe.req.k7w_output_directory("/var/kat/data")
+            dbe.req.k7w_output_directory("/var/kat/data/staging")
             # Enable output to HDF5 file (takes effect on capture_start only)
             dbe.req.k7w_write_hdf5(1)
 
