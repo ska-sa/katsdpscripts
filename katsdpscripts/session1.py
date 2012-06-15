@@ -304,10 +304,11 @@ class CaptureSession(object):
         # Setup basic experiment info
         dbe.req.k7w_experiment_info(experiment_id, observer, description)
 
-        # Set centre frequency in RFE stage 7 (and read it right back to verify)
+        # Set centre frequency in RFE stage 7 (else read the current value)
         if centre_freq is not None:
             kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
-        centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6 - 4200.0
+        else:
+            centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6 - 4200.0
         # The DBE proxy needs to know the dump period (in ms) as well as the centre frequency of downconverted band,
         # which is used for fringe stopping / delay tracking. This sets the delay model and other
         # correlator parameters, such as the dump rate, and instructs the correlator to pass
