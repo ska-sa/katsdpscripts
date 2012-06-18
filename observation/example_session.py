@@ -13,7 +13,7 @@ import katuilib
 # a lab test system or even a local one on our own machine). From the ipython
 # shell we usually run configure() to automatically select the correct system
 # based on the machine we are on.
-configure()
+configure(sb_id_code="20120101-0101")
 
 # Alternatively, we can build a connection to a specific system if we know its
 # configuration file.
@@ -26,7 +26,7 @@ configure()
 # correlator. Currently we have 'dbe' for the Fringe Finder correlator and 'dbe7'
 # for the KAT-7 correlator. The function returns a CaptureSession object, which
 # is used to manage the session.
-session = katuilib.start_session(kat, dbe='dbe')
+session = katuilib.start_session(kat, dbe='dbe7')
 
 # Now you can perform basic setup of the system for the experiment, which is
 # simplified by the standard_setup command. At the minimum you need to specify
