@@ -561,7 +561,7 @@ if __name__ == '__main__':
     # This connects to all the proxies and devices and queries their commands and sensors
     site, system = katcorelib.conf.get_system_configuration()
     try:
-        kat = katcorelib.tbuild(system)
+        kat = katcorelib.tbuild(system=system)
     except ValueError:
         raise ValueError("Could not build KAT connection for %s" % (system,))
     print 'Using KAT connection with configuration: %s' % (kat.system,)
