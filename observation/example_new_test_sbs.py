@@ -119,6 +119,13 @@ def main():
     obs.sb.save()
     print obs.sb
 
+    sb_id_code = obs.sb.new(owner='test', antenna_spec='all', controlled_resources='none')
+    obs.sb.description = "Basic health check on all ants"
+    obs.sb.type = ScheduleBlockTypes.OBSERVATION
+    obs.sb.instruction_set = "run ~/scripts/observation/basic_health_check.py"
+    obs.sb.save()
+    print obs.sb
+
     sb_id_code = obs.sb.new(owner='test', antenna_spec='ant1,ant3,ant7', controlled_resources='dbe7,rfe7')
     obs.sb.description = "Manual control of 1,3,7"
     obs.sb.type = ScheduleBlockTypes.MANUAL
