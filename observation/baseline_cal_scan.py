@@ -38,8 +38,15 @@ with verify_and_connect(opts) as kat:
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        session.dbe.req.auto_delay('off')
-        session.dbe.req.zero_delay()
+        if not opts.dry_run:
+            if session.dbe.req.auto_delay('off'):
+                user_logger.info("Turning off delay tracking.")
+            else:
+                user_logger.error('Unable to turn off delay tracking.')
+            if session.dbe.req.zero_delay():
+                user_logger.info("Zeroed the delay values.")
+            else:
+                user_logger.error('Unable to zero delay values.')
         session.capture_start()
         start_time = time.time()
         targets_observed = []

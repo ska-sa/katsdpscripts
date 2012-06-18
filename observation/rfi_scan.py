@@ -5,7 +5,7 @@
 from __future__ import with_statement
 import numpy as np
 import time
-from katuilib.observe import standard_script_options, verify_and_connect, start_session, user_logger
+from katcorelib import standard_script_options, verify_and_connect, start_session, user_logger
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
@@ -40,6 +40,15 @@ opts.dump_rate = 1.
 with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        if not opts.dry_run:
+            if session.dbe.req.auto_delay('off'):
+                user_logger.info("Turning off delay tracking.")
+            else:
+                user_logger.error('Unable to turn off delay tracking.')
+            if session.dbe.req.zero_delay():
+                user_logger.info("Zeroed delay values.")
+            else:
+                user_logger.error('Unable to zero the delay values.')
         session.capture_start()
         start_time = time.time()
         nd_params = session.nd_params.copy()
@@ -51,7 +60,7 @@ with verify_and_connect(opts) as kat:
                 if  (time.time() - start_time)< opts.min_duration or  opts.min_duration is None:
                     opts.centre_freq = curr_freq  # Not needed
                     user_logger.info("Change Frequency to %d MHz" % (float(curr_freq)))
-                    kat.rfe7.req.rfe7_lo1_frequency(4200.0 + float(curr_freq), 'MHz')
+                    if not opts.dry_run: kat.rfe7.req.rfe7_lo1_frequency(4200.0 + float(curr_freq), 'MHz')
                     session.fire_noise_diode(announce=False, **nd_params) #
                     # First Half
                     scan_time = time.time()

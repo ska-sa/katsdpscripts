@@ -20,6 +20,9 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                        'as soon as the current track finishes (no limit by default)')
 parser.add_option('--repeat', action="store_true", default=False,
                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
+parser.add_option('--no-delays', action="store_true", default=False,
+                  help='Do not use delay tracking, and zero delays')
+
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track')
 # Parse the command line
@@ -40,6 +43,21 @@ with verify_and_connect(opts) as kat:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
             session.standard_setup(**vars(opts))
+            if not opts.no_delays and not opts.dry_run :
+                if session.dbe.req.auto_delay('on'):
+                    user_logger.info("Turning on delay tracking.")
+                else:
+                    user_logger.error('Unable to turn on delay tracking.')
+            elif opts.no_delays and not opts.dry_run:
+                if session.dbe.req.auto_delay('off'):
+                    user_logger.info("Turning off delay tracking.")
+                else:
+                    user_logger.error('Unable to turn off delay tracking.')
+                if session.dbe.req.zero_delay():
+                    user_logger.info("Zeroed the delay values.")
+                else:
+                    user_logger.error('Unable to zero delay values.')
+
             session.capture_start()
 
             start_time = time.time()
