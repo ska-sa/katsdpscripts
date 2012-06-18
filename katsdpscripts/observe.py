@@ -9,7 +9,7 @@ from .defaults import colors, user_logger
 from .utility import tbuild
 from .conf import get_system_configuration, configure_core
 from .session1 import CaptureSession as CaptureSession1, TimeSession as TimeSession1
-from .session2 import CaptureSession as CaptureSession2, TimeSession as TimeSession2,\
+from .session2 import CaptureSession as CaptureSession2, TimeSession as TimeSession2, \
      projections, default_proj, ant_array
 
 
@@ -137,24 +137,23 @@ def verify_and_connect(opts):
             if opts.nd_params[key] != float(opts.nd_params[key]):
                 raise ValueError("Parameter nd_params['%s'] = %s (should be a number)" % (key, opts.nd_params[key]))
 
-    # Try to build KAT configuration (which might be None, in which case try to reuse latest active connection)
-    # This connects to all the proxies and devices and queries their commands and sensors
+    # Build KAT configuration which connects to all the proxies and devices and queries their commands and sensors
     try:
         if opts.sb_id_code is not None:
-            kat = configure_core(sb_id_code = opts.sb_id_code)
+            kat = configure_core(sb_id_code=opts.sb_id_code)
         else:
-            #Temporarily give the user override options
-            print colors.Red, "\nBuilding without a schedule block id code is deprecated.\nTHERE MAY BE CONTROL CLASHES!!!!\nBut for one last time we will allow it ...", colors.Normal
-            choice = raw_input(colors.Red+"Do you want to cancel this build? y/n ...."+colors.Normal)
+            # Temporarily give the user override options
+            print colors.Red, "\nBuilding without a schedule block id code is deprecated." \
+                  "\nTHERE MAY BE CONTROL CLASHES!!!!\nBut for one last time we will allow it ...", colors.Normal
+            choice = raw_input(colors.Red + "Do you want to cancel this build? y/n ...." + colors.Normal)
             if choice not in ['n', 'N']:
                 raise ValueError("Cancelled build of KAT host object connection for site=%s system=%s" % (site, system))
-            kat = tbuild(system=system, host_clients = 'all', controlled_clients = 'all')
+            kat = tbuild(system=system, host_clients='all', controlled_clients='all')
         user_logger.info("Using KAT connection with configuration=%s "
                          "sb_id_code=%s\nControlled objects: %s" %
                          (kat.system, opts.sb_id_code, kat.controlled_objects))
-    # Fall back to *local* configuration to prevent inadvertent use of the real hardware
     except ValueError, err:
-        #Don't default to local build.
+        # Don't default to local build.
         #kat = tbuild('systems/local.conf', host_clients = 'all', controlled_clients = 'all')
         kat = None
         user_logger.error("Could not build KAT host object connection for site=%s system=%s (%s)" % (site, system, err))
