@@ -8,8 +8,8 @@ import sys
 import optparse
 import numpy as np
 
-from katuilib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger
-from katuilib import colors
+from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger
+from katcorelib import colors
 import katpoint
 
 wait_secs = 2.5 # time to wait in secs to allow power levels to settle after changing attenuators
@@ -72,10 +72,6 @@ connected_antpols = {}
 parser = standard_script_options(usage="%prog [opts]",
                                description="This automatically max's out  RFE5 and RFE7 attenuator settings "
                                            "to achieve safe levels for work on the antenna. Some options are **required**.")
-parser.add_option('-a', '--ants', help="Comma-separated list of antennas to include " +
-                  "(e.g. 'ant1,ant2'), or 'all' for all antennas (**required** - safety reasons)")
-parser.add_option('-s', '--system', help='System configuration file to use, relative to conf directory ' +
-                  '(default reuses existing connection, or falls back to systems/local.conf)')
 
 # Parse the command line
 opts, args = parser.parse_args()
