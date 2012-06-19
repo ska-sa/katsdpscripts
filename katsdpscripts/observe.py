@@ -154,7 +154,6 @@ def verify_and_connect(opts):
                          (kat.system, opts.sb_id_code, kat.controlled_objects))
     except ValueError, err:
         # Don't default to local build.
-        #kat = tbuild('systems/local.conf', host_clients = 'all', controlled_clients = 'all')
         kat = None
         user_logger.error("Could not build KAT host object connection for site=%s system=%s (%s)" % (site, system, err))
         raise ValueError("Could not build KAT host object connection for site=%s system=%s (%s)" % (site, system, err))
