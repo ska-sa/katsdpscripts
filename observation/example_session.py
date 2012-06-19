@@ -17,7 +17,7 @@ configure(sb_id_code="20120101-0101")
 
 # Alternatively, we can build a connection to a specific system if we know its
 # configuration file.
-# kat = katcorelib.tbuild('systems/local.conf')
+# kat = katcorelib.tbuild(system='systems/local.conf')
 
 # The end result is that we have a 'kat' object used to talk to the system.
 
