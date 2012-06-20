@@ -32,6 +32,8 @@ from katmisc.utils.ansi import col, getKeyIf
 # Some globals
 busy_colour = 'blue'
 ok_colour = 'green'
+critical_colour = 'blinkred'
+critical_colour2 = 'blinkyellow'
 error_colour = 'red'
 warn_colour = 'brown'
 normal_colour = 'normal'
@@ -388,12 +390,25 @@ def show_status_header(kat, opts, selected_sensors):
         all_ants = modes.keys()
         all_ants.sort(key=str.lower) # sort alphabetically
         ant_mode_str = '['
+        all_ants_ok = True
         for ant in all_ants:
             if modes[ant] == 'POINT' or modes[ant] == 'SCAN':
                 ant_mode_str = ant_mode_str + col(busy_colour) + str(ant) +':' + str(modes[ant]) + col(normal_colour) + ', '
             else:
-                ant_mode_str = ant_mode_str + str(ant) +':' + str(modes[ant]) + ', '
+                if modes[ant] == 'ERROR': # This is bad
+                    ant_mode_str = ant_mode_str + col(critical_colour) + str(ant) +':' + str(modes[ant]) + col(normal_colour) + ', '
+                    all_ants_ok = False # This is not ok
+                else: # Not so bad
+                    ant_mode_str = ant_mode_str + col(warn_colour) + str(ant) +':' + str(modes[ant]) + col(normal_colour) + ', '
+        if not all_ants_ok:
+            print col(critical_colour2)+"\n============================================================"+col(normal_colour)
+            print "======================"+col(critical_colour)+"Antenna Error!!!"+ col(normal_colour)+"======================"
+            print col(critical_colour2)+"============================================================"+col(normal_colour)
         print '\n# Ant modes: ' + ant_mode_str[0:len(ant_mode_str)-2] + ']'
+        if not all_ants_ok:
+            print col(critical_colour2)+"\n============================================================"+col(normal_colour)
+            print "======================"+col(critical_colour)+"Antenna Error!!!"+ col(normal_colour)+"======================"
+            print col(critical_colour2)+"============================================================"+col(normal_colour)
 
         # print list of targets with corresponding antennas (locked ones in green)
         print '# Targets & antennas (orange => not locked):'
