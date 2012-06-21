@@ -66,9 +66,9 @@ def main():
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resources='dbe7,rfe7')
-    obs.sb.description = "Raster scan test for available ants"
+    obs.sb.description = "Point source scan test for available ants"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
-    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/raster_scan.py -k 6 'Cygnus A'"
+    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/point_source_scan.py --quick 'SUN'"
     obs.sb.save()
     print obs.sb
 
@@ -106,9 +106,9 @@ def main():
     print obs.sb
 
     sb_id_code = obs.sb.new(owner='test', antenna_spec='available', controlled_resources='dbe7,rfe7')
-    obs.sb.description = "Raster scan on available ants"
+    obs.sb.description = "Point source scan on available ants"
     obs.sb.type = ScheduleBlockTypes.OBSERVATION
-    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/raster_scan.py --num-scans=5 SUN"
+    obs.sb.instruction_set = "run-obs-script ~/scripts/observation/point_source_scan.py --quick SUN"
     obs.sb.save()
     print obs.sb
 
