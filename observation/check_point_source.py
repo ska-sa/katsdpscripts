@@ -60,8 +60,6 @@ with verify_and_connect(opts) as kat:
         session.label('raster')
         session.fire_noise_diode('coupler', 4, 4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
-        # Obtain archive name where file will be stored
-        archive_name = session.dbe.sensor.archiver_archive.get_value()
 
 if not opts.dry_run:
     cfg = kat.system
@@ -69,28 +67,10 @@ if not opts.dry_run:
     if not h5file:
         raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
 
-    archive = arutils.DataArchive(archive_name)
     # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
     # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
     user_logger.info("Waiting for HDF5 file '%s' to appear in archive" % (h5file,))
-    # timeout = 300
-    # while timeout > 0:
-    while True:
-        if archive:
-            ar = arutils.ArchiveBrowser(archive)
-            ar.filter_by_filenames(h5file)
-            if len(ar.kath5s) > 0:
-                break
-        elif os.path.exists(h5file):
-            break
-        time.sleep(1)
-    #     timeout -= 1
-    # if timeout == 0:
-    #     raise RuntimeError("Timed out waiting for HDF5 file '%s' to appear in '%s' archive" %
-    #                        (h5file, archive.name if archive else 'local'))
-    # Copy file to local machine if needed
-    if archive:
-        os.system(ar.generate_script())
+    h5file = session.get_archived_product()
     if not os.path.isfile(h5file):
         raise RuntimeError("Could not copy file '%s' from archive to local machine" % (h5file,))
 
