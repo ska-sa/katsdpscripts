@@ -5,7 +5,6 @@
 from __future__ import with_statement
 
 import os
-import time
 import numpy as np
 try:
     import matplotlib.pyplot as plt
@@ -13,7 +12,6 @@ except ImportError:
     plt = None
 
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
-import arutils
 import katpoint
 import katfile
 import scape
