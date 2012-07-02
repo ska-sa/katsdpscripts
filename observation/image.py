@@ -15,13 +15,13 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              "respectively), while the imaging targets may optionally have a tag " +
                                              "of 'target'.")
 # Add experiment-specific options
-parser.add_option('-t', '--target_duration', type='float', default=300,
+parser.add_option('-t', '--target-duration', type='float', default=300,
                   help='Minimum duration to track the imaging target per visit, in seconds (default="%default")')
-parser.add_option('-b', '--bpcal_duration', type='float', default=300,
+parser.add_option('-b', '--bpcal-duration', type='float', default=300,
                   help='Minimum duration to track bandpass calibrator per visit, in seconds (default="%default")')
-parser.add_option('-i', '--bpcal_interval', type='float',
+parser.add_option('-i', '--bpcal-interval', type='float',
                   help='Minimum interval between bandpass calibrator visits, in seconds (visits each source in turn by default)')
-parser.add_option('-g', '--gaincal_duration', type='float', default=60,
+parser.add_option('-g', '--gaincal-duration', type='float', default=60,
                   help='Minimum duration to track gain calibrator per visit, in seconds (default="%default")')
 parser.add_option('-m', '--max-duration', type='float',
                   help='Maximum duration of script, in seconds (the default is to keep observing until all sources have set)')
