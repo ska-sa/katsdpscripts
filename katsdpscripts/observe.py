@@ -67,6 +67,8 @@ def standard_script_options(usage, description):
     parser.add_option('--dbe', default='dbe7',
                       help="DBE proxy / correlator to use for experiment "
                       "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
+    parser.add_option('--mode',
+                      help="DBE mode to use for experiment, keeps current mode by default)")
     parser.add_option('--horizon', type="float", default=5.0,
                       help="Session horizon (elevation limit) in degrees (default=%default)")
 

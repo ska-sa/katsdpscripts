@@ -236,7 +236,7 @@ class CaptureSession(object):
 
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
-                       record_slews=None, stow_when_done=None, horizon=None, **kwargs):
+                       record_slews=None, stow_when_done=None, horizon=None, mode=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -287,6 +287,8 @@ class CaptureSession(object):
             (unchanged by default)
         horizon : float, optional
             Elevation limit serving as horizon for session, in degrees
+        mode : string, optional
+            DBE mode
         kwargs : dict, optional
             Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -308,6 +310,12 @@ class CaptureSession(object):
         session.stow_when_done = stow_when_done = session.stow_when_done if stow_when_done is None else stow_when_done
         session.horizon = session.horizon if horizon is None else horizon
 
+        if mode is None:
+            mode = dbe.sensor.dbe_mode.get_value()
+        # Set DBE mode (need at least 90-second timeout for narrowband modes)
+        if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
+            raise CaptureInitError("Unable to set DBE mode to '%s'" % (mode,))
+
         # Setup strategies for the sensors we might be wait()ing on
         ants.req.sensor_sampling('lock', 'event')
         ants.req.sensor_sampling('scan.status', 'event')
@@ -324,6 +332,7 @@ class CaptureSession(object):
         # which is used for fringe stopping / delay tracking
         dbe.req.capture_setup(1000.0 / dump_rate, centre_freq * 1e6)
 
+        user_logger.info('DBE mode = %s' % (mode,))
         user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
