@@ -19,7 +19,7 @@ import sys
 import optparse
 import numpy as np
 
-from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger
+from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger,start_session
 from katcorelib import colors
 import katpoint
 
@@ -161,131 +161,132 @@ parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', def
                   help='Desired RFE5 output power, in dBm (default=%default).')
 parser.add_option('--dbe-desired', type='float', dest='dbe_desired_power', default=-26.0,
                   help='Desired DBE input power, in dBm (default=%default). Success will be within 1 dBm of this value.')
-
+parser.remove_option('-d')
+parser.set_defaults(observer='Otto Attenuate')
+parser.set_defaults(description='Auto Attenuate data')
 # Parse the command line
 opts, args = parser.parse_args()
 
 with verify_and_connect(opts) as kat:
-
     try:
         selected_dbe = getattr(kat, opts.dbe)
     except NameError:
-        print "Unknown dbe device (%s) specified. Typically it should be either 'dbe' or 'dbe7'"
-        sys.exit(0)
-
-    # check that the selected dbe is set to the correct mode
-    if opts.dbe == 'dbe':
-        dbe_mode = kat.dbe.req.dbe_mode()[1]
-        if dbe_mode == 'poco':
-            user_logger.info("dbe mode is 'poco', as expected :)")
+        raise RuntimeError("Unknown dbe device (%s) specified. Typically it should be either 'dbe' or 'dbe7'")
+    with start_session(kat, **vars(opts)) as session:
+        #session.standard_setup(**vars(opts))
+        session.capture_start()
+        # check that the selected dbe is set to the correct mode
+        if opts.dbe == 'dbe':
+            dbe_mode = kat.dbe.req.dbe_mode()[1]
+            if dbe_mode == 'poco':
+                user_logger.info("dbe mode is 'poco', as expected :)")
+            else:
+                user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
+                raise RuntimeError("Unsupported dbe mode '%s' " % (dbe_mode))
+        elif opts.dbe == 'dbe7':
+            dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
+            if dbe_mode == 'wbc' or dbe_mode == 'wbc8k':
+                user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
+            else:
+                user_logger.info("dbe7 mode is %s. Please run kat.dbe7.req.dbe_mode('wbc') to reset KAT-7 correlator mode. Exiting." % (dbe_mode))
+                raise RuntimeError("Unsupported dbe7 mode '%s' " % (dbe_mode))
         else:
-            user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
-            sys.exit(0)
-    elif opts.dbe == 'dbe7':
-        dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-        if dbe_mode == 'wbc' or dbe_mode == 'wbc8k':
-            user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
+            raise RuntimeError("Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting." % (opts.dbe,))
+
+        # set the default dbe gain for all freq channels as a starting point (these not adjusted further currently)
+        gain = {"dbe": 3000, "dbe7": 160}[opts.dbe]
+        selected_dbe.req.set_gains(gain)
+        user_logger.info("Set digital gain on selected DBE to %d." % gain)
+
+        # Populate lookup table that maps ant+pol to DBE input
+        for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
+            ant_pol = getattr(selected_dbe.sensor, dbe_input_sensor).get_value()
+            connected_antpols[ant_pol] = dbe_input_sensor[15:]
+
+        # Create device array of antennas, based on specification string
+        ants = ant_array(kat, opts.ants)
+        user_logger.info('Using antennas: %s' % (' '.join([ant.name for ant in ants]),))
+
+        # Switch data handler to requested DBE
+        kat.dh.register_dbe(selected_dbe)
+
+        # If centre frequency is specified, set it accordingly
+        user_logger.info('Current centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
+        if opts.centre_freq:
+            kat.rfe7.req.rfe7_lo1_frequency(4200.0 + opts.centre_freq, 'MHz')
+            time.sleep(1.0)
+            user_logger.info('Updated centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
+
+        # Move all antennas onto calibration source and wait for lock
+        try:
+            targets = collect_targets(kat, [opts.target]).targets
+        except ValueError:
+            user_logger.info("No valid targets specified. Antenna will not be moved.")
         else:
-            user_logger.info("dbe7 mode is %s. Please run kat.dbe7.req.dbe_mode('wbc') to reset KAT-7 correlator mode. Exiting." % (dbe_mode))
-            sys.exit(0)
-    else:
-        print "Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting."
-        sys.exit(0)
+            user_logger.info("Slewing antennas to target '%s'" % (targets[0].name,))
+            ants.req.target(targets[0])
+            ants.req.mode('POINT')
+            ants.req.sensor_sampling('lock', 'event')
+            ants.wait('lock', True, 300)
+            user_logger.info('Target reached')
 
-    # set the default dbe gain for all freq channels as a starting point (these not adjusted further currently)
-    gain = {"dbe": 3000, "dbe7": 160}[opts.dbe]
-    selected_dbe.req.set_gains(gain)
-    user_logger.info("Set digital gain on selected DBE to %d." % gain)
+        # Warn if requesting an RFE5 desired output power larger than max measurable power of the RFE5 output power sensor
+        if opts.rfe5_desired_power > rfe5_out_max_meas_power:
+            user_logger.warn("Requested RFE5 output power %-4.1f larger than max measurable power of %-4.1f dBm. Could cause problems..." % ( opts.rfe5_desired_power, rfe5_out_max_meas_power))
 
-    # Populate lookup table that maps ant+pol to DBE input
-    for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
-        ant_pol = getattr(selected_dbe.sensor, dbe_input_sensor).get_value()
-        connected_antpols[ant_pol] = dbe_input_sensor[15:]
+        user_logger.info('Input: --dBm->| RFE5 |--dBm->| RFE7 |--dBm->| DBE |')
+        user_logger.info('Desired:      | RFE5 | %-4.1f | RFE7 | %-4.1f | DBE |' %
+                         (opts.rfe5_desired_power, opts.dbe_desired_power))
+        inputs = []
+        for ant in ants:
+            for pol in ('h', 'v'):
+                if '%s, %s' % (ant.name, pol) not in connected_antpols:
+                    user_logger.info('%s %s: not connected to DBE' % (ant.name, pol.upper()))
+                    continue
+                inputs.append([ant.name, pol.upper()])
 
-    # Create device array of antennas, based on specification string
-    ants = ant_array(kat, opts.ants)
-    user_logger.info('Using antennas: %s' % (' '.join([ant.name for ant in ants]),))
+        # Adjust RFE stage 5 attenuation to give desired output power
+        rfe5_att = get_rfe5_attenuation(kat, inputs)
+        rfe5_in = get_rfe5_input_power(kat, inputs)
+        rfe5_out = get_rfe5_output_power(kat, inputs)
+        for key,data in enumerate(inputs):
+            user_logger.info("%s %s: Start RFE5 input power | atten | output power = %-4.1f | %-4.1f | %-4.1f" % (data[0],data[1],rfe5_in[key], rfe5_att[key], rfe5_out[key]))
 
-    # Switch data handler to requested DBE
-    kat.dh.register_dbe(selected_dbe)
+        # The difference between actual and desired power is roughly the extra attenuation needed
+        rfe5_att = rfe5_att + rfe5_out - opts.rfe5_desired_power
+        # Round desired attenuation to the nearest allowed one
+        rfe5_att = np.round((rfe5_att - rfe5_min_att) / rfe5_att_step) * rfe5_att_step + rfe5_min_att
+        # Force attenuation to stay within allowed range
+        rfe5_att = np.clip(rfe5_att, rfe5_min_att, rfe5_max_att )
 
-    # If centre frequency is specified, set it accordingly
-    user_logger.info('Current centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
-    if opts.centre_freq:
-        kat.rfe7.req.rfe7_lo1_frequency(4200.0 + opts.centre_freq, 'MHz')
-        time.sleep(1.0)
-        user_logger.info('Updated centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
+        for key,data in enumerate(inputs):
+            user_logger.info("%s %s: Setting updated RFE5 attenuation of %-4.1f dB" %  (data[0],data[1],rfe5_att[key]))
+        set_rfe5_attenuation(kat, inputs, rfe5_att)
+        time.sleep(wait_secs) # add a small sleep to allow change to propagate
 
-    # Move all antennas onto calibration source and wait for lock
-    try:
-        targets = collect_targets(kat, [opts.target]).targets
-    except ValueError:
-        user_logger.info("No valid targets specified. Antenna will not be moved.")
-    else:
-        user_logger.info("Slewing antennas to target '%s'" % (targets[0].name,))
-        ants.req.target(targets[0])
-        ants.req.mode('POINT')
-        ants.req.sensor_sampling('lock', 'event')
-        ants.wait('lock', True, 300)
-        user_logger.info('Target reached')
+        # Get the newly-set rfe5 attenuation value as a check and new
+        # rfe5 input and output power value (input should be approx same)
+        rfe5_att = get_rfe5_attenuation(kat, inputs)
+        rfe5_in = get_rfe5_input_power(kat, inputs)
+        rfe5_out = get_rfe5_output_power(kat, inputs)
+        for key,data in enumerate(inputs):
+            user_logger.info("%s %s: Updated RFE5 input power | atten | output power = %-4.1f | %-4.1f | %-4.1f" % (data[0],data[1],rfe5_in[key], rfe5_att[key], rfe5_out[key]))
 
-    # Warn if requesting an RFE5 desired output power larger than max measurable power of the RFE5 output power sensor
-    if opts.rfe5_desired_power > rfe5_out_max_meas_power:
-        user_logger.warn("Requested RFE5 output power %-4.1f larger than max measurable power of %-4.1f dBm. Could cause problems..." % ( opts.rfe5_desired_power, rfe5_out_max_meas_power))
+        # Adjust RFE stage 7 attenuation to give desired DBE input power
+        rfe7_att, dbe_in = adjust(kat, inputs, get_rfe7_attenuation, set_rfe7_attenuation,
+                                  opts.dbe, opts.dbe_desired_power,
+                                  rfe7_min_att, rfe7_max_att, rfe7_att_step)
+        # If RFE7 hits minimum attenuation, go back to RFE5 to try and reach desired DBE input power
+        rfe5_att, dbe_in = adjust(kat, inputs, get_rfe5_attenuation, set_rfe5_attenuation,
+                                  opts.dbe, opts.dbe_desired_power,
+                                  rfe5_min_att, rfe5_max_att, rfe5_att_step)
+        rfe5_out = get_rfe5_output_power(kat, inputs)
+        # Check whether final power levels are within expected bounds
+        rfe5_success = np.abs(rfe5_out - opts.rfe5_desired_power) <= rfe5_power_range / 2
 
-    user_logger.info('Input: --dBm->| RFE5 |--dBm->| RFE7 |--dBm->| DBE |')
-    user_logger.info('Desired:      | RFE5 | %-4.1f | RFE7 | %-4.1f | DBE |' %
-                     (opts.rfe5_desired_power, opts.dbe_desired_power))
-    inputs = []
-    for ant in ants:
-        for pol in ('h', 'v'):
-            if '%s, %s' % (ant.name, pol) not in connected_antpols:
-                user_logger.info('%s %s: not connected to DBE' % (ant.name, pol.upper()))
-                continue
-            inputs.append([ant.name, pol.upper()])
-
-    # Adjust RFE stage 5 attenuation to give desired output power
-    rfe5_att = get_rfe5_attenuation(kat, inputs)
-    rfe5_in = get_rfe5_input_power(kat, inputs)
-    rfe5_out = get_rfe5_output_power(kat, inputs)
-    for key,data in enumerate(inputs):
-        user_logger.info("%s %s: Start RFE5 input power | atten | output power = %-4.1f | %-4.1f | %-4.1f" % (data[0],data[1],rfe5_in[key], rfe5_att[key], rfe5_out[key]))
-
-    # The difference between actual and desired power is roughly the extra attenuation needed
-    rfe5_att = rfe5_att + rfe5_out - opts.rfe5_desired_power
-    # Round desired attenuation to the nearest allowed one
-    rfe5_att = np.round((rfe5_att - rfe5_min_att) / rfe5_att_step) * rfe5_att_step + rfe5_min_att
-    # Force attenuation to stay within allowed range
-    rfe5_att = np.clip(rfe5_att, rfe5_min_att, rfe5_max_att )
-
-    for key,data in enumerate(inputs):
-        user_logger.info("%s %s: Setting updated RFE5 attenuation of %-4.1f dB" %  (data[0],data[1],rfe5_att[key]))
-    set_rfe5_attenuation(kat, inputs, rfe5_att)
-    time.sleep(wait_secs) # add a small sleep to allow change to propagate
-
-    # Get the newly-set rfe5 attenuation value as a check and new
-    # rfe5 input and output power value (input should be approx same)
-    rfe5_att = get_rfe5_attenuation(kat, inputs)
-    rfe5_in = get_rfe5_input_power(kat, inputs)
-    rfe5_out = get_rfe5_output_power(kat, inputs)
-    for key,data in enumerate(inputs):
-        user_logger.info("%s %s: Updated RFE5 input power | atten | output power = %-4.1f | %-4.1f | %-4.1f" % (data[0],data[1],rfe5_in[key], rfe5_att[key], rfe5_out[key]))
-
-    # Adjust RFE stage 7 attenuation to give desired DBE input power
-    rfe7_att, dbe_in = adjust(kat, inputs, get_rfe7_attenuation, set_rfe7_attenuation,
-                              opts.dbe, opts.dbe_desired_power,
-                              rfe7_min_att, rfe7_max_att, rfe7_att_step)
-    # If RFE7 hits minimum attenuation, go back to RFE5 to try and reach desired DBE input power
-    rfe5_att, dbe_in = adjust(kat, inputs, get_rfe5_attenuation, set_rfe5_attenuation,
-                              opts.dbe, opts.dbe_desired_power,
-                              rfe5_min_att, rfe5_max_att, rfe5_att_step)
-    rfe5_out = get_rfe5_output_power(kat, inputs)
-    # Check whether final power levels are within expected bounds
-    rfe5_success = np.abs(rfe5_out - opts.rfe5_desired_power) <= rfe5_power_range / 2
-
-    dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= dbe_power_range / 2.
-    for key,data in enumerate(inputs):
-        user_logger.info('%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
-                     (data[0],data[1], rfe5_in[key], rfe5_att[key],
-                      colors.Green if rfe5_success[key] else colors.Red, rfe5_out[key], colors.Normal, rfe7_att[key],
-                      colors.Green if dbe_success[key] else colors.Red, dbe_in[key], colors.Normal))
+        dbe_success = np.abs(dbe_in - opts.dbe_desired_power) <= dbe_power_range / 2.
+        for key,data in enumerate(inputs):
+            user_logger.info('%s %s: %-4.1f | %4.1f | %s%-4.1f%s | %4.1f | %s%-4.1f%s' %
+                         (data[0],data[1], rfe5_in[key], rfe5_att[key],
+                          colors.Green if rfe5_success[key] else colors.Red, rfe5_out[key], colors.Normal, rfe7_att[key],
+                          colors.Green if dbe_success[key] else colors.Red, dbe_in[key], colors.Normal))
