@@ -162,7 +162,7 @@ class CaptureSession(object):
             self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
-            self.dump_period = 0.0
+            self.dump_period = self._requested_dump_period = 0.0
             self.horizon = 3.0
             self._end_of_previous_session = dbe.sensor.k7w_last_dump_timestamp.get_value()
 
@@ -288,7 +288,7 @@ class CaptureSession(object):
         horizon : float, optional
             Elevation limit serving as horizon for session, in degrees
         mode : string, optional
-            DBE mode
+            DBE mode (unchanged by default)
         kwargs : dict, optional
             Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -296,6 +296,8 @@ class CaptureSession(object):
         ------
         ValueError
             If antenna with a specified name is not found on KAT connection object
+        CaptureInitError
+            If DBE mode could not be set
 
         """
 
@@ -309,6 +311,8 @@ class CaptureSession(object):
         session.nd_params = nd_params = session.nd_params if nd_params is None else nd_params
         session.stow_when_done = stow_when_done = session.stow_when_done if stow_when_done is None else stow_when_done
         session.horizon = session.horizon if horizon is None else horizon
+        # Requested dump period, replaced by actual value after capture started
+        session._requested_dump_period = 1.0 / dump_rate
 
         if mode is None:
             mode = dbe.sensor.dbe_mode.get_value()
@@ -331,7 +335,7 @@ class CaptureSession(object):
         # The DBE proxy needs to know the dump period (in ms) as well as the centre frequency of downconverted band,
         # which is used for fringe stopping / delay tracking
         dbe.req.capture_setup(1000.0 / dump_rate, centre_freq * 1e6)
-
+    
         user_logger.info('DBE mode = %s' % (mode,))
         user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
         user_logger.info('Observer = %s' % (observer,))
@@ -531,11 +535,6 @@ class CaptureSession(object):
         fired : {True, False}
             True if noise diode fired
 
-        Raises
-        ------
-        CaptureInitError
-            If dump period or first correlator dump does not arrive in time
-
         Notes
         -----
         When the function returns, data will still be recorded to the HDF5 file.
@@ -552,9 +551,11 @@ class CaptureSession(object):
         # Wait for the dump period to become known, as it is needed to set a good timeout for the first dump
         if dump_period == 0.0:
             if not dbe.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1., poll_period=0.1):
-                raise CaptureInitError('The SPEAD metadata header is overdue at k7_capture - capturing failed')
-            # Get actual dump period in seconds (as opposed to the requested period)
-            dump_period = session.dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
+                user_logger.warning('SPEAD metadata header is overdue at k7_capture - noise diode will be out of sync')
+                dump_period = session.dump_period = session._requested_dump_period
+            else:
+                # Get actual dump period in seconds (as opposed to the requested period)
+                dump_period = session.dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
         # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
         last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
         if last_dump == session._end_of_previous_session:
@@ -562,9 +563,11 @@ class CaptureSession(object):
             # Wait for the first correlator dump to appear
             if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > session._end_of_previous_session,
                             timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
-                raise CaptureInitError('The first correlator dump is overdue at k7_capture - capturing failed')
-            last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
-            user_logger.info('first correlator dump arrived')
+                last_dump = time.time()
+                user_logger.warning('First correlator dump is overdue at k7_capture - noise diode will be out of sync')
+            else:
+                last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
+                user_logger.info('first correlator dump arrived')
 
         # If period is non-negative, quit if it is not yet time to fire the noise diode
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
