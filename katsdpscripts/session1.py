@@ -218,6 +218,34 @@ class CaptureSession(object):
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
+    def get_centre_freq(self):
+        """Get RF (sky) frequency associated with middle DBE channel.
+
+        Returns
+        -------
+        centre_freq : float
+            Actual centre frequency in MHz
+
+        """
+        lo1 = self.kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6
+        lo2 = 4000.0
+        dbe_if = 200.0
+        return lo1 - lo2 - dbe_if
+
+    def set_centre_freq(self, centre_freq):
+        """Set RF (sky) frequency associated with middle DBE channel.
+
+        Parameters
+        ----------
+        centre_freq : float
+            Desired centre frequency in MHz
+
+        """
+        lo2 = 4000.0
+        dbe_if = 200.0
+        lo1 = centre_freq + lo2 + dbe_if
+        self.kat.rfe7.req.rfe7_lo1_frequency(lo1, 'MHz')
+
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
                        record_slews=None, stow_when_done=None, horizon=None, **kwargs):
@@ -307,9 +335,9 @@ class CaptureSession(object):
 
         # Set centre frequency in RFE stage 7 (else read the current value)
         if centre_freq is not None:
-            kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
+            session.set_centre_freq(centre_freq)
         else:
-            centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6 - 4200.0
+            centre_freq = session.get_centre_freq()
         # The DBE proxy needs to know the dump period (in ms) as well as the centre frequency of downconverted band,
         # which is used for fringe stopping / delay tracking. This sets the delay model and other
         # correlator parameters, such as the dump rate, and instructs the correlator to pass
@@ -1165,6 +1193,28 @@ class TimeSession(object):
         self.time += (np.max(slew_times) if len(slew_times) > 0 else 0.)
         # Blindly assume all antennas are on target (or on horizon) after this interval
         self._teleport_to(target, mode)
+
+    def get_centre_freq(self):
+        """Get RF (sky) frequency associated with middle DBE channel.
+
+        Returns
+        -------
+        centre_freq : float
+            Actual centre frequency in MHz
+
+        """
+        return 0.0
+
+    def set_centre_freq(self, centre_freq):
+        """Set RF (sky) frequency associated with middle DBE channel.
+
+        Parameters
+        ----------
+        centre_freq : float
+            Desired centre frequency in MHz
+
+        """
+        pass
 
     def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
                        dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):

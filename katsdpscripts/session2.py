@@ -29,6 +29,7 @@ projections, default_proj = Offset.PROJECTIONS.keys(), Offset.DEFAULT_PROJECTION
 projections.remove(default_proj)
 projections.insert(0, default_proj)
 
+
 def ant_array(kat, ants, name='ants'):
     """Create sub-array of antennas from flexible specification.
 
@@ -68,6 +69,7 @@ def ant_array(kat, ants, name='ants'):
     else:
         # The default assumes that *ants* is a list of antenna devices
         return Array(name, ants)
+
 
 def report_compact_traceback(tb):
     """Produce a compact traceback report."""
@@ -234,6 +236,46 @@ class CaptureSession(object):
         else:
             return False
 
+    def get_centre_freq(self, dbe_if=None):
+        """Get RF (sky) frequency associated with middle DBE channel.
+
+        Parameters
+        ----------
+        dbe_if : float, optional
+            DBE centre (IF) frequency in MHz (use to override actual value)
+
+        Returns
+        -------
+        centre_freq : float
+            Actual centre frequency in MHz
+
+        """
+        lo1 = self.kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6
+        lo2 = 4000.0
+        if dbe_if is None:
+            sensor_name = 'dbe_centerfrequency' if hasattr(self.dbe.sensor, 'dbe_centerfrequency') else \
+                          'dbe_%s_centerfrequency' % (self.dbe.sensor.dbe_mode.get_value(),)
+            dbe_if = getattr(self.dbe.sensor, sensor_name).get_value() * 1e-6 \
+                     if hasattr(self.dbe.sensor, sensor_name) else 200.0
+        return lo1 - lo2 - dbe_if
+
+    def set_centre_freq(self, centre_freq):
+        """Set RF (sky) frequency associated with middle DBE channel.
+
+        Parameters
+        ----------
+        centre_freq : float
+            Desired centre frequency in MHz
+
+        """
+        lo2 = 4000.0
+        sensor_name = 'dbe_centerfrequency' if hasattr(self.dbe.sensor, 'dbe_centerfrequency') else \
+                      'dbe_%s_centerfrequency' % (self.dbe.sensor.dbe_mode.get_value(),)
+        dbe_if = getattr(self.dbe.sensor, sensor_name).get_value() * 1e-6 \
+                 if hasattr(self.dbe.sensor, sensor_name) else 200.0
+        lo1 = centre_freq + lo2 + dbe_if
+        self.kat.rfe7.req.rfe7_lo1_frequency(lo1, 'MHz')
+
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
                        record_slews=None, stow_when_done=None, horizon=None, mode=None, **kwargs):
@@ -329,13 +371,13 @@ class CaptureSession(object):
 
         # Set centre frequency in RFE stage 7 (else read the current value)
         if centre_freq is not None:
-            kat.rfe7.req.rfe7_lo1_frequency(4200.0 + centre_freq, 'MHz')
+            session.set_centre_freq(centre_freq)
         else:
-            centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6 - 4200.0
-        # The DBE proxy needs to know the dump period (in ms) as well as the centre frequency of downconverted band,
-        # which is used for fringe stopping / delay tracking
-        dbe.req.capture_setup(1000.0 / dump_rate, centre_freq * 1e6)
-    
+            centre_freq = session.get_centre_freq()
+        # The DBE proxy needs to know the dump period (in ms) as well as the RF centre frequency
+        # of 400-MHz downconverted band (in Hz), which is used for fringe stopping / delay tracking
+        dbe.req.capture_setup(1000.0 / dump_rate, session.get_centre_freq(200.0) * 1e6)
+
         user_logger.info('DBE mode = %s' % (mode,))
         user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
         user_logger.info('Observer = %s' % (observer,))
@@ -1151,6 +1193,33 @@ class TimeSession(object):
         self.time += (np.max(slew_times) if len(slew_times) > 0 else 0.)
         # Blindly assume all antennas are on target (or on horizon) after this interval
         self._teleport_to(target, mode)
+
+    def get_centre_freq(self, dbe_if=None):
+        """Get RF (sky) frequency associated with middle DBE channel.
+
+        Parameters
+        ----------
+        dbe_if : float, optional
+            DBE centre (IF) frequency in MHz (use to override actual value)
+
+        Returns
+        -------
+        centre_freq : float
+            Actual centre frequency in MHz
+
+        """
+        return 0.0
+
+    def set_centre_freq(self, centre_freq):
+        """Set RF (sky) frequency associated with middle DBE channel.
+
+        Parameters
+        ----------
+        centre_freq : float
+            Desired centre frequency in MHz
+
+        """
+        pass
 
     def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
                        dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
