@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # run a simple scan script to derive the horizon mask for KAT-7
 # scan over constant elevation range but loop over azimuth
 
