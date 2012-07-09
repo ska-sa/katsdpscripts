@@ -101,7 +101,7 @@ with verify_and_connect(opts) as kat:
             user_logger.info("From antenna '%s', target '%s' with enu = (%g, %g, %g) has azel = (%g, %g)" % \
                   (antenna.name, target, enu[0], enu[1], enu[2], az, el))
             ant.req.target(target_description)
-        kat.dbe.req.target(target_description)
+        session.dbe.req.target(target_description)
         user_logger.info('Slewing to target')
         ants.req.mode('POINT')
         ants.wait('lock', True, 300)
