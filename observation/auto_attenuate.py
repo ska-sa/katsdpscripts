@@ -15,13 +15,13 @@
 from __future__ import with_statement
 
 import time
-import sys
-import optparse
+#import sys
+#import optparse
 import numpy as np
 
 from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger,start_session
 from katcorelib import colors
-import katpoint
+#import katpoint
 
 wait_secs = 0.5 # time to wait in secs to allow power levels to settle after changing attenuators
 
@@ -30,6 +30,20 @@ def ant_pedestal(kat, ant_name):
     return getattr(kat, ant_name)
     #ant_num = int(ant_name.strip()[3:])
     #return getattr(kat, 'ped%d' % (ant_num,))
+
+##################### DBE7 GAIN setter ####################################
+# This is due to a CAM bug which on sends 1024 values to the DBE.
+def set_k7_gains(kat,value):
+    """ This sets digital gains in the dbe7
+    this takes two parmeters. The kat object and the value
+    of the gain
+    Usage:
+    set_k7_gains(kat,55)"""
+    for pol in ['h','v']:
+        for ant in range(1,8):
+            kat.dbe7.req.dbe_k7_gain('ant%i%s'%(ant,pol), int(value))
+
+
 
 ###################### RFE Stage 5 getters and setters ########################
 
@@ -59,7 +73,7 @@ def get_rfe5_attenuation(kat, inputs):
     return np.array(sensor_val)
 
 def set_rfe5_attenuation(kat, inputs, inputs_attenuation):
-    sensor_val = []
+    #sensor_val = []
     for (ant_name,pol),value in zip(inputs,inputs_attenuation):
         ped = ant_pedestal(kat, ant_name)
         ped.req.rfe5_attenuation(pol.lower(), value)
@@ -89,7 +103,7 @@ def get_rfe7_attenuation(kat, inputs):
     return np.array(sensor_val)
 
 def set_rfe7_attenuation(kat, inputs, inputs_attenuation):
-    sensor_val = []
+    #sensor_val = []
     for (ant_name,pol),value in zip(inputs,inputs_attenuation):
         # This assumes that antenna names have the format 'antx', where x is an integer (the antenna number)
         ant_num = int(ant_name.strip()[3:])
@@ -161,7 +175,7 @@ parser.add_option('--rfe5-desired', type='float', dest='rfe5_desired_power', def
                   help='Desired RFE5 output power, in dBm (default=%default).')
 parser.add_option('--dbe-desired', type='float', dest='dbe_desired_power', default=-26.0,
                   help='Desired DBE input power, in dBm (default=%default). Success will be within 1 dBm of this value.')
-parser.remove_option('-d')
+#parser.remove_option('-d')
 parser.set_defaults(observer='Otto Attenuate')
 parser.set_defaults(description='Auto Attenuate data')
 # Parse the command line
@@ -173,30 +187,40 @@ with verify_and_connect(opts) as kat:
     except NameError:
         raise RuntimeError("Unknown dbe device (%s) specified. Typically it should be either 'dbe' or 'dbe7'")
     with start_session(kat, **vars(opts)) as session:
-        #session.standard_setup(**vars(opts))
+        # If centre frequency is specified, set it accordingly
+        user_logger.info('Current centre frequency: %s MHz' % (session.get_centre_freq(),))
+        if opts.centre_freq and not session.get_centre_freq() == opts.centre_freq:
+            session.set_centre_freq(opts.centre_freq)
+            time.sleep(1.0)
+            user_logger.info('Updated centre frequency: %s MHz' % (session.get_centre_freq(),))
+            if not session.get_centre_freq() == opts.centre_freq:
+                user_logger.warning('Failed to updated centre frequency to %s MHz, it is currently set to %s MHz' % (opts.centre_freq, session.get_centre_freq(),))
+
+        session.standard_setup(**vars(opts))
         session.capture_start()
         # check that the selected dbe is set to the correct mode
         if opts.dbe == 'dbe':
             dbe_mode = kat.dbe.req.dbe_mode()[1]
             if dbe_mode == 'poco':
                 user_logger.info("dbe mode is 'poco', as expected :)")
+                gain = 3000
+                selected_dbe.req.set_gains(gain)
+                user_logger.info("Set digital gain on selected DBE to %d." % gain)
             else:
                 user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
                 raise RuntimeError("Unsupported dbe mode '%s' " % (dbe_mode))
         elif opts.dbe == 'dbe7':
             dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-            if dbe_mode == 'wbc' or dbe_mode == 'wbc8k':
+            dbe7_mode_dict =  {'wbc':160, 'wbc8k':160,'c16n13M4k':21,'c16n7M4k':31,'c16n2M4k':59,'c16n3M8k':31}
+            if dbe_mode in dbe7_mode_dict.keys() :
                 user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
+                gain =dbe7_mode_dict[dbe_mode]
+                set_k7_gains(kat,gain)
+                user_logger.info("Set digital gain on selected DBE to %d." % gain)
             else:
-                user_logger.info("dbe7 mode is %s. Please run kat.dbe7.req.dbe_mode('wbc') to reset KAT-7 correlator mode. Exiting." % (dbe_mode))
-                raise RuntimeError("Unsupported dbe7 mode '%s' " % (dbe_mode))
+                user_logger.warning("dbe7 mode is %s. Could not set appropriate gain." % (dbe_mode))
         else:
             raise RuntimeError("Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting." % (opts.dbe,))
-
-        # set the default dbe gain for all freq channels as a starting point (these not adjusted further currently)
-        gain = {"dbe": 3000, "dbe7": 160}[opts.dbe]
-        selected_dbe.req.set_gains(gain)
-        user_logger.info("Set digital gain on selected DBE to %d." % gain)
 
         # Populate lookup table that maps ant+pol to DBE input
         for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
@@ -209,14 +233,6 @@ with verify_and_connect(opts) as kat:
 
         # Switch data handler to requested DBE
         kat.dh.register_dbe(selected_dbe)
-
-        # If centre frequency is specified, set it accordingly
-        user_logger.info('Current centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
-        if opts.centre_freq:
-            kat.rfe7.req.rfe7_lo1_frequency(4200.0 + opts.centre_freq, 'MHz')
-            time.sleep(1.0)
-            user_logger.info('Updated centre frequency: %s MHz' % (kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200.0,))
-
         # Move all antennas onto calibration source and wait for lock
         try:
             targets = collect_targets(kat, [opts.target]).targets
