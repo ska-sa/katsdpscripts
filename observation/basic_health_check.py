@@ -332,8 +332,8 @@ def show_status_header(kat, opts, selected_sensors):
             if len(data_file_req) == 2: data_file = data_file_req[1].split('/')[-1] # should produce e.g. '1326186470.writing.h5'
 
             max_duration_ok = False
-            if script_arguments.find("-m") != -1:
-                max_duration = float(script_arguments.split('-m ')[1].split()[0])
+            if script_arguments.find(" -m ") != -1:
+                max_duration = float(script_arguments.split(' -m ')[1].split()[0])
                 max_duration_ok = True
 
             if dbe_mode_colour == normal_colour: dbe_mode_colour = busy_colour
