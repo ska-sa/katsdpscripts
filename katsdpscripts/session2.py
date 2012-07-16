@@ -275,6 +275,8 @@ class CaptureSession(object):
                  if hasattr(self.dbe.sensor, sensor_name) else 200.0
         lo1 = centre_freq + lo2 + dbe_if
         self.kat.rfe7.req.rfe7_lo1_frequency(lo1, 'MHz')
+        # Also set the centre frequency in capturing system so that signal displays can pick it up
+        self.dbe.req.k7w_set_center_freq(centre_freq * 1e6)
 
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
