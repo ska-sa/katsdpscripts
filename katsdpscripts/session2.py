@@ -1011,7 +1011,7 @@ class CaptureSession(object):
             dbe.req.k7w_capture_done()
             activity_logger.info("----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
-    def get_archived_product(self, sleep_interval=10, check_local=False):
+    def get_archived_product(self, sleep_interval=10, download_dir='.'):
         """Get a data file that was created during the session from the archive.
 
         This function will wait until file appears in the archive or raise an
@@ -1022,9 +1022,8 @@ class CaptureSession(object):
         sleep_interval : int
             The sleep interval in seconds before checking the archive again.
 
-        check_local: {True, False}
-            If set the function will look for a local copy of the file before
-            tries to download it from the server.
+        download_dir : string
+            The target download directory.
 
         Returns
         -------
@@ -1042,7 +1041,6 @@ class CaptureSession(object):
         # Create references to allow easy copy-and-paste from this function
         session, kat = self, self.kat
         full_path_to_product = ''
-        product_server_url = kat.katarchive.sensor.product_server_url.get_value()
         while True:
             print 'Checking to see if %s has been archived.' % (session.output_file)
             # Query the archive
@@ -1051,13 +1049,11 @@ class CaptureSession(object):
                 transfer_status = reply.messages[0].arguments[3]
                 if transfer_status == 'RECEIVED':
                     full_path_to_product = reply.messages[0].arguments[1]
-                    product_id = reply.messages[0].arguments[2]
-                    # can we see a the file. E.g. Local or NFS?
-                    if check_local and os.path.isfile(full_path_to_product):
-                        print 'Success. %s has been found.' % (session.output_file)
-                        break
-                    # otherwise download the file directory to local directory
-                    full_path_to_product = download_product(product_id, os.path.join(os.path.abspath(os.path.curdir), session.output_file), product_server_url)
+                    # download the file directory to local directory
+                    fm = FileMgrClient(kat.katarchive.sensor.filemgr_url.get_value())
+                    product = fm.get_product_by_name(session.output_file, thin_call=False)
+                    product_server_url = kat.katarchive.sensor.product_server_url.get_value()
+                    full_path_to_product = download_product(product, os.path.abspath(download_dir), product_server_url)
                     break
                 elif transfer_status == 'TRANSFERING':
                     print '%s is still being transferred into the archive. Sleeping for %d secs and checking again.' % (session.output_file, sleep_interval)
