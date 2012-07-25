@@ -22,6 +22,7 @@ from .katcp_client import KATClient
 from .defaults import user_logger, activity_logger
 from katmisc.utils.utils import dynamic_doc
 from katoodt.archive_functions import download_product, ArchiveWorkFlowError
+from katoodt.oodt_clients import FileMgrClient
 
 # Obtain list of spherical projections and the default projection from antenna proxy
 projections, default_proj = Offset.PROJECTIONS.keys(), Offset.DEFAULT_PROJECTION
@@ -1027,7 +1028,7 @@ class CaptureSession(object):
 
         Returns
         -------
-        abs_path_to_file : string
+        full_path_to_product : string
             The absolute path to the local copy of the data file.
 
         Raises
@@ -1044,7 +1045,7 @@ class CaptureSession(object):
         while True:
             print 'Checking to see if %s has been archived.' % (session.output_file)
             # Query the archive
-            reply = kat.katarchive.req.locate(session.output_file)
+            reply = kat.katarchive.req.locate(session.output_file, timeout=10)
             if reply.succeeded:
                 transfer_status = reply.messages[0].arguments[3]
                 if transfer_status == 'RECEIVED':
@@ -1073,7 +1074,7 @@ class CaptureSession(object):
                     raise ArchiveWorkFlowError('%s cannot be found in the archive, the staging directory or the failed directory.')
             else:
                 raise ArchiveWorkFlowError('The oodt filemgr katcp reply failed with reply: %s %s' % (reply.messages[0].arguments[0], reply.message[0].arguments[1]))
-        #Return the full path to the file
+	#Return the full path to the file
         return full_path_to_product
 
 class TimeSession(object):
