@@ -58,19 +58,17 @@ with verify_and_connect(opts) as kat:
         session.label('raster')
         session.fire_noise_diode('coupler', 4, 4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
+    if not opts.dry_run:
+        # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
+        if not session.output_file:
+            raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
+        user_logger.info("Waiting for HDF5 file '%s' to appear in archive" % (session.output_file,))
+        h5file = session.get_archived_product(download_dir=os.path.abspath(os.path.curdir))
+        if not os.path.isfile(h5file):
+            raise RuntimeError("Could not download '%s' to %d" % (h5file, os.path.abspath(download_dir)))
 
 if not opts.dry_run:
     cfg = kat.system
-    h5file = session.output_file
-    if not h5file:
-        raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
-
-    # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
-    # For now, the timeout option is disabled, as it is safe to wait until the user quits the script
-    user_logger.info("Waiting for HDF5 file '%s' to appear in archive" % (h5file,))
-    h5file = session.get_archived_product()
-    if not os.path.isfile(h5file):
-        raise RuntimeError("Could not copy file '%s' from archive to local machine" % (h5file,))
 
     # Obtain list of antennas and polarisations present in data set
     user_logger.info('Loading HDF5 file into scape and reducing the data')
