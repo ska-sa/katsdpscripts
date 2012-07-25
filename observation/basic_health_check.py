@@ -91,7 +91,7 @@ dbe7_template = [
 
 dbe7_base_group = [
 ("kat.dbe7.sensor.dbe_corr_lru_available.get_value()", 1,1,1,1),
-("kat.dbe7.sensor.dbe_mode.get_value()",['wbc','wbc8k'],'',1,1),
+("kat.dbe7.sensor.dbe_mode.get_value()",['c16n400M1k','c16n400M8k'],'',1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -99,7 +99,7 @@ dc_group = [
 ("kat.dbe7.sensor.k7w_status.get_value()",['init','idle','capturing','complete'],'',1,1),
 ("kat.nm_kat_dc1.sensor.k7capture_running.get_value()",1,1,1,1),
 ("kat.nm_kat_dc1.sensor.k7aug_running.get_value()",1,1,1,1),
-("kat.nm_kat_dc1.sensor.k7arch_running.get_value()",1,1,1,1),
+("kat.nm_kat_dc1.sensor.katarchive_running.get_value()",1,1,1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -301,8 +301,8 @@ def show_status_header(kat, opts, selected_sensors):
     # Might want to split out presentation from logic soon...
     try:
         dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-        if dbe_mode == 'wbc': dbe_mode_colour = normal_colour
-        elif dbe_mode == 'wbc8k': dbe_mode_colour = warn_colour
+        if dbe_mode == 'c16n400M1k': dbe_mode_colour = normal_colour
+        elif dbe_mode == 'c16n400M8k': dbe_mode_colour = warn_colour
         else: dbe_mode = 'unknown'; dbe_mode_color = error_colour
         system_centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200. # most reliable place to get this
 
