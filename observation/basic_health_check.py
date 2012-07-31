@@ -301,9 +301,13 @@ def show_status_header(kat, opts, selected_sensors):
     # Might want to split out presentation from logic soon...
     try:
         dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-        if dbe_mode == 'c16n400M1k': dbe_mode_colour = normal_colour
-        elif dbe_mode == 'c16n400M8k': dbe_mode_colour = warn_colour
-        else: dbe_mode = 'unknown'; dbe_mode_color = error_colour
+        if dbe_mode == 'c16n400M1k':
+            dbe_mode_colour = normal_colour
+        elif dbe_mode == 'c16n400M8k':
+            dbe_mode_colour = warn_colour
+        else:
+            dbe_mode = 'unknown'
+            dbe_mode_colour = error_colour
         system_centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200. # most reliable place to get this
 
         # Retrieve weather info
