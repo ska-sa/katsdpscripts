@@ -139,20 +139,20 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
                                                                        ' '.join(compscan_key(compscan)),))
     # Build data set containing a single compound scan at a time (make copy, as reduction modifies it)
     scan_dataset.compscans = [compscan]
-    compscan_dataset = scan_dataset.select(copy=True)
+    compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True)
     cal_dataset = extract_cal_dataset(dataset)
     # Do first reduction run
     main_compscan = compscan_dataset.compscans[0]
     fixed, variable = reduce_compscan(main_compscan, cal_dataset, **kwargs)
     # Produce data set that has counts converted to Kelvin, but no averaging (for spectral plots)
-    unavg_compscan_dataset = scan_dataset.select(copy=True)
+    unavg_compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True)
     unavg_compscan_dataset.nd_gain = cal_dataset.nd_gain
     unavg_compscan_dataset.convert_power_to_temperature()
     # Add data from Monte Carlo perturbations
     iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=variable.keys())]
     for m in range(mc_iterations - 1):
         logger.info("---- Monte Carlo iteration %d of %d ----" % (m + 2, mc_iterations))
-        compscan_dataset = scan_dataset.select(copy=True).perturb()
+        compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True).perturb()
         cal_dataset = extract_cal_dataset(dataset).perturb()
         fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
         iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=variable.keys()))
@@ -263,6 +263,7 @@ parser.add_option("-p", "--pointing-model",
 parser.add_option("-s", "--plot-spectrum", action="store_true", help="Flag to include spectral plot")
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
+parser.add_option("--katfile", action="store_true", help="Use katfile to open HDF5 file instead of old SCAPE loader")
 (opts, args) = parser.parse_args()
 
 if len(args) != 1 or not args[0].endswith('.h5'):
@@ -320,7 +321,8 @@ if keep_datasets and dataset_name not in keep_datasets:
 
 # Load data set
 logger.info("Loading dataset '%s'" % (filename,))
-dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models, time_offset=opts.time_offset)
+dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
+                        time_offset=opts.time_offset, katfile=opts.katfile)
 # Select frequency channels
 start_freq_channel = int(opts.freq_chans.split(',')[0])
 end_freq_channel = int(opts.freq_chans.split(',')[1])
