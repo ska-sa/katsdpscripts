@@ -69,7 +69,10 @@ def standard_script_options(usage, description):
                       "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
     parser.add_option('--mode',
                       help="DBE mode to use for experiment, keeps current mode by default)")
-    parser.add_option('--horizon', type="float", default=5.0,
+    parser.add_option('--dbe-centre-freq', type='float', default=None,
+                      help="DBE centre frequency in MHz, used to select coarse band for "
+                           "narrowband modes (unchanged by default)")
+    parser.add_option('--horizon', type='float', default=5.0,
                       help="Session horizon (elevation limit) in degrees (default=%default)")
 
     return parser

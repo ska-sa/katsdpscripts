@@ -281,7 +281,8 @@ class CaptureSession(object):
 
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
-                       record_slews=None, stow_when_done=None, horizon=None, mode=None, **kwargs):
+                       record_slews=None, stow_when_done=None, horizon=None,
+                       mode=None, dbe_centre_freq=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -334,6 +335,9 @@ class CaptureSession(object):
             Elevation limit serving as horizon for session, in degrees
         mode : string, optional
             DBE mode (unchanged by default)
+        dbe_centre_freq : float, optional
+            DBE centre frequency in MHz, used to select coarse band for
+            narrowband modes (unchanged by default)
         kwargs : dict, optional
             Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -362,8 +366,20 @@ class CaptureSession(object):
         if mode is None:
             mode = dbe.sensor.dbe_mode.get_value()
         # Set DBE mode (need at least 90-second timeout for narrowband modes)
+        user_logger.info("Setting DBE mode to '%s' (this may take a while...)" % (mode,))
         if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
             raise CaptureInitError("Unable to set DBE mode to '%s'" % (mode,))
+        if dbe_centre_freq is not None:
+            reply = dbe.req.dbe_k7_frequency_select(int(dbe_centre_freq * 1e6))
+            if reply.succeeded:
+                requested_dbe_freq = int(reply.messages[0].arguments[1])
+                actual_dbe_freq = dbe.sensor.dbe_centerfrequency.get_value()
+                if actual_dbe_freq != requested_dbe_freq:
+                    raise CaptureInitError("Unable to set DBE centre frequency to %g Hz (read back as %g Hz)" %
+                                           (requested_dbe_freq, actual_dbe_freq))
+            else:
+                raise CaptureInitError("Unable to set DBE centre frequency: %s" % (reply,))
+        dbe_centre_freq = dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
 
         # Setup strategies for the sensors we might be wait()ing on
         ants.req.sensor_sampling('lock', 'event')
@@ -386,6 +402,7 @@ class CaptureSession(object):
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Experiment ID = %s' % (experiment_id,))
+        user_logger.info('DBE centre frequency = %g MHz' % (dbe_centre_freq,))
         user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz" % (centre_freq, dump_rate))
         if nd_params['period'] > 0:
             nd_info = "Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
