@@ -107,9 +107,11 @@ class ScriptLogHandler(logging.Handler):
         except:
             self.handleError(record)
 
-class CaptureInitError(Exception):
-    """Failure to start new capture session."""
+
+class RequestSensorError(Exception):
+    """Critical request failed or critical sensor could not be read."""
     pass
+
 
 class CaptureSession(object):
     """Context manager that encapsulates a single data capturing session.
@@ -133,6 +135,8 @@ class CaptureSession(object):
         KAT connection object associated with this experiment
     dbe : string, optional
         Name of DBE proxy to use (effectively selects the correlator)
+    mode : string, optional
+        DBE mode (unchanged by default)
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -140,11 +144,11 @@ class CaptureSession(object):
     ------
     ValueError
         If DBE proxy is unknown or not connected
-    CaptureInitError
-        If capturing system failed to initialise
+    RequestSensorError
+        If capturing system failed to initialise or DBE mode could not be set
 
     """
-    def __init__(self, kat, dbe='dbe7', **kwargs):
+    def __init__(self, kat, dbe='dbe7', mode=None, **kwargs):
         try:
             self.kat = kat
             # If not a device itself, assume dbe is the name of the device
@@ -169,10 +173,22 @@ class CaptureSession(object):
             self.horizon = 3.0
             self._end_of_previous_session = dbe.sensor.k7w_last_dump_timestamp.get_value()
 
-            # Prepare the capturing system, which opens the HDF5 file
+            if mode is None:
+                mode = dbe.sensor.dbe_mode.get_value()
+            if mode is None:
+                # This will happen if the mode sensor could not be read for some reason
+                mode = "<unknown mode>"
+            else:
+                # Set DBE mode (need at least 90-second timeout for narrowband modes)
+                # Setting the mode to the existing one is quick, though
+                user_logger.info("Setting DBE mode to '%s' (this may take a while...)" % (mode,))
+                if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
+                    raise RequestSensorError("Unable to set DBE mode to '%s' and verify it" % (mode,))
+
+            # Prepare the capturing system, which opens the HDF5 file (preferably after mode has been set)
             reply = dbe.req.k7w_capture_init()
             if not reply.succeeded:
-                raise CaptureInitError(reply[1])
+                raise RequestSensorError(reply[1])
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
             self._script_log_handler = ScriptLogHandler(dbe)
             if len(user_logger.handlers) > 0:
@@ -183,15 +199,14 @@ class CaptureSession(object):
             user_logger.info('==========================')
             user_logger.info('New data capturing session')
             user_logger.info('--------------------------')
-            user_logger.info("DBE proxy used = %s" % (dbe.name,))
-
+            user_logger.info('DBE proxy used = %s' % (dbe.name,))
+            user_logger.info('DBE mode = %s' % (mode,))
 
             # Obtain the name of the file currently being written to
             reply = dbe.req.k7w_get_current_file()
             outfile = reply[1] if reply.succeeded else '<unknown file>'
-            user_logger.info('Opened output file %s' % (outfile,))
+            user_logger.info('Opened output file = %s' % (outfile,))
             user_logger.info('')
-
 
             activity_logger.info("----- Script starting %s (%s). Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), outfile))
 
@@ -271,14 +286,14 @@ class CaptureSession(object):
 
         Raises
         ------
-        CaptureInitError
+        RequestSensorError
             If DBE centre frequency could not be read
 
         """
         try:
             dbe_if = self.dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
         except TypeError:
-            raise CaptureInitError('Could not set RF centre frequency because DBE centre frequency could not be read')
+            raise RequestSensorError('Could not set RF centre frequency as DBE centre frequency could not be read')
         else:
             lo2 = 4000.0
             lo1 = centre_freq + lo2 + dbe_if
@@ -289,7 +304,7 @@ class CaptureSession(object):
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
                        record_slews=None, stow_when_done=None, horizon=None,
-                       mode=None, dbe_centre_freq=None, **kwargs):
+                       dbe_centre_freq=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -340,8 +355,6 @@ class CaptureSession(object):
             (unchanged by default)
         horizon : float, optional
             Elevation limit serving as horizon for session, in degrees
-        mode : string, optional
-            DBE mode (unchanged by default)
         dbe_centre_freq : float, optional
             DBE centre frequency in MHz, used to select coarse band for
             narrowband modes (unchanged by default)
@@ -352,8 +365,8 @@ class CaptureSession(object):
         ------
         ValueError
             If antenna with a specified name is not found on KAT connection object
-        CaptureInitError
-            If DBE mode could not be set
+        RequestSensorError
+            If DBE centre frequency could not be set
 
         """
 
@@ -370,26 +383,16 @@ class CaptureSession(object):
         # Requested dump period, replaced by actual value after capture started
         session._requested_dump_period = 1.0 / dump_rate
 
-        if mode is None:
-            mode = dbe.sensor.dbe_mode.get_value()
-        if mode is None:
-            # This will happen if the mode sensor could not be read for some reason
-            mode = "<unknown>"
-        else:
-            # Set DBE mode (need at least 90-second timeout for narrowband modes)
-            user_logger.info("Setting DBE mode to '%s' (this may take a while...)" % (mode,))
-            if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
-                raise CaptureInitError("Unable to set DBE mode to '%s'" % (mode,))
-            if dbe_centre_freq is not None:
-                reply = dbe.req.dbe_k7_frequency_select(int(dbe_centre_freq * 1e6))
-                if reply.succeeded:
-                    requested_dbe_freq = int(reply.messages[0].arguments[1])
-                    actual_dbe_freq = dbe.sensor.dbe_centerfrequency.get_value()
-                    if actual_dbe_freq != requested_dbe_freq:
-                        raise CaptureInitError("Unable to set DBE centre frequency to %g Hz (read back as %g Hz)" %
-                                               (requested_dbe_freq, actual_dbe_freq))
-                else:
-                    raise CaptureInitError("Unable to set DBE centre frequency: %s" % (reply,))
+        if dbe_centre_freq is not None:
+            reply = dbe.req.dbe_k7_frequency_select(int(dbe_centre_freq * 1e6))
+            if reply.succeeded:
+                requested_dbe_freq = int(reply.messages[0].arguments[1])
+                actual_dbe_freq = dbe.sensor.dbe_centerfrequency.get_value()
+                if actual_dbe_freq != requested_dbe_freq:
+                    raise RequestSensorError("Unable to set DBE centre frequency to %g Hz (read back as %g Hz)" %
+                                             (requested_dbe_freq, actual_dbe_freq))
+            else:
+                raise RequestSensorError("Unable to set DBE centre frequency: %s" % (reply,))
         try:
             dbe_centre_freq = dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
         except TypeError:
@@ -411,7 +414,6 @@ class CaptureSession(object):
         # of 400-MHz downconverted band (in Hz), which is used for fringe stopping / delay tracking
         dbe.req.capture_setup(1000.0 / dump_rate, session.get_centre_freq(200.0) * 1e6)
 
-        user_logger.info('DBE mode = %s' % (mode,))
         user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
@@ -1118,7 +1120,7 @@ class CaptureSession(object):
 
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, dbe='dbe7', **kwargs):
+    def __init__(self, kat, dbe='dbe7', mode=None, **kwargs):
         self.kat = kat
         # If not a device itself, assume dbe is the name of the device
         if not isinstance(dbe, KATClient):
@@ -1167,6 +1169,10 @@ class TimeSession(object):
         user_logger.info('New data capturing session')
         user_logger.info('--------------------------')
         user_logger.info("DBE proxy used = %s" % (dbe.name,))
+        if mode is None:
+            user_logger.info('DBE mode = unknown to simulator')
+        else:
+            user_logger.info('DBE mode = %s' % (mode,))
 
         activity_logger.info("Timing simulation. ----- Script starting %s (%s). Output file None" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
@@ -1260,7 +1266,8 @@ class TimeSession(object):
         pass
 
     def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
-                       dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None, **kwargs):
+                       dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None,
+                       horizon=None, dbe_centre_freq=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate."""
         self.ants = ant_array(self.kat, ants)
         for ant in self.ants:
@@ -1281,6 +1288,10 @@ class TimeSession(object):
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Experiment ID = %s' % (experiment_id,))
+        if dbe_centre_freq is None:
+            user_logger.info('DBE centre frequency = unknown to simulator')
+        else:
+            user_logger.info('DBE centre frequency = %g MHz' % (dbe_centre_freq,))
         # There is no way to find out the centre frequency in this fake session...
         if centre_freq is None:
             user_logger.info('RF centre frequency = unknown to simulator, dump rate = %g Hz' % (dump_rate,))
