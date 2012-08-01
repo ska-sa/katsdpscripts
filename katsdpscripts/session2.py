@@ -248,17 +248,18 @@ class CaptureSession(object):
         Returns
         -------
         centre_freq : float
-            Actual centre frequency in MHz
+            Actual centre frequency in MHz (or NaN if something went wrong)
 
         """
-        lo1 = self.kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6
-        lo2 = 4000.0
-        if dbe_if is None:
-            sensor_name = 'dbe_centerfrequency' if hasattr(self.dbe.sensor, 'dbe_centerfrequency') else \
-                          'dbe_%s_centerfrequency' % (self.dbe.sensor.dbe_mode.get_value(),)
-            dbe_if = getattr(self.dbe.sensor, sensor_name).get_value() * 1e-6 \
-                     if hasattr(self.dbe.sensor, sensor_name) else 200.0
-        return lo1 - lo2 - dbe_if
+        try:
+            lo1 = self.kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6
+            lo2 = 4000.0
+            if dbe_if is None:
+                dbe_if = self.dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
+            return lo1 - lo2 - dbe_if
+        except TypeError:
+            user_logger.warning('Could not read centre frequency sensors (rfe7_lo1 and/or dbe_centerfreq)')
+            return np.nan
 
     def set_centre_freq(self, centre_freq):
         """Set RF (sky) frequency associated with middle DBE channel.
@@ -268,16 +269,22 @@ class CaptureSession(object):
         centre_freq : float
             Desired centre frequency in MHz
 
+        Raises
+        ------
+        CaptureInitError
+            If DBE centre frequency could not be read
+
         """
-        lo2 = 4000.0
-        sensor_name = 'dbe_centerfrequency' if hasattr(self.dbe.sensor, 'dbe_centerfrequency') else \
-                      'dbe_%s_centerfrequency' % (self.dbe.sensor.dbe_mode.get_value(),)
-        dbe_if = getattr(self.dbe.sensor, sensor_name).get_value() * 1e-6 \
-                 if hasattr(self.dbe.sensor, sensor_name) else 200.0
-        lo1 = centre_freq + lo2 + dbe_if
-        self.kat.rfe7.req.rfe7_lo1_frequency(lo1, 'MHz')
-        # Also set the centre frequency in capturing system so that signal displays can pick it up
-        self.dbe.req.k7w_set_center_freq(centre_freq * 1e6)
+        try:
+            dbe_if = self.dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
+        except TypeError:
+            raise CaptureInitError('Could not set RF centre frequency because DBE centre frequency could not be read')
+        else:
+            lo2 = 4000.0
+            lo1 = centre_freq + lo2 + dbe_if
+            self.kat.rfe7.req.rfe7_lo1_frequency(lo1, 'MHz')
+            # Also set the centre frequency in capturing system so that signal displays can pick it up
+            self.dbe.req.k7w_set_center_freq(centre_freq * 1e6)
 
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
@@ -365,21 +372,28 @@ class CaptureSession(object):
 
         if mode is None:
             mode = dbe.sensor.dbe_mode.get_value()
-        # Set DBE mode (need at least 90-second timeout for narrowband modes)
-        user_logger.info("Setting DBE mode to '%s' (this may take a while...)" % (mode,))
-        if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
-            raise CaptureInitError("Unable to set DBE mode to '%s'" % (mode,))
-        if dbe_centre_freq is not None:
-            reply = dbe.req.dbe_k7_frequency_select(int(dbe_centre_freq * 1e6))
-            if reply.succeeded:
-                requested_dbe_freq = int(reply.messages[0].arguments[1])
-                actual_dbe_freq = dbe.sensor.dbe_centerfrequency.get_value()
-                if actual_dbe_freq != requested_dbe_freq:
-                    raise CaptureInitError("Unable to set DBE centre frequency to %g Hz (read back as %g Hz)" %
-                                           (requested_dbe_freq, actual_dbe_freq))
-            else:
-                raise CaptureInitError("Unable to set DBE centre frequency: %s" % (reply,))
-        dbe_centre_freq = dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
+        if mode is None:
+            # This will happen if the mode sensor could not be read for some reason
+            mode = "<unknown>"
+        else:
+            # Set DBE mode (need at least 90-second timeout for narrowband modes)
+            user_logger.info("Setting DBE mode to '%s' (this may take a while...)" % (mode,))
+            if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
+                raise CaptureInitError("Unable to set DBE mode to '%s'" % (mode,))
+            if dbe_centre_freq is not None:
+                reply = dbe.req.dbe_k7_frequency_select(int(dbe_centre_freq * 1e6))
+                if reply.succeeded:
+                    requested_dbe_freq = int(reply.messages[0].arguments[1])
+                    actual_dbe_freq = dbe.sensor.dbe_centerfrequency.get_value()
+                    if actual_dbe_freq != requested_dbe_freq:
+                        raise CaptureInitError("Unable to set DBE centre frequency to %g Hz (read back as %g Hz)" %
+                                               (requested_dbe_freq, actual_dbe_freq))
+                else:
+                    raise CaptureInitError("Unable to set DBE centre frequency: %s" % (reply,))
+        try:
+            dbe_centre_freq = dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
+        except TypeError:
+            dbe_centre_freq = np.nan
 
         # Setup strategies for the sensors we might be wait()ing on
         ants.req.sensor_sampling('lock', 'event')
@@ -613,23 +627,31 @@ class CaptureSession(object):
         # Wait for the dump period to become known, as it is needed to set a good timeout for the first dump
         if dump_period == 0.0:
             if not dbe.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1., poll_period=0.1):
-                user_logger.warning('SPEAD metadata header is overdue at k7_capture - noise diode will be out of sync')
                 dump_period = session.dump_period = session._requested_dump_period
+                user_logger.warning('SPEAD metadata header is overdue at k7_capture - noise diode will be out of sync')
             else:
                 # Get actual dump period in seconds (as opposed to the requested period)
                 dump_period = session.dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
+                # This can still go wrong if the sensor times out - again fall back to requested period
+                if dump_period is None:
+                    dump_period = session.dump_period = session._requested_dump_period
+                    user_logger.warning('Could not read actual dump period - noise diode will be out of sync')
         # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
         last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
-        if last_dump == session._end_of_previous_session:
-            user_logger.info('waiting for first correlator dump')
+        if last_dump == session._end_of_previous_session or last_dump is None:
+            user_logger.info('waiting for first/next correlator dump')
             # Wait for the first correlator dump to appear
             if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > session._end_of_previous_session,
                             timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
                 last_dump = time.time()
-                user_logger.warning('First correlator dump is overdue at k7_capture - noise diode will be out of sync')
+                user_logger.warning('Correlator dump is overdue at k7_capture - noise diode will be out of sync')
             else:
                 last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
-                user_logger.info('first correlator dump arrived')
+                if last_dump is None:
+                    last_dump = time.time()
+                    user_logger.warning('Could not read last dump timestamp - noise diode will be out of sync')
+                else:
+                    user_logger.info('first/next correlator dump arrived')
 
         # If period is non-negative, quit if it is not yet time to fire the noise diode
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
