@@ -641,7 +641,7 @@ class CaptureSession(object):
         # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
         last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
         if last_dump == session._end_of_previous_session or last_dump is None:
-            user_logger.info('waiting for first/next correlator dump')
+            user_logger.info('waiting for correlator dump to arrive')
             # Wait for the first correlator dump to appear
             if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > session._end_of_previous_session,
                             timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
@@ -653,7 +653,7 @@ class CaptureSession(object):
                     last_dump = time.time()
                     user_logger.warning('Could not read last dump timestamp - noise diode will be out of sync')
                 else:
-                    user_logger.info('first/next correlator dump arrived')
+                    user_logger.info('correlator dump arrived')
 
         # If period is non-negative, quit if it is not yet time to fire the noise diode
         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
@@ -1365,10 +1365,10 @@ class TimeSession(object):
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         if self.dump_period == 0.0:
             # Wait for the first correlator dump to appear
-            user_logger.info('waiting for first correlator dump')
+            user_logger.info('waiting for correlator dump to arrive')
             self.dump_period = self._requested_dump_period
             time.sleep(self.dump_period)
-            user_logger.info('first correlator dump arrived')
+            user_logger.info('correlator dump arrived')
         if period < 0.0 or (self.time - self.last_nd_firing) < period:
             return False
         if announce:
