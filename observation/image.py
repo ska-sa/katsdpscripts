@@ -49,7 +49,6 @@ with verify_and_connect(opts) as kat:
     duration = {'target' : opts.target_duration, 'bpcal' : opts.bpcal_duration, 'gaincal' : opts.gaincal_duration}
 
     with start_session(kat, **vars(opts)) as session:
-        session.standard_setup(**vars(opts))
         if not opts.no_delays and not opts.dry_run :
             if session.dbe.req.auto_delay('on'):
                 user_logger.info("Turning on delay tracking.")
@@ -65,6 +64,7 @@ with verify_and_connect(opts) as kat:
             else:
                 user_logger.error('Unable to zero delay values.')
 
+        session.standard_setup(**vars(opts))
         session.capture_start()
 
         start_time = time.time()
