@@ -38,7 +38,7 @@ with verify_and_connect(opts) as kat:
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        if not opts.dry_run:
+        if not kat.dryrun:
             if session.dbe.req.auto_delay('off'):
                 user_logger.info("Turning off delay tracking.")
             else:

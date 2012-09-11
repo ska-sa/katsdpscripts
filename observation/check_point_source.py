@@ -44,7 +44,7 @@ with verify_and_connect(opts) as kat:
             target = collect_targets(kat, [args[0]]).targets[0]
         else:
             # Get current position of first antenna in the list (assume the rest are the same or close)
-            if opts.dry_run:
+            if kat.dryrun:
                 current_az, current_el = session._fake_ants[0][2:]
             else:
                 current_az = session.ants[0].sensor.pos_actual_scan_azim.get_value()
@@ -58,7 +58,7 @@ with verify_and_connect(opts) as kat:
         session.label('raster')
         session.fire_noise_diode('coupler', 4, 4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
-    if not opts.dry_run:
+    if not kat.dryrun:
         # Wait until desired HDF5 file appears in the archive (this could take quite a while...)
         if not session.output_file:
             raise RuntimeError('Could not obtain name of HDF5 file that was recorded')
@@ -67,7 +67,7 @@ with verify_and_connect(opts) as kat:
         if not os.path.isfile(h5file):
             raise RuntimeError("Could not download '%s' to %d" % (h5file, os.path.abspath(download_dir)))
 
-if not opts.dry_run:
+if not kat.dryrun:
     cfg = kat.system
 
     # Obtain list of antennas and polarisations present in data set

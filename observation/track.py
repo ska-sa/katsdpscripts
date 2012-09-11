@@ -42,12 +42,12 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not opts.dry_run :
+            if not opts.no_delays and not kat.dryrun :
                 if session.dbe.req.auto_delay('on'):
                     user_logger.info("Turning on delay tracking.")
                 else:
                     user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not opts.dry_run:
+            elif opts.no_delays and not kat.dryrun:
                 if session.dbe.req.auto_delay('off'):
                     user_logger.info("Turning off delay tracking.")
                 else:
