@@ -29,7 +29,7 @@ parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1')
+parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1',dump_rate=0.2)
 # Parse the command line
 opts, args = parser.parse_args()
 
