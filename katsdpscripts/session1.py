@@ -387,8 +387,8 @@ class CaptureSession(object):
             update_period_seconds = 0.4 / dump_rate
             # Tell the position sensors to report their values periodically at this rate
             # Remember that this should be an *integer* number of milliseconds
-            first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(int(1000 * update_period_seconds)))
-            first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(int(1000 * update_period_seconds)))
+            first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(float(update_period_seconds)))
+            first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(float(update_period_seconds)))
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
             first_ant.sensor.pos_actual_scan_azim.register_listener(listener_actual_azim, update_period_seconds)
             first_ant.sensor.pos_actual_scan_elev.register_listener(listener_actual_elev, update_period_seconds)
