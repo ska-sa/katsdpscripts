@@ -91,7 +91,7 @@ dbe7_template = [
 
 dbe7_base_group = [
 ("kat.dbe7.sensor.dbe_corr_lru_available.get_value()", 1,1,1,1),
-("kat.dbe7.sensor.dbe_mode.get_value()",['c16n400M1k','c16n400M8k'],'',1,1),
+("kat.dbe7.sensor.dbe_mode.get_value()",['c16n400M1k','c16n400M8k','c16n2M4k','c16n7M4k'],'',1,1),
 ("","","","",""), # creates a blank line
 ]
 
@@ -301,7 +301,7 @@ def show_status_header(kat, opts, selected_sensors):
     # Might want to split out presentation from logic soon...
     try:
         dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-        if dbe_mode == 'c16n400M1k':
+        if dbe_mode in ['c16n400M1k','c16n2M4k','c16n7M4k']:
             dbe_mode_colour = normal_colour
         elif dbe_mode == 'c16n400M8k':
             dbe_mode_colour = warn_colour
