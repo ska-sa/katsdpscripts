@@ -15,7 +15,6 @@
 # differences. The script does currently check and display (for error statuses) the
 # sensor status along with the current sensor values. In time, this will help
 # to iron out any discrepancies between the two sources of expected sensor ranges.
-
 # TODO:
 # - option to load sensors of interest from file ("custom" group).
 # - option to write output to file as well as display on screen?
@@ -40,7 +39,6 @@ normal_colour = 'normal'
 sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
 K7 = katpoint.Antenna('K7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0') # array centre position
 quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (under the hood)
-user_interupt = False
 def get_centre_freq(kat, dbe_if=None):
     """Get RF (sky) frequency associated with middle DBE channel.
 
@@ -334,7 +332,7 @@ def show_status_header(kat, opts, selected_sensors):
         else:
             dbe_mode = 'unknown'
             dbe_mode_colour = error_colour
-        system_centre_freq =   get_centre_freq(kat) # most reliable place to get this
+        system_centre_freq = get_centre_freq(kat) # most reliable place to get this
 
         # Retrieve weather info
         air_pressure = kat.anc.sensor.asc_air_pressure.get_value()
@@ -570,125 +568,117 @@ if __name__ == '__main__':
                     help='Show usage examples and exit. (default="%default")')
 
     (opts, args) = parser.parse_args()
-
     if opts.show_usage_examples:
         print USAGE
-        sys.exit()
-
-    # some option checks
-    if opts.refresh and opts.refresh < 1.0:
-        print "Error: Min refresh is 1 sec. Exiting."
-        sys.exit()
-    if opts.max_duration and opts.max_duration < 1.0:
-        print "Error: Max duration must be >= 1 sec"
-        sys.exit()
-    if opts.max_duration >= 1.0 and opts.refresh is None and not opts.quiet:
-        print "Error: Max duration only applies to refresh and quiet modes"
-        sys.exit()
-    if opts.max_duration >= 1.0 and opts.refresh > opts.max_duration:
-        print "Error: Refresh time must be < max duration"
-        sys.exit()
-    if opts.quiet and opts.verbose:
-        print "Error: Cannot select verbose mode and quiet mode together - see help"
-        sys.exit()
-    if opts.quiet and opts.header_only:
-        print "Error: Cannot select header only and quiet mode together"
-        sys.exit()
-    if opts.quiet and opts.refresh and opts.refresh < quiet_check_refresh:
-        # does not make sense to have full refresh (incl header) at shorter period than quiet refresh in quiet mode
-        print "Error: Min refresh in quiet mode is %s secs" %(quiet_check_refresh)
-        sys.exit()
-    if opts.warn and not opts.quiet:
-        print "Error: Cannot select warn option when quiet mode not selected. Warns are shown by default with verbose mode."
-        sys.exit()
-
-    # Try to build the KAT configuration
-    # This connects to all the proxies and devices and queries their commands and sensors
-    site, system = katcorelib.conf.get_system_configuration()
-    try:
-        kat = katcorelib.tbuild(system=system)
-    except ValueError:
-        raise ValueError("Could not build KAT connection for %s" % (system,))
-    print 'Using KAT connection with configuration: %s' % (kat.system,)
-
-    # construct the per antenna sensor groups (restricting to those that were selected)
-    generate_sensor_groups(kat,opts.ants,sensor_group_dict)
-
-    try:
-        selected_sensors = sensor_group_dict[opts.sensor_group]
-    except KeyError:
-        print 'Unknown sensor group "%s", expected one of %s' % (opts.sensor_group, sensor_group_dict_keys)
-        sys.exit()
-
-    activity_logger.info("basic_health_check.py: start")
-    user_logger.info("basic_health_check.py: start")
-    # end_time is the end time for the whole programme
-    if opts.max_duration >= 1.0:
-        end_time = time.time() + float(opts.max_duration)
     else:
-        end_time = time.time() + 10*365*24*3600.0 # set to some far future time (10 years i.e. don't end)
+        # some option checks
+        if opts.refresh and opts.refresh < 1.0:
+            raise RuntimeError("Min refresh is 1 sec. Exiting.")
+        if opts.max_duration and opts.max_duration < 1.0:
+            raise RuntimeError("Max duration must be >= 1 sec")
+        if opts.max_duration >= 1.0 and opts.refresh is None and not opts.quiet:
+            raise RuntimeError("Max duration only applies to refresh and quiet modes")
+        if opts.max_duration >= 1.0 and opts.refresh > opts.max_duration:
+            raise RuntimeError("Refresh time must be < max duration")
+        if opts.quiet and opts.verbose:
+            raise RuntimeError("Cannot select verbose mode and quiet mode together - see help")
+        if opts.quiet and opts.header_only:
+            raise RuntimeError(" Cannot select header only and quiet mode together")
+        if opts.quiet and opts.refresh and opts.refresh < quiet_check_refresh:
+            # does not make sense to have full refresh (incl header) at shorter period than quiet refresh in quiet mode
+            raise RuntimeError("Min refresh in quiet mode is %s secs" %(quiet_check_refresh))
+        if opts.warn and not opts.quiet:
+            raise RuntimeError("Cannot select warn option when quiet mode not selected. Warns are shown by default with verbose mode.")
 
-    try:
-        ended = False
-        while (not ended):
-            refresh_cycle_start =  time.time()
-            user_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
-            activity_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
-            refresh_forced = False # keyboard input forced refresh
-            print '\nCurrent local time: %s' % (time.ctime(refresh_cycle_start))
-            alarms = {} # reset any alarms when full refresh
-            show_status_header(kat,opts,selected_sensors)
-            if not opts.header_only:
-                if not opts.quiet:
-                    print_checks_header()
-                    potential_problems = check_sensors(kat,opts,selected_sensors)
-                    print_check_result(potential_problems)
-                    print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time)
-                else:
-                    print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time) # message before sensor check loop
-                    print_checks_header(opts.quiet)
-                    quiet_cycles_ended = False
-                    quiet_cycles = 0
-                    quiet_cycles_start = time.time()
-                    while not quiet_cycles_ended and not ended:
-                        this_cycle_start = time.time()
-                        if (quiet_cycles % 360) == 0: # 360 -> 30 mins for 5 sec quiet_cycle_refresh
-                            print 'In quiet loop: Current local time: ' + time.ctime()
-                        check_sensors(kat,opts,selected_sensors,opts.quiet,alarms)
-                        time_now = time.time()
-                        if opts.refresh > 1.0:
-                            if time_now > quiet_cycles_start + opts.refresh: quiet_cycles_ended = True
-                        if getKeyIf(6) == 'r': # forced refresh
-                            quiet_cycles_ended = True
-                            refresh_forced  = True
-                        if opts.max_duration > 1.0:
-                            if time_now > end_time: ended = True
-                        if not ended and not quiet_cycles_ended:
-                            time.sleep(max(0.0,this_cycle_start + quiet_check_refresh - time_now))
-                            quiet_cycles = quiet_cycles + 1
-            else:
-                print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time)
+        # Try to build the KAT configuration
+        # This connects to all the proxies and devices and queries their commands and sensors
+        site, system = katcorelib.conf.get_system_configuration()
+        try:
+            kat = katcorelib.tbuild(system=system)
+        except ValueError:
+            raise ValueError("Could not build KAT connection for %s" % (system,))
+        print 'Using KAT connection with configuration: %s' % (kat.system,)
 
-            if (time.time() >= end_time) or (not opts.quiet and opts.refresh is None):
-                ended = True
+        # construct the per antenna sensor groups (restricting to those that were selected)
+        generate_sensor_groups(kat,opts.ants,sensor_group_dict)
 
-            if not ended and not refresh_forced and (refresh_cycle_start + opts.refresh - time.time() > 0):
-                in_refresh_sleep = True
-                while in_refresh_sleep:
-                    time_now = time.time()
-                    if time_now < end_time and getKeyIf(6) != 'r' and (refresh_cycle_start + opts.refresh - time_now > 0):
-                        time.sleep(0.5)
+        try:
+            selected_sensors = sensor_group_dict[opts.sensor_group]
+        except KeyError:
+            raise KeyError('Unknown sensor group "%s", expected one of %s' % (opts.sensor_group, sensor_group_dict_keys))
+
+        activity_logger.info("basic_health_check.py: start")
+        user_interupt = False
+        user_logger.info("basic_health_check.py: start")
+        # end_time is the end time for the whole programme
+        if opts.max_duration >= 1.0:
+            end_time = time.time() + float(opts.max_duration)
+        else:
+            end_time = time.time() + 10*365*24*3600.0 # set to some far future time (10 years i.e. don't end)
+
+        try:
+            ended = False
+            while (not ended):
+                refresh_cycle_start =  time.time()
+                user_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
+                activity_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
+                refresh_forced = False # keyboard input forced refresh
+                print '\nCurrent local time: %s' % (time.ctime(refresh_cycle_start))
+                alarms = {} # reset any alarms when full refresh
+                show_status_header(kat,opts,selected_sensors)
+                if not opts.header_only:
+                    if not opts.quiet:
+                        print_checks_header()
+                        potential_problems = check_sensors(kat,opts,selected_sensors)
+                        print_check_result(potential_problems)
+                        print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time)
                     else:
-                        in_refresh_sleep = False
+                        print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time) # message before sensor check loop
+                        print_checks_header(opts.quiet)
+                        quiet_cycles_ended = False
+                        quiet_cycles = 0
+                        quiet_cycles_start = time.time()
+                        while not quiet_cycles_ended and not ended:
+                            this_cycle_start = time.time()
+                            if (quiet_cycles % 360) == 0: # 360 -> 30 mins for 5 sec quiet_cycle_refresh
+                                print 'In quiet loop: Current local time: ' + time.ctime()
+                            check_sensors(kat,opts,selected_sensors,opts.quiet,alarms)
+                            time_now = time.time()
+                            if opts.refresh > 1.0:
+                                if time_now > quiet_cycles_start + opts.refresh: quiet_cycles_ended = True
+                            if getKeyIf(6) == 'r': # forced refresh
+                                quiet_cycles_ended = True
+                                refresh_forced  = True
+                            if opts.max_duration > 1.0:
+                                if time_now > end_time: ended = True
+                            if not ended and not quiet_cycles_ended:
+                                time.sleep(max(0.0,this_cycle_start + quiet_check_refresh - time_now))
+                                quiet_cycles = quiet_cycles + 1
+                else:
+                    print_msg(opts.quiet,opts.header_only,opts.refresh,opts.max_duration,end_time)
 
-            if time.time() >= end_time: # do another check since the refresh sleep loop takes up time
-                ended = True
-    except KeyboardInterrupt:
-        print '\nKeyboard Interrupt detected... exiting gracefully :)'
-        user_logger.info("basic_health_check.py: KeyboardInterrupt")
-        kat.disconnect()
-        user_interupt = True
-  
-    user_logger.info("basic_health_check.py: stop")
-    activity_logger.info("basic_health_check.py: stop")
-    if not user_interupt : kat.disconnect()
+                if (time.time() >= end_time) or (not opts.quiet and opts.refresh is None):
+                    ended = True
+
+                if not ended and not refresh_forced and (refresh_cycle_start + opts.refresh - time.time() > 0):
+                    in_refresh_sleep = True
+                    while in_refresh_sleep:
+                        time_now = time.time()
+                        if time_now < end_time and getKeyIf(6) != 'r' and (refresh_cycle_start + opts.refresh - time_now > 0):
+                            time.sleep(0.5)
+                        else:
+                            in_refresh_sleep = False
+
+                if time.time() >= end_time: # do another check since the refresh sleep loop takes up time
+                    ended = True
+        except KeyboardInterrupt:
+            print '\nKeyboard Interrupt detected... exiting gracefully :)'
+            user_logger.info("basic_health_check.py: KeyboardInterrupt")
+            kat.disconnect()
+            user_interupt = True
+
+
+        user_logger.info("basic_health_check.py: stop")
+        activity_logger.info("basic_health_check.py: stop")
+        if not user_interupt : kat.disconnect()
+
