@@ -40,6 +40,32 @@ normal_colour = 'normal'
 sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
 K7 = katpoint.Antenna('K7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0') # array centre position
 quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (under the hood)
+user_interupt = False
+def get_centre_freq(kat, dbe_if=None):
+    """Get RF (sky) frequency associated with middle DBE channel.
+
+    Parameters
+    ----------
+    kat  : kat object , req.
+
+    dbe_if : float, optional
+        DBE centre (IF) frequency in MHz (use to override actual value)
+
+    Returns
+    -------
+    centre_freq : float
+        Actual centre frequency in MHz (or -1 if something went wrong)
+
+    """
+    try:
+        lo1 = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6
+        lo2 = 4000.0
+        if dbe_if is None:
+            dbe_if = kat.dbe7.sensor.dbe_centerfrequency.get_value() * 1e-6
+        return lo1 - lo2 - dbe_if
+    except TypeError:
+        user_logger.warning('Could not read centre frequency sensors (rfe7_lo1 and/or dbe_centerfreq)')
+        return -1
 
 
 # Sensor groups (and templates for creating sensor groups).
@@ -308,7 +334,7 @@ def show_status_header(kat, opts, selected_sensors):
         else:
             dbe_mode = 'unknown'
             dbe_mode_colour = error_colour
-        system_centre_freq = kat.rfe7.sensor.rfe7_lo1_frequency.get_value() / 1e6 - 4200. # most reliable place to get this
+        system_centre_freq =   get_centre_freq(kat) # most reliable place to get this
 
         # Retrieve weather info
         air_pressure = kat.anc.sensor.asc_air_pressure.get_value()
@@ -660,7 +686,9 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print '\nKeyboard Interrupt detected... exiting gracefully :)'
         user_logger.info("basic_health_check.py: KeyboardInterrupt")
+        kat.disconnect()
+        user_interupt = True
   
     user_logger.info("basic_health_check.py: stop")
     activity_logger.info("basic_health_check.py: stop")
-
+    if not user_interupt : kat.disconnect()
