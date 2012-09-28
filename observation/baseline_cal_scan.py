@@ -37,7 +37,6 @@ with verify_and_connect(opts) as kat:
         user_logger.info("No targets specified, loaded default catalogue with %d targets" % (len(baseline_sources),))
 
     with start_session(kat, **vars(opts)) as session:
-        session.standard_setup(**vars(opts))
         if not kat.dryrun:
             if session.dbe.req.auto_delay('off'):
                 user_logger.info("Turning off delay tracking.")
@@ -47,6 +46,7 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Zeroed the delay values.")
             else:
                 user_logger.error('Unable to zero delay values.')
+        session.standard_setup(**vars(opts))
         session.capture_start()
         start_time = time.time()
         targets_observed = []
