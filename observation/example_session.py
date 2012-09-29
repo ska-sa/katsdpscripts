@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#!/usr/bin/env python
 #
 # Example script illustrating the interactive use of a CaptureSession.
 #
@@ -8,6 +8,7 @@
 
 # The KAT-7 / Fringe Finder system is addressed via this package.
 import katuilib
+import katcorelib
 
 # We now have to connect to the appropriate system (e.g. the real Karoo system,
 # a lab test system or even a local one on our own machine). From the ipython
