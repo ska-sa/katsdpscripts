@@ -1489,6 +1489,8 @@ class TimeSession(object):
             self._teleport_to(katpoint.Target("azel, 0.0, 90.0"), mode="STOW")
         user_logger.info('==========================')
         duration = self.time - self.start_time
+        # Let kat-host know how long the estimated observation time was.
+        self.kat.set_estimated_duration(duration)
         if duration <= 100:
             duration = '%d seconds' % (np.ceil(duration),)
         elif duration <= 100 * 60:
