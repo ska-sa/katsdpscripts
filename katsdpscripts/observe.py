@@ -144,7 +144,7 @@ def verify_and_connect(opts):
     # Build KAT configuration which connects to all the proxies and devices and queries their commands and sensors
     try:
         if opts.sb_id_code is not None:
-            kat = configure_core(sb_id_code=opts.sb_id_code, dryrun=opts.dry_run)
+            kat = configure_core(sb_id_code=opts.sb_id_code, dry_run=opts.dry_run)
         else:
             # Temporarily give the user override options
             print colors.Red, "\nBuilding without a schedule block id code is deprecated." \
@@ -171,7 +171,7 @@ def start_session(kat, dbe='dbe7', **kwargs):
     This starts a capture session initialised with the given arguments, choosing
     the appropriate session class to use based on the arguments. The *dbe*
     parameter selects which version of :class:`CaptureSession` to use, while
-    the kat.dryrun flag decides whether a fake :class:`TimeSession` will
+    the kat.dry_run flag decides whether a fake :class:`TimeSession` will
     be used instead.
 
     Parameters
@@ -195,9 +195,9 @@ def start_session(kat, dbe='dbe7', **kwargs):
 
     """
     if dbe == 'dbe':
-        return TimeSession1(kat, dbe, **kwargs) if kat.dryrun else CaptureSession1(kat, dbe, **kwargs)
+        return TimeSession1(kat, dbe, **kwargs) if kat.dry_run else CaptureSession1(kat, dbe, **kwargs)
     elif dbe == 'dbe7':
-        return TimeSession2(kat, dbe, **kwargs) if kat.dryrun else CaptureSession2(kat, dbe, **kwargs)
+        return TimeSession2(kat, dbe, **kwargs) if kat.dry_run else CaptureSession2(kat, dbe, **kwargs)
     else:
         raise ValueError("Unknown DBE proxy device specified - should be 'dbe' (FF) or 'dbe7' (KAT-7)")
 
