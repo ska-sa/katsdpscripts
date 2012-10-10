@@ -49,12 +49,12 @@ with verify_and_connect(opts) as kat:
     duration = {'target' : opts.target_duration, 'bpcal' : opts.bpcal_duration, 'gaincal' : opts.gaincal_duration}
 
     with start_session(kat, **vars(opts)) as session:
-        if not opts.no_delays and not kat.dryrun :
+        if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
                 user_logger.info("Turning on delay tracking.")
             else:
                 user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dryrun:
+        elif opts.no_delays and not kat.dry_run:
             if session.dbe.req.auto_delay('off'):
                 user_logger.info("Turning off delay tracking.")
             else:

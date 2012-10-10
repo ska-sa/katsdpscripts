@@ -41,7 +41,7 @@ opts.dump_rate = 1.
 with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        if not kat.dryrun:
+        if not kat.dry_run:
             if session.dbe.req.auto_delay('off'):
                 user_logger.info("Turning off delay tracking.")
             else:
@@ -61,7 +61,7 @@ with verify_and_connect(opts) as kat:
                 if  (time.time() - start_time)< opts.min_duration or  opts.min_duration is None:
                     opts.centre_freq = curr_freq  # Not needed
                     user_logger.info("Change Frequency to %d MHz" % (float(curr_freq)))
-                    if not kat.dryrun: kat.rfe7.req.rfe7_lo1_frequency(4200.0 + float(curr_freq), 'MHz')
+                    if not kat.dry_run: kat.rfe7.req.rfe7_lo1_frequency(4200.0 + float(curr_freq), 'MHz')
                     session.fire_noise_diode(announce=False, **nd_params) #
                     # First Half
                     scan_time = time.time()
@@ -79,4 +79,4 @@ with verify_and_connect(opts) as kat:
                                         scan_spacing=scan_spacing, scan_in_azimuth=True, projection='plate-carree')
                     user_logger.info("Observed horizon part 2/2 for %d Seconds (%d Seconds in Total)" %
                                      ((time.time() - half_time), (time.time() - start_time)))
-if kat.dryrun : user_logger.info("!! Dry run time is not Accurate !!   Assume a time of about 1400 seconds per frequency for the scan. or 70 Miniuts for the default frequency set" )
+if kat.dry_run : user_logger.info("!! Dry run time is not Accurate !!   Assume a time of about 1400 seconds per frequency for the scan. or 70 Miniuts for the default frequency set" )

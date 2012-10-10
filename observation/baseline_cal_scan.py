@@ -37,7 +37,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("No targets specified, loaded default catalogue with %d targets" % (len(baseline_sources),))
 
     with start_session(kat, **vars(opts)) as session:
-        if not kat.dryrun:
+        if not kat.dry_run:
             if session.dbe.req.auto_delay('off'):
                 user_logger.info("Turning off delay tracking.")
             else:
