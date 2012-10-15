@@ -566,6 +566,8 @@ if __name__ == '__main__':
                     'outside of refresh or quiet modes. (default="%default")')
     parser.add_option('-u', '--show_usage_examples', action='store_true', default=False,
                     help='Show usage examples and exit. (default="%default")')
+    parser.add_option('--sb-id-code', type='string', default=None,
+                    help='Schedule block id code as required by the CAM system - not used at the moment')
 
     (opts, args) = parser.parse_args()
     if opts.show_usage_examples:
@@ -589,6 +591,10 @@ if __name__ == '__main__':
             raise RuntimeError("Min refresh in quiet mode is %s secs" %(quiet_check_refresh))
         if opts.warn and not opts.quiet:
             raise RuntimeError("Cannot select warn option when quiet mode not selected. Warns are shown by default with verbose mode.")
+
+        if opts.sb_id_code:
+            #Make sure the continuous refresh is disabled when running in the system with an sb-id-code
+            opts.refresh = None
 
         # Try to build the KAT configuration
         # This connects to all the proxies and devices and queries their commands and sensors
