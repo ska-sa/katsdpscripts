@@ -15,6 +15,8 @@ parser = standard_script_options(usage="usage: %prog [options]",
                             "(mostly to keep tourists or antennas amused). Uses the standard catalogue,\n"+
                             "but excludes the extremely strong sources (Sun, Afristar). Some options\n"+
                             "are **required**.")
+parser.add_option('-m', '--max-time', type='float', default=600.0,
+    help="Maximum time to run experiment, in seconds (default=10 minutes)")
 (opts, args) = parser.parse_args()
 
 activity_logger.info("drive_antennas.py : start")
@@ -67,6 +69,9 @@ start_time = time.time()
 
 try:
     for source in up_sources:
+        #Exit the experiment if the max_time has elapsed
+        if time.time() - start_time > opts.max_time:
+            break
         print "Target to track: ",source.name
 
         # send this target to the antenna.
