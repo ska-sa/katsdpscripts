@@ -304,7 +304,7 @@ class CaptureSession(object):
     def standard_setup(self, ants, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
                        record_slews=None, stow_when_done=None, horizon=None,
-                       dbe_centre_freq=None, **kwargs):
+                       dbe_centre_freq=None, no_mask=False, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -358,6 +358,8 @@ class CaptureSession(object):
         dbe_centre_freq : float, optional
             DBE centre frequency in MHz, used to select coarse band for
             narrowband modes (unchanged by default)
+        no_mask : {False, True}, optional
+            Keep all correlation products by not applying baseline/antenna mask
         kwargs : dict, optional
             Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -439,6 +441,8 @@ class CaptureSession(object):
                                      'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, dump_rate))
         dbe.req.k7w_set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
                                      (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
+        # Explicitly set the antenna mask (empty string indicates no mask, meaning all corrproducts are kept in file)
+        dbe.req.k7w_set_antenna_mask('' if no_mask else ','.join(ant_names))
 
         # If the DBE is simulated, it will have position update commands
         if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
