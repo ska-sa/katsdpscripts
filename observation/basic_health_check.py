@@ -348,6 +348,7 @@ def show_status_header(kat, opts, selected_sensors):
 
             # Retrieve some script relevant info
             script_name = kat.dbe7.sensor.k7w_script_name.get_value()
+            script_sb_id_code = kat.dbe7.sensor.k7w_script_experiment_id.get_value()
             script_description = kat.dbe7.sensor.k7w_script_description.get_value()
             observer = kat.dbe7.sensor.k7w_script_observer.get_value()
             start_time =  float(kat.dbe7.sensor.k7w_script_starttime.get_value())
@@ -367,6 +368,8 @@ def show_status_header(kat, opts, selected_sensors):
             if dbe_mode_colour == normal_colour: dbe_mode_colour = busy_colour
 
             print '# Script running: %s' % ( col(busy_colour)+script_name+' - "'+script_description+'" by '+observer+col(normal_colour) )
+            print '# Progress URL: %s' % (col(busy_colour)+'http://192.168.193.8:8081/tailtask/'+script_sb_id_code+'/progress'+col(normal_colour))
+            print '# Dryrun URL: %s' % (col(busy_colour)+'http://192.168.193.8:8081/tailtask/'+script_sb_id_code+'/tail/dryrun.out'+col(normal_colour))
             if max_duration_ok:
                 print '# Run times (local time): %s -> %s (%.2f hours)%s' \
                   % (col(busy_colour) + time.ctime(start_time),time.ctime(start_time+max_duration),max_duration/3600.0,col(normal_colour))
