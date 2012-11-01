@@ -112,8 +112,12 @@ class RequestSensorError(Exception):
     """Critical request failed or critical sensor could not be read."""
     pass
 
+class CaptureSessionBase(object):
+    def get_ant_names(self):
+        return ','.join(co for co in self.kat.controlled_objects
+                        if co.startswith('ant'))
 
-class CaptureSession(object):
+class CaptureSession(CaptureSessionBase):
     """Context manager that encapsulates a single data capturing session.
 
     A data capturing *session* results in a single data file, potentially
@@ -301,7 +305,7 @@ class CaptureSession(object):
             # Also set the centre frequency in capturing system so that signal displays can pick it up
             self.dbe.req.k7w_set_center_freq(centre_freq * 1e6)
 
-    def standard_setup(self, ants, observer, description, experiment_id=None,
+    def standard_setup(self, observer, description, experiment_id=None,
                        centre_freq=None, dump_rate=1.0, nd_params=None,
                        record_slews=None, stow_when_done=None, horizon=None,
                        dbe_centre_freq=None, no_mask=False, **kwargs):
@@ -375,7 +379,7 @@ class CaptureSession(object):
         # Create references to allow easy copy-and-pasting from this function
         session, kat, dbe = self, self.kat, self.dbe
 
-        session.ants = ants = ant_array(kat, ants)
+        session.ants = ants = ant_array(kat, self.get_ant_names())
         ant_names = [ant.name for ant in ants]
         # Override provided session parameters (or initialize them from existing parameters if not provided)
         session.experiment_id = experiment_id = session.experiment_id if experiment_id is None else experiment_id
@@ -1122,7 +1126,7 @@ class CaptureSession(object):
 	#Return the full path to the file
         return full_path_to_product
 
-class TimeSession(object):
+class TimeSession(CaptureSessionBase):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
     def __init__(self, kat, dbe='dbe7', mode=None, **kwargs):
         self.kat = kat
@@ -1269,11 +1273,12 @@ class TimeSession(object):
         """
         pass
 
-    def standard_setup(self, ants, observer, description, experiment_id=None, centre_freq=None,
-                       dump_rate=1.0, nd_params=None, record_slews=None, stow_when_done=None,
-                       horizon=None, dbe_centre_freq=None, **kwargs):
+    def standard_setup(self, observer, description, experiment_id=None,
+                       centre_freq=None, dump_rate=1.0, nd_params=None,
+                       record_slews=None, stow_when_done=None, horizon=None,
+                       dbe_centre_freq=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate."""
-        self.ants = ant_array(self.kat, ants)
+        self.ants = ant_array(self.kat, self.get_ant_names())
         for ant in self.ants:
             try:
                 self._fake_ants.append((katpoint.Antenna(ant.sensor.observer.get_value()),

@@ -38,11 +38,7 @@ def standard_script_options(usage, description):
     parser.add_option('-o', '--observer',
                       help='Name of person doing the observation (**required**)')
     parser.add_option('-d', '--description', default='No description.',
-                      help="Description of observation (default='%default')")
-    parser.add_option('-a', '--ants',
-                      help="Comma-separated list of antennas to include "
-                      "(e.g. 'ant1,ant2'), or 'all' for all antennas "
-                      "(**required** - safety reasons)")
+                      help="Descripation of observation (default='%default')")
     parser.add_option('-f', '--centre-freq', type='float', default=1822.0,
                       help='Centre frequency, in MHz (default=%default)')
     parser.add_option('-r', '--dump-rate', type='float', default=1.0,
@@ -83,18 +79,18 @@ def standard_script_options(usage, description):
 def verify_and_connect(opts):
     """Verify command-line options, build KAT configuration and connect to devices.
 
-    This inspects the parsed options and requires at least *ants*, *observer*
-    and *system* to be set. It generates an experiment ID if missing (for now
-    using the sb-id-code if that is available) and
-    verifies noise diode parameters if given. It then creates a KAT connection
-    based on the *system* option, reusing an existing connection or falling back
-    to the local system if required. The resulting KATHost object is returned.
+    This inspects the parsed options and requires at least *observer* and
+    *system* to be set. It generates an experiment ID if missing (for now using
+    the sb-id-code if that is available) and verifies noise diode parameters if
+    given. It then creates a KAT connection based on the *system* option,
+    reusing an existing connection or falling back to the local system if
+    required. The resulting KATHost object is returned.
 
     Parameters
     ----------
     opts : :class:`optparse.Values` object
         Parsed command-line options (will be updated by this function). Should
-        contain at least the options *ants* and *observer* and in future
+        contain at least the options *observer* and in future
         *sb-id-code*.
 
     Returns
@@ -109,9 +105,6 @@ def verify_and_connect(opts):
 
     """
     # Various non-optional options...
-    if not hasattr(opts, 'ants') or opts.ants is None:
-        raise ValueError('Please specify the antennas to use via -a option '
-                         '(yes, this is a non-optional option...)')
     if not hasattr(opts, 'observer') or opts.observer is None:
         raise ValueError('Please specify the observer name via -o option '
                          '(yes, this is a non-optional option...)')
