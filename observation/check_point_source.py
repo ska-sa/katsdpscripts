@@ -49,6 +49,14 @@ with verify_and_connect(opts) as kat:
             else:
                 current_az = session.ants[0].sensor.pos_actual_scan_azim.get_value()
                 current_el = session.ants[0].sensor.pos_actual_scan_elev.get_value()
+                if current_az is None:
+                    user_logger.warning("Sensor kat.%s.sensor.pos_actual_scan_azim failed - using default azimuth" %
+                                        (session.ants[0].name))
+                    current_az = 0.
+                if current_el is None:
+                    user_logger.warning("Sensor kat.%s.sensor.pos_actual_scan_elev failed - using default elevation" %
+                                        (session.ants[0].name))
+                    current_el = 30.
             current_pos = katpoint.construct_azel_target(katpoint.deg2rad(current_az), katpoint.deg2rad(current_el))
             # Get closest strong source that is up
             strong_sources = kat.sources.filter(el_limit_deg=[15, 75], flux_limit_Jy=100, flux_freq_MHz=opts.centre_freq)
