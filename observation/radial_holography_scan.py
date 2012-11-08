@@ -28,6 +28,8 @@ parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
 parser.add_option('-m', '--min-time', type='float', default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
+parser.add_option('--no-delays', action="store_true", default=False,
+                  help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan')
 # Parse the command line
@@ -45,6 +47,21 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
+        if not opts.no_delays and not kat.dry_run :
+            if session.dbe.req.auto_delay('on'):
+                user_logger.info("Turning on delay tracking.")
+            else:
+                user_logger.error('Unable to turn on delay tracking.')
+        elif opts.no_delays and not kat.dry_run:
+            if session.dbe.req.auto_delay('off'):
+                user_logger.info("Turning off delay tracking.")
+            else:
+                user_logger.error('Unable to turn off delay tracking.')
+            if session.dbe.req.zero_delay():
+                user_logger.info("Zeroed the delay values.")
+            else:
+                user_logger.error('Unable to zero delay values.')
+
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
@@ -60,7 +77,8 @@ with verify_and_connect(opts) as kat:
         targets_observed = []
         keep_going = True
         while keep_going:
-            for target in targets:
+            targets_before_loop = len(targets_observed)
+            for target in targets.iterfilter(el_limit_deg=opts.horizon+opts.scan_extent):
                 # The entire sequence of commands on the same target forms a single compound scan
                 session.label('holo')
                 user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
@@ -94,4 +112,7 @@ with verify_and_connect(opts) as kat:
                 elif time.time() - start_time >= opts.min_time:
                     keep_going = False
                     break
+            if keep_going and len(targets_observed) == targets_before_loop:
+                user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
+                keep_going = False
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
