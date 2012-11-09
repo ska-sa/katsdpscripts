@@ -78,7 +78,7 @@ with verify_and_connect(opts) as kat:
         keep_going = True
         while keep_going:
             targets_before_loop = len(targets_observed)
-            for target in targets.iterfilter(el_limit_deg=opts.horizon+opts.scan_extent):
+            for target in targets.iterfilter(el_limit_deg=opts.horizon+(opts.scan_extent/2.0)):
                 # The entire sequence of commands on the same target forms a single compound scan
                 session.label('holo')
                 user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
