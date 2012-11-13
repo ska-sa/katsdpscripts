@@ -31,6 +31,7 @@ projections, default_proj = Offset.PROJECTIONS.keys(), Offset.DEFAULT_PROJECTION
 projections.remove(default_proj)
 projections.insert(0, default_proj)
 
+
 def ant_array(kat, ants, name='ants'):
     """Create sub-array of antennas from flexible specification.
 
@@ -70,6 +71,7 @@ def ant_array(kat, ants, name='ants'):
     else:
         # The default assumes that *ants* is a list of antenna devices
         return Array(name, ants)
+
 
 class CaptureScan(object):
     """Context manager that encapsulates the capturing of a single scan.
@@ -125,6 +127,7 @@ class CaptureScan(object):
         # Do not suppress any exceptions that occurred in the body of with-statement
         return False
 
+
 class CaptureSession(object):
     """Context manager that encapsulates a single data capturing session.
 
@@ -167,7 +170,7 @@ class CaptureSession(object):
             self.experiment_id = 'interactive'
             self.record_slews = True
             self.stow_when_done = False
-            self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
+            self.nd_params = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
             self.horizon = 3.0
@@ -1038,6 +1041,7 @@ class CaptureSession(object):
         """
         return ''
 
+
 class TimeSession(object):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
     def __init__(self, kat, dbe='dbe', **kwargs):
@@ -1055,7 +1059,7 @@ class TimeSession(object):
         self.experiment_id = 'interactive'
         self.record_slews = True
         self.stow_when_done = False
-        self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
+        self.nd_params = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
         self.last_nd_firing = 0.
         self.output_file = ''
         self.horizon = 3.0
@@ -1398,7 +1402,7 @@ class TimeSession(object):
         else:
             duration = '%.1f hours' % (duration / 3600.,)
         msg = "Experiment estimated to last %s until this time" % (duration,)
-        user_logger.info(msg+"\n")
+        user_logger.info(msg + "\n")
         activity_logger.info("Timing simulation.  %s" % (msg,))
         # Restore time module functions
         time.time, time.sleep = self._realtime, self._realsleep
@@ -1430,4 +1434,3 @@ class TimeSession(object):
 
         """
         return ''
-

@@ -112,10 +112,12 @@ class RequestSensorError(Exception):
     """Critical request failed or critical sensor could not be read."""
     pass
 
+
 class CaptureSessionBase(object):
     def get_ant_names(self):
         return ','.join(co for co in self.kat.controlled_objects
                         if co.startswith('ant'))
+
 
 class CaptureSession(CaptureSessionBase):
     """Context manager that encapsulates a single data capturing session.
@@ -170,7 +172,7 @@ class CaptureSession(CaptureSessionBase):
             self.ants = None
             self.experiment_id = 'interactive'
             self.stow_when_done = False
-            self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
+            self.nd_params = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
             self.dump_period = self._requested_dump_period = 0.0
@@ -1123,8 +1125,9 @@ class CaptureSession(CaptureSessionBase):
                     raise ArchiveWorkFlowError('%s cannot be found in the archive, the staging directory or the failed directory.')
             else:
                 raise ArchiveWorkFlowError('The oodt filemgr katcp reply failed with reply: %s %s' % (reply.messages[0].arguments[0], reply.message[0].arguments[1]))
-	#Return the full path to the file
+        # Return the full path to the file
         return full_path_to_product
+
 
 class TimeSession(CaptureSessionBase):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
@@ -1142,7 +1145,7 @@ class TimeSession(CaptureSessionBase):
         self.ants = None
         self.experiment_id = 'interactive'
         self.stow_when_done = False
-        self.nd_params = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
+        self.nd_params = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
         self.last_nd_firing = 0.
         self.output_file = ''
         self.dump_period = self._requested_dump_period = 0.0
@@ -1507,7 +1510,7 @@ class TimeSession(CaptureSessionBase):
         else:
             duration = '%.1f hours' % (duration / 3600.,)
         msg = "Experiment estimated to last %s until this time" % (duration,)
-        user_logger.info(msg+"\n")
+        user_logger.info(msg + "\n")
         activity_logger.info("Timing simulation. %s" % (msg,))
         # Restore time module functions
         time.time, time.sleep = self._realtime, self._realsleep
@@ -1541,4 +1544,3 @@ class TimeSession(CaptureSessionBase):
 
         """
         return ''
-
