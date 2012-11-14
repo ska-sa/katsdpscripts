@@ -1,10 +1,7 @@
 from __future__ import with_statement
 
 from katcorelib import standard_script_options, verify_and_connect, start_session, user_logger
-import uuid
-import sys
 import time
-import re
 import numpy as np
 import katpoint
 
@@ -25,6 +22,27 @@ targets = {'ant1' : (25.119, -8.944, 0.083),
 #           '12m' : (33, -43, 0),
            'minister' : (40., -40., 0),
            'origin' : (63.7, -32.9, 0)}
+
+
+def track(ants,targets,duration=10):
+    # send this target to the antenna.
+    for target,ant_x in zip(targets,ants):
+        ant_x.req.target(target)
+        ant_x.req.mode("POINT")
+        user_logger.info("Slewing %s to target : %s"%(ant_x.name,target,))
+    # wait for antennas to lock onto target
+    locks = 0
+    for ant_x in ants:
+        if ant_x.wait("lock", True, 300): locks += 1
+    if len(ants) == locks:
+        user_logger.info("Tracking Target : %s for %s seconds"%(target,str(duration)))
+        time.sleep(duration)
+        user_logger.info("Target tracked : %s "%(target,))
+        return True
+    else:
+        user_logger.warning("Unable to track Targe : %s "%(target,))
+        return False
+
 
 def enu_to_azel(e, n, u):
     """Convert vector in ENU coordinates to (az, el) spherical coordinates.
@@ -51,10 +69,9 @@ def enu_to_azel(e, n, u):
 parser = standard_script_options(usage="%prog [options] <target>",
                                description="Point dishes at the given target and record data.")
 # Generic options
-parser.add_option('-t', '--duration', dest='duration', type="float", default=60.0,
+parser.add_option('-m', '--max-duration', dest='max_duration', type="float", default=60.0,
                   help='Duration to run experiment, in seconds (default=%default)')
-parser.set_defaults(description='point to enu')
-
+parser.set_defaults(description='Point to enu')
 (opts, args) = parser.parse_args()
 
 if len(args) == 0:
@@ -81,14 +98,15 @@ if opts.description is 'point to enu':
     opts.description = "Data recorded while pointing at '%s'" % target
 
 with verify_and_connect(opts) as kat:
+    kat.ants.req.sensor_sampling("lock","event")
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
         session.label('track')
-
-        ants = session.ants
-        ants.req.drive_strategy('shortest-slew')
-        for ant in ants:
+        session.ants.req.drive_strategy('shortest-slew')
+        session.ants.req.sensor_sampling("lock","event")
+        target_list = []
+        for ant in session.ants:
             antenna = katpoint.Antenna(ant.sensor.observer.get_value())
             enu = np.asarray(target_enu) - np.asarray(antenna.position_enu)
             if np.all(enu == 0):
@@ -96,14 +114,8 @@ with verify_and_connect(opts) as kat:
             az, el = enu_to_azel(*enu)
             az, el = katpoint.rad2deg(az), katpoint.rad2deg(el)
             # Go to nearest point on horizon if target is below elevation limit
-            el = max(el, 2.5)
+            el = max(el, 3.0)
             target_description = "%s, azel, %f, %f" % (target, az, el)
-            user_logger.info("From antenna '%s', target '%s' with enu = (%g, %g, %g) has azel = (%g, %g)" % \
-                  (antenna.name, target, enu[0], enu[1], enu[2], az, el))
-            ant.req.target(target_description)
-        session.dbe.req.target(target_description)
-        user_logger.info('Slewing to target')
-        ants.req.mode('POINT')
-        ants.wait('lock', True, 300)
-        time.sleep(opts.duration)
-
+            target_list.append(target_description)
+        track(session.ants,target_list,duration=opts.max_duration)
+   
