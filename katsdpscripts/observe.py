@@ -38,7 +38,7 @@ def standard_script_options(usage, description):
     parser.add_option('-o', '--observer',
                       help='Name of person doing the observation (**required**)')
     parser.add_option('-d', '--description', default='No description.',
-                      help="Descripation of observation (default='%default')")
+                      help="Description of observation (default='%default')")
     parser.add_option('-f', '--centre-freq', type='float', default=1822.0,
                       help='Centre frequency, in MHz (default=%default)')
     parser.add_option('-r', '--dump-rate', type='float', default=1.0,
