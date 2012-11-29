@@ -1294,6 +1294,7 @@ class TimeSession(CaptureSessionBase):
         self.experiment_id = experiment_id = self.experiment_id if experiment_id is None else experiment_id
         self.nd_params = nd_params = self.nd_params if nd_params is None else nd_params
         self.stow_when_done = stow_when_done = self.stow_when_done if stow_when_done is None else stow_when_done
+        self.horizon = self.horizon if horizon is None else horizon
         self._requested_dump_period = 1.0 / dump_rate
 
         user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self._fake_ants]),))
