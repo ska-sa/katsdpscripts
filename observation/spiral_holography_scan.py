@@ -1,11 +1,10 @@
 #!/usr/bin/python
-# Perform radial holography scan on specified target(s). Mostly used for beam pattern mapping.
+# Perform spiral holography scan on specified target(s). Mostly used for beam pattern measurement.
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
 import time
-#see session2.py track() in katcorelib
 
 # Import script helper functions from observe.py
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
@@ -25,16 +24,18 @@ def spiral(params,indep):
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
 #singlepointatorigin is True when calculating sampling coordinates, but False when observing
-#typically ntime should =narm
-#note radextent is half the full extent, and ntime is half the full 'scan time'
-#narms is number of radial arms of radextent, performed in ntime
-def generatespiral(radextent,ntime,narms,kind='other',singlepointatorigin=False):
-    if (kind=='simple'):
+def generatespiral(totextent,tottime,kind='uniform',singlepointatorigin=False):
+    radextent=totextent/2.0
+    if (kind=='dense-core'):
+        narms=int((np.sqrt(tottime/5.)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        ntime=np.float(tottime)/np.float(narms)
         armrad=radextent*(linspace(0,1,ntime))
         armtheta=linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
         army=armrad*np.sin(armtheta)
     elif (kind=='approx'):
+        narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        ntime=np.float(tottime)/np.float(narms)
         armrad=radextent*(linspace(0,1,ntime))
         armtheta=linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
@@ -45,7 +46,9 @@ def generatespiral(radextent,ntime,narms,kind='other',singlepointatorigin=False)
         narmtheta=narmrad/radextent*np.pi
         armx=narmrad*np.cos(narmtheta)
         army=narmrad*np.sin(narmtheta)
-    else:
+    else:#'uniform'
+        narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        ntime=int(np.float(tottime)/np.float(narms))
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
@@ -73,42 +76,59 @@ def generatespiral(radextent,ntime,narms,kind='other',singlepointatorigin=False)
     else:
         compositex=np.array([])
         compositey=np.array([])
+        ncompositex=np.array([])
+        ncompositey=np.array([])
     reverse=False
     for ia in range(narms):
         rot=-ia*np.pi*2.0/narms
         x=armx*np.cos(rot)-army*np.sin(rot)
         y=armx*np.sin(rot)+army*np.cos(rot)
+        nrot=ia*np.pi*2.0/narms
+        nx=armx*np.cos(nrot)-army*np.sin(nrot)
+        ny=armx*np.sin(nrot)+army*np.cos(nrot)
         if reverse:
             reverse=False
-            x=x[:0:-1]#omit the final 0
-            y=y[:0:-1]#omit the final 0
+            if (singlepointatorigin):#omit the final 0
+                x=x[:0:-1]
+                y=y[:0:-1]
+                nx=nx[:0:-1]
+                ny=ny[:0:-1]
+            else:#ensures some extra time is provided on target and antennas does not under/overshoot
+                x=x[::-1]
+                y=y[::-1]
+                nx=nx[::-1]
+                ny=ny[::-1]
         else:
             reverse=True
             if (singlepointatorigin):
                 x=x[1:]
                 y=y[1:]
+                nx=nx[1:]
+                ny=ny[1:]
         compositex=np.concatenate([compositex,x])
         compositey=np.concatenate([compositey,y])
-    return compositex,compositey
+        ncompositex=np.concatenate([ncompositex,nx])
+        ncompositey=np.concatenate([ncompositey,ny])
+    return compositex,compositey,ncompositex,ncompositey
 
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='This script performs a holography scan on one or more targets. '
+                                 description='This script performs a holography scan on the specified target. '
                                              'All the antennas initially track the target, whereafter a subset '
                                              'of the antennas (the "scan antennas" specified by the --scan-ants '
                                              'option) perform a spiral raster scan on the target. Note also some '
                                              '**required** options below.')
 # Add experiment-specific options
 parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
-parser.add_option('-k', '--num-scans', type='int', default=10,
-                  help='Number of scans across target (default=%default)')
-parser.add_option('-t', '--scan-duration', type='float', default=30.0,
-                  help='Minimum duration of each scan across target, in seconds (default=%default)')
-parser.add_option('-l', '--scan-extent', type='float', default=6.0,
-                  help='Length of each scan, in degrees (default=%default)')
 parser.add_option('--num-cycles', type='int', default=1,
-                  help='Number of beam map cycles to complete (default=%default)')
+                  help='Number of beam measurement cycles to complete (default=%default)')
+parser.add_option('--cycle-duration', type='float', default=300.0,
+                  help='Time to spend measuring beam pattern per cycle, in seconds (default=%default)')
+parser.add_option('-l', '--scan-extent', type='float', default=4.0,
+                  help='Diameter of beam pattern to measure, in degrees (default=%default)')
+parser.add_option('--kind', type='string', default='uniform',
+                  help='Kind of spiral, could be "uniform" or "dense-core" (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
@@ -116,16 +136,22 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-xx,yy=generatespiral(radextent=opts.scan_extent/2.0,ntime=int(opts.scan_duration/2),narms=int(opts.num_scans*2),kind='other',singlepointatorigin=False)
+xx,yy,nxx,nyy=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,kind=opts.kind,singlepointatorigin=False)
 timeperstep=1.0;
 
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument via name ('Ori A'), "
+    raise ValueError("Please specify a target argument via name ('Ori A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
-    targets = collect_targets(kat, args)
+    catalogue = collect_targets(kat, args)
+    targets=catalogue.targets
+    if len(targets) == 0:
+        raise ValueError("Please specify a target argument via name ('Ori A'), "
+                         "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+    target=targets[0]#only use first target
+    lasttargetel=target.azel()[1]*180.0/np.pi
 
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
@@ -155,29 +181,37 @@ with verify_and_connect(opts) as kat:
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         session.capture_start()
+        session.label('holo')
+        user_logger.info("Initiating spiral holography scan cycles (%d %g-second cycles extending %g degrees) on target '%s'"
+                         % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
 
-        targets_observed = []
         for cycle in range(opts.num_cycles):
-            for target in targets.iterfilter(el_limit_deg=opts.horizon+(opts.scan_extent/2.0)):
-                # The entire sequence of commands on the same target forms a single compound scan
-                session.label('holo')
-                user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
-                                 % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
-                user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                # Slew all antennas onto the target (don't spend any more time on it though)
-                session.ants = all_ants
-                session.track(target, duration=0, announce=False)
-                # Provide opportunity for noise diode to fire on all antennas
-                session.fire_noise_diode(announce=False, **nd_params)
-                # Perform multiple scans across the target at various angles with the scan antennas only
-                session.ants = scan_ants
-                user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+            targetel=target.azel()[1]*180.0/np.pi
+            if (targetel>lasttargetel):#target is rising - scan top half of pattern first
+                txx=xx;tyy=yy;
+                if (targetel<opts.horizon):
+                    user_logger.info("Exiting because target is %g degrees below horizon limit of %g."%((opts.horizon-targetel),opts.horizon))
+                    break;# else it is ok that target just above horizon limit
+            else:#target is setting - scan bottom half of pattern first
+                txx=nxx;tyy=nyy;
+                if (targetel<opts.horizon+(opts.scan_extent/2.0)):
+                    user_logger.info("Exiting because target is %g degrees too low to accommodate a scan extent of %g degrees above the horizon limit of %g."%((opts.horizon+(opts.scan_extent/2.0)-targetel),opts.scan_extent,opts.horizon))
+                    break;
+            user_logger.info("Performing scan cycle %d."%(cycle+1))
+            lasttargetel=targetel
+            # The entire sequence of commands on the same target forms a single compound scan
+            # Slew all antennas onto the target (don't spend any more time on it though)
+            session.ants = all_ants
+            user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+            session.track(target, duration=0, announce=False)
+            # Provide opportunity for noise diode to fire on all antennas
+            session.fire_noise_diode(announce=False, **nd_params)
+            session.ants = scan_ants
+            user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
 #                session.set_target(target)
 #                session.ants.req.drive_strategy('shortest-slew')
 #                session.ants.req.mode('POINT')
-                for scan_index in range(len(xx)):
-                    session.ants.req.offset_fixed(xx[scan_index],yy[scan_index],opts.projection);
-                    time.sleep(timeperstep)
+            for scan_index in range(len(xx)):
+                session.ants.req.offset_fixed(txx[scan_index],tyy[scan_index],opts.projection)
+                time.sleep(timeperstep)
 
-                targets_observed.append(target.name)
-        user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))

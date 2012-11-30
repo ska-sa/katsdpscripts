@@ -27,7 +27,7 @@ parser.add_option('-t', '--scan-duration', type='float', default=20.0,
 parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
 parser.add_option('--num-cycles', type='int', default=1,
-                  help='Number of beam map cycles to complete (default=%default)')
+                  help='Number of beam measurement cycles to complete (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
