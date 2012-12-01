@@ -29,18 +29,18 @@ def generatespiral(totextent,tottime,kind='uniform',singlepointatorigin=False):
     if (kind=='dense-core'):
         narms=int((np.sqrt(tottime/5.)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
         ntime=np.float(tottime)/np.float(narms)
-        armrad=radextent*(linspace(0,1,ntime))
-        armtheta=linspace(0,np.pi,ntime)
+        armrad=radextent*(np.linspace(0,1,ntime))
+        armtheta=np.linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
         army=armrad*np.sin(armtheta)
     elif (kind=='approx'):
         narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
         ntime=np.float(tottime)/np.float(narms)
-        armrad=radextent*(linspace(0,1,ntime))
-        armtheta=linspace(0,np.pi,ntime)
+        armrad=radextent*(np.linspace(0,1,ntime))
+        armtheta=np.linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
         army=armrad*np.sin(armtheta)
-        dist=sqrt((armx[:-1]-armx[1:])**2+(army[:-1]-army[1:])**2)
+        dist=np.sqrt((armx[:-1]-armx[1:])**2+(army[:-1]-army[1:])**2)
         narmrad=np.cumsum(np.concatenate([np.array([0]),1.0/dist]))
         narmrad*=radextent/max(narmrad)
         narmtheta=narmrad/radextent*np.pi
