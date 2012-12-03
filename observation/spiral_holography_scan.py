@@ -13,6 +13,8 @@ import numpy as np
 import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
 
+#anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
+
 def spiral(params,indep):
     x0=indep[0]
     y0=indep[1]
@@ -23,8 +25,7 @@ def spiral(params,indep):
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
-#singlepointatorigin is True when calculating sampling coordinates, but False when observing
-def generatespiral(totextent,tottime,kind='uniform',singlepointatorigin=False):
+def generatespiral(totextent,tottime,kind='uniform'):
     radextent=totextent/2.0
     if (kind=='dense-core'):
         narms=int((np.sqrt(tottime/5.)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
@@ -70,14 +71,10 @@ def generatespiral(totextent,tottime,kind='uniform',singlepointatorigin=False):
     # ndist=sqrt((armx[:-1]-armx[1:])**2+(army[:-1]-army[1:])**2)
     # print ndist
 
-    if (singlepointatorigin):
-        compositex=np.array([0.0])
-        compositey=np.array([0.0])
-    else:
-        compositex=np.array([])
-        compositey=np.array([])
-        ncompositex=np.array([])
-        ncompositey=np.array([])
+    compositex=[[] for ia in range(narms)]
+    compositey=[[] for ia in range(narms)]
+    ncompositex=[[] for ia in range(narms)]
+    ncompositey=[[] for ia in range(narms)]
     reverse=False
     for ia in range(narms):
         rot=-ia*np.pi*2.0/narms
@@ -88,27 +85,17 @@ def generatespiral(totextent,tottime,kind='uniform',singlepointatorigin=False):
         ny=armx*np.sin(nrot)+army*np.cos(nrot)
         if reverse:
             reverse=False
-            if (singlepointatorigin):#omit the final 0
-                x=x[:0:-1]
-                y=y[:0:-1]
-                nx=nx[:0:-1]
-                ny=ny[:0:-1]
-            else:#ensures some extra time is provided on target and antennas does not under/overshoot
-                x=x[::-1]
-                y=y[::-1]
-                nx=nx[::-1]
-                ny=ny[::-1]
+            x=x[::-1]
+            y=y[::-1]
+            nx=nx[::-1]
+            ny=ny[::-1]
         else:
             reverse=True
-            if (singlepointatorigin):
-                x=x[1:]
-                y=y[1:]
-                nx=nx[1:]
-                ny=ny[1:]
-        compositex=np.concatenate([compositex,x])
-        compositey=np.concatenate([compositey,y])
-        ncompositex=np.concatenate([ncompositex,nx])
-        ncompositey=np.concatenate([ncompositey,ny])
+        compositex[ia]=x
+        compositey[ia]=y
+        ncompositex[ia]=nx
+        ncompositey[ia]=ny
+    
     return compositex,compositey,ncompositex,ncompositey
 
 
@@ -136,7 +123,7 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-xx,yy,nxx,nyy=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,kind=opts.kind,singlepointatorigin=False)
+compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,kind=opts.kind)
 timeperstep=1.0;
 
 if len(args) == 0:
@@ -188,30 +175,53 @@ with verify_and_connect(opts) as kat:
         for cycle in range(opts.num_cycles):
             targetel=target.azel()[1]*180.0/np.pi
             if (targetel>lasttargetel):#target is rising - scan top half of pattern first
-                txx=xx;tyy=yy;
+                cx=compositex
+                cy=compositey
                 if (targetel<opts.horizon):
                     user_logger.info("Exiting because target is %g degrees below horizon limit of %g."%((opts.horizon-targetel),opts.horizon))
                     break;# else it is ok that target just above horizon limit
             else:#target is setting - scan bottom half of pattern first
-                txx=nxx;tyy=nyy;
+                cx=ncompositex
+                cy=ncompositey
                 if (targetel<opts.horizon+(opts.scan_extent/2.0)):
                     user_logger.info("Exiting because target is %g degrees too low to accommodate a scan extent of %g degrees above the horizon limit of %g."%((opts.horizon+(opts.scan_extent/2.0)-targetel),opts.scan_extent,opts.horizon))
                     break;
             user_logger.info("Performing scan cycle %d."%(cycle+1))
             lasttargetel=targetel
-            # The entire sequence of commands on the same target forms a single compound scan
-            # Slew all antennas onto the target (don't spend any more time on it though)
             session.ants = all_ants
             user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
             session.track(target, duration=0, announce=False)
-            # Provide opportunity for noise diode to fire on all antennas
-            session.fire_noise_diode(announce=False, **nd_params)
+            session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
             session.ants = scan_ants
             user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
 #                session.set_target(target)
 #                session.ants.req.drive_strategy('shortest-slew')
 #                session.ants.req.mode('POINT')
-            for scan_index in range(len(xx)):
-                session.ants.req.offset_fixed(txx[scan_index],tyy[scan_index],opts.projection)
-                time.sleep(timeperstep)
+            for iarm in range(len(cx)):#spiral arm index
+                scan_index=0
+                wasstowed=False
+                while(scan_index!=len(cx[iarm])-1):
+                    if (wasstowed and not np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):#no longer stowed, must recover from a stow
+                        user_logger.info("Recovering from wind stow" )
+                        scan_index=0
+                        wasstowed=False
+                        session.ants = all_ants
+                        user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                        session.track(target, duration=0, announce=False)
+                        session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
+                        session.ants = scan_ants
+                        user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                        if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
+                            session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
+                            time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
+                    for scan_index in range(len(cx[iarm])):#spiral arm scan
+                        session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
+                        time.sleep(timeperstep)
+                        if (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
+                            if (wasstowed==False):
+                                user_logger.info("Some antennas are stowed ... waiting to resume scanning" )
+                            time.sleep(10)
+                            wasstowed=True
+                            break#repeats this spiral arm scan if stow occurred
+                
 
