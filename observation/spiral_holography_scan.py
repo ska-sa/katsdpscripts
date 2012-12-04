@@ -201,7 +201,7 @@ with verify_and_connect(opts) as kat:
                 scan_index=0
                 wasstowed=False
                 while(scan_index!=len(cx[iarm])-1):
-                    if (wasstowed and not np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):#no longer stowed, must recover from a stow
+                    if not kat.dry_run and (wasstowed and not np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):#no longer stowed, must recover from a stow
                         user_logger.info("Recovering from wind stow" )
                         scan_index=0
                         wasstowed=False
@@ -217,7 +217,7 @@ with verify_and_connect(opts) as kat:
                     for scan_index in range(len(cx[iarm])):#spiral arm scan
                         session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                         time.sleep(timeperstep)
-                        if (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
+                        if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
                             if (wasstowed==False):
                                 user_logger.info("Some antennas are stowed ... waiting to resume scanning" )
                             time.sleep(10)
