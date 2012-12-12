@@ -1,61 +1,18 @@
 #!/usr/bin/python
 # Plot horizon mask
 
-import sys
 import optparse
-
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
-
 import scape
 from katpoint import rad2deg
 
-def plot_horizon(xyz_data, xyz_titles, az_lims, el_lims, pow_lims):
-    """Calculate and plot horizon.
 
-    Parameters
-    ----------
-    xyz_data : tuple of (azimuth, elevation, power_db) data lists
-        Data to plot.
-    xyz_titles : tuple of titles for (azimuth, elevation and power_db) axes
-        Titles for axes.
-    az_lims : tuple of (min azimuth, max azimuth)
-        Azimuth limits for the plot.
-    el_lims : tuple of (min elevation, max elevation)
-        Elevation limits for the plot.
-    pow_lims : tuple of (min power, max power)
-        Power limits for the plot.
-    """
-    azimuth, elevation, power_db = xyz_data
-    az_title, el_title, pow_title = xyz_titles
-    az_min, az_max = az_lims
-    el_min, el_max = el_lims
-    pow_min, pow_max = pow_lims
-
-    az_pos = np.linspace(az_min, az_max, (az_max - az_min) / 0.1)
-    el_pos = np.linspace(el_min, el_max, (el_max - el_min) / 0.1)
-    pow_tick_min, pow_tick_max = np.floor(pow_min), np.ceil(pow_max)
-    pow_levels = np.round(np.linspace(pow_tick_min, pow_tick_max, np.round((pow_tick_max - pow_tick_min) / 0.1) + 1), 1)
-    pow_ticks = np.round(np.linspace(pow_tick_min, pow_tick_max, np.round((pow_tick_max - pow_tick_min) / 1.0) + 1), 0)
-    power_db_pos = mlab.griddata(azimuth, elevation, power_db, az_pos, el_pos)
-
-    cs = plt.contour(az_pos, el_pos, power_db_pos, pow_levels)
-    #cs = plt.contour(el_pos, az_pos, power_db_pos, pow_levels)
-    plt.contourf(az_pos,el_pos, power_db_pos, pow_levels, antialiased=True)
-    #plt.contourf(el_pos, az_pos, power_db_pos, pow_levels, antialiased=True)
-    plt.colorbar()
-
-    plt.xlim(az_min, az_max)
-    plt.ylim(el_min, el_max)
-
-    if az_title:
-        plt.xlabel(az_title)
-    if el_title:
-        plt.ylabel(el_title)
-    if pow_title:
-        plt.title(pow_title)
-
+def remove_rfi(d,width=3,sigma=5,axis=1):
+    for i in range(len(d.scans)):
+        d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
+    return d
 def main():
     # Parse command-line options and arguments
     parser = optparse.OptionParser(usage='%prog [options] <data file> [<data file> ...]',
@@ -68,83 +25,76 @@ def main():
                       help="Whether to split each horizon plot in half")
     parser.add_option('-z', '--azshift', dest='azshift', type='float', metavar='AZIMUTH_SHIFT', default=45.0,
                       help="Degrees to rotate azimuth window by.")
+    parser.add_option('--temp-limit', dest='temp_limit', type='float', default=40.0,
+                      help="The Tempreture Limit to make the cut-off for the mask. This is calculated "
+                           "as the T_sys at zenith plus the atmospheric noise contrabution at 10 degrees"
+                           "elevation as per R.T. 199  .")
+    parser.add_option("-n", "--nd-models",
+                      help="Name of optional directory containing noise diode model files")
+
 
     (opts, args) = parser.parse_args()
 
 # Check arguments
     if len(args) < 1:
-        print 'Please specify the data file to reduce'
-        sys.exit(1)
+        raise RuntimeError('Please specify the data file to reduce')
 
     # Load data set
-    combined = None
+    gridtemp = []
     for filename in args:
         print 'Loading baseline', opts.baseline, 'from data file', filename
-        d = scape.DataSet(filename, baseline=opts.baseline)
-
+        d = scape.DataSet(filename, baseline=opts.baseline,nd_models=opts.nd_models)
         if len(d.freqs) > 1:
-            # Only keep main scans (discard slew and cal scans) and restrict frequency band to Fringe Finder band
-            d = d.select(labelkeep='scan', freqkeep=range(90, 425))
+            # Only keep main scans (discard slew and cal scans) a
+            d = d.select(freqkeep=range(200, 800))
+            d = remove_rfi(d,width=7,sigma=5)
+            d = d.convert_power_to_temperature(min_duration=3, jump_significance=4.0)
+            d = d.select(flagkeep='~nd_on')
+            d = d.select(labelkeep='scan', copy=False)
             # Average all frequency channels into one band
             d.average()
 
-        if combined is None:
-            combined = d
-        else:
-            combined.scans.extend(d.scans)
-            combined.compscans.extend(d.compscans)
+        # Extract azimuth and elevation angle from (azel) target associated with scan, in degrees
+        azimuth, elevation, temp = [], [], []
+        for s in d.scans:
+            azimuth.extend(rad2deg(s.pointing['az']))
+            elevation.extend(rad2deg(s.pointing['el']))
+            temp.extend(tuple(np.sqrt(s.pol('HH')[:,0]*s.pol('VV')[:,0])))
+        assert len(azimuth) == len(elevation) == len(temp), "sizes don't match"
 
-    if not combined.scans:
-        print 'No scans found. Did you specify a data file?'
-        sys.exit(1)
+        data = (azimuth, elevation, temp)
+        np.array(azimuth)<-89
+        print "Gridding the data"
+        print "data shape = ",np.shape(data[0]+(np.array(azimuth)[np.array(azimuth)<-89]+360.0).tolist())
+        print np.shape(data[1]+np.array(elevation)[np.array(azimuth)<-89].tolist())
+        print np.shape(data[2]+np.array(temp)[np.array(azimuth)<-89].tolist())
+        gridtemp.append(mlab.griddata(data[0]+(np.array(azimuth)[np.array(azimuth)<-89]+360.0).tolist(), data[1]+np.array(elevation)[np.array(azimuth)<-89].tolist(), data[2]+np.array(temp)[np.array(azimuth)<-89].tolist(), np.arange(-90,271,1), np.arange(4,16,0.1)))
+        # The +361 is to ensure that the point are well spaced,
+        #this offset is not a problem as it is just for sorting out a boundery condition
+        print "Completed Gridding the data"
 
-    if opts.output is not None:
-        combined.save(opts.output)
-
-    # Extract azimuth and elevation angle from (azel) target associated with scan, in degrees
-    azimuth, elevation, power_hh_db, power_vv_db = [], [], [], []
-    for s in d.scans:
-        #azimuth.extend(scape.stats.angle_wrap(rad2deg(s.pointing['az']) + opts.azshift, period=360.0) - opts.azshift)
-        azimuth.extend(rad2deg(s.pointing['az']))
-        elevation.extend(rad2deg(s.pointing['el']))
-        power_hh_db.extend(10.0 * np.log10(s.pol('HH')[:,0]))
-        power_vv_db.extend(10.0 * np.log10(s.pol('VV')[:,0]))
-    assert len(azimuth) == len(elevation) == len(power_hh_db), "sizes don't match"
-    print "Contour plotting horizon from %d points ..." % len(azimuth)
-
-    # Calculate and plot tipping curves
-    #plt.figure(1)
-    #plt.clf()
-    #plt.subplots_adjust(hspace=0.5)
-
-    hh_data = (azimuth, elevation, power_hh_db)
-    hh_titles = ('Azimuth (deg)', 'Elevation (deg)', 'Power (dB) for %s HH' % (opts.baseline,))
-    vv_data = (azimuth, elevation, power_vv_db)
-    vv_titles = ('Azimuth (deg)', 'Elevation (deg)', 'Power (dB) for %s VV' % (opts.baseline,))
-    az_max, az_min = np.ceil(max(azimuth)), np.floor(min(azimuth))
-    el_max, el_min = np.ceil(max(elevation)), np.floor(min(elevation))
-    pow_max, pow_min = max([max(power_hh_db), max(power_vv_db)]), min([min(power_hh_db), min(power_vv_db)])
-    az_mid = (az_max + az_min) / 2.0
-    el_mid = (el_max + el_min)/2.0
-
-    if opts.split:
-        plt.subplot(4, 1, 1)
-        plot_horizon(hh_data, hh_titles, (az_min, az_mid), (el_min, el_max), (pow_min, pow_max))
-        plt.subplot(4, 1, 2)
-        plot_horizon(hh_data, hh_titles, (az_mid, az_max), (el_min, el_max), (pow_min, pow_max))
-        plt.subplot(4, 1, 3)
-        plot_horizon(vv_data, vv_titles, (az_min, az_mid), (el_min, el_max), (pow_min, pow_max))
-        plt.subplot(4, 1, 4)
-        plot_horizon(vv_data, vv_titles, (az_mid, az_max), (el_min, el_max), (pow_min, pow_max))
-    else:
-        plt.subplot(2, 1, 1)
-        plot_horizon(vv_data, vv_titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
-        plt.subplot(2, 1, 2 )
-        plot_horizon(hh_data, hh_titles, (az_min, az_max), (el_min, el_max), (pow_min, pow_max))
-
-    # Display plots - this should be called ONLY ONCE, at the VERY END of the script
-    # The script stops here until you close the plots...
-    plt.show()
+    print "Making the mask"
+    mask = gridtemp[0] >= opts.temp_limit
+    for grid in gridtemp:
+        mask = mask * (grid >= opts.temp_limit)
+    maskr = np.zeros((len(np.arange(-90,271,1)),2))
+    for i,az in enumerate(np.arange(-90,271,1)):
+        print 'at az %f'%(az,)
+        maskr[i] = az,np.max(elevation)
+        for j,el in enumerate(np.arange(4,16,0.1)):
+            if ~mask.data[j,i] and ~mask.mask[j,i] :
+                maskr[i] = az,el
+                break
+    np.savetxt('horizon_mask_%s.dat'%(opts.baseline),maskr[1:,:])
+    #plt.figure()
+    #plt.subplot(1, 1, 1)
+    #plt.plot(maskr[1:,0],maskr[1:,1])
+    #az_title,el_title,big_title = ('Azimuth (deg)', 'Elevation (deg)', 'Mask for %s' % (opts.baseline,))
+    #plt.xlabel(az_title)
+    #plt.ylabel(el_title)
+    #plt.ylim(0,15)
+    #plt.title(big_title)
+    #plt.show()
 
 if __name__ == "__main__":
     main()
