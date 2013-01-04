@@ -1,5 +1,14 @@
 #!/usr/bin/python
 # Perform spiral holography scan on specified target(s). Mostly used for beam pattern measurement.
+#
+# to run on simulator:
+# ssh kat@monctl.comm
+# kat-start.sh (may need to call kat-stop.sh, or better kat-kill.py, and possibly kill all screen sessions on kat@monctl.comm, and possibly kat@proxy.monctl.comm)
+# ipython
+# import katuilib
+# configure()
+# %run ~/scripts/observation/spiral_holography_scan.py -f 1722 -a ant1,ant2,ant3,ant4,ant5,ant6,ant7 -b ant2,ant3 --num-cycles 1 --cycle-duration 120 -l 12 'AFRISTAR' -o mattieu --sb-id-code='20121030-0003'
+# look on http://kat-flap.control.kat.ac.za/kat/KatGUI.swf and connect to 'comm'
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
@@ -201,27 +210,33 @@ with verify_and_connect(opts) as kat:
                 scan_index=0
                 wasstowed=False
                 while(scan_index!=len(cx[iarm])-1):
-                    if not kat.dry_run and (wasstowed and not np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):#no longer stowed, must recover from a stow
-                        user_logger.info("Recovering from wind stow" )
-                        scan_index=0
-                        wasstowed=False
+                    while (not kat.dry_run and wasstowed):
+                        user_logger.info("Attempting to recover from wind stow" )
                         session.ants = all_ants
                         user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                         session.track(target, duration=0, announce=False)
-                        session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
-                        session.ants = scan_ants
-                        user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                        if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
-                            session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
-                            time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
+                        if (not any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
+                            scan_index=0
+                            wasstowed=False
+                            session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
+                            session.ants = scan_ants
+                            user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                            if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
+                                session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
+                                time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
+                            user_logger.info("Recovered from wind stow, repeating cycle %d scan %d"%(cycle+1,iarm+1))
+                        else:
+                            time.sleep(60)
                     for scan_index in range(len(cx[iarm])):#spiral arm scan
                         session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                         time.sleep(timeperstep)
                         if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
                             if (wasstowed==False):
-                                user_logger.info("Some antennas are stowed ... waiting to resume scanning" )
-                            time.sleep(10)
+                                user_logger.info("Cycle %d scan %d interrupted. Some antennas are stowed ... waiting to resume scanning"%(cycle+1,iarm+1) )
                             wasstowed=True
+                            time.sleep(60)
                             break#repeats this spiral arm scan if stow occurred
+        #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
+        session.ants = all_ants
                 
 
