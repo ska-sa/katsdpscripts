@@ -1170,7 +1170,7 @@ class TimeSession(CaptureSessionBase):
             if isinstance(handler, logging.StreamHandler):
                 form = handler.formatter
                 form.old_datefmt = form.datefmt
-                form.datefmt = 'DRY-RUN: ' + (form.datefmt if form.datefmt else '%Y-%m-%d %H:%M:%S %Z')
+                form.datefmt = 'DRY-RUN: ' + (form.datefmt if form.datefmt else '%Y-%m-%d %H:%M:%S')
             else:
                 handler.old_level = handler.level
                 handler.setLevel(100)
