@@ -130,25 +130,34 @@ for ant_x in ant:
 print "Getting wind and temperature sensors"
 fig=pl.figure(figsize=(10,10))
 ax1 = fig.add_subplot(211)
-ax1.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.temperature'],'b-')
+ax1.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.temperature'],'g-')
+ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax1.set_xlabel("Seconds from "+starttime, fontweight="bold")
-ax1.set_ylabel('Temperature (Deg C)', color='b',fontweight="bold")
+ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
 for tl in ax1.get_yticklabels():
-	tl.set_color('b')
-
-ax2=ax1.twinx()
-ax2.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.wind.speed'],'r-')
-ax2.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='r')
-for tl in ax2.get_yticklabels():
-	tl.set_color('r')
-
-ax3=fig.add_subplot(212)
-ax3.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.relative-humidity'],'g-')
-ax3.set_xlabel("Seconds from "+starttime,fontweight="bold")
-ax3.set_ylabel('Relative Humidity (%)', fontweight="bold",color='g')
-for tl in ax3.get_yticklabels():
 	tl.set_color('g')
 
+ax2=ax1.twinx()
+ax2.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.relative-humidity'],'c-')
+ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+ax2.set_ylabel('Relative Humidity (%)', fontweight="bold",color='c')
+for tl in ax2.get_yticklabels():
+	tl.set_color('c')
+
+ax3=fig.add_subplot(212)
+ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+ax3.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.wind.speed'],'b-')
+ax3.set_xlabel("Seconds from "+starttime,fontweight="bold")
+ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+for tl in ax3.get_yticklabels():
+	tl.set_color('b')
+
+ax4=ax3.twinx()
+ax4.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.pressure'],'r-')
+ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
+for tl in ax4.get_yticklabels():
+	tl.set_color('r')
 savefig(pp,format='pdf')
 
 pp.close()
