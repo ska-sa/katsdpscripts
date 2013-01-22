@@ -2,6 +2,7 @@ import katfile
 import os
 import glob
 import katoodt
+import katarchive
 import time
 import matplotlib.pyplot as pl
 from optparse import OptionParser
@@ -88,7 +89,8 @@ pp = PdfPages(datafile[:-3]+'.pdf')
 
 if not searched:							   #If not found locally download it
 	print 'File not found locally, Accesing the file directly from the archive'
-	d=katoodt.get_archived_product(product_name=datafile)
+	d=katarchive.get_archived_products(datafile)
+	#d=katoodt.get_archived_product(product_name=datafile)
 else: 
 	print "File found locally "
 	d=searched
