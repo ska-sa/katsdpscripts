@@ -39,6 +39,8 @@ def set_k7_gains(kat,value):
     of the gain
     Usage:
     set_k7_gains(kat,55)"""
+    kat.dbe7.req.dbe_k7_gain('0x',int(value))
+    kat.dbe7.req.dbe_k7_gain('0y',int(value))
     for pol in ['h','v']:
         for ant in range(1,8):
             kat.dbe7.req.dbe_k7_gain('ant%i%s'%(ant,pol), int(value))
