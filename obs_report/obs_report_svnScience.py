@@ -4,6 +4,8 @@ import glob
 import katoodt
 import katarchive
 import time
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as pl
 from optparse import OptionParser
 from pylab import *
@@ -163,7 +165,7 @@ for tl in ax4.get_yticklabels():
 savefig(pp,format='pdf')
 
 pp.close()
-
+print 'The results are save on ~/comm/scripts/obs_report/obs_report_svnSciences/'+datafile[:-3]+'.pdf' 
 
 
 #show()
