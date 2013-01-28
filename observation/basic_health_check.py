@@ -629,8 +629,6 @@ if __name__ == '__main__':
             ended = False
             while (not ended):
                 refresh_cycle_start =  time.time()
-                user_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
-                activity_logger.info("basic_health_check.py: refresh @ %s " % time.ctime(refresh_cycle_start))
                 refresh_forced = False # keyboard input forced refresh
                 print '\nCurrent local time: %s' % (time.ctime(refresh_cycle_start))
                 alarms = {} # reset any alarms when full refresh
