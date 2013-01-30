@@ -1,3 +1,4 @@
+#plot data from the h5 file
 import katfile
 import os
 import glob
@@ -13,7 +14,10 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 # Set up standard script options
-parser = OptionParser(usage="usage: %prog [options]")
+parser = OptionParser(usage="usage: %prog [options]", 
+					description="Plot the Time series and spectrum for all the antennas that were involved on during the observation\.n"+
+					"The script plot the weather sensors as well for the duration of the observation.\n"+
+					"The data file is specified usinp option -d (This is a non-optional option) ")
 parser.add_option('-d', '--filename', help="datafile to be plotted "+ "(e.g. 1340018260.h5)")
 opts, args = parser.parse_args() 
 
@@ -96,6 +100,7 @@ if not searched:							   #If not found locally download it
 else: 
 	print "File found locally "
 	d=searched
+
 print "Opening the file using katfile, this might take a while"
 f=katfile.open(d)
 figure(figsize = (13,7))
@@ -144,6 +149,7 @@ for tl in ax1.get_yticklabels():
 ax2=ax1.twinx()
 ax2.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.relative-humidity'],'c-')
 ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+ylim(10,100)
 ax2.set_ylabel('Relative Humidity (%)', fontweight="bold",color='c')
 for tl in ax2.get_yticklabels():
 	tl.set_color('c')
@@ -151,6 +157,7 @@ for tl in ax2.get_yticklabels():
 ax3=fig.add_subplot(212)
 ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax3.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.wind.speed'],'b-')
+ylim(ymin=0)
 ax3.set_xlabel("Seconds from "+starttime,fontweight="bold")
 ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
 for tl in ax3.get_yticklabels():
