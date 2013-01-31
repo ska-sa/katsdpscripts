@@ -12,6 +12,9 @@ from optparse import OptionParser
 from pylab import *
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
+import h5py
+import textwrap
+import collections
 
 # Set up standard script options
 parser = OptionParser(usage="usage: %prog [options]", 
@@ -101,6 +104,18 @@ else:
 	print "File found locally "
 	d=searched
 
+#get instruction set using h5py
+a=h5py.File(d[0],'r')
+ints=a['MetaData']['Configuration']['Observation'].attrs.items()
+scp=ints[1]+ints[2]
+scp=" ".join(scp)                 #convert tuple to string
+scp=scp.replace("script_arguments"," ",1) #cut out some text form the string
+scp=scp.replace("script_name","Instruction_set : ",1)
+scp='\n'.join(textwrap.wrap(scp, 126))         #add new line after every 126 charecters
+scp='\n'+scp+'\n'                                               #add space before and after instruction set
+a.close()                                                            #release the file for use by katfile
+
+
 print "Opening the file using katfile, this might take a while"
 f=katfile.open(d)
 figure(figsize = (13,7))
@@ -110,11 +125,21 @@ yticks([])
 title(datafile+" Observation Report",fontsize=14, fontweight="bold")
 mystring=f.__str__()
 mystring_seperated=mystring.split("\n")
-mystr=""
-for i in range(23):
-	mystr=mystr+mystring_seperated[i]+"\n"
 
-text(0,0,mystr,fontsize=12)
+mystr=[]
+for i in range(23):
+	mystr.append(mystring_seperated[i])
+description=mystr[4]
+mystr.append(description)
+mystr[4]=scp
+filestring=collections.deque(mystr)
+filestring.rotate(1)
+my=""
+for a in range(24):
+	my=my+filestring[a]+"\n"
+
+
+text(0,0,my,fontsize=12)
 savefig(pp,format='pdf')
 print f
 
