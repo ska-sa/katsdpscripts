@@ -63,6 +63,7 @@ def spec(pol,datafile,starttime):
 	plot(f.channel_freqs,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 
+
 	count=1
 	subplot(2,1,(count+1))
 	xlabel("Frequency", fontweight="bold")
@@ -117,7 +118,7 @@ a.close()                                                            #release th
 
 
 print "Opening the file using katfile, this might take a while"
-f=katfile.open(d)
+f=katfile.open(d, quicklook=True)
 figure(figsize = (13,7))
 axes(frame_on=False)
 xticks([])
