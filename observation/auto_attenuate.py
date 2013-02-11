@@ -196,8 +196,8 @@ with verify_and_connect(opts) as kat:
             session.set_centre_freq(opts.centre_freq)
             time.sleep(1.0)
             user_logger.info('Updated centre frequency: %s MHz' % (session.get_centre_freq(),))
-            if not session.get_centre_freq() == opts.centre_freq:
-                user_logger.warning('Failed to updated centre frequency to %s MHz, it is currently set to %s MHz' % (opts.centre_freq, session.get_centre_freq(),))
+            if np.abs(session.get_centre_freq() - opts.centre_freq) > 2e-5:  # we have 10 HZ resolution
+                user_logger.warning('Failed to updated centre frequency to %s MHz, it is currently set to %s MHz waning is due to the difference between actual & spcified frequency is larger that 10 Hz' % (opts.centre_freq, session.get_centre_freq(),))
 
         session.standard_setup(**vars(opts))
         session.capture_start()
