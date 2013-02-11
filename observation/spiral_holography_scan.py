@@ -21,7 +21,6 @@
 #configure_obs()
 #obs.sb.new_clone('20121203-0013')
 #obs.sb.instruction_set="run-obs-script ~/scripts/observation/spiral_holography_scan.py -f 1722 -b ant5 --scan-extent 6 --cycle-duration 6000 --num-cycles 1 --kind 'uniform' '3C 286' --stow-when-done"
-#obs.sb.save()
 #look on http://kat-flap.control.kat.ac.za/kat/KatGUI.swf and connect to 'karoo from site'
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
