@@ -215,7 +215,7 @@ with verify_and_connect(opts) as kat:
                     raise RuntimeError("Unsupported dbe mode '%s' " % (dbe_mode))
             elif opts.dbe == 'dbe7':
                 dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-                dbe7_mode_dict =  {'c16n400M1k':160,'c16n400M8k':160,'wbc':160, 'wbc8k':160,'c16n13M4k':21,'c16n7M4k':31,'c16n2M4k':59,'c16n25M4k':50}
+                dbe7_mode_dict =  {'c16n400M1k':160,'c16n400M8k':160,'wbc':160, 'wbc8k':160,'c16n13M4k':21,'c16n7M4k':31,'c16n2M4k':59,'c16n25M4k':50,'c16n13M4k':50}
                 if dbe_mode in dbe7_mode_dict.keys() :
                     user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
                     gain =dbe7_mode_dict[dbe_mode]
