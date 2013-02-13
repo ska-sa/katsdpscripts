@@ -198,7 +198,55 @@ for tl in ax4.get_yticklabels():
 	tl.set_color('r')
 savefig(pp,format='pdf')
 
+
+
+f.select()
+cor = f.corr_products
+ants = f.ants
+num_ants = len(ants)
+bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
+bp = np.arange(len(bp))[bp]
+#code to plot the cross phase ... fringes
+fig = plt.figure(figsize=(14,10))
+try:
+    j=0
+#plt.figure()
+    n_channels = len(f.channels)
+    for pol in ('h','v'):
+        f.select(targets=bp,corrprods = 'cross',pol=pol)
+        crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
+        #extract the fringes
+	fringes = np.angle(f.vis[:,:,:])
+        #For plotting the fringes
+        fig.subplots_adjust(wspace=0., hspace=0.)
+        #debug_here()
+        for n, (indexA, indexB) in enumerate(crosscorr):
+            subplot_index = (num_ants * indexA + indexB + 1) if pol == 'h' else (indexA + num_ants * indexB + 1)
+            ax = fig.add_subplot(num_ants, num_ants, subplot_index)
+            ax.imshow(fringes[:,:,n],aspect=fringes.shape[1]/fringes.shape[0])
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if pol == 'h':
+                if indexA == 0:
+                    ax.xaxis.set_label_position('top')
+                    ax.set_xlabel(f.inputs[indexB][3:],size='xx-large')
+                if indexB == len(f.ants) - 1:
+                    ax.yaxis.set_label_position('right')
+                    ax.set_ylabel(f.inputs[indexA][3:], rotation='horizontal',size = 'xx-large')
+            else:
+                if indexA == 0:
+                    ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
+                if indexB == len(f.ants) - 1:
+                    ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
+    #plt.savefig(pp,format='pdf')
+except KeyError , error:
+    print 'Failed to read scans from File: ',fn,' with Key Error:',error
+except ValueError , error:
+    print 'Failed to read scans from File: ',fn,' with Value Error:',error
+plt.savefig(pp,format='pdf')
+plt.close('all')
 pp.close()
+
 print 'The results are save on ~/comm/scripts/obs_report/obs_report_svnSciences/'+datafile[:-3]+'.pdf' 
 
 
