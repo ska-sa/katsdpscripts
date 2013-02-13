@@ -24,7 +24,7 @@ parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Target track',dump_rate=0.2)
+parser.set_defaults(description='Target track',dump_rate=0.1)
 # Parse the command line
 opts, args = parser.parse_args()
 
