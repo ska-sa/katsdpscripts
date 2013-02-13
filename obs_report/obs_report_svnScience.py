@@ -49,6 +49,7 @@ def spec(pol,datafile,starttime):
 	count=0	
 	figure(figsize=(10,10), facecolor='w', edgecolor='k')
 	subplot(2,1,(count+1))
+	ylim(7.5,15.5)
 	xlabel("Frequency", fontweight="bold")
 	ylabel("Amplitude", fontweight="bold")
 	title(ant_x.name+" Spetral Plots",fontsize=12, fontweight="bold")
@@ -67,6 +68,7 @@ def spec(pol,datafile,starttime):
 
 	count=1
 	subplot(2,1,(count+1))
+	ylim(7.5,15.5)
 	xlabel("Frequency", fontweight="bold")
 	ylabel("Amplitude", fontweight="bold")
 	print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
@@ -173,11 +175,25 @@ ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
 for tl in ax1.get_yticklabels():
 	tl.set_color('g')
 
+#Relative to Absolute
+rh=f.sensor['Enviro/asc.air.relative-humidity']
+t=f.sensor['Enviro/asc.air.temperature']
+Pws=[]
+Pw=[]
+ah=[]
+for m in range(len(rh)):
+	Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
+for m in range(len(rh)):
+	Pw.append(Pws[m]*(rh[m]/100))
+for m in range(len(rh)):
+	ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
+
+
 ax2=ax1.twinx()
-ax2.plot(f.lst,f.sensor['Enviro/asc.air.relative-humidity'],'c-')
+ax2.plot(f.lst,ah,'c-')
 ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ylim(10,100)
-ax2.set_ylabel('Relative Humidity (%)', fontweight="bold",color='c')
+#ylim(10,100)
+ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
 for tl in ax2.get_yticklabels():
 	tl.set_color('c')
 
@@ -199,7 +215,7 @@ for tl in ax4.get_yticklabels():
 savefig(pp,format='pdf')
 
 
-
+print "Plotting fringes"
 f.select()
 cor = f.corr_products
 ants = f.ants
