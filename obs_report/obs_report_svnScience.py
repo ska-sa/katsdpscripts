@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #plot data from the h5 file
 import katfile
 import os
@@ -28,16 +29,16 @@ count=0
 
 def times(ant,pol,count):
 	figure(figsize=(13,10), facecolor='w', edgecolor='k')
-	xlabel("Seconds from "+starttime,fontweight="bold")
+	xlabel("LST on "+starttime,fontweight="bold")
 	ylabel("Amplitude",fontweight="bold")
 	for ant_x in ant:
 		print ("plotting "+ant_x.name+"_" +pol+pol+ " time series")
        		f.select(ants=ant_x,corrprods='auto',pol=pol)
     		f.select(channels=range(200,800))
 		if count==0:
-			plot(f.timestamps - f.timestamps[0],10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
+			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
 		elif count==1:
-			plot(f.timestamps - f.timestamps[0],10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
+			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
 	
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	savefig(pp,format='pdf')
@@ -149,7 +150,7 @@ epoctime=datafile[:-3]
 epoctime=float(epoctime)
 loctime=time.localtime(epoctime)
 months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sept","Oct","Nov","Dec"]
-starttime=str(loctime.tm_hour) +":"+ str(loctime.tm_min)+":"+ str(loctime.tm_sec)+" "+ str(loctime.tm_mday) +" "+ months[loctime.tm_mon-1]+" "+ str(loctime.tm_year)
+starttime=str(loctime.tm_mday) +" "+ months[loctime.tm_mon-1]+" "+ str(loctime.tm_year)
 
 ant=f.ants
 pol=['h','v']
@@ -165,15 +166,15 @@ for ant_x in ant:
 print "Getting wind and temperature sensors"
 fig=pl.figure(figsize=(10,10))
 ax1 = fig.add_subplot(211)
-ax1.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.temperature'],'g-')
+ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
 ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax1.set_xlabel("Seconds from "+starttime, fontweight="bold")
+ax1.set_xlabel("LST on "+starttime, fontweight="bold")
 ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
 for tl in ax1.get_yticklabels():
 	tl.set_color('g')
 
 ax2=ax1.twinx()
-ax2.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.relative-humidity'],'c-')
+ax2.plot(f.lst,f.sensor['Enviro/asc.air.relative-humidity'],'c-')
 ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ylim(10,100)
 ax2.set_ylabel('Relative Humidity (%)', fontweight="bold",color='c')
@@ -182,15 +183,15 @@ for tl in ax2.get_yticklabels():
 
 ax3=fig.add_subplot(212)
 ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax3.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.wind.speed'],'b-')
+ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
 ylim(ymin=0)
-ax3.set_xlabel("Seconds from "+starttime,fontweight="bold")
+ax3.set_xlabel("LST on "+starttime,fontweight="bold")
 ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
 for tl in ax3.get_yticklabels():
 	tl.set_color('b')
 
 ax4=ax3.twinx()
-ax4.plot(f.timestamps - f.timestamps[0],f.sensor['Enviro/asc.air.pressure'],'r-')
+ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
 ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
 for tl in ax4.get_yticklabels():
