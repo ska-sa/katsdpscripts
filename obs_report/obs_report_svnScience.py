@@ -55,12 +55,13 @@ def times(ant,pol,count):
 #Spectrum function
 def spec(pol,datafile,starttime):
 	count=0	
-	figure(figsize=(10,10), facecolor='w', edgecolor='k')
-	subplot(2,1,(count+1))
-	ylim(7.5,15.5)
-	xlabel("Frequency", fontweight="bold")
-	ylabel("Amplitude", fontweight="bold")
-	title(ant_x.name+" Spetral Plots",fontsize=12, fontweight="bold")
+	fig=figure(figsize=(10,10), facecolor='w', edgecolor='k')
+	ab1=fig.add_subplot(2,1,(count+1))
+	ab1.set_ylim(7.5,15.5)
+	ab1.set_xlim(195,805)
+	ab1.set_xlabel("Channels", fontweight="bold")
+	ab1.set_ylabel("Amplitude", fontweight="bold")
+	
 
         print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
        	f.select(ants=ant_x,corrprods='auto',pol=pol[count])
@@ -68,27 +69,55 @@ def spec(pol,datafile,starttime):
 	f_min=nvis.min(axis=0)
 	f_mean=nvis.mean(axis=0)
 	f_max=nvis.max(axis=0)
-	plot(f.channel_freqs,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
-	plot(f.channel_freqs,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-	plot(f.channel_freqs,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
-	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+	ab1.plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
+	ab1.plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
+	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+	ab1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+
+	ab2=ab1.twinx()
+	flag=f.flags()[:]
+	total_sum=0
+	perc=[]
+	for i in range(len(f.channels)):
+		f_chan=flag[:,i,0].squeeze()
+		suming=f_chan.sum()
+		perc.append(100*(suming/float(len(f_chan))))
+	ab2.plot(f.channels,perc,color='black')
+	ab2.set_ylabel("% flagged", fontweight="bold")
+	ab2.set_ylim(0,100)
+	ab2.set_xlim(195,805)
 
 
 	count=1
-	subplot(2,1,(count+1))
-	ylim(7.5,15.5)
-	xlabel("Frequency", fontweight="bold")
-	ylabel("Amplitude", fontweight="bold")
+	ab3=fig.add_subplot(2,1,(count+1))
+	ab3.set_ylim(7.5,15.5)
+	ab3.set_xlim(195,805)
+	ab3.set_xlabel("Channels", fontweight="bold")
+	ab3.set_ylabel("Amplitude", fontweight="bold")
 	print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
        	f.select(ants=ant_x,corrprods='auto',pol=pol[count])
         nvis=np.abs(f.vis[:])
 	f_min=nvis.min(axis=0)
 	f_mean=nvis.mean(axis=0)
 	f_max=nvis.max(axis=0)
-	plot(f.channel_freqs,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
-	plot(f.channel_freqs,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-	plot(f.channel_freqs,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+	plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
+	plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
+	plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+
+	ab4=ab3.twinx()
+	flag=f.flags()[:]
+	total_sum=0
+	perc=[]
+	for i in range(len(f.channels)):
+		f_chan=flag[:,i,0].squeeze()
+		suming=f_chan.sum()
+		perc.append(100*(suming/float(len(f_chan))))
+	ab4.plot(f.channels,perc,color='black')
+	ab4.set_ylabel("% flagged", fontweight="bold")
+	ab4.set_ylim(0,100)
+	ab3.set_xlim(195,805)
+
 
 	savefig(pp,format='pdf')
 	#savefig("/data/siphelele/time_series_plots/time_series/"+datafile[:-3]+"_"+ant_x.name+"_Spectro.png")
@@ -219,7 +248,7 @@ ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
 for i in range(len(locs)):
 	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 xticks(locs,labels)
-ylim(ymin=0)
+ylim(ymin=-0.5)
 ax3.set_xlabel("LST on "+starttime,fontweight="bold")
 ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
 for tl in ax3.get_yticklabels():
@@ -259,7 +288,7 @@ if a==1:
 #plt.figure()
    		n_channels = len(f.channels)
     		for pol in ('h','v'):
-        		f.select(targets=bp,corrprods = 'cross',pol=pol)
+        		f.select(targets=bp,corrprods = 'cross',pol=pol,scans="track")
         		crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
         		#extract the fringes
 			fringes = np.angle(f.vis[:,:,:])
