@@ -34,7 +34,8 @@ def times(ant,pol,count):
 	for ant_x in ant:
 		print ("plotting "+ant_x.name+"_" +pol+pol+ " time series")
        		f.select(ants=ant_x,corrprods='auto',pol=pol)
-    		f.select(channels=range(200,800))
+    		if len(f.channels)==1024:  		
+			f.select(channels=range(200,800))
 		if count==0:
 			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
 			locs,labels=xticks()
@@ -57,8 +58,9 @@ def spec(pol,datafile,starttime):
 	count=0	
 	fig=figure(figsize=(10,10), facecolor='w', edgecolor='k')
 	ab1=fig.add_subplot(2,1,(count+1))
-	ab1.set_ylim(7.5,15.5)
-	ab1.set_xlim(195,805)
+	if len(f.channels)<1025:	
+		ab1.set_ylim(7.5,15.5)
+		ab1.set_xlim(195,805)
 	ab1.set_xlabel("Channels", fontweight="bold")
 	ab1.set_ylabel("Amplitude", fontweight="bold")
 	
@@ -90,8 +92,9 @@ def spec(pol,datafile,starttime):
 
 	count=1
 	ab3=fig.add_subplot(2,1,(count+1))
-	ab3.set_ylim(7.5,15.5)
-	ab3.set_xlim(195,805)
+	if len(f.channels)<1025:
+		ab3.set_ylim(7.5,15.5)
+		ab3.set_xlim(195,805)
 	ab3.set_xlabel("Channels", fontweight="bold")
 	ab3.set_ylabel("Amplitude", fontweight="bold")
 	print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
