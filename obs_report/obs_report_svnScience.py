@@ -162,7 +162,7 @@ a.close()                                                            #release th
 
 print "Opening the file using katfile, this might take a while"
 f=katfile.open(d, quicklook=True)
-figure(figsize = (13,7))
+figure(figsize = (13,6))
 axes(frame_on=False)
 xticks([])
 yticks([])
@@ -170,29 +170,25 @@ title(datafile+" Observation Report",fontsize=14, fontweight="bold")
 mystring=f.__str__()
 mystring_seperated=mystring.split("\n")
 
-mystr=[]
-for i in range(23):
-	mystr.append(mystring_seperated[i])
-description=mystr[4]
-mystr.append(description)
-mystr[4]=scp
-filestring=collections.deque(mystr)
-filestring.rotate(1)
-my=""
-for a in range(24):
-	my=my+filestring[a]+"\n"
 
-
-text(0,0,my,fontsize=12)
-savefig(pp,format='pdf')
-print f
-
-#Get file start time from file name
 epoctime=datafile[:-3]
 epoctime=float(epoctime)
 loctime=time.localtime(epoctime)
 months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sept","Oct","Nov","Dec"]
 starttime=str(loctime.tm_mday) +" "+ months[loctime.tm_mon-1]+" "+ str(loctime.tm_year)
+
+lststart=("%2.0f:%2.0f"%(np.modf(f.lst[0])[1], np.modf(f.lst[0])[0]*60))
+lststop=("%2.0f:%2.0f"%(np.modf(f.lst[len(f.lst)-1])[1], np.modf(f.lst[len(f.lst)-1])[0]*60))
+
+frontpage="Description: "+f.description+"\n"+"Name: "+f.name+"\n"+"Experiment ID:  "+f.experiment_id+"\n"+scp+"\n"+"Observer: "+f.observer+" \n"+mystring_seperated[5]+" \n"+"Observed on: "+starttime + " from "+lststart+" LST to "+lststop+" LST"+"\n\n"
+frontpage=frontpage+"Dump rate / period: "+str((round(1/f.dump_period,6))) +" Hz"+" / "+str(round(f.dump_period,4))+" s"+ "\n"+mystring_seperated[7]+"\n"+mystring_seperated[8]+"\n"+mystring_seperated[9]+"\n"+"Number of Dumps: "+str(f.shape[0])+"\n\n"
+frontpage=frontpage+mystring_seperated[11]+"\n"+mystring_seperated[12]+"\n"+mystring_seperated[21]+"\n"
+
+text(0,0,frontpage,fontsize=12)
+savefig(pp,format='pdf')
+print f
+
+#Get file start time from file name
 
 ant=f.ants
 pol=['h','v']
