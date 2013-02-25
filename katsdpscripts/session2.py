@@ -638,7 +638,7 @@ class CaptureSession(CaptureSessionBase):
 
         # Wait for the dump period to become known, as it is needed to set a good timeout for the first dump
         if dump_period == 0.0:
-            if not dbe.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1., poll_period=0.1):
+            if not dbe.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1.5 * session._requested_dump_period, poll_period=0.2 * session._requested_dump_period):
                 dump_period = session.dump_period = session._requested_dump_period
                 user_logger.warning('SPEAD metadata header is overdue at k7_capture - noise diode will be out of sync')
             else:
