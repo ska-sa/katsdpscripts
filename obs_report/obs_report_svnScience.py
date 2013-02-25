@@ -34,8 +34,9 @@ def times(ant,pol,count):
 	for ant_x in ant:
 		print ("plotting "+ant_x.name+"_" +pol+pol+ " time series")
        		f.select(ants=ant_x,corrprods='auto',pol=pol)
-    		if len(f.channels)==1024:  		
+    		if len(f.channels)<1025:  		
 			f.select(channels=range(200,800))
+			print "selecting channel 200-800" 
 		if count==0:
 			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
 			locs,labels=xticks()
@@ -58,8 +59,8 @@ def spec(pol,datafile,starttime):
 	count=0	
 	fig=figure(figsize=(10,10), facecolor='w', edgecolor='k')
 	ab1=fig.add_subplot(2,1,(count+1))
+	ab1.set_ylim(2,16)	
 	if len(f.channels)<1025:	
-		ab1.set_ylim(7.5,15.5)
 		ab1.set_xlim(195,805)
 	ab1.set_xlabel("Channels", fontweight="bold")
 	ab1.set_ylabel("Amplitude", fontweight="bold")
@@ -75,7 +76,7 @@ def spec(pol,datafile,starttime):
 	ab1.plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
 	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
 	ab1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
-
+	
 	ab2=ab1.twinx()
 	flag=f.flags()[:]
 	total_sum=0
@@ -86,14 +87,14 @@ def spec(pol,datafile,starttime):
 		perc.append(100*(suming/float(len(f_chan))))
 	ab2.plot(f.channels,perc,color='black')
 	ab2.set_ylabel("% flagged", fontweight="bold")
-	ab2.set_ylim(0,100)
-	ab2.set_xlim(195,805)
-
+	ab2.set_ylim(0,100)	
+	if len(f.channels)<1025:
+		ab2.set_xlim(195,805)
 
 	count=1
 	ab3=fig.add_subplot(2,1,(count+1))
+	ab3.set_ylim(2,16)
 	if len(f.channels)<1025:
-		ab3.set_ylim(7.5,15.5)
 		ab3.set_xlim(195,805)
 	ab3.set_xlabel("Channels", fontweight="bold")
 	ab3.set_ylabel("Amplitude", fontweight="bold")
@@ -118,8 +119,9 @@ def spec(pol,datafile,starttime):
 		perc.append(100*(suming/float(len(f_chan))))
 	ab4.plot(f.channels,perc,color='black')
 	ab4.set_ylabel("% flagged", fontweight="bold")
-	ab4.set_ylim(0,100)
-	ab3.set_xlim(195,805)
+	ab4.set_ylim(0,100)	
+	if len(f.channels)<1025:
+		ab4.set_xlim(195,805)
 
 
 	savefig(pp,format='pdf')
@@ -135,18 +137,18 @@ if opts.filename is None:
 #get data file using katarchive and open it using katfile
 
 datafile =opts.filename
-pathtofile = 'locate ' +datafile
-searched=glob.glob(datafile)                               #search the file locally 
+#pathtofile = 'locate ' +datafile
+#searched=glob.glob(datafile)                               #search the file locally 
 
 pp = PdfPages(datafile[:-3]+'.pdf')
 
-if not searched:							   #If not found locally download it
-	print 'File not found locally, Accesing the file directly from the archive'
-	d=katarchive.get_archived_products(datafile)
+#if not searched:							   #If not found locally download it
+print 'Searching the data file from the mounted archive'
+d=katarchive.get_archived_products(datafile)
 	#d=katoodt.get_archived_product(product_name=datafile)
-else: 
-	print "File found locally "
-	d=searched
+#else: 
+#	print "File found locally "
+#	d=searched
 
 #get instruction set using h5py
 a=h5py.File(d[0],'r')
@@ -232,9 +234,6 @@ for m in range(len(rh)):
 ax2=ax1.twinx()
 ax2.plot(f.lst,ah,'c-')
 locs,labels=xticks()
-for i in range(len(locs)):
-	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-xticks(locs,labels)
 ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 #ylim(10,100)
 ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
@@ -255,9 +254,6 @@ for tl in ax3.get_yticklabels():
 
 ax4=ax3.twinx()
 ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
-for i in range(len(locs)):
-	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-xticks(locs,labels)
 ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
 for tl in ax4.get_yticklabels():
@@ -324,7 +320,7 @@ plt.close('all')
 pp.close()
 
 print 'The results are save on ~/comm/scripts/obs_report/obs_report_svnSciences/'+datafile[:-3]+'.pdf'
-print "Pool the pdf file and  upload it to the elog with necessary comments"
+print "Pull the pdf file and  upload it to the elog with necessary comments"
 
 
 #show()
