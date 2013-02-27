@@ -9,6 +9,7 @@ import time
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as pl
+from matplotlib.ticker import AutoMinorLocator
 from optparse import OptionParser
 from pylab import *
 import numpy as np
@@ -26,7 +27,7 @@ parser.add_option('-d', '--filename', help="datafile to be plotted "+ "(e.g. 134
 opts, args = parser.parse_args() 
 
 count=0
-
+#Time Series
 def times(ant,pol,count):
 	figure(figsize=(13,10), facecolor='w', edgecolor='k')
 	xlabel("LST on "+starttime,fontweight="bold")
@@ -36,7 +37,6 @@ def times(ant,pol,count):
        		f.select(ants=ant_x,corrprods='auto',pol=pol)
     		if len(f.channels)<1025:  		
 			f.select(channels=range(200,800))
-			print "selecting channel 200-800" 
 		if count==0:
 			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
 			locs,labels=xticks()
@@ -76,7 +76,12 @@ def spec(pol,datafile,starttime):
 	ab1.plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
 	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
 	ab1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
-	
+	minorLocator   = AutoMinorLocator()
+	ab1.xaxis.set_minor_locator(minorLocator)
+	pl.tick_params(which='both', color='k')
+	pl.tick_params(which='major', length=6,width=2)
+	pl.tick_params(which='minor', width=1,length=4)
+
 	ab2=ab1.twinx()
 	flag=f.flags()[:]
 	total_sum=0
@@ -85,7 +90,9 @@ def spec(pol,datafile,starttime):
 		f_chan=flag[:,i,0].squeeze()
 		suming=f_chan.sum()
 		perc.append(100*(suming/float(len(f_chan))))
-	ab2.plot(f.channels,perc,color='black')
+	ab2.bar(f.channels,perc)
+	minorLocator   = AutoMinorLocator()
+	ab2.xaxis.set_minor_locator(minorLocator)
 	ab2.set_ylabel("% flagged", fontweight="bold")
 	ab2.set_ylim(0,100)	
 	if len(f.channels)<1025:
@@ -108,6 +115,11 @@ def spec(pol,datafile,starttime):
 	plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
 	plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+	minorLocator   = AutoMinorLocator()
+	ab3.xaxis.set_minor_locator(minorLocator)
+	pl.tick_params(which='both', color='k')
+	pl.tick_params(which='major', length=6,width=2)
+	pl.tick_params(which='minor', width=1,length=4)
 
 	ab4=ab3.twinx()
 	flag=f.flags()[:]
@@ -117,7 +129,9 @@ def spec(pol,datafile,starttime):
 		f_chan=flag[:,i,0].squeeze()
 		suming=f_chan.sum()
 		perc.append(100*(suming/float(len(f_chan))))
-	ab4.plot(f.channels,perc,color='black')
+	ab4.bar(f.channels,perc)
+	minorLocator   = AutoMinorLocator()
+	ab4.xaxis.set_minor_locator(minorLocator)
 	ab4.set_ylabel("% flagged", fontweight="bold")
 	ab4.set_ylim(0,100)	
 	if len(f.channels)<1025:
@@ -235,7 +249,6 @@ ax2=ax1.twinx()
 ax2.plot(f.lst,ah,'c-')
 locs,labels=xticks()
 ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-#ylim(10,100)
 ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
 for tl in ax2.get_yticklabels():
 	tl.set_color('c')
