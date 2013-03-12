@@ -57,7 +57,7 @@ def times(ant,pol,count):
 #Spectrum function
 def spec(pol,datafile,starttime):
 	count=0	
-	fig=figure(figsize=(10,10), facecolor='w', edgecolor='k')
+	fig=figure(figsize=(13,10), facecolor='w', edgecolor='k')
 	ab1=fig.add_subplot(2,1,(count+1))
 	ab1.set_ylim(2,16)	
 	if len(f.channels)<1025:	
@@ -218,7 +218,7 @@ for ant_x in ant:
 
 
 print "Getting wind and temperature sensors"
-fig=pl.figure(figsize=(10,10))
+fig=pl.figure(figsize=(13,10))
 ax1 = fig.add_subplot(211)
 ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
 locs,labels=xticks()
@@ -290,7 +290,7 @@ if a==1:
 	print "Plotting fringes"
 	bp = np.arange(len(bp))[bp]
 #code to plot the cross phase ... fringes
-	fig = plt.figure(figsize=(14,10))
+	fig = plt.figure(figsize=(21,15))
 	try:
    		j=0
 #plt.figure()
@@ -327,6 +327,56 @@ if a==1:
 	except ValueError , error:
     		print 'Failed to read scans from File: ',fn,' with Value Error:',error
 	plt.savefig(pp,format='pdf')
+
+
+
+	#Plot cross correlation spectra 
+	f.select()
+	print "Plotting Cross Correlation Spectra"
+	cor = f.corr_products
+	ants = f.ants
+	num_ants = len(ants)
+	bp = np.array([t.tags.count('target') for t in f.catalogue.targets]) == 1
+	bp = np.arange(len(bp))[bp]
+	#code to plot the cross phase ... fringes
+	fig = plt.figure(figsize=(21,15))
+	try:
+		j=0
+		#plt.figure()
+		n_channels = len(f.channels)
+		for pol in ('h','v'):
+        		f.select(targets=bp,corrprods = 'cross',pol=pol)
+        		crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
+        		#extract the fringes
+			power = 10 * np.log10(np.abs((f.vis[:,:,:])))
+        		#For plotting the fringes
+        		fig.subplots_adjust(wspace=0., hspace=0.)
+        		#debug_here()
+        		for n, (indexA, indexB) in enumerate(crosscorr):
+            			subplot_index = (num_ants * indexA + indexB + 1) if pol == 'h' else (indexA + num_ants * indexB + 1)
+            			ax = fig.add_subplot(num_ants, num_ants, subplot_index)
+            			ax.plot(f.channel_freqs,np.mean(power[:,:,n],0))
+	    			ax.set_xticks([])
+            			ax.set_yticks([])
+            			if pol == 'h':
+                			if indexA == 0:
+                    				ax.xaxis.set_label_position('top')
+                    				ax.set_xlabel(f.inputs[indexB][3:],size='xx-large')
+                			if indexB == len(f.ants) - 1:
+                    				ax.yaxis.set_label_position('right')
+                    				ax.set_ylabel(f.inputs[indexA][3:], rotation='horizontal',size = 'xx-large')
+            			else:
+                			if indexA == 0:
+                    				ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
+               				if indexB == len(f.ants) - 1:
+                    				ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
+    	#plt.savefig(pp,format='pdf')
+	except KeyError , error:
+ 		print 'Failed to read scans from File: ',fn,' with Key Error:',error
+	except ValueError , error:
+    		print 'Failed to read scans from File: ',fn,' with Value Error:',error
+	plt.savefig(pp,format='pdf')
+
 else:
 	print "No bandpass calibrators found, we wont plot fringes"	
 plt.close('all')
