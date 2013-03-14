@@ -119,13 +119,7 @@ dbe_power_range = 2. # dBm - Jason reckons we need to get within 1 dBm of the ta
 def get_dbe_input_power(kat, inputs, dbe):
     sensor_val = []
     for ant_name,pol in inputs:
-        if dbe == 'dbe':
-            # Proceed as per Jason Manley's email suggestion 30/6/2011 plus sqrt fix in rms_inp_in_volts line:
-            dbe_input = connected_antpols['%s, %s' % (ant_name, pol.lower())]
-            voltage_samples = kat.dh.get_snapshot('adc', dbe_input) + 0.5
-            rms_inp_in_volts = np.sqrt(np.average(voltage_samples*voltage_samples)) / 368.0 # mysterious cal factor...
-            sensor_val.append( 10*np.log10(rms_inp_in_volts*rms_inp_in_volts/50.*1000))
-        elif dbe == 'dbe7':
+        if dbe == 'dbe7':
             dbe_input = ant_name + pol.lower()
             dbe_device = getattr(kat, dbe)
             power_sensor = getattr(dbe_device.sensor, "dbe_%s_adc_power" % dbe_input)
@@ -186,7 +180,10 @@ opts.description='Auto atten'
 
 with verify_and_connect(opts) as kat:
     try:
-        selected_dbe = getattr(kat, opts.dbe)
+        # In the past there was a command line option to select dbe
+        # (fringe finder) / dbe7, but since fringe finder has been
+        # decommisioned that option has been removed
+        selected_dbe = kat.dbe7
     except NameError:
         raise RuntimeError("Unknown dbe device (%s) specified. Typically it should be either 'dbe' or 'dbe7'")
     with start_session(kat, **vars(opts)) as session:
@@ -232,11 +229,9 @@ with verify_and_connect(opts) as kat:
                 connected_antpols[ant_pol] = dbe_input_sensor[15:]
 
             # Create device array of antennas, based on specification string
-            ants = ant_array(kat, opts.ants)
+            ants = kat.ants
             user_logger.info('Using antennas: %s' % (' '.join([ant.name for ant in ants]),))
 
-            # Switch data handler to requested DBE
-            kat.dh.register_dbe(selected_dbe)
             # Move all antennas onto calibration source and wait for lock
             try:
                 targets = collect_targets(kat, [opts.target]).targets
