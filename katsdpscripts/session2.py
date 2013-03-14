@@ -245,8 +245,8 @@ class CaptureSession(CaptureSessionBase):
                 user_logger.warning(msg)
                 activity_logger.warning(msg)
             else:
-                user_logger.error(msg)
-                activity_logger.error(msg)
+                user_logger.error(msg, exc_info=True)
+                activity_logger.error(msg, exc_info=True)
             self.end(interrupted=True)
         else:
             self.end(interrupted=False)
