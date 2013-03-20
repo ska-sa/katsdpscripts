@@ -174,6 +174,7 @@ parser.add_option('--dbe-desired', type='float', dest='dbe_desired_power', defau
 #parser.remove_option('-d')
 parser.set_defaults(observer='Otto Attenuate')
 parser.set_defaults(description='Auto Attenuate data')
+parser.set_defaults(nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 opts.description='Auto atten'
@@ -238,14 +239,7 @@ with verify_and_connect(opts) as kat:
             except ValueError:
                 user_logger.info("No valid targets specified. Antenna will not be moved.")
             else:
-                if not kat.dry_run:
-                    user_logger.info("Slewing antennas to target '%s'" % (targets[0].name,))
-                    ants.req.target(targets[0])
-                    ants.req.mode('POINT')
-                    ants.req.sensor_sampling('lock', 'event')
-                    ants.wait('lock', True, 300)
-                    user_logger.info('Target reached')
-
+                session.track(targets[0], duration=1, announce=False)
             # Warn if requesting an RFE5 desired output power larger than max measurable power of the RFE5 output power sensor
             if opts.rfe5_desired_power > rfe5_out_max_meas_power:
                 user_logger.warn("Requested RFE5 output power %-4.1f larger than max measurable power of %-4.1f dBm. Could cause problems..." % ( opts.rfe5_desired_power, rfe5_out_max_meas_power))
