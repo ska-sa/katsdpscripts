@@ -391,6 +391,7 @@ else:
 	print "No bandpass calibrators found, we wont plot fringes"	
 plt.close('all')
 pp.close()
+text.close()
 
 print 'The results are save in %s and the text report in %s' % (pdf_filename, text_log_filename,)
 
