@@ -156,11 +156,10 @@ datafile =opts.filename
 #pathtofile = 'locate ' +datafile
 #searched=glob.glob(datafile)                               #search the file locally 
 
-temp_dir = tempfile.mkdtemp()
 text_log_filename = '%s.txt' % (os.path.splitext(datafile)[0],)
-text_log_filename = os.path.join(temp_dir, text_log_filename)
+text_log_filename = os.path.join(opts.tempdir, text_log_filename)
 pdf_filename = '%s.pdf' % (os.path.splitext(datafile)[0],)
-pdf_filename = os.path.join(temp_dir, pdf_filename)
+pdf_filename = os.path.join(opts.tempdir, pdf_filename)
 
 text_log = open(text_log_filename, 'w')
 pp = PdfPages(pdf_filename)
@@ -391,7 +390,7 @@ else:
 	print "No bandpass calibrators found, we wont plot fringes"	
 plt.close('all')
 pp.close()
-text.close()
+text_log.close()
 
 print 'The results are save in %s and the text report in %s' % (pdf_filename, text_log_filename,)
 
