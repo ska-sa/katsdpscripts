@@ -328,17 +328,24 @@ if a==1:
     		print 'Failed to read scans from File: ',fn,' with Value Error:',error
 	plt.savefig(pp,format='pdf')
 
-
-
-	#Plot cross correlation spectra 
-	f.select()
-	print "Plotting Cross Correlation Spectra"
-	cor = f.corr_products
-	ants = f.ants
-	num_ants = len(ants)
-	bp = np.array([t.tags.count('target') for t in f.catalogue.targets]) == 1
+else:
+	print "No bandpass calibrators found, we wont plot fringes"
+#Plot cross correlation spectra 
+f.select()
+cor = f.corr_products
+ants = f.ants
+num_ants = len(ants)
+bp = np.array([t.tags.count('target') for t in f.catalogue.targets]) == 1
+for look in range(len(bp)):
+	if bp[look]==1:
+		a=1
+		break
+	else:
+		a=0
+if a==1:
 	bp = np.arange(len(bp))[bp]
 	#code to plot the cross phase ... fringes
+	print "Plotting Cross Correlation Spectra"
 	fig = plt.figure(figsize=(21,15))
 	try:
 		j=0
@@ -374,11 +381,10 @@ if a==1:
 	except KeyError , error:
  		print 'Failed to read scans from File: ',fn,' with Key Error:',error
 	except ValueError , error:
-    		print 'Failed to read scans from File: ',fn,' with Value Error:',error
+ 	   	print 'Failed to read scans from File: ',fn,' with Value Error:',error
 	plt.savefig(pp,format='pdf')
-
 else:
-	print "No bandpass calibrators found, we wont plot fringes"	
+	print "No sources are tagged as 'target', Cant plot cross correlation spectra."	
 plt.close('all')
 pp.close()
 
