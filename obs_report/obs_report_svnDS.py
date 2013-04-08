@@ -17,7 +17,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 import h5py
 import textwrap
 # import collections
-import tempfile
 
 # Set up standard script options
 parser = OptionParser(usage="usage: %prog [options]", 
