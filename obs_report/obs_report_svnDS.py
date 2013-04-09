@@ -165,8 +165,12 @@ pp = PdfPages(pdf_filename)
 
 #if not searched:							   #If not found locally download it
 print 'Searching the data file from the mounted archive'
-d=katarchive.get_archived_products(datafile)
-	#d=katoodt.get_archived_product(product_name=datafile)
+
+d=[]
+while len(d) == 0:
+    d=katarchive.get_archived_products(datafile)
+    time.sleep(10)
+#d=katoodt.get_archived_product(product_name=datafile)
 #else: 
 #	print "File found locally "
 #	d=searched
