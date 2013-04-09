@@ -288,7 +288,7 @@ for z in range(len(bp)):
 		a=0
 if a==1:
 	print "Plotting fringes"
-	bp = np.arange(len(bp))[bp]
+	bp = np.arange(len(bp))[bp][0]
 #code to plot the cross phase ... fringes
 	fig = plt.figure(figsize=(21,15))
 	try:
