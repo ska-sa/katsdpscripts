@@ -46,7 +46,7 @@ def make_frontpage(instruction_set, file_ptr):
     frontpage=frontpage+mystring_seperated[11]+"\n"+mystring_seperated[12]+"\n"+mystring_seperated[21]+"\n"
     return frontpage
 
-def times(ant,pol,count):
+def times(ant,pol,count,startime):
     #Time Series
     figure(figsize=(13,10), facecolor='w', edgecolor='k')
     xlabel("LST on "+starttime,fontweight="bold")
@@ -72,92 +72,51 @@ def times(ant,pol,count):
     legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
     savefig(pp,format='pdf')
 
-def spec(pol,datafile,starttime):
+def spec(pol,datafile,starttime,ant_x):
     #Spectrum function
-    count=0
     fig=figure(figsize=(13,10), facecolor='w', edgecolor='k')
-    ab1=fig.add_subplot(2,1,(count+1))
-    ab1.set_ylim(2,16)
-    if len(f.channels)<1025:
-        ab1.set_xlim(195,805)
-    ab1.set_xlabel("Channels", fontweight="bold")
-    ab1.set_ylabel("Amplitude", fontweight="bold")
+    ab = []
+    for  count in (0,1):
+        ab.append(fig.add_subplot(2,1,(count+1)))
+        ab[-1].set_ylim(2,16)
+        if len(f.channels)<1025:
+            ab[-1].set_xlim(195,805)
+        ab[-1].set_xlabel("Channels", fontweight="bold")
+        ab[-1].set_ylabel("Amplitude", fontweight="bold")
 
-    print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
-    f.select(ants=ant_x,corrprods='auto',pol=pol[count])
-    nvis=np.abs(f.vis[:])
-    f_min=nvis.min(axis=0)
-    f_mean=nvis.mean(axis=0)
-    f_max=nvis.max(axis=0)
-    ab1.plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
-    ab1.plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-    ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
-    ab1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
-    minorLocator   = AutoMinorLocator()
-    ab1.xaxis.set_minor_locator(minorLocator)
-    pl.tick_params(which='both', color='k')
-    pl.tick_params(which='major', length=6,width=2)
-    pl.tick_params(which='minor', width=1,length=4)
+        print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
+        f.select(ants=ant_x,corrprods='auto',pol=pol[count])
+        nvis=np.abs(f.vis[:])
+        f_min=nvis.min(axis=0)
+        f_mean=nvis.mean(axis=0)
+        f_max=nvis.max(axis=0)
+        ab[-1].plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
+        ab[-1].plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
+        ab[-1].plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+        ab[-1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+        minorLocator   = AutoMinorLocator()
+        ab[-1].xaxis.set_minor_locator(minorLocator)
+        pl.tick_params(which='both', color='k')
+        pl.tick_params(which='major', length=6,width=2)
+        pl.tick_params(which='minor', width=1,length=4)
 
-    ab2=ab1.twinx()
-    flag=f.flags()[:]
-    # total_sum=0
-    perc=[]
-    for i in range(len(f.channels)):
-        f_chan=flag[:,i,0].squeeze()
-        suming=f_chan.sum()
-        perc.append(100*(suming/float(f_chan.size)))
-    ab2.bar(f.channels,perc)
-    minorLocator   = AutoMinorLocator()
-    ab2.xaxis.set_minor_locator(minorLocator)
-    ab2.set_ylabel("% flagged", fontweight="bold")
-    ab2.set_ylim(0,100)
-    if len(f.channels)<1025:
-        ab2.set_xlim(195,805)
-
-    count=1
-    ab3=fig.add_subplot(2,1,(count+1))
-    ab3.set_ylim(2,16)
-    if len(f.channels)<1025:
-        ab3.set_xlim(195,805)
-    ab3.set_xlabel("Channels", fontweight="bold")
-    ab3.set_ylabel("Amplitude", fontweight="bold")
-    print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
-    f.select(ants=ant_x,corrprods='auto',pol=pol[count])
-    nvis=np.abs(f.vis[:])
-    f_min=nvis.min(axis=0)
-    f_mean=nvis.mean(axis=0)
-    f_max=nvis.max(axis=0)
-    plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
-    plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-    plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
-    legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
-    minorLocator   = AutoMinorLocator()
-    ab3.xaxis.set_minor_locator(minorLocator)
-    pl.tick_params(which='both', color='k')
-    pl.tick_params(which='major', length=6,width=2)
-    pl.tick_params(which='minor', width=1,length=4)
-
-    ab4=ab3.twinx()
-    flag=f.flags()[:]
-    # total_sum=0
-    perc=[]
-    for i in range(len(f.channels)):
-        f_chan=flag[:,i,0].squeeze()
-        suming=f_chan.sum()
-        perc.append(100*(suming/float(f_chan.size)))
-    ab4.bar(f.channels,perc)
-    minorLocator   = AutoMinorLocator()
-    ab4.xaxis.set_minor_locator(minorLocator)
-    ab4.set_ylabel("% flagged", fontweight="bold")
-    ab4.set_ylim(0,100)
-    if len(f.channels)<1025:
-        ab4.set_xlim(195,805)
-
+        ab.append(ab[-1].twinx())
+        flag=f.flags()[:]
+        # total_sum=0
+        perc=[]
+        for i in range(len(f.channels)):
+            f_chan=flag[:,i,0].squeeze()
+            suming=f_chan.sum()
+            perc.append(100*(suming/float(f_chan.size)))
+        ab[-1].bar(f.channels,perc)
+        minorLocator   = AutoMinorLocator()
+        ab[-1].xaxis.set_minor_locator(minorLocator)
+        ab[-1].set_ylabel("% flagged", fontweight="bold")
+        ab[-1].set_ylim(0,100)
+        if len(f.channels)<1025:
+            ab[-1].set_xlim(195,805)
 
     savefig(pp,format='pdf')
-    #savefig("/data/obs_report/siphelele/time_series_plots/time_series/"+datafile[:-3]+"_"+ant_x.name+"_Spectro.png")
-    count=0
 
 ################################################################################
 
@@ -206,16 +165,14 @@ print f
 count=0
 ant=f.ants
 pol=['h','v']
-times(ant,pol[0],count)
-count=count+1
-times(ant,pol[1],count)
-
 starttime = time.strftime('%d %b %y', time.localtime(f.start_time))
+times(ant,pol[0],count,starttime)
+count=count+1
+times(ant,pol[1],count,starttime)
+
 
 for ant_x in ant:
-    count=0
-    spec(pol,datafile,starttime)
-
+    spec(pol,datafile,starttime,ant_x)
 
 print "Getting wind and temperature sensors"
 fig=pl.figure(figsize=(13,10))
