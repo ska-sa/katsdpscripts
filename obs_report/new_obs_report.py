@@ -106,7 +106,7 @@ def spec(pol,datafile,starttime):
     for i in range(len(f.channels)):
         f_chan=flag[:,i,0].squeeze()
         suming=f_chan.sum()
-        perc.append(100*(suming/float(len(f_chan))))
+        perc.append(100*(suming/float(f_chan.size)))
     ab2.bar(f.channels,perc)
     minorLocator   = AutoMinorLocator()
     ab2.xaxis.set_minor_locator(minorLocator)
@@ -145,7 +145,7 @@ def spec(pol,datafile,starttime):
     for i in range(len(f.channels)):
         f_chan=flag[:,i,0].squeeze()
         suming=f_chan.sum()
-        perc.append(100*(suming/float(len(f_chan))))
+        perc.append(100*(suming/float(f_chan.size)))
     ab4.bar(f.channels,perc)
     minorLocator   = AutoMinorLocator()
     ab4.xaxis.set_minor_locator(minorLocator)
