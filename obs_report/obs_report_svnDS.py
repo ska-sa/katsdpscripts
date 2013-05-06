@@ -278,7 +278,7 @@ for tl in ax3.get_yticklabels():
 	tl.set_color('b')
 
 ax4=ax3.twinx()
-ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
+ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure']/10.0,'r-')
 ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
 for tl in ax4.get_yticklabels():
