@@ -115,7 +115,7 @@ def plot_spectrum(pol, datafile, starttime, ant):
 
     savefig(pp,format='pdf')
 
-def plot_bcal_selection(f):
+def plot_bpcal_selection(f):
     fig = plt.figure(figsize=(21,15))
     try:
         for pol in ('h','v'):
@@ -163,8 +163,8 @@ def plot_target_selection(f):
             fig.subplots_adjust(wspace=0., hspace=0.)
             #debug_here()
             for n, (indexA, indexB) in enumerate(crosscorr):
-                subplot_index = (num_ants * indexA + indexB + 1) if pol == 'h' else (indexA + num_ants * indexB + 1)
-                ax = fig.add_subplot(num_ants, num_ants, subplot_index)
+                subplot_index = (len(f.ants) * indexA + indexB + 1) if pol == 'h' else (indexA + len(f.ants) * indexB + 1)
+                ax = fig.add_subplot(len(f.ants), len(f.ants), subplot_index)
                 ax.plot(f.channel_freqs,np.mean(power[:,:,n],0))
                 ax.set_xticks([])
                 ax.set_yticks([])
@@ -181,10 +181,10 @@ def plot_target_selection(f):
                     if indexB == len(f.ants) - 1:
                         ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
             #plt.savefig(pp,format='pdf')
-        except KeyError , error:
-            print 'Failed to read scans from File: ',fn,' with Key Error:',error
-        except ValueError , error:
-            print 'Failed to read scans from File: ',fn,' with Value Error:',error
+    except KeyError , error:
+        print 'Failed to read scans from File: ',f, ' with Key Error:',error
+    except ValueError , error:
+        print 'Failed to read scans from File: ',f,' with Value Error:',error
     plt.savefig(pp,format='pdf')
 
 ################################################################################
@@ -308,10 +308,10 @@ else:
     print "No bpcal tags found in catalog, we wont plot bpcal fringes."
 
 if f.catalogue.filter(tags='target'):
-    print "Plotting %s fringes." % (tag)
+    print "Plotting target fringes."
     plot_target_selection(f)
 else:
-    print "No %s tags found in catalog, we wont plot %s fringes." % (tag, tag)
+    print "No target tags found in catalog, we wont plot target fringes."
 
 plt.close('all')
 pp.close()
