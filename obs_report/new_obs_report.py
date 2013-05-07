@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import h5py
-import katarchive
 import katfile
 import matplotlib as mpl; mpl.use('Agg')
 import matplotlib.pyplot as pl
@@ -19,6 +18,7 @@ def get_options():
     parser.add_option('-f', '--filename', help='Name of the hdf5 katfile')
     parser.add_option('-d', '--tempdir', default='.', help='Name of the temporary directory to use for creating output files [default: current directory]')
     parser.add_option('-k', '--keep', action='store_true', default=False, help='Keep temporary files')
+    parser.add_option('--noarchive', action='store_true', default=False, help='Access the file directly, do not use the archive')
     opts, args = parser.parse_args()
 
     if opts.filename is None:
@@ -46,24 +46,24 @@ def make_frontpage(instruction_set, file_ptr):
     frontpage=frontpage+mystring_seperated[11]+"\n"+mystring_seperated[12]+"\n"+mystring_seperated[21]+"\n"
     return frontpage
 
-def times(ant,pol,count,startime):
+def plot_time_series(ants,pol,count,startime):
     #Time Series
     figure(figsize=(13,10), facecolor='w', edgecolor='k')
     xlabel("LST on "+starttime,fontweight="bold")
     ylabel("Amplitude",fontweight="bold")
-    for ant_x in ant:
-        print ("plotting "+ant_x.name+"_" +pol+pol+ " time series")
-        f.select(ants=ant_x,corrprods='auto',pol=pol)
+    for ant in ants:
+        print ("plotting "+ant.name+"_" +pol+pol+ " time series")
+        f.select(ants=ant,corrprods='auto',pol=pol)
         if len(f.channels)<1025:
             f.select(channels=range(200,800))
         if count==0:
-            plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
+            plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
             locs,labels=xticks()
             for i in range(len(locs)):
                 labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
             xticks(locs,labels)
         elif count==1:
-            plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
+            plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
             locs,labels=xticks()
             for i in range(len(locs)):
                 labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
@@ -72,7 +72,7 @@ def times(ant,pol,count,startime):
     legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
     savefig(pp,format='pdf')
 
-def spec(pol,datafile,starttime,ant_x):
+def plot_spectrum(pol, datafile, starttime, ant):
     #Spectrum function
     fig=figure(figsize=(13,10), facecolor='w', edgecolor='k')
     ab = []
@@ -84,15 +84,12 @@ def spec(pol,datafile,starttime,ant_x):
         ab[-1].set_xlabel("Channels", fontweight="bold")
         ab[-1].set_ylabel("Amplitude", fontweight="bold")
 
-        print ("plotting "+ant_x.name+"_" +pol[count]+pol[count]+ " spectrum")
-        f.select(ants=ant_x,corrprods='auto',pol=pol[count])
-        nvis=np.abs(f.vis[:])
-        f_min=nvis.min(axis=0)
-        f_mean=nvis.mean(axis=0)
-        f_max=nvis.max(axis=0)
-        ab[-1].plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
-        ab[-1].plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-        ab[-1].plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+        f.select(ants=ant,corrprods='auto',pol=pol[count])
+        abs_vis=np.abs(f.vis[:])
+        label_format = '%s_%s%s' % (ant.name, pol[count], pol[count])
+        print "Starting to plot the %s spectrum." % (label_format,)
+        for stat in ('mean', 'min', 'max'):
+            ab[-1].plot(f.channels, 10*np.log10(getattr(abs_vis,stat)(axis=0)), label=('%s_%s' % (label_format, stat)))
         ab[-1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
         minorLocator   = AutoMinorLocator()
         ab[-1].xaxis.set_minor_locator(minorLocator)
@@ -118,6 +115,42 @@ def spec(pol,datafile,starttime,ant_x):
 
     savefig(pp,format='pdf')
 
+def plot_catalog_selection(f, tag):
+    fig = plt.figure(figsize=(21,15))
+    try:
+        for pol in ('h','v'):
+            f.select(targets=f.catalogue.filter(tags=tag), corrprods='cross', pol=pol, scans='track')
+            crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
+            #extract the fringes
+            fringes = np.angle(f.vis[:,:,:])
+            #For plotting the fringes
+            fig.subplots_adjust(wspace=0., hspace=0.)
+            #debug_here()
+            for n, (indexA, indexB) in enumerate(crosscorr):
+                subplot_index = (len(f.ants) * indexA + indexB + 1) if pol == 'h' else (indexA + len(f.ants) * indexB + 1)
+                ax = fig.add_subplot(len(f.ants), len(f.ants), subplot_index)
+                ax.imshow(fringes[:,:,n],aspect=fringes.shape[1]/fringes.shape[0])
+                ax.set_xticks([])
+                ax.set_yticks([])
+                if pol == 'h':
+                    if indexA == 0:
+                        ax.xaxis.set_label_position('top')
+                        ax.set_xlabel(f.inputs[indexB][3:],size='xx-large')
+                    if indexB == len(f.ants) - 1:
+                       ax.yaxis.set_label_position('right')
+                       ax.set_ylabel(f.inputs[indexA][3:], rotation='horizontal',size = 'xx-large')
+                else:
+                    if indexA == 0:
+                        ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
+                    if indexB == len(f.ants) - 1:
+                        ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
+
+    except KeyError, error:
+            print 'Failed to read scans from File: %s with Key Error: %s' % (f, error)
+    except ValueError, error:
+            print 'Failed to read scans from File: %s with Value Error: %s' % (f, error)
+    plt.savefig(pp,format='pdf')
+
 ################################################################################
 
 opts = get_options()
@@ -135,10 +168,14 @@ text_log = open(text_log_filename, 'w')
 pp = PdfPages(pdf_filename)
 
 print 'Searching the data file from the mounted archive'
-d=katarchive.get_archived_products(datafile)
-while len(d) == 0:
-    time.sleep(10)
-    d=katarchive.get_archived_products(datafile)
+if opts.noarchive:
+    d=[opts.filename]
+else:
+    import katarchive 
+    d = katarchive.get_archived_products(datafile)
+    while len(d) == 0:
+        time.sleep(10)
+        d=katarchive.get_archived_products(datafile)
 
 #get instruction set using h5py
 print "Opening %s using h5py" % (datafile,)
@@ -163,16 +200,14 @@ savefig(pp,format='pdf')
 print f
 
 count=0
-ant=f.ants
 pol=['h','v']
 starttime = time.strftime('%d %b %y', time.localtime(f.start_time))
-times(ant,pol[0],count,starttime)
+plot_time_series(f.ants, pol[0], count, starttime)
 count=count+1
-times(ant,pol[1],count,starttime)
+plot_time_series(f.ants, pol[1], count, starttime)
 
-
-for ant_x in ant:
-    spec(pol,datafile,starttime,ant_x)
+for ant in f.ants:
+    plot_spectrum(pol,datafile,starttime,ant)
 
 print "Getting wind and temperature sensors"
 fig=pl.figure(figsize=(13,10))
@@ -230,110 +265,14 @@ for tl in ax4.get_yticklabels():
     tl.set_color('r')
 savefig(pp,format='pdf')
 
-
-# from kat@kat-imager:lindsay/fringes.py
-f.select()
-cor = f.corr_products
-ants = f.ants
-num_ants = len(ants)
-bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
-for z in range(len(bp)):
-    if bp[z]==1:
-        a=1
-        break
+#plot fringes for specfied targets
+for tag in ('bpcal', 'target'):
+    if f.catalogue.filter(tags=tag):
+        print "Plotting %s fringes." % (tag)
+        plot_catalog_selection(f,tag)
     else:
-        a=0
-if a==1:
-    print "Plotting fringes"
-    bp = np.arange(len(bp))[bp]
-    #code to plot the cross phase ... fringes
-    fig = plt.figure(figsize=(21,15))
-    try:
-        j=0
-        #plt.figure()
-        n_channels = len(f.channels)
-        for pol in ('h','v'):
-            f.select(targets=bp,corrprods = 'cross',pol=pol,scans="track")
-            crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
-            #extract the fringes
-            fringes = np.angle(f.vis[:,:,:])
-            #For plotting the fringes
-            fig.subplots_adjust(wspace=0., hspace=0.)
-            #debug_here()
-            for n, (indexA, indexB) in enumerate(crosscorr):
-                subplot_index = (num_ants * indexA + indexB + 1) if pol == 'h' else (indexA + num_ants * indexB + 1)
-                ax = fig.add_subplot(num_ants, num_ants, subplot_index)
-                ax.imshow(fringes[:,:,n],aspect=fringes.shape[1]/fringes.shape[0])
-                ax.set_xticks([])
-                ax.set_yticks([])
-                if pol == 'h':
-                    if indexA == 0:
-                        ax.xaxis.set_label_position('top')
-                        ax.set_xlabel(f.inputs[indexB][3:],size='xx-large')
-                    if indexB == len(f.ants) - 1:
-                       ax.yaxis.set_label_position('right')
-                       ax.set_ylabel(f.inputs[indexA][3:], rotation='horizontal',size = 'xx-large')
-                else:
-                    if indexA == 0:
-                        ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
-                    if indexB == len(f.ants) - 1:
-                        ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
+        print "No %s tags found in catalog, we wont plot %s fringes." % (tag, tag)
 
-    except KeyError, error:
-            print 'Failed to read scans from File: %s with Key Error: %s' % (f, error)
-    except ValueError, error:
-            print 'Failed to read scans from File: %s with Value Error: %s' % (f, error)
-    plt.savefig(pp,format='pdf')
-
-    #Plot cross correlation spectra
-    f.select()
-    print "Plotting Cross Correlation Spectra"
-    cor = f.corr_products
-    ants = f.ants
-    num_ants = len(ants)
-    bp = np.array([t.tags.count('target') for t in f.catalogue.targets]) == 1
-    bp = np.arange(len(bp))[bp]
-    #code to plot the cross phase ... fringes
-    fig = plt.figure(figsize=(21,15))
-    try:
-        j=0
-        #plt.figure()
-        n_channels = len(f.channels)
-        for pol in ('h','v'):
-            f.select(targets=bp,corrprods = 'cross',pol=pol)
-            crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
-            #extract the fringes
-            power = 10 * np.log10(np.abs((f.vis[:,:,:])))
-            #For plotting the fringes
-            fig.subplots_adjust(wspace=0., hspace=0.)
-            #debug_here()
-            for n, (indexA, indexB) in enumerate(crosscorr):
-                subplot_index = (num_ants * indexA + indexB + 1) if pol == 'h' else (indexA + num_ants * indexB + 1)
-                ax = fig.add_subplot(num_ants, num_ants, subplot_index)
-                ax.plot(f.channel_freqs,np.mean(power[:,:,n],0))
-                ax.set_xticks([])
-                ax.set_yticks([])
-                if pol == 'h':
-                    if indexA == 0:
-                        ax.xaxis.set_label_position('top')
-                        ax.set_xlabel(f.inputs[indexB][3:],size='xx-large')
-                    if indexB == len(f.ants) - 1:
-                        ax.yaxis.set_label_position('right')
-                        ax.set_ylabel(f.inputs[indexA][3:], rotation='horizontal',size = 'xx-large')
-                else:
-                    if indexA == 0:
-                        ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
-                    if indexB == len(f.ants) - 1:
-                        ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
-        #plt.savefig(pp,format='pdf')
-    except KeyError , error:
-        print 'Failed to read scans from File: ',f,' with Key Error:',error
-    except ValueError , error:
-            print 'Failed to read scans from File: ',f,' with Value Error:',error
-    plt.savefig(pp,format='pdf')
-
-else:
-    print "No bandpass calibrators found, we wont plot fringes"
 plt.close('all')
 pp.close()
 text_log.close()
