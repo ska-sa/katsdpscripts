@@ -115,11 +115,11 @@ def plot_spectrum(pol, datafile, starttime, ant):
 
     savefig(pp,format='pdf')
 
-def plot_catalog_selection(f, tag):
+def plot_bcal_selection(f):
     fig = plt.figure(figsize=(21,15))
     try:
         for pol in ('h','v'):
-            f.select(targets=f.catalogue.filter(tags=tag), corrprods='cross', pol=pol, scans='track')
+            f.select(targets=f.catalogue.filter(tags='bcal'), corrprods='cross', pol=pol, scans='track')
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
             fringes = np.angle(f.vis[:,:,:])
@@ -149,6 +149,42 @@ def plot_catalog_selection(f, tag):
             print 'Failed to read scans from File: %s with Key Error: %s' % (f, error)
     except ValueError, error:
             print 'Failed to read scans from File: %s with Value Error: %s' % (f, error)
+    plt.savefig(pp,format='pdf')
+
+def plot_target_selection(f):
+    fig = plt.figure(figsize=(21,15))
+    try:
+        for pol in ('h','v'):
+            f.select(targets=f.catalogue.filter(tags='target'), corrprods='cross', pol=pol, scans='track')
+            crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
+            #extract the fringes
+            power = 10 * np.log10(np.abs((f.vis[:,:,:])))
+            #For plotting the fringes
+            fig.subplots_adjust(wspace=0., hspace=0.)
+            #debug_here()
+            for n, (indexA, indexB) in enumerate(crosscorr):
+                subplot_index = (num_ants * indexA + indexB + 1) if pol == 'h' else (indexA + num_ants * indexB + 1)
+                ax = fig.add_subplot(num_ants, num_ants, subplot_index)
+                ax.plot(f.channel_freqs,np.mean(power[:,:,n],0))
+                ax.set_xticks([])
+                ax.set_yticks([])
+                if pol == 'h':
+                    if indexA == 0:
+                        ax.xaxis.set_label_position('top')
+                        ax.set_xlabel(f.inputs[indexB][3:],size='xx-large')
+                    if indexB == len(f.ants) - 1:
+                        ax.yaxis.set_label_position('right')
+                        ax.set_ylabel(f.inputs[indexA][3:], rotation='horizontal',size = 'xx-large')
+                else:
+                    if indexA == 0:
+                        ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
+                    if indexB == len(f.ants) - 1:
+                        ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
+            #plt.savefig(pp,format='pdf')
+        except KeyError , error:
+            print 'Failed to read scans from File: ',fn,' with Key Error:',error
+        except ValueError , error:
+            print 'Failed to read scans from File: ',fn,' with Value Error:',error
     plt.savefig(pp,format='pdf')
 
 ################################################################################
@@ -265,13 +301,17 @@ for tl in ax4.get_yticklabels():
     tl.set_color('r')
 savefig(pp,format='pdf')
 
-#plot fringes for specfied targets
-for tag in ('bpcal', 'target'):
-    if f.catalogue.filter(tags=tag):
-        print "Plotting %s fringes." % (tag)
-        plot_catalog_selection(f,tag)
-    else:
-        print "No %s tags found in catalog, we wont plot %s fringes." % (tag, tag)
+if f.catalogue.filter(tags='bpcal'):
+    print "Plotting bpcal fringes."
+    plot_bpcal_selection(f)
+else:
+    print "No bpcal tags found in catalog, we wont plot bpcal fringes."
+
+if f.catalogue.filter(tags='target'):
+    print "Plotting %s fringes." % (tag)
+    plot_target_selection(f)
+else:
+    print "No %s tags found in catalog, we wont plot %s fringes." % (tag, tag)
 
 plt.close('all')
 pp.close()
