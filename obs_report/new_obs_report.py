@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import h5py
 import katfile
 import matplotlib as mpl; mpl.use('Agg')
 import matplotlib.pyplot as pl
@@ -28,23 +27,45 @@ def get_options():
 
     return opts
 
-def make_frontpage(instruction_set, file_ptr):
-    scp='%s %s' % ('Instruction_set :', ' '.join((instruction_set[1][1], instruction_set[2][1])))
+def make_frontpage(file_ptr):
+    if float(file_ptr.version) >= 2.0:
+        instruction_set = file_ptr.file['MetaData']['Configuration']['Observation'].attrs.items()
+        instruction_set = ' '.join((instruction_set[1][1], instruction_set[2][1]))
+    else:
+        instruction_set = 'Unknown'
+
+    scp='Instruction_set : %s' % (instruction_set,)
     scp='\n'.join(textwrap.wrap(scp, 126)) #add new line after every 126 charecters
     scp='\n'+scp+'\n' #add space before and after instruction set
 
-    mystring=file_ptr.__str__()
-    mystring_seperated=mystring.split("\n")
+    mystring_seperated=str(file_ptr).split('\n')
 
     startdate = time.strftime('%d %b %y', time.localtime(file_ptr.start_time))
 
     lststart=("%2.0f:%2.0f"%(np.modf(file_ptr.lst[0])[1], np.modf(file_ptr.lst[0])[0]*60))
     lststop=("%2.0f:%2.0f"%(np.modf(file_ptr.lst[len(file_ptr.lst)-1])[1], np.modf(file_ptr.lst[len(file_ptr.lst)-1])[0]*60))
 
-    frontpage="Description: "+file_ptr.description+"\n"+"Name: "+file_ptr.name+"\n"+"Experiment ID:  "+file_ptr.experiment_id+"\n"+scp+"\n"+"Observer: "+file_ptr.observer+" \n"+mystring_seperated[5]+" \n"+"Observed on: "+startdate + " from "+lststart+" LST to "+lststop+" LST"+"\n\n"
-    frontpage=frontpage+"Dump rate / period: "+str((round(1/file_ptr.dump_period,6))) +" Hz"+" / "+str(round(file_ptr.dump_period,4))+" s"+ "\n"+mystring_seperated[7]+"\n"+mystring_seperated[8]+"\n"+mystring_seperated[9]+"\n"+"Number of Dumps: "+str(file_ptr.shape[0])+"\n\n"
-    frontpage=frontpage+mystring_seperated[11]+"\n"+mystring_seperated[12]+"\n"+mystring_seperated[21]+"\n"
-    return frontpage
+    frontpage = []
+    frontpage.append('Description: %s' % (file_ptr.description,))
+    frontpage.append('Name: %s' % (file_ptr.name,))
+    frontpage.append('Experiment ID: %s' % (file_ptr.experiment_id,))
+    frontpage.append(scp)
+    frontpage.append('Observer: %s' % (file_ptr.observer,))
+    frontpage.append(mystring_seperated[5])
+    frontpage.append('Observed on: %s from %s LST to %s LST' % (startdate, lststart, lststop))
+    frontpage.append('\n')
+    frontpage.append('Dump rate / period: %s Hz / %s s' % (str((round(1/file_ptr.dump_period,6))), str(round(file_ptr.dump_period,4))))
+    frontpage.append(mystring_seperated[7])
+    frontpage.append(mystring_seperated[8])
+    frontpage.append(mystring_seperated[9])
+    frontpage.append('Number of Dumps: %s' % (str(file_ptr.shape[0])))
+    frontpage.append('\n')
+    frontpage.append(mystring_seperated[11])
+    frontpage.append(mystring_seperated[12])
+    frontpage.append(mystring_seperated[21])
+    frontpage.append('\n')
+    
+    return '\n'.join(frontpage)
 
 def plot_time_series(ants,pol,count,startime):
     #Time Series
@@ -213,12 +234,6 @@ else:
         time.sleep(10)
         d=katarchive.get_archived_products(datafile)
 
-#get instruction set using h5py
-print "Opening %s using h5py" % (datafile,)
-a=h5py.File(d[0],'r')
-ints=a['MetaData']['Configuration']['Observation'].attrs.items()
-a.close()
-
 print "Opening %s using katfile, this might take a while" % (datafile,)
 f=katfile.open(d, quicklook=True)
 
@@ -229,7 +244,7 @@ xticks([])
 yticks([])
 title(datafile+" Observation Report",fontsize=14, fontweight="bold")
 
-frontpage = make_frontpage(ints, f)
+frontpage = make_frontpage(f)
 text_log.write(frontpage)
 text(0,0,frontpage,fontsize=12)
 savefig(pp,format='pdf')
