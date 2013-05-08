@@ -64,7 +64,6 @@ def make_frontpage(file_ptr):
     frontpage.append(mystring_seperated[12])
     frontpage.append(mystring_seperated[21])
     frontpage.append('\n')
-    
     return '\n'.join(frontpage)
 
 def plot_time_series(ants,pol,count,startime):
@@ -136,6 +135,62 @@ def plot_spectrum(pol, datafile, starttime, ant):
 
     savefig(pp,format='pdf')
 
+def plot_envioronmental_sensors(f):
+    print "Getting wind and temperature sensors"
+    fig=pl.figure(figsize=(13,10))
+    ax1 = fig.add_subplot(211)
+    ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
+    locs,labels=xticks()
+    for i in range(len(locs)):
+        labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
+    xticks(locs,labels)
+    ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+    ax1.set_xlabel("LST on "+starttime, fontweight="bold")
+    ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
+    for tl in ax1.get_yticklabels():
+        tl.set_color('g')
+
+    #Relative to Absolute
+    rh=f.sensor['Enviro/asc.air.relative-humidity']
+    t=f.sensor['Enviro/asc.air.temperature']
+    Pws=[]
+    Pw=[]
+    ah=[]
+    for m in range(len(rh)):
+        Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
+    for m in range(len(rh)):
+        Pw.append(Pws[m]*(rh[m]/100))
+    for m in range(len(rh)):
+        ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
+
+    ax2=ax1.twinx()
+    ax2.plot(f.lst,ah,'c-')
+    locs,labels=xticks()
+    ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+    ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
+    for tl in ax2.get_yticklabels():
+        tl.set_color('c')
+
+    ax3=fig.add_subplot(212)
+    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+    ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+    for i in range(len(locs)):
+        labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
+    xticks(locs,labels)
+    ylim(ymin=-0.5)
+    ax3.set_xlabel("LST on "+starttime,fontweight="bold")
+    ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+    for tl in ax3.get_yticklabels():
+        tl.set_color('b')
+
+    ax4=ax3.twinx()
+    ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
+    ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+    ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
+    for tl in ax4.get_yticklabels():
+        tl.set_color('r')
+    savefig(pp,format='pdf')
+    
 def plot_bpcal_selection(f):
     fig = plt.figure(figsize=(21,15))
     try:
@@ -260,61 +315,7 @@ plot_time_series(f.ants, pol[1], count, starttime)
 for ant in f.ants:
     plot_spectrum(pol,datafile,starttime,ant)
 
-print "Getting wind and temperature sensors"
-fig=pl.figure(figsize=(13,10))
-ax1 = fig.add_subplot(211)
-ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
-locs,labels=xticks()
-for i in range(len(locs)):
-    labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-xticks(locs,labels)
-ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax1.set_xlabel("LST on "+starttime, fontweight="bold")
-ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
-for tl in ax1.get_yticklabels():
-    tl.set_color('g')
-
-#Relative to Absolute
-rh=f.sensor['Enviro/asc.air.relative-humidity']
-t=f.sensor['Enviro/asc.air.temperature']
-Pws=[]
-Pw=[]
-ah=[]
-for m in range(len(rh)):
-    Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
-for m in range(len(rh)):
-    Pw.append(Pws[m]*(rh[m]/100))
-for m in range(len(rh)):
-    ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
-
-
-ax2=ax1.twinx()
-ax2.plot(f.lst,ah,'c-')
-locs,labels=xticks()
-ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
-for tl in ax2.get_yticklabels():
-    tl.set_color('c')
-
-ax3=fig.add_subplot(212)
-ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
-for i in range(len(locs)):
-    labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-xticks(locs,labels)
-ylim(ymin=-0.5)
-ax3.set_xlabel("LST on "+starttime,fontweight="bold")
-ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
-for tl in ax3.get_yticklabels():
-    tl.set_color('b')
-
-ax4=ax3.twinx()
-ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
-ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
-for tl in ax4.get_yticklabels():
-    tl.set_color('r')
-savefig(pp,format='pdf')
+plot_envioronmental_sensors(f)
 
 if f.catalogue.filter(tags='bpcal'):
     print "Plotting bpcal fringes."
