@@ -119,7 +119,7 @@ def plot_bpcal_selection(f):
     fig = plt.figure(figsize=(21,15))
     try:
         for pol in ('h','v'):
-            f.select(targets=f.catalogue.filter(tags='bcal'), corrprods='cross', pol=pol, scans='track')
+            f.select(targets=f.catalogue.filter(tags='bpcal'), corrprods='cross', pol=pol, scans='track')
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
             fringes = np.angle(f.vis[:,:,:])
