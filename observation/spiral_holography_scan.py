@@ -69,7 +69,7 @@ def generatespiral(totextent,tottime,kind='uniform'):
         narmtheta=narmrad/radextent*np.pi
         armx=narmrad*np.cos(narmtheta)
         army=narmrad*np.sin(narmtheta)
-    else:#'uniform'
+    else:#'uniform' or 'mirrorx'
         narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
         ntime=int(np.float(tottime)/np.float(narms))
         armx=np.zeros(ntime)
@@ -113,10 +113,16 @@ def generatespiral(totextent,tottime,kind='uniform'):
             ny=ny[::-1]
         else:
             reverse=True
-        compositex[ia]=x
-        compositey[ia]=y
-        ncompositex[ia]=nx
-        ncompositey[ia]=ny
+        if (kind=='mirrorx'):#uniform mirror x coordinate
+            compositex[ia]=-x
+            compositey[ia]=y
+            ncompositex[ia]=-nx
+            ncompositey[ia]=ny
+        else:
+            compositex[ia]=x
+            compositey[ia]=y
+            ncompositex[ia]=nx
+            ncompositey[ia]=ny
     
     return compositex,compositey,ncompositex,ncompositey
 
