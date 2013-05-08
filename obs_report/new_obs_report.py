@@ -290,7 +290,7 @@ else:
         d=katarchive.get_archived_products(datafile)
 
 print "Opening %s using katfile, this might take a while" % (datafile,)
-f=katfile.open(d, quicklook=True)
+f=katfile.open(d[0], quicklook=True)
 
 #start a figure
 figure(figsize = (13,6))
