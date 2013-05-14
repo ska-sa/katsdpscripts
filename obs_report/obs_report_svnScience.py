@@ -28,28 +28,21 @@ opts, args = parser.parse_args()
 
 count=0
 #Time Series
-def times(ant,pol,count):
+def times(ant,pol):
 	figure(figsize=(13,10), facecolor='w', edgecolor='k')
 	xlabel("LST on "+starttime,fontweight="bold")
 	ylabel("Amplitude",fontweight="bold")
 	for ant_x in ant:
 		print ("plotting "+ant_x.name+"_" +pol+pol+ " time series")
        		f.select(ants=ant_x,corrprods='auto',pol=pol)
-    		if len(f.channels)<1025:  		
+		if len(f.channels)<1025:  		
 			f.select(channels=range(200,800))
-		if count==0:
-			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
-			locs,labels=xticks()
-			for i in range(len(locs)):
-				labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
+		plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
+		locs,labels=xticks()
+        for i in range(len(locs)):
+			labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 			xticks(locs,labels)
-		elif count==1:
-			plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant_x.name+'_'+pol+pol))
-			locs,labels=xticks()
-			for i in range(len(locs)):
-				labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-			xticks(locs,labels)
-	
+        xlim(xmin=f.lst[0],xmax=f.lst[-1])
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	savefig(pp,format='pdf')
 
@@ -74,7 +67,7 @@ def spec(pol,datafile,starttime):
 	f_max=nvis.max(axis=0)
 	ab1.plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
 	ab1.plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'),color='m')
 	ab1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	minorLocator   = AutoMinorLocator()
 	ab1.xaxis.set_minor_locator(minorLocator)
@@ -90,7 +83,7 @@ def spec(pol,datafile,starttime):
 		f_chan=flag[:,i,0].squeeze()
 		suming=f_chan.sum()
 		perc.append(100*(suming/float(len(f_chan))))
-	ab2.bar(f.channels,perc)
+	ab2.bar(f.channels,perc,color='red',edgecolor='none')
 	minorLocator   = AutoMinorLocator()
 	ab2.xaxis.set_minor_locator(minorLocator)
 	ab2.set_ylabel("% flagged", fontweight="bold")
@@ -113,7 +106,7 @@ def spec(pol,datafile,starttime):
 	f_max=nvis.max(axis=0)
 	plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
 	plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-	plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+	plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'),color='m')
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	minorLocator   = AutoMinorLocator()
 	ab3.xaxis.set_minor_locator(minorLocator)
@@ -129,7 +122,7 @@ def spec(pol,datafile,starttime):
 		f_chan=flag[:,i,0].squeeze()
 		suming=f_chan.sum()
 		perc.append(100*(suming/float(len(f_chan))))
-	ab4.bar(f.channels,perc)
+	ab4.bar(f.channels,perc,color='red',edgecolor='none')
 	minorLocator   = AutoMinorLocator()
 	ab4.xaxis.set_minor_locator(minorLocator)
 	ab4.set_ylabel("% flagged", fontweight="bold")
@@ -208,9 +201,8 @@ print f
 
 ant=f.ants
 pol=['h','v']
-times(ant,pol[0],count)
-count=count+1
-times(ant,pol[1],count)
+times(ant,pol[0])
+times(ant,pol[1])
 
 for ant_x in ant:
 	count=0
@@ -255,22 +247,22 @@ for tl in ax2.get_yticklabels():
 
 ax3=fig.add_subplot(212)
 ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+ax3.plot(f.lst ,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
 for i in range(len(locs)):
 	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 xticks(locs,labels)
-ylim(ymin=-0.5)
-ax3.set_xlabel("LST on "+starttime,fontweight="bold")
-ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
 for tl in ax3.get_yticklabels():
-	tl.set_color('b')
-
-ax4=ax3.twinx()
-ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
-ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
-for tl in ax4.get_yticklabels():
 	tl.set_color('r')
+	
+ax4=ax3.twinx()
+ax4.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+ylim(ymin=-0.5)
+ax4.set_xlabel("LST on "+starttime,fontweight="bold")
+ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+for tl in ax4.get_yticklabels():
+	tl.set_color('b')
 savefig(pp,format='pdf')
 
 
