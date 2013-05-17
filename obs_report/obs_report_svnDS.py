@@ -24,7 +24,7 @@ parser = OptionParser(usage="usage: %prog [options]",
 					"The script plot the weather sensors as well for the duration of the observation.\n"+
 					"The data file is specified usinp option -d (This is a non-optional option) ")
 parser.add_option('-d', '--filename', help="datafile to be plotted "+ "(e.g. 1340018260.h5)")
-parser.add_option('-t', '--tempdir', help="temporary directory to use for producing files")
+parser.add_option('-t', '--tempdir', help="temporary directory to use for producing files",default='')
 opts, args = parser.parse_args() 
 
 count=0
@@ -50,7 +50,6 @@ def times(ant,pol,count):
 			for i in range(len(locs)):
 				labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 			xticks(locs,labels)
-	
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	savefig(pp,format='pdf')
 
@@ -75,7 +74,7 @@ def spec(pol,datafile,starttime):
 	f_max=nvis.max(axis=0)
 	ab1.plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
 	ab1.plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+	ab1.plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'),color='m')
 	ab1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	minorLocator   = AutoMinorLocator()
 	ab1.xaxis.set_minor_locator(minorLocator)
@@ -91,7 +90,7 @@ def spec(pol,datafile,starttime):
 		f_chan=flag[:,i,0].squeeze()
 		suming=f_chan.sum()
 		perc.append(100*(suming/float(f_chan.size)))
-	ab2.bar(f.channels,perc)
+	ab2.bar(f.channels,perc,color='red',edgecolor='none')
 	minorLocator   = AutoMinorLocator()
 	ab2.xaxis.set_minor_locator(minorLocator)
 	ab2.set_ylabel("% flagged", fontweight="bold")
@@ -114,7 +113,7 @@ def spec(pol,datafile,starttime):
 	f_max=nvis.max(axis=0)
 	plot(f.channels,10*np.log10(f_min),label=(ant_x.name+'_'+pol[count]+pol[count]+'_min'))
 	plot(f.channels,10*np.log10(f_mean),label=(ant_x.name+'_'+pol[count]+pol[count]+'_mean'))
-	plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'))
+	plot(f.channels,10*np.log10(f_max),label=(ant_x.name+'_'+pol[count]+pol[count]+'_max'),color='m')
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	minorLocator   = AutoMinorLocator()
 	ab3.xaxis.set_minor_locator(minorLocator)
@@ -130,7 +129,7 @@ def spec(pol,datafile,starttime):
 		f_chan=flag[:,i,0].squeeze()
 		suming=f_chan.sum()
 		perc.append(100*(suming/float(f_chan.size)))
-	ab4.bar(f.channels,perc)
+	ab4.bar(f.channels,perc,color='red',edgecolor='none')
 	minorLocator   = AutoMinorLocator()
 	ab4.xaxis.set_minor_locator(minorLocator)
 	ab4.set_ylabel("% flagged", fontweight="bold")
@@ -233,6 +232,14 @@ print "Getting wind and temperature sensors"
 fig=pl.figure(figsize=(13,10))
 ax1 = fig.add_subplot(211)
 ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
+airtemp=f.sensor['Enviro/asc.air.temperature']
+ylim(ymin=-1,ymax=35)
+mintemp=min(airtemp)
+maxtemp=max(airtemp)
+if maxtemp>=35:
+	ylim(ymax=(maxtemp+1))
+if mintemp<=(-1.0):
+	ylim(ymin=(mintemp-1))
 locs,labels=xticks()
 for i in range(len(locs)):
 	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
@@ -267,22 +274,29 @@ for tl in ax2.get_yticklabels():
 
 ax3=fig.add_subplot(212)
 ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+ax3.plot(f.lst ,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
 for i in range(len(locs)):
 	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 xticks(locs,labels)
-ylim(ymin=-0.5)
-ax3.set_xlabel("LST on "+starttime,fontweight="bold")
-ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
 for tl in ax3.get_yticklabels():
-	tl.set_color('b')
-
-ax4=ax3.twinx()
-ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure']/10.0,'r-')
-ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
-for tl in ax4.get_yticklabels():
 	tl.set_color('r')
+	
+ax4=ax3.twinx()
+ax4.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+wspeed=f.sensor['Enviro/asc.wind.speed']
+ylim(ymin=-0.5,ymax=16)
+minwind=min(wspeed)
+maxwind=max(wspeed)
+if maxwind>=16:
+	ylim(ymax=(maxwind+1))
+if minwind<=-0.5:
+	ylim(ymin=(minwind-1))
+ax4.set_xlabel("LST on "+starttime,fontweight="bold")
+ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+for tl in ax4.get_yticklabels():
+	tl.set_color('b')
 savefig(pp,format='pdf')
 
 
@@ -339,18 +353,26 @@ if a==1:
 	except ValueError , error:
     		print 'Failed to read scans from File: ',fn,' with Value Error:',error
 	plt.savefig(pp,format='pdf')
-
+else:
+	print "No bandpass calibrators found, we wont plot fringes"	
 
 
 	#Plot cross correlation spectra 
-	f.select()
-	print "Plotting Cross Correlation Spectra"
-	cor = f.corr_products
-	ants = f.ants
-	num_ants = len(ants)
-	bp = np.array([t.tags.count('target') for t in f.catalogue.targets]) == 1
+f.select()
+cor = f.corr_products
+ants = f.ants
+num_ants = len(ants)
+bp = np.array([t.tags.count('target') for t in f.catalogue.targets]) == 1
+for look in range(len(bp)):
+	if bp[look]==1:
+		a=1
+		break
+	else:
+		a=0
+if a==1:
 	bp = np.arange(len(bp))[bp]
 	#code to plot the cross phase ... fringes
+	print "Plotting Cross Correlation Spectra"
 	fig = plt.figure(figsize=(21,15))
 	try:
 		j=0
@@ -388,9 +410,9 @@ if a==1:
 	except ValueError , error:
     		print 'Failed to read scans from File: ',fn,' with Value Error:',error
 	plt.savefig(pp,format='pdf')
-
 else:
-	print "No bandpass calibrators found, we wont plot fringes"	
+	print "No sources are tagged as 'target', Cant plot cross correlation spectra."
+
 plt.close('all')
 pp.close()
 text_log.close()
