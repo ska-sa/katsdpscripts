@@ -42,7 +42,6 @@ def times(ant,pol):
         for i in range(len(locs)):
 			labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 			xticks(locs,labels)
-        xlim(xmin=f.lst[0],xmax=f.lst[-1])
 	legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
 	savefig(pp,format='pdf')
 
@@ -208,11 +207,18 @@ for ant_x in ant:
 	count=0
 	spec(pol,datafile,starttime)
 
-
 print "Getting wind and temperature sensors"
 fig=pl.figure(figsize=(13,10))
 ax1 = fig.add_subplot(211)
 ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
+airtemp=f.sensor['Enviro/asc.air.temperature']
+ylim(ymin=-1,ymax=35)
+mintemp=min(airtemp)
+maxtemp=max(airtemp)
+if maxtemp>=35:
+	ylim(ymax=(maxtemp+1))
+if mintemp<=(-1.0):
+	ylim(ymin=(mintemp-1))
 locs,labels=xticks()
 for i in range(len(locs)):
 	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
@@ -258,7 +264,14 @@ for tl in ax3.get_yticklabels():
 	
 ax4=ax3.twinx()
 ax4.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
-ylim(ymin=-0.5)
+wspeed=f.sensor['Enviro/asc.wind.speed']
+ylim(ymin=-0.5,ymax=16)
+minwind=min(wspeed)
+maxwind=max(wspeed)
+if maxwind>=16:
+	ylim(ymax=(maxwind+1))
+if minwind<=-0.5:
+	ylim(ymin=(minwind-1))
 ax4.set_xlabel("LST on "+starttime,fontweight="bold")
 ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
 for tl in ax4.get_yticklabels():
