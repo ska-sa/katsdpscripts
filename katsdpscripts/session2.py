@@ -196,7 +196,7 @@ class CaptureSession(CaptureSessionBase):
             if not reply.succeeded:
                 raise RequestSensorError(reply[1])
             # Start streaming KATCP sensor updates via SPEAD to the capture thread
-            kat.katcp2spead.req.start_stream()
+            dbe.req.katcp2spead_start_stream()
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
             self._script_log_handler = ScriptLogHandler(dbe)
             if len(user_logger.handlers) > 0:
@@ -1046,7 +1046,7 @@ class CaptureSession(CaptureSessionBase):
             # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, but the HDF5 file is left open)
             dbe.req.dbe_capture_stop('k7')
             # Stop streaming KATCP sensor updates to the capture thread
-            self.kat.katcp2spead.req.stop_stream()
+            dbe.req.katcp2spead_stop_stream()
             user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
             dbe.req.k7w_set_script_param('script-endtime', time.time())
             dbe.req.k7w_set_script_param('script-status', 'interrupted' if interrupted else 'completed')
