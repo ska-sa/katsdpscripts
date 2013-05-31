@@ -8,7 +8,7 @@ import katpoint
 from .defaults import colors, user_logger
 from .utility import tbuild
 from .conf import get_system_configuration, configure_core
-from .session import (Timesession, CaptureSession,
+from .session import (TimeSession, CaptureSession,
                       projections, default_proj, ant_array)
 
 
