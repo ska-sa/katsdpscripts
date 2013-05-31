@@ -2,11 +2,11 @@ import unittest2 as unittest
 
 from katcorelib.testutils import NameSpace
 
-from katcorelib import session2
+from katcorelib import session
 
 class Test_CaptureSessionBase(unittest.TestCase):
     def setUp(self):
-        self.DUT = session2.CaptureSessionBase()
+        self.DUT = session.CaptureSessionBase()
 
     def test_get_ant_names(self):
         self.DUT.kat = NameSpace()

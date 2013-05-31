@@ -8,9 +8,8 @@ import katpoint
 from .defaults import colors, user_logger
 from .utility import tbuild
 from .conf import get_system_configuration, configure_core
-from .session1 import CaptureSession as CaptureSession1, TimeSession as TimeSession1
-from .session2 import CaptureSession as CaptureSession2, TimeSession as TimeSession2, \
-     projections, default_proj, ant_array
+from .session import (Timesession, CaptureSession,
+                      projections, default_proj, ant_array)
 
 
 def standard_script_options(usage, description):
@@ -60,9 +59,6 @@ def standard_script_options(usage, description):
                       "actions at predicted times (default=%default)")
     parser.add_option('--stow-when-done', action='store_true', default=False,
                       help="Stow the antennas when the capture session ends")
-    parser.add_option('--dbe', default='dbe7',
-                      help="DBE proxy / correlator to use for experiment "
-                      "('dbe' for FF and 'dbe7' for KAT-7, default=%default)")
     parser.add_option('--mode',
                       help="DBE mode to use for experiment, keeps current mode by default)")
     parser.add_option('--dbe-centre-freq', type='float', default=None,
@@ -160,7 +156,7 @@ def verify_and_connect(opts):
     return kat
 
 
-def start_session(kat, dbe='dbe7', **kwargs):
+def start_session(kat, **kwargs):
     """Start capture session (real or fake).
 
     This starts a capture session initialised with the given arguments, choosing
@@ -173,8 +169,6 @@ def start_session(kat, dbe='dbe7', **kwargs):
     ----------
     kat : :class:`utility.KATHost` object
         KAT connection object associated with this experiment
-    dbe : string, optional
-        Name of DBE proxy to use (effectively selects the correlator)
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -183,18 +177,8 @@ def start_session(kat, dbe='dbe7', **kwargs):
     session : :class:`CaptureSession` or :class:`TimeSession` object
         Session object associated with started session
 
-    Raises
-    ------
-    ValueError
-        If DBE proxy device is unknown
-
     """
-    if dbe == 'dbe':
-        return TimeSession1(kat, dbe, **kwargs) if kat.dry_run else CaptureSession1(kat, dbe, **kwargs)
-    elif dbe == 'dbe7':
-        return TimeSession2(kat, dbe, **kwargs) if kat.dry_run else CaptureSession2(kat, dbe, **kwargs)
-    else:
-        raise ValueError("Unknown DBE proxy device specified - should be 'dbe' (FF) or 'dbe7' (KAT-7)")
+    return TimeSession(kat, **kwargs) if kat.dry_run else CaptureSession(kat, **kwargs)
 
 
 def collect_targets(kat, args):
