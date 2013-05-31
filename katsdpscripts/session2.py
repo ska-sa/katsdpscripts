@@ -420,9 +420,9 @@ class CaptureSession(CaptureSessionBase):
             session.set_centre_freq(centre_freq)
         else:
             centre_freq = session.get_centre_freq()
-        # The DBE proxy needs to know the dump period (in ms) as well as the RF centre frequency
+        # The DBE proxy needs to know the dump period (in s) as well as the RF centre frequency
         # of 400-MHz downconverted band (in Hz), which is used for fringe stopping / delay tracking
-        dbe.req.capture_setup(1000.0 / dump_rate, session.get_centre_freq(200.0) * 1e6)
+        dbe.req.capture_setup(1. / dump_rate, session.get_centre_freq(200.0) * 1e6)
 
         user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
         user_logger.info('Observer = %s' % (observer,))
@@ -469,7 +469,6 @@ class CaptureSession(CaptureSessionBase):
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
             update_period_seconds = 0.4 / dump_rate
             # Tell the position sensors to report their values periodically at this rate
-            # Remember that this should be an *integer* number of milliseconds
             first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(float(update_period_seconds)))
             first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(float(update_period_seconds)))
             # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
