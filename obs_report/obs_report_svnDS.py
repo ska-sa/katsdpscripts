@@ -139,7 +139,6 @@ def spec(pol,datafile,starttime):
 
 
 	savefig(pp,format='pdf')
-	#savefig("/data/obs_report/siphelele/time_series_plots/time_series/"+datafile[:-3]+"_"+ant_x.name+"_Spectro.png")
 	count=0
 
 if opts.filename is None:
@@ -151,8 +150,6 @@ if opts.filename is None:
 #get data file using katarchive and open it using katfile
 
 datafile =opts.filename
-#pathtofile = 'locate ' +datafile
-#searched=glob.glob(datafile)                               #search the file locally 
 
 text_log_filename = '%s.txt' % (os.path.splitext(datafile)[0],)
 text_log_filename = os.path.join(opts.tempdir, text_log_filename)
@@ -162,18 +159,12 @@ pdf_filename = os.path.join(opts.tempdir, pdf_filename)
 text_log = open(text_log_filename, 'w')
 pp = PdfPages(pdf_filename)
 
-#if not searched:							   #If not found locally download it
 print 'Searching the data file from the mounted archive'
 
 d=katarchive.get_archived_products(datafile)
 while len(d) == 0:
     time.sleep(10)
     d=katarchive.get_archived_products(datafile)
-#d=katoodt.get_archived_product(product_name=datafile)
-#else: 
-#	print "File found locally "
-#	d=searched
-
 #get instruction set using h5py
 a=h5py.File(d[0],'r')
 ints=a['MetaData']['Configuration']['Observation'].attrs.items()
@@ -266,6 +257,13 @@ for m in range(len(rh)):
 
 ax2=ax1.twinx()
 ax2.plot(f.lst,ah,'c-')
+ylim(ymin=1,ymax=8)
+minah=min(ah)
+maxah=max(ah)
+if maxah>=8:
+	ylim(ymax=(maxah+1))
+if minah<=(1.0):
+	ylim(ymin=(minah-1))
 locs,labels=xticks()
 ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
@@ -275,6 +273,14 @@ for tl in ax2.get_yticklabels():
 ax3=fig.add_subplot(212)
 ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
 ax3.plot(f.lst ,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
+airpress=f.sensor['Enviro/asc.air.pressure']/10
+ylim(ymin=87,ymax=92)
+minairpress=min(airpress)
+maxairpress=max(airpress)
+if maxairpress>=92:
+	ylim(ymax=(maxairpress+1))
+if minairpress<=87:
+	ylim(ymin=(minairpress-1))
 for i in range(len(locs)):
 	labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
 xticks(locs,labels)
@@ -314,7 +320,7 @@ for z in range(len(bp)):
 		a=0
 if a==1:
 	print "Plotting fringes"
-	bp = np.arange(len(bp))[bp]
+	bp = np.arange(len(bp))[bp][0]
 #code to plot the cross phase ... fringes
 	fig = plt.figure(figsize=(21,15))
 	try:
