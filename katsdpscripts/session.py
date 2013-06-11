@@ -116,7 +116,7 @@ class RequestSensorError(Exception):
 class CaptureSessionBase(object):
     def get_ant_names(self):
         return ','.join(co for co in self.kat.controlled_objects
-                        if co.startswith('ant'))
+                        if co in self.kat.katconfig.arrays['ants'])
 
 
 class CaptureSession(CaptureSessionBase):

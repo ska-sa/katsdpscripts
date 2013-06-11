@@ -11,4 +11,15 @@ class Test_CaptureSessionBase(unittest.TestCase):
     def test_get_ant_names(self):
         self.DUT.kat = NameSpace()
         self.DUT.kat.controlled_objects = ['ant1', 'rfe7', 'ant2', 'katarchive']
+        self.DUT.kat.__dict__['katconfig'] = NameSpace()
+        self.DUT.kat.katconfig.__dict__['arrays'] = {}
+        self.DUT.kat.katconfig.arrays = {'ants': ['ant1','ant2']}
         self.assertEqual(self.DUT.get_ant_names(), 'ant1,ant2')
+
+    def test_mkat_get_ant_names(self):
+        self.DUT.kat = NameSpace()
+        self.DUT.kat.controlled_objects = ['m000', 'rfe7', 'm063', 'katarchive']
+        self.DUT.kat.__dict__['katconfig'] = NameSpace()
+        self.DUT.kat.katconfig.__dict__['arrays'] = {}
+        self.DUT.kat.katconfig.arrays = {'ants': ['m000','m063']}
+        self.assertEqual(self.DUT.get_ant_names(), 'm000,m063')
