@@ -36,8 +36,10 @@ critical_colour2 = 'blinkyellow'
 error_colour = 'red'
 warn_colour = 'brown'
 normal_colour = 'normal'
-sensor_status_errors = ['failure','error','unknown'] # other possibilities are warn, nominal
-K7 = katpoint.Antenna('K7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0') # array centre position
+# other possibilities are warn, nominal, inactive
+sensor_status_errors = ['unreachable', 'failure', 'error', 'unknown']
+# array centre position
+K7 = katpoint.Antenna('K7, -30:43:17.3, 21:24:38.5, 1038.0, 12.0')
 quiet_check_refresh = 5 # time in secs between sensor checks in quiet mode (under the hood)
 def get_centre_freq(kat, dbe_if=None):
     """Get RF (sky) frequency associated with middle DBE channel.
