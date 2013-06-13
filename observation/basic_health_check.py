@@ -604,6 +604,10 @@ if __name__ == '__main__':
         # Try to build the KAT configuration
         # This connects to all the proxies and devices and queries their commands and sensors
         site, system = katcorelib.conf.get_system_configuration()
+        
+        if "mkat" in site:
+            raise ValueError("This basic_health_check is only for KAT-7 not MeerKAT site=%s system=%s" % (site,system))
+            
         try:
             kat = katcorelib.tbuild(system=system)
         except ValueError:
