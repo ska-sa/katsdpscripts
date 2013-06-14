@@ -14,11 +14,12 @@ from katcorelib import collect_targets, standard_script_options, verify_and_conn
 import katpoint
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] [<'target/catalogue'> ...]",
-                                 description="Perform mini (Zorro) raster scans across (point) sources for pointing "
-                                             "model fits and gain curve calculation. Use the specified target(s) and "
-                                             "catalogue(s) or the default. This script is aimed at fast scans across "
-                                             "a large range of sources. Some options are **required**.")
+parser = standard_script_options(
+    usage="%prog [options] [<'target/catalogue'> ...]",
+    description="Perform mini (Zorro) raster scans across (point) sources for pointing "
+    "model fits and gain curve calculation. Use the specified target(s) and "
+    "catalogue(s) or the default. This script is aimed at fast scans across "
+    "a large range of sources. Some options are **required**.")
 # Add experiment-specific options
 parser.add_option('-e', '--scan-in-elevation', action="store_true", default=False,
                   help="Scan in elevation rather than in azimuth (default=%default)")
