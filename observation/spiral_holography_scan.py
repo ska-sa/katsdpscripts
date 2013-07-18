@@ -47,18 +47,18 @@ def spiral(params,indep):
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
-def generatespiral(totextent,tottime,kind='uniform'):
+def generatespiral(totextent,tottime,sampletime,kind='uniform',extrazero=False,mirrorx=False):
     radextent=totextent/2.0
     if (kind=='dense-core'):
         narms=int((np.sqrt(tottime/5.)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        ntime=np.float(tottime)/np.float(narms)
+        ntime=np.float(tottime)/np.float(sampletime)/np.float(narms)
         armrad=radextent*(np.linspace(0,1,ntime))
         armtheta=np.linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
         army=armrad*np.sin(armtheta)
     elif (kind=='approx'):
         narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        ntime=np.float(tottime)/np.float(narms)
+        ntime=np.float(tottime)/np.float(sampletime)/np.float(narms)
         armrad=radextent*(np.linspace(0,1,ntime))
         armtheta=np.linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
@@ -69,9 +69,9 @@ def generatespiral(totextent,tottime,kind='uniform'):
         narmtheta=narmrad/radextent*np.pi
         armx=narmrad*np.cos(narmtheta)
         army=narmrad*np.sin(narmtheta)
-    else:#'uniform' or 'mirrorx'
+    else:#'uniform'
         narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        ntime=int(np.float(tottime)/np.float(narms))
+        ntime=int(np.float(tottime)/np.float(sampletime)/np.float(narms))
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
@@ -105,6 +105,11 @@ def generatespiral(totextent,tottime,kind='uniform'):
         nrot=ia*np.pi*2.0/narms
         nx=armx*np.cos(nrot)-army*np.sin(nrot)
         ny=armx*np.sin(nrot)+army*np.cos(nrot)
+        if (extrazero):
+            x=np.r_[0.0,x]
+            y=np.r_[0.0,y]
+            nx=np.r_[0.0,nx]
+            ny=np.r_[0.0,ny]
         if reverse:
             reverse=False
             x=x[::-1]
@@ -113,7 +118,7 @@ def generatespiral(totextent,tottime,kind='uniform'):
             ny=ny[::-1]
         else:
             reverse=True
-        if (kind=='mirrorx'):#uniform mirror x coordinate
+        if (mirrorx):
             compositex[ia]=-x
             compositey[ia]=y
             ncompositex[ia]=-nx
@@ -144,6 +149,12 @@ parser.add_option('-l', '--scan-extent', type='float', default=4.0,
                   help='Diameter of beam pattern to measure, in degrees (default=%default)')
 parser.add_option('--kind', type='string', default='uniform',
                   help='Kind of spiral, could be "uniform" or "dense-core" (default=%default)')
+parser.add_option('--sampletime', type='float', default=1.0,
+                  help='time in seconds to spend on pointing (default=%default)')
+parser.add_option('--extrazero', action="store_true", default=False,
+                  help='Extra sample when scanning past target (default=%default)')
+parser.add_option('--mirrorx', action="store_true", default=False,
+                  help='Mirrors x coordinates of pattern (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
@@ -151,8 +162,8 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,kind=opts.kind)
-timeperstep=1.0;
+compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,sampletime=opts.sampletime,kind=opts.kind,extrazero=opts.extrazero,mirrorx=opts.mirrorx)
+timeperstep=opts.sampletime;
 
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "
