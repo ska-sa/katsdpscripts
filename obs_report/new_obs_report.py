@@ -66,57 +66,97 @@ def make_frontpage(file_ptr):
     frontpage.append('\n')
     return '\n'.join(frontpage)
 
-def plot_time_series(ants,pol,count,startime):
+def plot_time_series(ants,pol,startime):
     #Time Series
-    figure(figsize=(13,10), facecolor='w', edgecolor='k')
-    xlabel("LST on "+starttime,fontweight="bold")
-    ylabel("Amplitude",fontweight="bold")
+    fig=figure(figsize=(13.5,10), facecolor='w', edgecolor='k')
+    pl.suptitle("Time series plot",fontsize=16, fontweight="bold")
+    axis1=fig.add_subplot(111)
+    axis1.set_xlabel("LST on "+starttime,fontweight="bold")
+    axis1.set_ylabel("Amplitude",fontweight="bold")
     for ant in ants:
         print ("plotting "+ant.name+"_" +pol+pol+ " time series")
         f.select(ants=ant,corrprods='auto',pol=pol)
         if len(f.channels)<1025:
-            f.select(channels=range(200,800))
-        if count==0:
-            plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
-            locs,labels=xticks()
-            for i in range(len(locs)):
-                labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-            xticks(locs,labels)
-        elif count==1:
-            plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
-            locs,labels=xticks()
-            for i in range(len(locs)):
-                labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-            xticks(locs,labels)
+            f.select(channels=range(170,854))
+       
+        axis1.plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
+        locs,labels=xticks()
+        for i in range(len(locs)):
+            labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
+        xticks(locs,labels)
+        if(max(f.lst)<23.9):
+            axis1.set_xlim(xmin=f.lst[0],xmax=f.lst[-1])
+        else:
+            axis1.set_xlim(xmin=0.0,xmax=24.0)
+    legend(loc='right', bbox_to_anchor=(1.13, 0.92), ncol=2, fancybox=True, shadow=False)
 
-    legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+    #Plot SAST on top of the figure
+    ylocs,ylabels=yticks()
+    axis2=axis1.twiny()
+    axis2.set_xlabel("SAST "+starttime,fontweight="bold")
+    dummy=[]
+    for ts in range(len(f.timestamps)):
+        dummy.append(min(ylocs))
+    axis2.plot(f.timestamps,dummy,'k-', linewidth=0.15)
+    locs,labels=xticks()
+    loctime=[]
+    for loc in range(len(locs)):
+        loctime.append(time.localtime(locs[loc]))
+        labels[loc]=str(loctime[loc].tm_hour)+":"+str(loctime[loc].tm_min)
+    pl.xticks(locs,labels)
+    axis2.set_xlim(xmin=f.timestamps[0], xmax= f.timestamps[-1])
+    for tl in axis2.get_xticklabels():
+	    tl.set_color('DarkViolet')
+	    
     savefig(pp,format='pdf')
 
 def plot_spectrum(pol, datafile, starttime, ant):
     #Spectrum function
     fig=figure(figsize=(13,10), facecolor='w', edgecolor='k')
+    fig.subplots_adjust(hspace=0.25)
+    axes(frame_on=False)
+    xticks([])
+    yticks([])
+    pl.suptitle("Antenna "+ant.name+" Spectrum ",fontsize=16, fontweight="bold")
     ab = []
     for  count in (0,1):
         ab.append(fig.add_subplot(2,1,(count+1)))
         ab[-1].set_ylim(2,16)
         if len(f.channels)<1025:
-            ab[-1].set_xlim(195,805)
+            ab[-1].set_xlim(170,854)
         ab[-1].set_xlabel("Channels", fontweight="bold")
         ab[-1].set_ylabel("Amplitude", fontweight="bold")
-
         f.select(ants=ant,corrprods='auto',pol=pol[count])
         abs_vis=np.abs(f.vis[:])
+        #if (10*np.log10((abs_vis.max(axis=0)).max())) >16:
+            #ab[-1].set_ylim(2,ymax=0.5+(10*np.log10((abs_vis.max(axis=0)).max())))
         label_format = '%s_%s%s' % (ant.name, pol[count], pol[count])
         print "Starting to plot the %s spectrum." % (label_format,)
+        plotcolours=['g','b','m']
+        colours=0
         for stat in ('mean', 'min', 'max'):
-            ab[-1].plot(f.channels, 10*np.log10(getattr(abs_vis,stat)(axis=0)), label=('%s_%s' % (label_format, stat)))
-        ab[-1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
+            ab[-1].plot(f.channels, 10*np.log10(getattr(abs_vis,stat)(axis=0)), label=('%s_%s' % (label_format, stat)),color=plotcolours[colours] )
+            colours+=1
+        ab[-1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.03), ncol=4, fancybox=True, shadow=False)
         minorLocator   = AutoMinorLocator()
         ab[-1].xaxis.set_minor_locator(minorLocator)
         pl.tick_params(which='both', color='k')
         pl.tick_params(which='major', length=6,width=2)
         pl.tick_params(which='minor', width=1,length=4)
-
+        pl.xlim(xmin=f.channels[0],xmax=f.channels[-1])
+#====================================================================================================
+        ylocs,ylabels=yticks()
+        xaxis2=ab[-1].twiny()
+        dummy=[]
+        for ts in range(len(f.channels)):
+            dummy.append(min(ylocs))
+        xaxis2.plot(f.channel_freqs/1e6, dummy,'k-')
+        xaxis2.ticklabel_format(axis='x', style='plain', useOffset=False)
+        xaxis2.set_ylim(min(ylocs),max(ylocs))
+        xaxis2.invert_xaxis()
+        xaxis2.set_xlim(xmin=(f.channel_freqs[0]-(f.channel_width*170))/1e6, xmax=(f.channel_freqs[-1]+(f.channel_width*170))/1e6)
+        xaxis2.set_xlabel("Frequency MHz",fontweight="bold")
+#========================================================================================================
         ab.append(ab[-1].twinx())
         flag=f.flags()[:]
         # total_sum=0
@@ -125,30 +165,62 @@ def plot_spectrum(pol, datafile, starttime, ant):
             f_chan=flag[:,i,0].squeeze()
             suming=f_chan.sum()
             perc.append(100*(suming/float(f_chan.size)))
-        ab[-1].bar(f.channels,perc)
+        ab[-1].bar(f.channels,perc,color='r',edgecolor='none')
         minorLocator   = AutoMinorLocator()
         ab[-1].xaxis.set_minor_locator(minorLocator)
         ab[-1].set_ylabel("% flagged", fontweight="bold")
         ab[-1].set_ylim(0,100)
         if len(f.channels)<1025:
-            ab[-1].set_xlim(195,805)
-
+            ab[-1].set_xlim(170,854)
     savefig(pp,format='pdf')
 
 def plot_envioronmental_sensors(f):
     print "Getting wind and temperature sensors"
     fig=pl.figure(figsize=(13,10))
+    axes(frame_on=False)
+    xticks([])
+    yticks([])
+    pl.suptitle("Weather Data",fontsize=16, fontweight="bold")
     ax1 = fig.add_subplot(211)
+    fig.subplots_adjust(hspace=0.04)
     ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
+    airtemp=f.sensor['Enviro/asc.air.temperature']
     locs,labels=xticks()
-    for i in range(len(locs)):
-        labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
+    labels=[]
     xticks(locs,labels)
     ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax1.set_xlabel("LST on "+starttime, fontweight="bold")
+    ax1.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
     ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
     for tl in ax1.get_yticklabels():
         tl.set_color('g')
+
+#============================================================
+    ax7=ax1.twiny()
+    ax7.set_xlabel("SAST "+starttime,fontweight="bold")
+    dummy=[]
+    for ts in range(len(f.timestamps)):
+        dummy.append(0)
+    ax7.plot(f.timestamps,dummy,'k-', linewidth=0.15)
+    airtemp=f.sensor['Enviro/asc.air.temperature']
+    ylim(ymin=0,ymax=35)
+    mintemp=min(airtemp)
+    maxtemp=max(airtemp)
+    if maxtemp>=35:
+	    ylim(ymax=(maxtemp+1))
+    if mintemp<=(0):
+	    ylim(ymin=(mintemp-1))
+    locs,labels=xticks()
+    loctime=[]
+    for loc in range(len(locs)):
+        loctime.append(time.localtime(locs[loc]))
+        labels[loc]=str(loctime[loc].tm_hour)+":"+str(loctime[loc].tm_min)
+    pl.xticks(locs,labels)
+    ax7.set_xlim(xmin=f.timestamps[0], xmax= f.timestamps[-1])
+    for tl in ax7.get_xticklabels():
+	    tl.set_color('DarkViolet')
+    
+
+    #=============================================================    
 
     #Relative to Absolute
     rh=f.sensor['Enviro/asc.air.relative-humidity']
@@ -165,34 +237,57 @@ def plot_envioronmental_sensors(f):
 
     ax2=ax1.twinx()
     ax2.plot(f.lst,ah,'c-')
+    ylim(ymin=1,ymax=8)
+    minah=min(ah)
+    maxah=max(ah)
+    if maxah>=8:
+	    ylim(ymax=(maxah+1))
+    if minah<=(1.0):
+	    ylim(ymin=(minah-1))
     locs,labels=xticks()
-    ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
     ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
     for tl in ax2.get_yticklabels():
         tl.set_color('c')
 
     ax3=fig.add_subplot(212)
-    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax3.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+    ax3.plot(f.lst ,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
+    airpress=f.sensor['Enviro/asc.air.pressure']/10
+    ylim(ymin=87,ymax=92)
+    minairpress=min(airpress)
+    maxairpress=max(airpress)
+    if maxairpress>=92:
+	    ylim(ymax=(maxairpress+1))
+    if minairpress<=87:
+	    ylim(ymin=(minairpress-1))
     for i in range(len(locs)):
-        labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
+	    labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
     xticks(locs,labels)
-    ylim(ymin=-0.5)
+    ax3.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
     ax3.set_xlabel("LST on "+starttime,fontweight="bold")
-    ax3.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+    ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
     for tl in ax3.get_yticklabels():
-        tl.set_color('b')
-
+	    tl.set_color('r')
+	
     ax4=ax3.twinx()
-    ax4.plot(f.lst ,f.sensor['Enviro/asc.air.pressure'],'r-')
+    ax4.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+    wspeed=f.sensor['Enviro/asc.wind.speed']
+    ylim(ymin=-0.5,ymax=16)
+    minwind=min(wspeed)
+    maxwind=max(wspeed)
+    if maxwind>=16:
+	    ylim(ymax=(maxwind+1))
+    if minwind<=-0.5:
+	    ylim(ymin=(minwind-1))
+    ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
     ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax4.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
+    ax4.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
     for tl in ax4.get_yticklabels():
-        tl.set_color('r')
+	    tl.set_color('b')
     savefig(pp,format='pdf')
     
 def plot_bpcal_selection(f):
     fig = plt.figure(figsize=(21,15))
+    pl.suptitle("Bp cal Fringes",fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=f.catalogue.filter(tags='bpcal'), corrprods='cross', pol=pol, scans='track')
@@ -229,6 +324,7 @@ def plot_bpcal_selection(f):
 
 def plot_target_selection(f):
     fig = plt.figure(figsize=(21,15))
+    pl.suptitle("Correlation Spectra",fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=f.catalogue.filter(tags='target'), corrprods='cross', pol=pol, scans='track')
@@ -291,13 +387,12 @@ else:
 
 print "Opening %s using katfile, this might take a while" % (datafile,)
 f=katfile.open(d[0], quicklook=True)
-
 #start a figure
-figure(figsize = (13,6))
+figure(figsize = (13.5,6))
 axes(frame_on=False)
 xticks([])
 yticks([])
-title(datafile+" Observation Report",fontsize=14, fontweight="bold")
+title(datafile+" Observation Report",fontsize=16, fontweight="bold")
 
 frontpage = make_frontpage(f)
 text_log.write(frontpage)
@@ -306,17 +401,17 @@ savefig(pp,format='pdf')
 print f
 
 count=0
+ants=f.ants
 pol=['h','v']
 starttime = time.strftime('%d %b %y', time.localtime(f.start_time))
-plot_time_series(f.ants, pol[0], count, starttime)
-count=count+1
-plot_time_series(f.ants, pol[1], count, starttime)
+plot_time_series(ants, pol[0], starttime)
+plot_time_series(ants, pol[1], starttime)
 
-for ant in f.ants:
+for ant in ants:
     plot_spectrum(pol,datafile,starttime,ant)
 
 plot_envioronmental_sensors(f)
-
+f.select()
 if f.catalogue.filter(tags='bpcal'):
     print "Plotting bpcal fringes."
     plot_bpcal_selection(f)
@@ -324,14 +419,39 @@ else:
     print "No bpcal tags found in catalog, we wont plot bpcal fringes."
 
 if f.catalogue.filter(tags='target'):
-    print "Plotting target fringes."
+    print "Plotting target correlation spectra."
     plot_target_selection(f)
 else:
-    print "No target tags found in catalog, we wont plot target fringes."
+    print "No target tags found in catalog, we wont plot the target cross correlation spectra."
 
+#=============
+#Last page
+
+#figure(figsize = (13,6))
+#axes(frame_on=False)
+#xticks([])
+#yticks([])
+#title(" Index",fontsize=16, fontweight="bold")
+
+#FName="/home/kat/comm/scripts/obs_reports/obs_report_svnDS.py"
+#rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","This report was generated using "+FName+", svn revesion: ")
+#lastpage=[]
+#lastpage.append("Description of the plots In thei report\n==================================\n")
+#lastpage.append("Time Series Plot\n \t Amplitude against time bla bla bla bla....................\n \t bla bla bla bla\n")
+#lastpage.append("Antenna X Spectrum\n\t bla bla bla\n")
+#lastpage.append("Weather Data\n\t bla bla bla..........\n")
+#lastpage.append("Band pass calibator fringes\n\t bla bla bla............\n")
+#lastpage.append("Correlation Spectra\n\t bla bla................................\n")
+#lastpage.append(rev)
+
+#text(0,0,'\n'.join(lastpage),fontsize=12)
+#savefig(pp,format='pdf')
+
+#=============
 plt.close('all')
 pp.close()
 text_log.close()
 
 print 'The results are save in %s and the text report in %s' % (pdf_filename, text_log_filename,)
 
+#import pdb; pdb.set_trace();
