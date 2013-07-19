@@ -427,25 +427,25 @@ else:
 #=============
 #Last page
 
-#figure(figsize = (13,6))
-#axes(frame_on=False)
-#xticks([])
-#yticks([])
+figure(figsize = (13,1))
+axes(frame_on=False)
+xticks([])
+yticks([])
 #title(" Index",fontsize=16, fontweight="bold")
 
-#FName="/home/kat/comm/scripts/obs_reports/obs_report_svnDS.py"
-#rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","This report was generated using "+FName+", svn revesion: ")
-#lastpage=[]
+FName="/home/kat/svn/auto_imager/new_obs_report.py"
+rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","This report was generated using "+FName+", svn revesion: ")
+lastpage=[]
 #lastpage.append("Description of the plots In thei report\n==================================\n")
 #lastpage.append("Time Series Plot\n \t Amplitude against time bla bla bla bla....................\n \t bla bla bla bla\n")
 #lastpage.append("Antenna X Spectrum\n\t bla bla bla\n")
 #lastpage.append("Weather Data\n\t bla bla bla..........\n")
 #lastpage.append("Band pass calibator fringes\n\t bla bla bla............\n")
 #lastpage.append("Correlation Spectra\n\t bla bla................................\n")
-#lastpage.append(rev)
+lastpage.append(rev)
 
-#text(0,0,'\n'.join(lastpage),fontsize=12)
-#savefig(pp,format='pdf')
+text(0,0,'\n'.join(lastpage),fontsize=12)
+savefig(pp,format='pdf')
 
 #=============
 plt.close('all')
