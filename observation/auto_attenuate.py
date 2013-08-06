@@ -201,28 +201,15 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
         if not kat.dry_run:
             # check that the selected dbe is set to the correct mode
-            if opts.dbe == 'dbe':
-                dbe_mode = kat.dbe.req.dbe_mode()[1]
-                if dbe_mode == 'poco':
-                    user_logger.info("dbe mode is 'poco', as expected :)")
-                    gain = 3000
-                    selected_dbe.req.set_gains(gain)
-                    user_logger.info("Set digital gain on selected DBE to %d." % gain)
-                else:
-                    user_logger.info("dbe mode is %s. Please run kat.dbe.req.dbe_mode('poco') to reset FF correlator mode. Exiting." % (dbe_mode))
-                    raise RuntimeError("Unsupported dbe mode '%s' " % (dbe_mode))
-            elif opts.dbe == 'dbe7':
-                dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
-                dbe7_mode_dict =  {'bc16n400M1k':160,'c16n400M1k':160,'c16n400M8k':160,'wbc':160, 'wbc8k':160,'c16n7M4k':31,'c16n2M4k':59,'c16n25M4k':17,'c16n13M4k':23}
-                if dbe_mode in dbe7_mode_dict.keys() :
-                    user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
-                    gain =dbe7_mode_dict[dbe_mode]
-                    set_k7_gains(kat,gain)
-                    user_logger.info("Set digital gain on selected DBE to %d." % gain)
-                else:
-                    user_logger.warning("dbe7 mode is %s. Could not set appropriate gain." % (dbe_mode))
+            dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
+            dbe7_mode_dict =  {'bc16n400M1k':160,'c16n400M1k':160,'c16n400M8k':160,'wbc':160, 'wbc8k':160,'c16n7M4k':31,'c16n2M4k':59,'c16n25M4k':17,'c16n13M4k':23}
+            if dbe_mode in dbe7_mode_dict.keys() :
+                user_logger.info("dbe7 mode is '%s', as expected :)" % dbe_mode)
+                gain =dbe7_mode_dict[dbe_mode]
+                set_k7_gains(kat,gain)
+                user_logger.info("Set digital gain on selected DBE to %d." % gain)
             else:
-                raise RuntimeError("Unknown dbe device (%s) specified. Expecting either 'dbe' or 'dbe7',. Exiting." % (opts.dbe,))
+                user_logger.warning("dbe7 mode is %s. Could not set appropriate gain." % (dbe_mode))
 
             # Populate lookup table that maps ant+pol to DBE input
             for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
@@ -284,11 +271,11 @@ with verify_and_connect(opts) as kat:
 
             # Adjust RFE stage 7 attenuation to give desired DBE input power
             rfe7_att, dbe_in = adjust(kat, inputs, get_rfe7_attenuation, set_rfe7_attenuation,
-                                      opts.dbe, opts.dbe_desired_power,
+                                      'dbe7', opts.dbe_desired_power,
                                       rfe7_min_att, rfe7_max_att, rfe7_att_step)
             # If RFE7 hits minimum attenuation, go back to RFE5 to try and reach desired DBE input power
             rfe5_att, dbe_in = adjust(kat, inputs, get_rfe5_attenuation, set_rfe5_attenuation,
-                                      opts.dbe, opts.dbe_desired_power,
+                                      'dbe7', opts.dbe_desired_power,
                                       rfe5_min_att, rfe5_max_att, rfe5_att_step)
             rfe5_out = get_rfe5_output_power(kat, inputs)
             # Check whether final power levels are within expected bounds
