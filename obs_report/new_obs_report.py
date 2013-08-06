@@ -427,26 +427,33 @@ else:
 #=============
 #Last page
 
-figure(figsize = (13,1))
+figure(figsize = (13,6))
 axes(frame_on=False)
 xticks([])
 yticks([])
 #title(" Index",fontsize=16, fontweight="bold")
 
 FName="/home/kat/svn/auto_imager/new_obs_report.py"
-rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","This report was generated using "+FName+", svn revesion: ")
+rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","***\nThis report was generated using "+FName+", svn revesion: ")
 lastpage=[]
-#lastpage.append("Description of the plots In thei report\n==================================\n")
-#lastpage.append("Time Series Plot\n \t Amplitude against time bla bla bla bla....................\n \t bla bla bla bla\n")
-#lastpage.append("Antenna X Spectrum\n\t bla bla bla\n")
-#lastpage.append("Weather Data\n\t bla bla bla..........\n")
+print "creating last page"
+lastpage.append("Description of the plots In the report\n==================================\n")
+lastpage.append("Time Series Plot:\n \t This plot shows the mean of the autocorrelation amplitude against time, for the duration of the observation.\
+The first time series plot\n shows HH while the second one shows VV. On primary x-axis is LTS and secondary x-axis shows SAST corresponding to \
+the LST at the \n time of observation.\n")
+lastpage.append("Antenna X Spectrum:\n\t This plot shows the power (left y-axis), against channels, with the frequency corresponding to the channels \
+plotted on the secondary\n x-axis. The mean of the autocorrelation spectrum is plotted in green, minimum in blue, and the maximum in magenta. For wide\n \
+band (1k channels) observation only channel 170 to 854 is plotted. On the same plot overlaid is the histogram of the percentage of\n data flagged per channel \
+for the duration of the observation the.\n")
+lastpage.append("Weather Data:\n\t This is the representation of the weather conditions during the period of the observation.  The plots include wind speed, \
+temperature,\n absolute humidity and air pressure. These plots are against LST as well as SAST on the secondary x-axis.\n")
 #lastpage.append("Band pass calibator fringes\n\t bla bla bla............\n")
-#lastpage.append("Correlation Spectra\n\t bla bla................................\n")
+lastpage.append("Correlation Spectra\n\t This plot shows the correlation spectrum for each baseline. Common features between the crossed antenna will be amplified.\n\n\n")
 lastpage.append(rev)
+print lastpage
 
 text(0,0,'\n'.join(lastpage),fontsize=12)
 savefig(pp,format='pdf')
-
 #=============
 plt.close('all')
 pp.close()
