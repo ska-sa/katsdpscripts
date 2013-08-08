@@ -31,9 +31,14 @@ parser = standard_script_options(usage="usage: %prog [options]",
                             "are **required**.")
 parser.add_option('-m', '--max-duration', type='float', default=600.0,
     help="Maximum time to run experiment, in seconds (default=%default)")
+parser.add_option('-t', '--target-duration', type='float', default=10.0,
+    help="Time to spend on a target in seconds, in seconds (default=%default)")
+
+on_target_duration = 10
 parser.set_defaults(nd_params='off')
 (opts, args) = parser.parse_args()
 user_logger.info("drive_antennas.py: start")
+on_target_duration = opts.target_duration
 # Try to build the  KAT configuration
 # This connects to all the proxies and devices and queries their commands and sensors
 with verify_and_connect(opts) as kat:
@@ -44,7 +49,7 @@ with verify_and_connect(opts) as kat:
         cat.remove('Sun')
         cat.remove('AFRISTAR')
 
-        on_target_duration = 10
+        #on_target_duration = 10
         start_time = time.time()
         targets_observed = []
         # Keep going until the time is up
