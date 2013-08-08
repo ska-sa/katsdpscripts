@@ -19,7 +19,7 @@ import time
 #import optparse
 import numpy as np
 
-from katcorelib.observe import standard_script_options, verify_and_connect, ant_array, collect_targets, user_logger,start_session
+from katcorelib.observe import standard_script_options, verify_and_connect, collect_targets, user_logger,start_session
 from katcorelib import colors
 #import katpoint
 
@@ -199,7 +199,7 @@ with verify_and_connect(opts) as kat:
 
         session.standard_setup(**vars(opts))
         session.capture_start()
-        if not kat.dry_run:
+        if True: # Dry run will now exec this branch, in the past this branch was exculded from the dry checking
             # check that the selected dbe is set to the correct mode
             dbe_mode = kat.dbe7.sensor.dbe_mode.get_value()
             dbe7_mode_dict =  {'bc16n400M1k':160,'c16n400M1k':160,'c16n400M8k':160,'wbc':160, 'wbc8k':160,'c16n7M4k':31,'c16n2M4k':59,'c16n25M4k':17,'c16n13M4k':23}
@@ -209,7 +209,7 @@ with verify_and_connect(opts) as kat:
                 set_k7_gains(kat,gain)
                 user_logger.info("Set digital gain on selected DBE to %d." % gain)
             else:
-                user_logger.warning("dbe7 mode is %s. Could not set appropriate gain." % (dbe_mode))
+                user_logger.error("dbe7 mode is '%s' and not in the list of valid modes. Could not set appropriate gain." % (dbe_mode))
 
             # Populate lookup table that maps ant+pol to DBE input
             for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
