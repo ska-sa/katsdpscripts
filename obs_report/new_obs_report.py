@@ -286,11 +286,13 @@ def plot_envioronmental_sensors(f):
     savefig(pp,format='pdf')
     
 def plot_bpcal_selection(f):
+    bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
+    bp = np.arange(len(bp))[bp][0]
     fig = plt.figure(figsize=(21,15))
     pl.suptitle("Bp cal Fringes",fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
-            f.select(targets=f.catalogue.filter(tags='bpcal'), corrprods='cross', pol=pol, scans='track')
+            f.select(targets=bp, corrprods='cross', pol=pol, scans='track')
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
             fringes = np.angle(f.vis[:,:,:])
@@ -328,6 +330,7 @@ def plot_target_selection(f):
     try:
         for pol in ('h','v'):
             f.select(targets=f.catalogue.filter(tags='target'), corrprods='cross', pol=pol, scans='track')
+            
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
             power = 10 * np.log10(np.abs((f.vis[:,:,:])))
@@ -436,7 +439,7 @@ yticks([])
 FName="/home/kat/svn/auto_imager/new_obs_report.py"
 rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","***\nThis report was generated using "+FName+", svn revesion: ")
 lastpage=[]
-print "creating last page"
+
 lastpage.append("Description of the plots In the report\n==================================\n")
 lastpage.append("Time Series Plot:\n \t This plot shows the mean of the autocorrelation amplitude against time, for the duration of the observation.\
 The first time series plot\n shows HH while the second one shows VV. On primary x-axis is LTS and secondary x-axis shows SAST corresponding to \
@@ -450,7 +453,6 @@ temperature,\n absolute humidity and air pressure. These plots are against LST a
 #lastpage.append("Band pass calibator fringes\n\t bla bla bla............\n")
 lastpage.append("Correlation Spectra\n\t This plot shows the correlation spectrum for each baseline. Common features between the crossed antenna will be amplified.\n\n\n")
 lastpage.append(rev)
-print lastpage
 
 text(0,0,'\n'.join(lastpage),fontsize=12)
 savefig(pp,format='pdf')
