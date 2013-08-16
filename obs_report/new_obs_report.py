@@ -6,6 +6,8 @@ import numpy as np
 import os
 import textwrap
 import time
+import datetime as dt
+import matplotlib.dates as mdates
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import AutoMinorLocator
@@ -78,16 +80,24 @@ def plot_time_series(ants,pol,startime):
         f.select(ants=ant,corrprods='auto',pol=pol)
         if len(f.channels)<1025:
             f.select(channels=range(170,854))
-       
-        axis1.plot(f.lst,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
-        locs,labels=xticks()
-        for i in range(len(locs)):
-            labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-        xticks(locs,labels)
-        if(max(f.lst)<23.9):
-            axis1.set_xlim(xmin=f.lst[0],xmax=f.lst[-1])
-        else:
-            axis1.set_xlim(xmin=0.0,xmax=24.0)
+
+        lstime=[]
+        for t in range(len(f.lst)):
+            lstime.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
+        elem="None"
+        for a in range(len(lstime)):
+            if lstime[a]=='23:59':
+                elem=a
+        
+        if elem!="None":
+            for a in range(0,(elem+1)):
+                lstime[a]="1/3/1991 "+lstime[a]
+            for b in range(elem,(len(f.lst)-1)):
+                lstime[b+1]="2/3/1991 "+lstime[b+1]
+        
+        lstime_date=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lstime]
+        axis1.plot(lstime_date,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     legend(loc='right', bbox_to_anchor=(1.13, 0.92), ncol=2, fancybox=True, shadow=False)
 
     #Plot SAST on top of the figure
@@ -175,6 +185,22 @@ def plot_spectrum(pol, datafile, starttime, ant):
     savefig(pp,format='pdf')
 
 def plot_envioronmental_sensors(f):
+    lstime=[]
+    for t in range(len(f.lst)):
+        lstime.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
+    elem="None"
+    for a in range(len(lstime)):
+        if lstime[a]=='23:59':
+            elem=a
+    
+    if elem!="None":
+        for a in range(0,(elem+1)):
+            lstime[a]="1/3/1991 "+lstime[a]
+        for b in range(elem,(len(f.lst)-1)):
+             lstime[b+1]="2/3/1991 "+lstime[b+1]
+    
+    lstime_date=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lstime]
+        
     print "Getting wind and temperature sensors"
     fig=pl.figure(figsize=(13,10))
     axes(frame_on=False)
@@ -183,7 +209,7 @@ def plot_envioronmental_sensors(f):
     pl.suptitle("Weather Data",fontsize=16, fontweight="bold")
     ax1 = fig.add_subplot(211)
     fig.subplots_adjust(hspace=0.04)
-    ax1.plot(f.lst,f.sensor['Enviro/asc.air.temperature'],'g-')
+    ax1.plot(lstime_date,f.sensor['Enviro/asc.air.temperature'],'g-')
     airtemp=f.sensor['Enviro/asc.air.temperature']
     locs,labels=xticks()
     labels=[]
@@ -236,7 +262,7 @@ def plot_envioronmental_sensors(f):
         ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
 
     ax2=ax1.twinx()
-    ax2.plot(f.lst,ah,'c-')
+    ax2.plot(lstime_date,ah,'c-')
     ylim(ymin=1,ymax=8)
     minah=min(ah)
     maxah=max(ah)
@@ -248,9 +274,9 @@ def plot_envioronmental_sensors(f):
     ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
     for tl in ax2.get_yticklabels():
         tl.set_color('c')
-
+        
     ax3=fig.add_subplot(212)
-    ax3.plot(f.lst ,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
+    ax3.plot(lstime_date,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
     airpress=f.sensor['Enviro/asc.air.pressure']/10
     ylim(ymin=87,ymax=92)
     minairpress=min(airpress)
@@ -259,9 +285,7 @@ def plot_envioronmental_sensors(f):
 	    ylim(ymax=(maxairpress+1))
     if minairpress<=87:
 	    ylim(ymin=(minairpress-1))
-    for i in range(len(locs)):
-	    labels[i]=("%2.0f:%2.0f"%(np.modf(locs[i])[1], np.modf(locs[i])[0]*60))
-    xticks(locs,labels)
+    
     ax3.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
     ax3.set_xlabel("LST on "+starttime,fontweight="bold")
     ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
@@ -269,7 +293,7 @@ def plot_envioronmental_sensors(f):
 	    tl.set_color('r')
 	
     ax4=ax3.twinx()
-    ax4.plot(f.lst,f.sensor['Enviro/asc.wind.speed'],'b-')
+    ax4.plot(lstime_date,f.sensor['Enviro/asc.wind.speed'],'b-')
     wspeed=f.sensor['Enviro/asc.wind.speed']
     ylim(ymin=-0.5,ymax=16)
     minwind=min(wspeed)
