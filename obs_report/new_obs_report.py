@@ -68,7 +68,26 @@ def make_frontpage(file_ptr):
     frontpage.append('\n')
     return '\n'.join(frontpage)
 
-def plot_time_series(ants,pol,startime):
+
+def lst_time(f)
+    lstime=[]
+    for t in range(len(f.lst)):
+        lstime.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
+    elem="None"
+    for a in range(len(lstime)):
+        if lstime[a]=='23:59':
+            elem=a
+        
+    if elem!="None":
+        for a in range(0,(elem+1)):
+            lstime[a]="1/3/1991 "+lstime[a]
+        for b in range(elem,(len(f.lst)-1)):
+            lstime[b+1]="2/3/1991 "+lstime[b+1]
+
+    lstime_date=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lstime]
+    return lstime_date    
+
+def plot_time_series(ants,pol,startime,lstime_date):
     #Time Series
     fig=figure(figsize=(13.5,10), facecolor='w', edgecolor='k')
     pl.suptitle("Time series plot",fontsize=16, fontweight="bold")
@@ -80,22 +99,7 @@ def plot_time_series(ants,pol,startime):
         f.select(ants=ant,corrprods='auto',pol=pol)
         if len(f.channels)<1025:
             f.select(channels=range(170,854))
-
-        lstime=[]
-        for t in range(len(f.lst)):
-            lstime.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
-        elem="None"
-        for a in range(len(lstime)):
-            if lstime[a]=='23:59':
-                elem=a
         
-        if elem!="None":
-            for a in range(0,(elem+1)):
-                lstime[a]="1/3/1991 "+lstime[a]
-            for b in range(elem,(len(f.lst)-1)):
-                lstime[b+1]="2/3/1991 "+lstime[b+1]
-        
-        lstime_date=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lstime]
         axis1.plot(lstime_date,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     legend(loc='right', bbox_to_anchor=(1.13, 0.92), ncol=2, fancybox=True, shadow=False)
@@ -108,12 +112,6 @@ def plot_time_series(ants,pol,startime):
     for ts in range(len(f.timestamps)):
         dummy.append(min(ylocs))
     axis2.plot(f.timestamps,dummy,'k-', linewidth=0.15)
-    locs,labels=xticks()
-    loctime=[]
-    for loc in range(len(locs)):
-        loctime.append(time.localtime(locs[loc]))
-        labels[loc]=str(loctime[loc].tm_hour)+":"+str(loctime[loc].tm_min)
-    pl.xticks(locs,labels)
     axis2.set_xlim(xmin=f.timestamps[0], xmax= f.timestamps[-1])
     for tl in axis2.get_xticklabels():
 	    tl.set_color('DarkViolet')
@@ -184,23 +182,8 @@ def plot_spectrum(pol, datafile, starttime, ant):
             ab[-1].set_xlim(170,854)
     savefig(pp,format='pdf')
 
-def plot_envioronmental_sensors(f):
-    lstime=[]
-    for t in range(len(f.lst)):
-        lstime.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
-    elem="None"
-    for a in range(len(lstime)):
-        if lstime[a]=='23:59':
-            elem=a
-    
-    if elem!="None":
-        for a in range(0,(elem+1)):
-            lstime[a]="1/3/1991 "+lstime[a]
-        for b in range(elem,(len(f.lst)-1)):
-             lstime[b+1]="2/3/1991 "+lstime[b+1]
-    
-    lstime_date=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lstime]
-        
+def plot_envioronmental_sensors(f,lstime_date):
+          
     print "Getting wind and temperature sensors"
     fig=pl.figure(figsize=(13,10))
     axes(frame_on=False)
@@ -431,13 +414,14 @@ count=0
 ants=f.ants
 pol=['h','v']
 starttime = time.strftime('%d %b %y', time.localtime(f.start_time))
-plot_time_series(ants, pol[0], starttime)
-plot_time_series(ants, pol[1], starttime)
+lstime_date = lst_time(f)
+plot_time_series(ants, pol[0], starttime, lstime_date)
+plot_time_series(ants, pol[1], starttime, lstime_date)
 
 for ant in ants:
     plot_spectrum(pol,datafile,starttime,ant)
 
-plot_envioronmental_sensors(f)
+plot_envioronmental_sensors(f,lstime_date)
 f.select()
 if f.catalogue.filter(tags='bpcal'):
     print "Plotting bpcal fringes."
