@@ -81,7 +81,7 @@ opts.observer = 'Max Attenuator'
 with verify_and_connect(opts) as kat:
 
     # Create device array of antennas, based on specification string
-    ants = ant_array(kat, opts.ants)
+    ants = kat.ants #ant_array(kat, opts.ants)
     user_logger.info('Using antennas: %s' % (' '.join([ant.name for ant in ants]),))
 
     inputs = []
