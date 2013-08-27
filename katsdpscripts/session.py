@@ -1049,7 +1049,7 @@ class CaptureSession(CaptureSessionBase):
             if session.stow_when_done and self.ants is not None:
                 user_logger.info('stowing dishes')
                 activity_logger.info('Stowing dishes')
-                kat.sys.req.antenna_stow(self.ants)
+                ants.req.mode('STOW')
 
             user_logger.info('==========================')
 
