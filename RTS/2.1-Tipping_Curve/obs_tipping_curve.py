@@ -31,6 +31,7 @@ on_time = 15.0
 with verify_and_connect(opts) as kat:
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
+        user_logger.info("No Azimuth selected , selecting clear Azimith")
         timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(10.0,90.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
         #load the standard KAT sources ... similar to the SkyPlot of the katgui
         observation_sources = kat.sources
@@ -54,7 +55,7 @@ with verify_and_connect(opts) as kat:
         if (opts.az < -185.) or (opts.az > 275.):
             opts.az = (opts.az + 180.) % 360. - 180.
         user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
-
+    user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
     with start_session(kat, **vars(opts)) as session:      
         if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
