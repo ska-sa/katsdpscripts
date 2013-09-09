@@ -39,7 +39,9 @@ with verify_and_connect(opts) as kat:
         source_el = []
         for source in observation_sources.targets:
             for t in timestamp:
+                print "time = %s"%(t)
                 az = np.degrees(source.azel(timestamp=t)[0])   # was rad2deg
+                print "az = %s "%(az)
                 if az > 180:
                     az = az - 360
                 el = np.degrees(source.azel(timestamp=t)[1])   # was rad2deg
@@ -56,6 +58,7 @@ with verify_and_connect(opts) as kat:
             opts.az = (opts.az + 180.) % 360. - 180.
         user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
     user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
+
     with start_session(kat, **vars(opts)) as session:      
         if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
