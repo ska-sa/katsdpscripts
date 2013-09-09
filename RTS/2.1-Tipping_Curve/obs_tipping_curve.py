@@ -6,6 +6,7 @@ from __future__ import with_statement
 import time
 from katcorelib import standard_script_options, verify_and_connect, start_session, user_logger
 import numpy as np
+import katpoint
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
                                  description="Perform tipping curve scan for a specified azimuth position. \
