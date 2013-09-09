@@ -37,17 +37,10 @@ with verify_and_connect(opts) as kat:
         #load the standard KAT sources ... similar to the SkyPlot of the katgui
         observation_sources = kat.sources
         source_az = []
-        source_el = []
         for source in observation_sources.targets:
-            for t in timestamp:
-                az = np.degrees(source.azel(timestamp=t)[0])   # was rad2deg
-                if az > 180:
-                    az = az - 360
-                el = np.degrees(source.azel(timestamp=t)[1])   # was rad2deg
-                if el < 5:
-                    continue
-                source_az.append(az)
-                source_el.append(el)
+            az, el = np.degrees(source.azel(timestamp=timestamp))   # was rad2deg
+            az[az > 180] = az[az > 180] - 360
+            source_az += list(set(az[el > 5]))
         source_az.sort()
         gap = np.diff(source_az).argmax()+1
         opts.az = (source_az[gap] + source_az[gap+1]) /2.0
