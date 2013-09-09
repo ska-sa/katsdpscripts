@@ -31,7 +31,6 @@ on_time = 15.0
 with verify_and_connect(opts) as kat:
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
-        x = time.time()
         user_logger.info("No Azimuth selected , selecting clear Azimith")
         timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(10.0,90.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
         #load the standard KAT sources ... similar to the SkyPlot of the katgui
@@ -45,7 +44,6 @@ with verify_and_connect(opts) as kat:
         gap = np.diff(source_az).argmax()+1
         opts.az = (source_az[gap] + source_az[gap+1]) /2.0
         user_logger.info("Selecting Satillite clear Azimuth=%f"%(opts.az,))
-        print "time taken %s" %(time.time()-x)
     else:  
         if (opts.az < -185.) or (opts.az > 275.):
             opts.az = (opts.az + 180.) % 360. - 180.
