@@ -260,7 +260,7 @@ with verify_and_connect(opts) as kat:
                             if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
                                 scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
                                 targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
-                                session.ants.req.offset_fixed(targetx,targety,opts.projection)
+                                session.ants.req.offset_fixed(targetx*180.0/np.pi,targety*180.0/np.pi,opts.projection)
                                 # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                                 time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
                             user_logger.info("Recovered from wind stow, repeating cycle %d scan %d"%(cycle+1,iarm+1))
@@ -269,7 +269,7 @@ with verify_and_connect(opts) as kat:
                     for scan_index in range(len(cx[iarm])):#spiral arm scan
                         scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
                         targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
-                        session.ants.req.offset_fixed(targetx,targety,opts.projection)
+                        session.ants.req.offset_fixed(targetx*180.0/np.pi,targety*180.0/np.pi,opts.projection)
                         # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                         time.sleep(timeperstep)
                         if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
