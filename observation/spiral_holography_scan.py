@@ -27,6 +27,7 @@
 from __future__ import with_statement
 
 import time
+import katpoint
 
 # Import script helper functions from observe.py
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
@@ -36,6 +37,10 @@ import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
+def plane_to_sphere_holography(targetaz,targetel,ll,mm):
+    scanaz=targetaz-np.arcsin(np.clip(ll/np.cos(targetel),-1.0,1.0))
+    scanel=np.arcsin(np.clip((np.sqrt(1.0-ll**2-mm**2)*np.sin(targetel)+np.sqrt(np.cos(targetel)**2-ll**2)*mm)/(1.0-ll**2),-1.0,1.0))
+    return scanaz,scanel
 
 def spiral(params,indep):
     x0=indep[0]
@@ -212,7 +217,8 @@ with verify_and_connect(opts) as kat:
                          % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
 
         for cycle in range(opts.num_cycles):
-            targetel=target.azel()[1]*180.0/np.pi
+            targetaz_rad,targetel_rad=target.azel()
+            targetel=targetel_rad*180.0/np.pi
             if (targetel>lasttargetel):#target is rising - scan top half of pattern first
                 cx=compositex
                 cy=compositey
@@ -252,13 +258,19 @@ with verify_and_connect(opts) as kat:
                             session.ants = scan_ants
                             user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                             if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
-                                session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
+                                scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
+                                targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
+                                session.ants.req.offset_fixed(targetx,targety,opts.projection)
+                                # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                                 time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
                             user_logger.info("Recovered from wind stow, repeating cycle %d scan %d"%(cycle+1,iarm+1))
                         else:
                             time.sleep(60)
                     for scan_index in range(len(cx[iarm])):#spiral arm scan
-                        session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
+                        scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
+                        targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
+                        session.ants.req.offset_fixed(targetx,targety,opts.projection)
+                        # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                         time.sleep(timeperstep)
                         if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
                             if (wasstowed==False):
