@@ -16,14 +16,14 @@ import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 import pyfits
-import scipy
+
 import warnings
 from matplotlib.backends.backend_pdf import PdfPages
-
+import katfile
 import scape
 import scikits.fitting as fit
 from katpoint import rad2deg, deg2rad,  construct_azel_target
-from math import *
+
 
 class Sky_temp:
     """
@@ -44,7 +44,6 @@ class Sky_temp:
         self.dec = lambda x: int((-x+90)/0.25)
         self.nu = nu
         self.alpha = -0.727
-        print nu
         def Tsky_approx(ra,dec):
             T_cmb = 2.7
             T_gal = 10.0 * (self.nu/408) ** (-(2-self.alpha))
@@ -280,37 +279,18 @@ def plot_data(Tsys,fit_HH,fit_VV):
     
 
 
-def chisq_pear(fit,Tsys):    
-    chisq=0.0
-    scatter = Tsys-fit
-    for i in range(len(scatter)):
-        chisq_pearson=(scatter[i]**2/fit[i])
-        chisq=(scatter[i]**2/np.var(Tsys))
-        chisq_pearson+=chisq_pearson # will use later to check
-        chisq+=chisq
-    return chisq
-
-def chisq_pear_scatter(fit,scatter):    
-    chisq=0.0
-    for i in range(len(scatter)):
-        chisq_pearson=(scatter[i]**2/fit[i])
-        chisq=(scatter[i]**2/np.var(scatter+fit))
-        chisq_pearson+=chisq_pearson # will use later to check
-        chisq+=chisq
-    return chisq
+def chisq_pear(fit,Tsys):
+    fit = np.array(fit)
+    return np.sum((Tsys-fit)**2/fit)
 
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage='%prog [options] <data file>',
-                               description='This reduces a data file to produce a tipping curve plot.')
-parser.add_option("-a", "--baseline", default='AxAx',
-                  help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
+                               description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default='200,800',
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
 parser.add_option("-t", "--tip_models",
-                  help="Name of directory containing spillover models (**required**)")
-parser.add_option("-o", "--output", dest="outfilebase", default='spectra',
-                  help="Base name of output files (*.png for figures), default = '%default'")
+                  help="Name of directory containing spillover models")
 parser.add_option( "--sky-map", default='~/comm/catalogues/TBGAL_CONVL.FITS',
                   help="Name of map of sky tempreture in fits format', default = '%default'")
 
@@ -320,30 +300,31 @@ parser.add_option( "--sky-map", default='~/comm/catalogues/TBGAL_CONVL.FITS',
 if len(args) < 1:
     raise RuntimeError('Please specify the data file to reduce')
         
+h5 = katfile.open(args[0])
+for ant in h5.ants:
+    #Load the data file
+    d = load_cal(args[0], "A%sA%s" % (ant.name[3:], ant.name[3:]), int(opts.freq_chans.split(',')[0]),int(opts.freq_chans.split(',')[1]))
+    d.filename = [args[0]]
+    nu = d.freqs[0]  #MHz Centre frequency of observation
+    SpillOver = Spill_Temp(path=opts.tip_models)
+    T_SysTemp = System_Temp(d,opts.sky_map,d.freqs[0])
 
-#Load the data file
-d = load_cal(args[0], opts.baseline, int(opts.freq_chans.split(',')[0]),int(opts.freq_chans.split(',')[1]))
-d.filename = [args[0]]
-nu = d.freqs[0]  #MHz Centre frequency of observation
-SpillOver = Spill_Temp(path=opts.tip_models)
-T_SysTemp = System_Temp(d,opts.sky_map,d.freqs[0])
+    fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs)
+    fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs)
 
-fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs)
-fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs)
+    print ('Chi square for HH is: %6f ' % (fit_H['chisq'],))
+    print ('Chi square for VV is: %6f ' % (fit_V['chisq'],))
 
-print ('Chi square for HH is: %6f ' % (fit_H['chisq'],))
-print ('Chi square for VV is: %6f ' % (fit_V['chisq'],))
-
-nice_filename =  args[0]+ '_' +d.antenna.name+'_tipping'
-pp = PdfPages(nice_filename+'.pdf')
-T_SysTemp.sky_fig.savefig(pp,format='pdf')
-fig = plot_data(T_SysTemp,fit_H,fit_V)
-fig.savefig(pp,format='pdf')    
-fig = plt.figure(None,figsize = (10,16))
-plt.figtext(0.1,0.1,'\n'.join(fit_H['text']+fit_V['text']),fontsize=10)
-fig.savefig(pp,format='pdf')    
-plt.close('all')
-pp.close()
+    nice_filename =  args[0]+ '_' +d.antenna.name+'_tipping_curve'
+    pp = PdfPages(nice_filename+'.pdf')
+    T_SysTemp.sky_fig.savefig(pp,format='pdf')
+    fig = plot_data(T_SysTemp,fit_H,fit_V)
+    fig.savefig(pp,format='pdf')    
+    fig = plt.figure(None,figsize = (10,16))
+    plt.figtext(0.1,0.1,'\n'.join(fit_H['text']+fit_V['text']),fontsize=10)
+    fig.savefig(pp,format='pdf')    
+    plt.close('all')
+    pp.close()
 
 
 
