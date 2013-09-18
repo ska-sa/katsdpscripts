@@ -67,6 +67,52 @@ if len(args) ==0:
 start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
 
+def rolling_window(a, window):
+    """ From http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html
+     This function produces a rowling window shaped data
+        a :  1-D array of data  
+        window : integer is the window size
+    Returns:
+        an array shape= (N,window) where 
+        the origanal data is length of N
+
+    Example:
+        import numpy as np
+        data = np.random.normal(loc=1,scale=np.sin(5*np.pi*np.arange(10000).astype(float)/10000.)+1.1, size=10000)
+        stddata = rolling_window(data, 400).std(axis=1)
+    """
+    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+    strides = a.strides + (a.strides[-1],)
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+
+def calc_stats(timestamps,gainfunc,freq,pol='no polarizarion',windowtime=1200):
+    """ calculate the Stats needed to evaluate the obsevation"""
+    #p_hh = np.polyfit(time,amp_hh,1)
+    #fit_hh = np.polyval(p_hh,time)
+    #amp_detrend_hh = amp_hh - fit_hh + amp_hh.mean()
+    #p_vv = np.polyfit(time,amp_vv,1)
+    #fit_vv = np.polyval(p_vv,time)
+    #amp_detrend_vv = amp_vv - fit_vv + amp_vv.mean()
+    returntext = []
+    gain = gainfunc(timestamps,freq).mean(axis=1)
+    time = timestamps.max() - timestamps.min()
+    time_step = time/timestamps.shape[0]
+    window = int(round(windowtime/time_step) )
+    windowgainchange = rolling_window(gain, window).std(axis=1)/rolling_window(gain, window).mean(axis=1)
+    rms = np.sqrt((gain**2).mean())
+    returntext.append("Total time of obsevation : %f (seconds) with %i accumulations."%(time,timestamps.shape[0]))
+    returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
+    returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
+    returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
+    returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
+    returntext.append("The mean Percentage variation over %i samples of %s is: %.5f"%(window,pol,windowgainchange.mean()*100))
+    returntext.append("The max Percentage variation over %i samples of %s is: %.5f"%(window,pol,windowgainchange.max()*100))
+    return returntext  # a plot would be cool
+    
+
+
+
 h5 = katfile.open(args[0])
 for ant in h5.ants:
     d = scape.DataSet(args[0], baseline="A%sA%s" % (ant.name[3:], ant.name[3:]))
@@ -100,30 +146,19 @@ for ant in h5.ants:
     fig = plot_figures(d_uncal, d_cal, time, gain_vv, 'VV')
     fig.savefig(pp,format='pdf')    
     plt.close()
+    
     #extract data to look at stats
-    time, amp_hh, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'HH')
-    time, amp_vv, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'VV')
-    time = np.hstack(time.data)
-    amp_hh = np.hstack(amp_hh.data)
-    amp_vv = np.hstack(amp_vv.data)
+    #time, amp_hh, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'HH')
+    #time, amp_vv, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'VV')
+    #time = np.hstack(time.data)
+    #amp_hh = np.hstack(amp_hh.data)
+    #amp_vv = np.hstack(amp_vv.data)
+    returntext = calc_stats(timestamps,g_hh,d.freqs,'HH',1200)+calc_stats(timestamps,g_vv,d.freqs,'VV',1200)
+    
     #detrend data
-    p_hh = np.polyfit(time,amp_hh,1)
-    fit_hh = np.polyval(p_hh,time)
-    amp_detrend_hh = amp_hh - fit_hh + amp_hh.mean()
-    p_vv = np.polyfit(time,amp_vv,1)
-    fit_vv = np.polyval(p_vv,time)
-    amp_detrend_vv = amp_vv - fit_vv + amp_vv.mean()
-    returntext = []
-    returntext.append("Fitting a first order polynomial to amplitude data.")
-    returntext.append("mean value of HH amplitude is: %.3e"%amp_hh.mean())
-    returntext.append("Std. dev of HH amplitude is: %.3e"%amp_detrend_hh.std())
-    returntext.append("Percentage variation is: %.3f"%(amp_detrend_hh.std()/amp_hh.mean()*100))
-    returntext.append("mean value of VV amplitude is: %.3e"%amp_vv.mean())
-    returntext.append("Std. dev of VV amplitude is: %.3e"%amp_detrend_vv.std())
-    returntext.append("Percentage variation is: %.3f"%(amp_detrend_vv.std()/amp_vv.mean()*100))
     fig = plt.figure(None,figsize = (10,16))
     plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
-    fig.savefig(pp,format='pdf')    
+    fig.savefig(pp,format='pdf')
     pp.close()
     plt.close()
 
