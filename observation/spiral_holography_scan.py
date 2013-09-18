@@ -41,6 +41,14 @@ def plane_to_sphere_holography(targetaz,targetel,ll,mm):
     scanaz=targetaz-np.arcsin(np.clip(ll/np.cos(targetel),-1.0,1.0))
     scanel=np.arcsin(np.clip((np.sqrt(1.0-ll**2-mm**2)*np.sin(targetel)+np.sqrt(np.cos(targetel)**2-ll**2)*mm)/(1.0-ll**2),-1.0,1.0))
     return scanaz,scanel
+    
+#same as katpoint.projection._sphere_to_plane_common(az0=scanaz,el0=scanel,az=targetaz,el=targetel) with ll=ortho_x,mm=-ortho_y
+def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
+    #produces direction cosine coordinates from scanning antenna azimuth,elevation coordinates
+    #see _coordinate options.py for derivation
+    ll=np.cos(targetel)*np.sin(targetaz-scanaz)
+    mm=np.cos(targetel)*np.sin(scanel)*np.cos(targetaz-scanaz)-np.cos(scanel)*np.sin(targetel)
+    return ll,mm
 
 def spiral(params,indep):
     x0=indep[0]
@@ -52,18 +60,26 @@ def spiral(params,indep):
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
-def generatespiral(totextent,tottime,sampletime,kind='uniform',extrazero=False,mirrorx=False):
-    radextent=totextent/2.0
+def generatespiral(totextent,tottime,tracktime=1,sampletime=1,kind='uniform',mirrorx=False):
+    totextent=np.float(totextent)
+    tottime=np.float(tottime)
+    sampletime=np.float(sampletime)
+    nextrazeros=int(np.float(tracktime)/sampletime)
+    print 'nextrazeros',nextrazeros
+    tracktime=nextrazeros*sampletime
+    radextent=np.float(totextent)/2.0
     if (kind=='dense-core'):
-        narms=int((np.sqrt(tottime/5.)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        ntime=np.float(tottime)/np.float(sampletime)/np.float(narms)
+        c=np.sqrt(2)*180.0/(16.0*np.pi)
+        narms=2*int(np.sqrt(tottime/c+(tracktime/c)**2)-tracktime/c)#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        ntime=int((tottime-tracktime*narms)/(sampletime*narms))
         armrad=radextent*(np.linspace(0,1,ntime))
         armtheta=np.linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
         army=armrad*np.sin(armtheta)
     elif (kind=='approx'):
-        narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        ntime=np.float(tottime)/np.float(sampletime)/np.float(narms)
+        c=180.0/(16.0*np.pi)
+        narms=2*int(np.sqrt(tottime/c+(tracktime/c)**2)-tracktime/c)#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        ntime=int((tottime-tracktime*narms)/(sampletime*narms))
         armrad=radextent*(np.linspace(0,1,ntime))
         armtheta=np.linspace(0,np.pi,ntime)
         armx=armrad*np.cos(armtheta)
@@ -75,8 +91,9 @@ def generatespiral(totextent,tottime,sampletime,kind='uniform',extrazero=False,m
         armx=narmrad*np.cos(narmtheta)
         army=narmrad*np.sin(narmtheta)
     else:#'uniform'
-        narms=int((np.sqrt(tottime/3.6)))*2#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        ntime=int(np.float(tottime)/np.float(sampletime)/np.float(narms))
+        c=180.0/(16.0*np.pi)
+        narms=2*int(np.sqrt(tottime/c+(tracktime/c)**2)-tracktime/c)#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        ntime=int((tottime-tracktime*narms)/(sampletime*narms))
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
@@ -110,11 +127,11 @@ def generatespiral(totextent,tottime,sampletime,kind='uniform',extrazero=False,m
         nrot=ia*np.pi*2.0/narms
         nx=armx*np.cos(nrot)-army*np.sin(nrot)
         ny=armx*np.sin(nrot)+army*np.cos(nrot)
-        if (extrazero):
-            x=np.r_[0.0,x]
-            y=np.r_[0.0,y]
-            nx=np.r_[0.0,nx]
-            ny=np.r_[0.0,ny]
+        if (nextrazeros>0):
+            x=np.r_[np.repeat(0.0,nextrazeros),x]
+            y=np.r_[np.repeat(0.0,nextrazeros),y]
+            nx=np.r_[np.repeat(0.0,nextrazeros),nx]
+            ny=np.r_[np.repeat(0.0,nextrazeros),ny]
         if reverse:
             reverse=False
             x=x[::-1]
@@ -154,10 +171,10 @@ parser.add_option('-l', '--scan-extent', type='float', default=4.0,
                   help='Diameter of beam pattern to measure, in degrees (default=%default)')
 parser.add_option('--kind', type='string', default='uniform',
                   help='Kind of spiral, could be "uniform" or "dense-core" (default=%default)')
+parser.add_option('--tracktime', type='float', default=1.0,
+                  help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
 parser.add_option('--sampletime', type='float', default=1.0,
                   help='time in seconds to spend on pointing (default=%default)')
-parser.add_option('--extrazero', action="store_true", default=False,
-                  help='Extra sample when scanning past target (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
@@ -167,7 +184,7 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,sampletime=opts.sampletime,kind=opts.kind,extrazero=opts.extrazero,mirrorx=opts.mirrorx)
+compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx)
 timeperstep=opts.sampletime;
 
 if len(args) == 0:
@@ -217,8 +234,7 @@ with verify_and_connect(opts) as kat:
                          % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
 
         for cycle in range(opts.num_cycles):
-            targetaz_rad,targetel_rad=target.azel()
-            targetel=targetel_rad*180.0/np.pi
+            targetel=target.azel()[1]*180.0/np.pi
             if (targetel>lasttargetel):#target is rising - scan top half of pattern first
                 cx=compositex
                 cy=compositey
@@ -258,18 +274,22 @@ with verify_and_connect(opts) as kat:
                             session.ants = scan_ants
                             user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                             if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
+                                targetaz_rad,targetel_rad=target.azel()
                                 scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
-                                targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
-                                session.ants.req.offset_fixed(targetx*180.0/np.pi,targety*180.0/np.pi,opts.projection)
+                                # targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
+                                targetx,targety=sphere_to_plane_holography(scanaz,scanel,targetaz_rad,targetel_rad)
+                                session.ants.req.offset_fixed(targetx*180.0/np.pi,-targety*180.0/np.pi,opts.projection)
                                 # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                                 time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
                             user_logger.info("Recovered from wind stow, repeating cycle %d scan %d"%(cycle+1,iarm+1))
                         else:
                             time.sleep(60)
                     for scan_index in range(len(cx[iarm])):#spiral arm scan
+                        targetaz_rad,targetel_rad=target.azel()
                         scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
-                        targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
-                        session.ants.req.offset_fixed(targetx*180.0/np.pi,targety*180.0/np.pi,opts.projection)
+                        # targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
+                        targetx,targety=sphere_to_plane_holography(scanaz,scanel,targetaz_rad,targetel_rad)
+                        session.ants.req.offset_fixed(targetx*180.0/np.pi,-targety*180.0/np.pi,opts.projection)
                         # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                         time.sleep(timeperstep)
                         if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
