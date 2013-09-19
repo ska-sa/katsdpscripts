@@ -294,7 +294,7 @@ with verify_and_connect(opts) as kat:
                         # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
                         curproctime=time.time()
                         proctime=curproctime-lastproctime
-                        if (timeperstep>proctime)
+                        if (timeperstep>proctime):
                             time.sleep(timeperstep-proctime)
                         lastproctime=time.time()
                         if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
