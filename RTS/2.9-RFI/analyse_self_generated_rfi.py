@@ -10,34 +10,37 @@ import optparse
 import os
 
 #command-line parameters
-parser = optparse.OptionParser(usage="%prog [options]",
+parser = optparse.OptionParser(usage="Please specify the input file (Yes, this is a non-optional option)\n\
+    USAGE: python analyse_self_generated_rfi.py <inputfile.h5> ",
     description="Evaluate the auto & cross correlation spectra to Find the RFI spikes\
     that appear consistently in all observations/pointings.")
-parser.add_option('-o', '--output_file', type='string',
-    help="A PDF file containing all the evaluated spectra (default=%default)")
 
 opts, args = parser.parse_args()
-usage = "Please specify the input file (Yes, this is a non-optional option)\n\
-    USAGE: python analyse_self_generated_rfi.py <inputfile.h5> "
-    
-file_corrupted = "This normaly happened when the input file is corrupted.\n\
-    The input file should be a xxxxxx.h5 (An example file would be: 1378901689.h5)."
-# if no enough files, system exit
-if len(args) < 1:
-    raise SystemExit(usage)
 
+# if no enough files, raise the runtimeError
+if len(args) < 1:
+    raise RuntimeError(parser.usage)
 # user defined variables
 print("Plese wait while analysis in Progress...")
-pdf = PdfPages(os.path.basename(args[0]).replace('h5','pdf'))
+pdf = PdfPages(os.path.basename(args[0]).replace('h5','h5_RFI.pdf'))
 def load_data(fname):
     """
-        load dataset using katfile
-    """
+        load and open the dataset, using the kaftfile module for loading the KAT7 hdf5 files 
+
+        Parameters
+        ----------
+        fname : dataset
+                hdf5 file containig the KAT7 visibility data
+       Returns
+       -------
+        Metada : Dictionary
+           Dictionary that contains metadata (ants, targets, timestamps,channel_freqs)
+       """
     # Exception, catching all possible command-line errors (IOError, TypeError, NameError)
     try:
         f = open(fname)
     except (IOError, TypeError, NameError) as e:
-        raise SystemExit(e)
+        raise RuntimeError(e) # Raise Error here
 
     observer = ('Obsever: %s' % (f.observer))
     name = ('Filename: %s' % os.path.basename(f.name))
@@ -57,10 +60,23 @@ def load_data(fname):
     return {'metadata':meta_data,'targets':targets,'fileopened':f, 'ants':ants,'freqs':freqs, 'chans':chans, 'tstamps':tstamps}
 
 def extract_spectra_data():
+    """
+      Extract the horizontal and the vertical spectral data for all th antennas in the loaded hdf5 file and plot their
+      mean visibilies against channel_freqs. The plots are written and saved into the PDF file whose name has the form
+      xxxxxxx.h5_RFI.pdf (where xxxxx is the timestamps representing the KAT7 file names.)
+
+       Parameters
+       ----------
+        No Parameters:
+       
+       Returns
+       -------
+
+       """
     try:
         load = load_data(args[0])
     except (IndexError) as e:
-        raise SystemExit(e)
+        raise SystemExit(e) # Raise Error here
 
     fileopened = load['fileopened']
     antennas = load['ants']
@@ -246,10 +262,10 @@ def extract_spectra_data():
             at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
             grid[index].add_artist(at)
         pdf.savefig(fig)
-
+        
+# put all the contaminated freqs all pointing (like summary)
     pdf.close()
-    plt.show()
-
+    plt.close('all')
 #-------------------------------
 #--- FUNCTION :  detect_spikes
 #-------------------------------
@@ -317,4 +333,4 @@ def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
 
 extract_spectra_data()
 print "Done!"
-print("Open the file %s" % (os.path.basename(args[0]).replace('h5','pdf')))
+print("Open the file %s" % (os.path.basename(args[0]).replace('h5','h5_RFI.pdf')))
