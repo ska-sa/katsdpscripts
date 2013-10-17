@@ -26,11 +26,14 @@ else:
 os.mkdir(test_dir)
 
 #execute
+print 'Executing:'
 cmd = build_analyse_self_generated_rfi_command(test_inputfile)
+print '%s' % (cmd)
 std_output = check_output(cmd, shell=True, cwd=test_dir)
 
 #output
-print 'Executed: %s' %(cmd)
-print 'Benchmark output viewable @ http://sp-test.kat.ac.za/RTS/2.9-RFI/benchmark/'
-print 'This run output viewable @ %s' % (test_dir.replace('/home/kat/RTS/test_area', 'http://sp-test.kat.ac.za/RTS'))
+print 'Benchmark output viewable @:'
+print 'http://sp-test.kat.ac.za/RTS/2.9-RFI/benchmark/'
+print 'This run output viewable @:'
+print '%s' % (test_dir.replace('/home/kat/RTS/test_area', 'http://sp-test.kat.ac.za/RTS'))
 
