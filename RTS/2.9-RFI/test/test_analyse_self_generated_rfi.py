@@ -5,7 +5,7 @@ import os
 from subprocess import check_output
 
 def put_test_inputfile(test_dir):
-    prod = katarchive.search_archive(filename='1369128966.h5')[0]
+    prod = katarchive.search_archive(filename='1378901689.h51')[0]
     prod.download_dir = test_dir
     prod.path_to_file
     return prod.path_to_file
@@ -29,5 +29,5 @@ std_output = check_output(cmd, shell=True, cwd=test_dir)
 
 print 'Executed: %s' %(cmd)
 print 'Benchmark output viewable @ http://sp-test.kat.ac.za/RTS/2.9-RFI/benchmark/'
-print 'This run output viewable @ %s' % (test_dir.replace('/home/kat', 'http://sp-test.kat.ac.za'))
+print 'This run output viewable @ %s' % (test_dir.replace('/home/kat/RTS/test_area', 'http://sp-test.kat.ac.za/RTS'))
 
