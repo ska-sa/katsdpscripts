@@ -64,7 +64,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     # Fit the requested beams and extract beam/baseline parameters
     beams = []
     for pol in beam_pols:
-        compscan.fit_beam_and_baselines(pol)
+        compscan.fit_beam_and_baselines('abs' + pol)
         bh = compscan.baseline_height()
         if bh is None:
             bh = np.nan
@@ -263,7 +263,7 @@ parser.add_option("-p", "--pointing-model",
 parser.add_option("-s", "--plot-spectrum", action="store_true", help="Flag to include spectral plot")
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
-parser.add_option("--katfile", action="store_true", help="Use katfile to open HDF5 file instead of old SCAPE loader")
+parser.add_option("--old-loader", action="store_true", help="Use old SCAPE loader to open HDF5 file instead of katfile")
 (opts, args) = parser.parse_args()
 
 if len(args) != 1 or not args[0].endswith('.h5'):
@@ -322,7 +322,7 @@ if keep_datasets and dataset_name not in keep_datasets:
 # Load data set
 logger.info("Loading dataset '%s'" % (filename,))
 dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
-                        time_offset=opts.time_offset, katfile=opts.katfile)
+                        time_offset=opts.time_offset, katfile=not opts.old_loader)
 # Select frequency channels
 start_freq_channel = int(opts.freq_chans.split(',')[0])
 end_freq_channel = int(opts.freq_chans.split(',')[1])
