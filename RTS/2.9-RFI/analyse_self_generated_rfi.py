@@ -4,62 +4,79 @@ from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid import Grid
 import matplotlib.pyplot as plt
 import scipy.signal as signal
-from katfile import open
+from katfile import open as kfopen
 import numpy as np
 import optparse
 import os
 
-#command-line parameters
-parser = optparse.OptionParser(usage="Please specify the input file (Yes, this is a non-optional option)\n\
-    USAGE: python analyse_self_generated_rfi.py <inputfile.h5> ",
-    description="Evaluate the auto & cross correlation spectra to Find the RFI spikes\
-    that appear consistently in all observations/pointings.")
-
-opts, args = parser.parse_args()
-
-# if no enough files, raise the runtimeError
-if len(args) < 1:
-    raise RuntimeError(parser.usage)
-# user defined variables
-print("Plese wait while analysis in Progress...")
-pdf = PdfPages(os.path.basename(args[0]).replace('h5','h5_RFI.pdf'))
-def load_data(fname):
+#-------------------------------
+#--- FUNCTION :  detect_spikes
+#-------------------------------
+def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
     """
-        load and open the dataset, using the kaftfile module for loading the KAT7 hdf5 files 
+    Detect and Remove outliers from data, replacing them with a local median value.
 
-        Parameters
-        ----------
-        fname : dataset
-                hdf5 file containig the KAT7 visibility data
-       Returns
-       -------
-        Metada : Dictionary
-           Dictionary that contains metadata (ants, targets, timestamps,channel_freqs)
-       """
-    # Exception, catching all possible command-line errors (IOError, TypeError, NameError)
-    try:
-        f = open(fname)
-    except (IOError, TypeError, NameError) as e:
-        raise RuntimeError(e) # Raise Error here
+    The data is median-filtered along the specified axis, and any data values
+    that deviate significantly from the local median is is marked as outlier.
 
-    observer = ('Obsever: %s' % (f.observer))
-    name = ('Filename: %s' % os.path.basename(f.name))
-    fsize = ('Filesize: %.2f %s' % (f.size*1.0e-9, 'GB'))
-    description = ('Description: %s' % (f.description))
-    centre_freq = ('Centre Freq [MHz]: %s' % (f.spectral_windows[0].centre_freq*1e-6))
-    dump = ('Dump Period: %0.4f' % f.dump_period)
-    start_time = ('Start Time: %s' % (f.start_time))
-    end_time = ('End Time: %s' % (f.end_time))
-    targets = [('%s' % (i.name)) for i in f.catalogue.targets]
-    ants = [ ant.name for ant in f.ants]
-    freqs = f.channel_freqs
-    chans = f.channels
-    tstamps = f.timestamps[:]
-    meta_data = [observer, name, fsize, description, centre_freq, dump,start_time, end_time]
+    Parameters
+    ----------
+    data : array-like
+        N-dimensional numpy array containing data to clean
+    axis : int, optional
+        Axis along which to perform median, between 0 and N-1
+    spike_width : int, optional
+        Spikes with widths up to this limit (in samples) will be removed. A size
+        of <= 0 implies no spike removal. The kernel size for the median filter
+        will be 2 * spike_width + 1.
+    outlier_sigma : float, optional
+        Multiple of standard deviation that indicates an outlier
 
-    return {'metadata':meta_data,'targets':targets,'fileopened':f, 'ants':ants,'freqs':freqs, 'chans':chans, 'tstamps':tstamps}
+    Returns
+    -------
+    cleaned_data : array
+        N-dimensional numpy array of same shape as original data, with outliers
+        removed
 
-def extract_spectra_data():
+    Notes
+    -----
+    This is very similar to a *Hampel filter*, also known as a *decision-based
+    filter* or three-sigma edit rule combined with a Hampel outlier identifier.
+
+    .. todo::
+
+       TODO: Make this more like a Hampel filter by making MAD time-variable too.
+
+    """
+    flags = np.zeros(data.shape, dtype='int32')
+    #making sure that the data is already 1-D
+    spectral_data = np.atleast_1d(data)
+    kernel_size = 2 * max(int(spike_width), 0) + 1
+    # Median filter data along the desired axis, with given kernel size
+    kernel = np.ones(spectral_data.ndim, dtype='int32')
+    kernel[axis] = kernel_size
+    # Medfilt now seems to upcast 32-bit floats to doubles - convert it back to floats...
+    filtered_data = np.asarray(signal.medfilt(spectral_data, kernel), spectral_data.dtype)
+    # The deviation is measured relative to the local median in the signal
+    abs_dev = np.abs(spectral_data - filtered_data)
+    # Calculate median absolute deviation (MAD)
+    med_abs_dev = np.expand_dims(np.median(abs_dev[abs_dev>0],axis), axis)
+    #med_abs_dev = signal.medfilt(abs_dev, kernel)
+    # Assuming normally distributed deviations, this is a robust estimator of the standard deviation
+    estm_stdev = 1.4826 * med_abs_dev
+    # Identify outliers (again based on normal assumption), and replace them with local median
+    #outliers = ( abs_dev > self.n_sigma * estm_stdev)
+    # Identify only positve outliers
+    outliers = (spectral_data - filtered_data > outlier_sigma*estm_stdev)
+    # assign as my cols to flags as outliers has.
+    flags[...] = outliers[...]
+    #return flags
+    return flags
+
+#-------------------------------
+#--- FUNCTION :  extract_spectra_data
+#-------------------------------
+def extract_spectra_data(fileopened):
     """
       Extract the horizontal and the vertical spectral data for all th antennas in the loaded hdf5 file and plot their
       mean visibilies against channel_freqs. The plots are written and saved into the PDF file whose name has the form
@@ -67,21 +84,15 @@ def extract_spectra_data():
 
        Parameters
        ----------
-        No Parameters:
+    
        
        Returns
        -------
 
-       """
-    try:
-        load = load_data(args[0])
-    except (IndexError) as e:
-        raise SystemExit(e) # Raise Error here
+    """
 
-    fileopened = load['fileopened']
-    antennas = load['ants']
-    targets = load['targets']
-    
+    antennas = [ ant.name for ant in fileopened.ants]
+    targets = [('%s' % (i.name)) for i in fileopened.catalogue.targets]
     chan_range = slice(10,-10)
     
     fileopened.select(corrprods='auto', pol='H', channels=chan_range,scans='~slew')
@@ -263,74 +274,29 @@ def extract_spectra_data():
             grid[index].add_artist(at)
         pdf.savefig(fig)
         
-# put all the contaminated freqs all pointing (like summary)
+    # put all the contaminated freqs all pointing (like summary)
     pdf.close()
     plt.close('all')
-#-------------------------------
-#--- FUNCTION :  detect_spikes
-#-------------------------------
 
-def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
-    """
-    Detect and Remove outliers from data, replacing them with a local median value.
 
-    The data is median-filtered along the specified axis, and any data values
-    that deviate significantly from the local median is is marked as outlier.
+#command-line parameters
+parser = optparse.OptionParser(usage="Please specify the input file (Yes, this is a non-optional option)\n\
+    USAGE: python analyse_self_generated_rfi.py <inputfile.h5> ",
+    description="Evaluate the auto & cross correlation spectra to Find the RFI spikes\
+    that appear consistently in all observations/pointings.")
 
-    Parameters
-    ----------
-    data : array-like
-        N-dimensional numpy array containing data to clean
-    axis : int, optional
-        Axis along which to perform median, between 0 and N-1
-    spike_width : int, optional
-        Spikes with widths up to this limit (in samples) will be removed. A size
-        of <= 0 implies no spike removal. The kernel size for the median filter
-        will be 2 * spike_width + 1.
-    outlier_sigma : float, optional
-        Multiple of standard deviation that indicates an outlier
+opts, args = parser.parse_args()
 
-    Returns
-    -------
-    cleaned_data : array
-        N-dimensional numpy array of same shape as original data, with outliers
-        removed
+# if no enough arguments, raise the runtimeError
+if len(args) < 1:
+    raise RuntimeError(parser.usage)
 
-    Notes
-    -----
-    This is very similar to a *Hampel filter*, also known as a *decision-based
-    filter* or three-sigma edit rule combined with a Hampel outlier identifier.
+f = kfopen(args[0])
 
-    .. todo::
+# user defined variables
+print("Plese wait while analysis in Progress...")
+pdf = PdfPages(os.path.basename(args[0]).replace('h5','h5_RFI.pdf'))
 
-       TODO: Make this more like a Hampel filter by making MAD time-variable too.
-
-    """
-    flags = np.zeros(data.shape, dtype='int32')
-    #making sure that the data is already 1-D
-    spectral_data = np.atleast_1d(data)
-    kernel_size = 2 * max(int(spike_width), 0) + 1
-    # Median filter data along the desired axis, with given kernel size
-    kernel = np.ones(spectral_data.ndim, dtype='int32')
-    kernel[axis] = kernel_size
-    # Medfilt now seems to upcast 32-bit floats to doubles - convert it back to floats...
-    filtered_data = np.asarray(signal.medfilt(spectral_data, kernel), spectral_data.dtype)
-    # The deviation is measured relative to the local median in the signal
-    abs_dev = np.abs(spectral_data - filtered_data)
-    # Calculate median absolute deviation (MAD)
-    med_abs_dev = np.expand_dims(np.median(abs_dev[abs_dev>0],axis), axis)
-    #med_abs_dev = signal.medfilt(abs_dev, kernel)
-    # Assuming normally distributed deviations, this is a robust estimator of the standard deviation
-    estm_stdev = 1.4826 * med_abs_dev
-    # Identify outliers (again based on normal assumption), and replace them with local median
-    #outliers = ( abs_dev > self.n_sigma * estm_stdev)
-    # Identify only positve outliers
-    outliers = (spectral_data - filtered_data > outlier_sigma*estm_stdev)
-    # assign as my cols to flags as outliers has.
-    flags[...] = outliers[...]
-    #return flags
-    return flags
-
-extract_spectra_data()
+extract_spectra_data(f)
 print "Done!"
 print("Open the file %s" % (os.path.basename(args[0]).replace('h5','h5_RFI.pdf')))
