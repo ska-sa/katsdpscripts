@@ -1,4 +1,7 @@
 import katarchive
+import time
+import os
+
 from subprocess import check_output
 
 def put_test_inputfile(test_dir):
@@ -13,11 +16,18 @@ def build_analyse_self_generated_rfi_command(katfilename):
     return '%s %s %s' % (force_system_python, my_exec, katfilename)
 
 #create output directory and get the test file
-test_dir =  '/home/kat/RTS/test_area/2.9-RFI/1382008836/'
+if True:
+    test_dir = '/home/kat/RTS/test_area/2.9-RFI/%i' % int(time.time())
+else:
+    test_dir =  '/home/kat/RTS/test_area/2.9-RFI/benchmark/'
+os.mkdir(test_dir)
 test_inputfile = put_test_inputfile(test_dir)
 
 #execute in a shell in the test directory
 cmd = build_analyse_self_generated_rfi_command(test_inputfile)
 std_output = check_output(cmd, shell=True, cwd=test_dir)
 
-#output viewable @ http://sp-test/RTS/2.9-RFI/blabla
+print 'Executed: %s' %(cmd)
+print 'Benchmark output viewable @ http://sp-test.kat.ac.za/RTS/2.9-RFI/benchmark/'
+print 'This run output viewable @ %s' % (test_dir.replace('/home/kat', 'http://sp-test.kat.ac.za'))
+
