@@ -287,9 +287,9 @@ def extract_spectra_data():
     fileopened.select()
 
     # Horizontal selection per pointing
-    plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_range, rfi_inall_ants)
+    plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants)
     # Vertital selection per pointing
-    plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_range, rfi_inall_ants)
+    plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants)
 
     # put all the contaminated freqs all pointing (like summary)
     pdf.close()
