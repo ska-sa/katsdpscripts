@@ -1,7 +1,7 @@
 import katarchive
 from subprocess import check_output
 
-def put_test_file(test_dir):
+def put_test_inputfile(test_dir):
     prod = katarchive.search_archive(filename='1369128966.h5')[0]
     prod.download_dir = test_dir
     prod.path_to_file
