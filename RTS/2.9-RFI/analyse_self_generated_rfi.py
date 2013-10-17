@@ -103,7 +103,8 @@ def plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_r
             text = targ + '\n'+ label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
             at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
             grid[index].add_artist(at)
-        pdf.savefig(fig)
+        # pdf.savefig(fig)
+        yield fig
 
 #-------------------------------
 #--- FUNCTION :  plot_vertical_selection_per_pointing
@@ -135,7 +136,8 @@ def plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_ran
             text = targ + '\n'+ label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
             at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
             grid[index].add_artist(at)
-        pdf.savefig(fig)
+        # pdf.savefig(fig)
+        yield fig
 
 #command-line parameters
 parser = optparse.OptionParser(usage="Please specify the input file (Yes, this is a non-optional option)\n\
@@ -152,7 +154,7 @@ if len(args) < 1:
 fileopened = kfopen(args[0])
 
 # user defined variables
-print("Please wait while analysis in Progress...")
+print("Please wait while analysis is in progress...")
 pdf = PdfPages(os.path.basename(args[0]).replace('h5','h5_RFI.pdf'))
 
 #called extract_spectra_data()
@@ -169,11 +171,10 @@ chan_range = slice(10,-10)
 fileopened.select(corrprods='auto', pol='H', channels=chan_range,scans='~slew')
 d = np.abs(fileopened.vis[:].mean(axis=0))
 freqs = fileopened.channel_freqs*1.0e-6
-#detect spikes from the data
 spikes = detect_spikes(d)
-
 #detects all the spikes seen by all antennas irrespective of pointing
 rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
+
 fig = plt.figure()
 fig.suptitle('Mean Horizontal auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
 grid = Grid(fig, 111, nrows_ncols=(3,2), axes_pad=0.0, share_all=True)
@@ -267,6 +268,7 @@ pdf.savefig(fig)
 
 fileopened.select()
 
+
 fig = plt.figure()
 fig.suptitle('All antennas mean vertical auto-correlation spectra per pointing',size = 'small', fontweight='bold')
 grid = Grid(fig, 111, (4,5),axes_pad=0.0, share_all=True)
@@ -289,14 +291,18 @@ for index, targ in enumerate(targets):
     grid[index].plot(freqs,data)
     grid[index].add_artist(at)
     plt.setp(grid[index],xticks=[],yticks=[],xlim=xlim, ylim=ylim)
+
 pdf.savefig(fig)
 
 fileopened.select()
 
 # Horizontal selection per pointing
-plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants)
+for fig in plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants):
+    pdf.savefig(fig)
+
 # Vertital selection per pointing
-plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants)
+for fig in plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants):
+    pdf.savefig(fig)
 
 # put all the contaminated freqs all pointing (like summary)
 pdf.close()
