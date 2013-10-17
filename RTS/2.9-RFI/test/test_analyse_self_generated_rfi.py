@@ -5,7 +5,7 @@ import os
 from subprocess import check_output
 
 def put_test_inputfile(test_dir):
-    prod = katarchive.search_archive(filename='1378901689.h51')[0]
+    prod = katarchive.search_archive(filename='1378901689.h5')[0]
     prod.download_dir = test_dir
     prod.path_to_file
     return prod.path_to_file
