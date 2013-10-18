@@ -76,7 +76,7 @@ def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
 #-------------------------------
 #--- FUNCTION :  plot_horizontal_selection_per_antenna
 #-------------------------------
-def plot_selection_per_antenna(pol):
+def plot_selection_per_antenna(fileopened, pol, antennas, chan_range, targets):
     fileopened.select(corrprods='auto', pol=pol, channels=chan_range,scans='~slew')
     d = np.abs(fileopened.vis[:].mean(axis=0))
     spikes = detect_spikes(d)
@@ -116,7 +116,7 @@ def plot_selection_per_antenna(pol):
 #-------------------------------
 #--- FUNCTION :  plot_all_antenas_horizontal_selection_per_pointing
 #-------------------------------
-def plot_all_antenas_selection_per_pointing(pol):
+def plot_all_antenas_selection_per_pointing(fileopened, pol, antennas, chan_range, targets):
     fig = plt.figure()
     if pol == 'H':
         fig.suptitle('All antennas mean horizontal auto-correlation spectra per pointing',size = 'small', fontweight='bold')
@@ -152,7 +152,7 @@ def plot_all_antenas_selection_per_pointing(pol):
 #-------------------------------
 #--- FUNCTION :  plot_horizontal_selection_per_pointing
 #-------------------------------
-def plot_selection_per_pointing(pol):
+def plot_selection_per_pointing(fileopened, pol, antennas, chan_range, targets):
     # Horizontal selection per pointing
     for ant in antennas:
         fig = plt.figure()
@@ -216,32 +216,32 @@ pdf = PdfPages(os.path.basename(args[0]).replace('h5','h5_RFI.pdf'))
 antennas = [ant.name for ant in fileopened.ants]
 targets = [('%s' % (i.name)) for i in fileopened.catalogue.targets]
 chan_range = slice(10,-10)
-freqs = fileopened.channel_freqs*1.0e-6
+#freqs = fileopened.channel_freqs*1.0e-6
 
 text_output = open('rfi.new.txt', 'w')
 
 #plot_horizontal_selection_per_antenna
-(all_text, fig) = plot_selection_per_antenna('H')
+(all_text, fig) = plot_selection_per_antenna(fileopened, 'H', antennas, chan_range, targets)
 text_output.write(all_text)
 pdf.savefig(fig)
 
 #re-initialise the oppened file for new selection
 fileopened.select()
 
-(all_text, fig) = plot_selection_per_antenna('V')
+(all_text, fig) = plot_selection_per_antenna(fileopened, 'V', antennas, chan_range, targets)
 text_output.write(all_text)
 pdf.savefig(fig)
 
 #re-initialise the oppened file for new selection
 fileopened.select()
 
-(all_text, fig) = plot_all_antenas_selection_per_pointing('H')
+(all_text, fig) = plot_all_antenas_selection_per_pointing(fileopened, 'H', antennas, chan_range, targets)
 text_output.write(all_text)
 pdf.savefig(fig)
 
 fileopened.select()
 
-(all_text, fig) = plot_all_antenas_selection_per_pointing('V')
+(all_text, fig) = plot_all_antenas_selection_per_pointing(fileopened, 'V', antennas, chan_range, targets)
 text_output.write(all_text)
 pdf.savefig(fig)
 
@@ -249,13 +249,13 @@ fileopened.select()
 
 # Horizontal selection per pointing
 fileopened.select()
-for (all_text, fig) in plot_selection_per_pointing('H'):
+for (all_text, fig) in plot_selection_per_pointing(fileopened, 'H', antennas, chan_range, targets):
     text_output.write(all_text)
     pdf.savefig(fig)
 
 # Vertital selection per pointing
 fileopened.select()
-for (all_text, fig) in plot_selection_per_pointing('V'):
+for (all_text, fig) in plot_selection_per_pointing(fileopened, 'V', antennas, chan_range, targets):
     text_output.write(all_text)
     pdf.savefig(fig)
 
