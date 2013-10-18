@@ -2,7 +2,7 @@
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid import Grid
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt; plt.ioff()
 import scipy.signal as signal
 from katfile import open as kfopen
 import numpy as np
@@ -74,24 +74,166 @@ def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
     return flags
 
 #-------------------------------
-#--- FUNCTION :  plot_vertical_selection_per_pointing
+#--- FUNCTION :  plot_horizontal_selection_per_antenna
 #-------------------------------
-def plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants):
+def plot_horizontal_selection_per_antenna():
+    fileopened.select(corrprods='auto', pol='H', channels=chan_range,scans='~slew')
+    d = np.abs(fileopened.vis[:].mean(axis=0))
+    spikes = detect_spikes(d)
+    freqs = fileopened.channel_freqs*1.0e-6
+    #detects all the spikes seen by all antennas irrespective of pointing
+    rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
+    fig = plt.figure()
+    fig.suptitle('Mean Horizontal auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
+    grid = Grid(fig, 111, nrows_ncols=(3,2), axes_pad=0.0, share_all=True)
+    all_text = []
+    for index,ant in enumerate(antennas):
+        antenna = ant +'\n'
+        ylim=(0,1.2*d[:,index].max())
+        xlim=(freqs[0],freqs[-1])
+        spikes = detect_spikes(d[:,index])
+        rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
+        rfi_power = [d[:,index][i] for i,elem in enumerate(spikes,0) if elem]
+        label = "Flags [MHz]:\n"
+        text = antenna +'\n'+label+'\n'.join(['%.3f' % num for num in rfi_freqs])
+        all_text.append(text)
+        at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
+        grid[index].add_artist(at)
+        grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
+        grid[index].plot(freqs,d[:,index])
+        grid[index].add_artist(at)
+        plt.setp(grid[index],xlim=xlim,ylim=ylim,yticks=[],xticks=[])
+    label = "Flags in all Ants [MHz]:\n"
+    text = label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
+    all_text.append(text)
+    at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
+    grid[-1].add_artist(at)
+    return ('\n'.join(all_text), fig)
+
+#-------------------------------
+#--- FUNCTION :  plot_vertical_selection_per_antenna
+#-------------------------------
+def plot_vertical_selection_per_antenna():
+    fileopened.select(corrprods='auto', pol='V',channels=chan_range, scans='~slew')
+    d = np.abs(fileopened.vis[:].mean(axis=0))
+    #detect spikes from the data
+    spikes = detect_spikes(d)
+    freqs = fileopened.channel_freqs*1.0e-6
+    #detects all the spikes seen by all antennas irrespective of pointing
+    rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
+
+    fig = plt.figure()
+    grid = Grid(fig, 111, (3,2),axes_pad=0.0, share_all=True)
+    fig.suptitle('Mean Vertical auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
+    all_text = []
+    for index,ant in enumerate(antennas):
+        antenna = ant + '\n'
+        ylim=(0,1.2*d[:,index].max())
+        xlim=(freqs[0],freqs[-1])
+        spikes = detect_spikes(d[:,index])
+        rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
+        rfi_power = [d[:,index][i] for i,elem in enumerate(spikes,0) if elem]
+        label = "Flags [MHz]:\n"
+        text = antenna +'\n'+label+'\n'.join(['%.3f' % num for num in rfi_freqs])
+        all_text.append(text)
+        at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
+        grid[index].add_artist(at)
+        grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
+        grid[index].plot(freqs,d[:,index].T)
+        grid[index].add_artist(at)
+        plt.setp(grid[index],xlim=xlim,ylim=ylim,xticks=[],yticks=[])
+    # writting out common flags
+    label = "Flags in all Ants [MHz]:\n\n"
+    text = label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
+    all_text.append(text)
+    at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
+    grid[-1].add_artist(at)
+    return ('\n'.join(all_text), fig)
+
+#-------------------------------
+#--- FUNCTION :  plot_all_antenas_horizontal_selection_per_pointing
+#-------------------------------
+def plot_all_antenas_horizontal_selection_per_pointing():
+    fig = plt.figure()
+    fig.suptitle('All antennas mean horizontal auto-correlation spectra per pointing',size = 'small', fontweight='bold')
+    grid = Grid(fig, 111,  nrows_ncols =(4,5), axes_pad=0.0, share_all=True)
+    all_text = []
+    for index, targ in enumerate(targets):
+        fileopened.select(corrprods='auto', pol='H',targets=targ,channels=chan_range, scans='~slew')
+        freqs = fileopened.channel_freqs*1.0e-6
+        data = np.abs(fileopened.vis[:].mean(axis=0))
+        ylim=(0,1.2*data.max())
+        xlim=(freqs[0],freqs[-1])
+        spikes = detect_spikes(data)
+        #detect spikes seen in all antennas per each pointing
+        rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
+        label = "Flags [MHz]:\n"
+        text = targ+'\n'+label+'\n'.join(['%.3f' % num for num in rfi_inall_ants])
+        all_text.append(text)
+        at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
+        grid[index].add_artist(at)
+        #print targ, rfi_inall_ants
+        for k,ant in enumerate(antennas):
+            #detect spikes per antenna for each pointing
+            rfi_freqs = [freqs[i] for i,elem in enumerate(spikes[:,k]) if elem]
+            rfi_power = [data[:,k][i] for i,elem in enumerate(spikes[:,k]) if elem]
+            grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
+        grid[index].plot(freqs,data)
+        grid[index].add_artist(at)
+        plt.setp(grid[index],xticks=[],yticks=[], ylim=ylim, xlim=xlim)
+    return ('\n'.join(all_text), fig)
+
+#-------------------------------
+#--- FUNCTION :  plot_all_antenas_vertical_selection_per_pointing
+#-------------------------------
+def plot_all_antenas_vertical_selection_per_pointing():
+    fig = plt.figure()
+    fig.suptitle('All antennas mean vertical auto-correlation spectra per pointing',size = 'small', fontweight='bold')
+    grid = Grid(fig, 111, (4,5),axes_pad=0.0, share_all=True)
+    all_text = []
+    for index, targ in enumerate(targets):
+        fileopened.select(corrprods='auto', pol='V',targets=targ,channels=chan_range, scans='~slew')
+        freqs = fileopened.channel_freqs*1.0e-6
+        data = np.abs(fileopened.vis[:].mean(axis=0))
+        ylim=(0,1.2*data.max())
+        xlim=(freqs[0],freqs[-1])
+        spikes = detect_spikes(data)
+        rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
+        label = "Flags [MHz]:\n"
+        text = targ+'\n'+label+'\n'.join(['%.3f' % num for num in rfi_inall_ants])
+        all_text.append(text)
+        at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
+        grid[index].add_artist(at)
+        for k,ant in enumerate(antennas):
+            rfi_freqs = [freqs[i] for i,elem in enumerate(spikes[:,k]) if elem]
+            rfi_power = [data[:,k][i] for i,elem in enumerate(spikes[:,k]) if elem]
+            grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
+        grid[index].plot(freqs,data)
+        grid[index].add_artist(at)
+        plt.setp(grid[index],xticks=[],yticks=[],xlim=xlim, ylim=ylim)
+    return ('\n'.join(all_text), fig)
+
+#-------------------------------
+#--- FUNCTION :  plot_horizontal_selection_per_pointing
+#-------------------------------
+def plot_horizontal_selection_per_pointing():
     # Horizontal selection per pointing
-    fileopened.select()
     for ant in antennas:
         fig = plt.figure()
         fig.suptitle(' '.join([ant.capitalize(),'Mean Horizontal auto-correlation spectra per pointing']),size = 'small', fontweight='bold')
         fig.text(0.5, 0.04, 'Frequency [MHz]', ha='center', va='center',size='x-small', fontweight='bold',style='italic')
         fig.text(0.06, 0.5, 'Power [Units]', ha='center', va='center', size='x-small',rotation='vertical', fontweight='bold',style='italic')
         grid = Grid(fig, 111, (4, 5), axes_pad=0.0, share_all=True)
+        all_text = []
         for index,targ in enumerate(targets):
             fileopened.select(ants=ant,corrprods='auto',pol='H',targets=targ,channels=chan_range,scans ='~slew')
             data=np.abs(fileopened.vis[:].mean(axis=0))
+            freqs = fileopened.channel_freqs*1.0e-6
             ylim=(0,1.2*data.max())
             xlim=(freqs[0],freqs[-1])
             #at = AnchoredText(targ,prop=dict(size=5), frameon=False,loc=1)
             spikes = detect_spikes(data)
+            rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
             rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
             rfi_power = [data[i] for i,elem in enumerate(spikes,0) if elem]
             grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
@@ -101,30 +243,33 @@ def plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_r
             plt.setp(grid[index],xticks=[],yticks=[],ylim=ylim,xlim=xlim)
             label = "Flags [MHz]:\n"
             text = targ + '\n'+ label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
+            all_text.append(text)
             at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
             grid[index].add_artist(at)
         # pdf.savefig(fig)
-        yield fig
+        yield ('\n'.join(all_text), fig)
 
 #-------------------------------
 #--- FUNCTION :  plot_vertical_selection_per_pointing
 #-------------------------------
-def plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants):
-    # Vertital selection per pointing
-    fileopened.select()
+def plot_vertical_selection_per_pointing():
+    # Vertical selection per pointing
     for ant in antennas:
         fig = plt.figure()
         fig.suptitle(' '.join([ant.capitalize(),'Mean Vertical auto-correlation spectra per pointing']), size = 'small', fontweight='bold')
         fig.text(0.5, 0.04, 'Frequency [MHz]', ha='center', va='center',size='x-small', fontweight='bold',style='italic')
         fig.text(0.06, 0.5, 'Power [Units]', ha='center', va='center', size='x-small',rotation='vertical', fontweight='bold',style='italic')
         grid = Grid(fig, 111, (4, 5),axes_pad=0.0, share_all=True)
+        all_text = []
         for index,targ in enumerate(targets):
             fileopened.select(ants=ant,corrprods='auto',pol='V',targets=targ,channels=chan_range,scans ='~slew')
             data=np.abs(fileopened.vis[:].mean(axis=0))
+            freqs = fileopened.channel_freqs*1.0e-6
             ylim=(0,1.2*data.max())
             xlim=(freqs[0],freqs[-1])
             #at = AnchoredText(targ,prop=dict(size=5), frameon=False,loc=2)
             spikes = detect_spikes(data)
+            rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
             rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
             rfi_power = [data[i] for i,elem in enumerate(spikes,0) if elem]
             grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
@@ -134,10 +279,11 @@ def plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_ran
             plt.setp(grid[index],xticks=[],yticks=[],ylim=ylim, xlim=xlim)
             label = "Flags [MHz]:\n"
             text = targ + '\n'+ label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
+            all_text.append(text)
             at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
             grid[index].add_artist(at)
         # pdf.savefig(fig)
-        yield fig
+        yield ('\n'.join(all_text), fig)
 
 #command-line parameters
 parser = optparse.OptionParser(usage="Please specify the input file (Yes, this is a non-optional option)\n\
@@ -167,141 +313,47 @@ pdf = PdfPages(os.path.basename(args[0]).replace('h5','h5_RFI.pdf'))
 antennas = [ ant.name for ant in fileopened.ants]
 targets = [('%s' % (i.name)) for i in fileopened.catalogue.targets]
 chan_range = slice(10,-10)
-
-fileopened.select(corrprods='auto', pol='H', channels=chan_range,scans='~slew')
-d = np.abs(fileopened.vis[:].mean(axis=0))
 freqs = fileopened.channel_freqs*1.0e-6
-spikes = detect_spikes(d)
-#detects all the spikes seen by all antennas irrespective of pointing
-rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
 
-fig = plt.figure()
-fig.suptitle('Mean Horizontal auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
-grid = Grid(fig, 111, nrows_ncols=(3,2), axes_pad=0.0, share_all=True)
-for index,ant in enumerate(antennas):
-    antenna = ant +'\n'
-    ylim=(0,1.2*d[:,index].max())
-    xlim=(freqs[0],freqs[-1])
-    spikes = detect_spikes(d[:,index])
-    rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
-    rfi_power = [d[:,index][i] for i,elem in enumerate(spikes,0) if elem]
-    label = "Flags [MHz]:\n"
-    text = antenna +'\n'+label+'\n'.join(['%.3f' % num for num in rfi_freqs])
-    at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
-    grid[index].add_artist(at)
-    grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
-    grid[index].plot(freqs,d[:,index])
-    grid[index].add_artist(at)
-    plt.setp(grid[index],xlim=xlim,ylim=ylim,yticks=[],xticks=[])
-label = "Flags in all Ants [MHz]:\n"
-text = label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
-at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
-grid[-1].add_artist(at)
+text_output = open('rfi.new.txt', 'w')
 
+#plot_horizontal_selection_per_antenna
+(all_text, fig) = plot_horizontal_selection_per_antenna()
+text_output.write(all_text)
 pdf.savefig(fig)
 
 #re-initialise the oppened file for new selection
 fileopened.select()
 
-fileopened.select(corrprods='auto', pol='V',channels=chan_range, scans='~slew')
-d = np.abs(fileopened.vis[:].mean(axis=0))
-#detect spikes from the data
-spikes = detect_spikes(d)
-#detects all the spikes seen by all antennas irrespective of pointing
-rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
-
-fig = plt.figure()
-
-grid = Grid(fig, 111, (3,2),axes_pad=0.0, share_all=True)
-fig.suptitle('Mean Vertical auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
-for index,ant in enumerate(antennas):
-    antenna = ant + '\n'
-    ylim=(0,1.2*d[:,index].max())
-    xlim=(freqs[0],freqs[-1])
-    spikes = detect_spikes(d[:,index])
-    rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
-    rfi_power = [d[:,index][i] for i,elem in enumerate(spikes,0) if elem]
-    label = "Flags [MHz]:\n"
-    text = antenna +'\n'+label+'\n'.join(['%.3f' % num for num in rfi_freqs])
-    at = AnchoredText(text,prop=dict(size=3), frameon=True,loc=2)
-    grid[index].add_artist(at)
-    grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
-    grid[index].plot(freqs,d[:,index].T)
-    grid[index].add_artist(at)
-    plt.setp(grid[index],xlim=xlim,ylim=ylim,xticks=[],yticks=[])
-# writting out common flags
-label = "Flags in all Ants [MHz]:\n\n"
-text = label +'\n'.join(['%.3f' % num for num in rfi_inall_ants])
-at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
-grid[-1].add_artist(at)
+(all_text, fig) = plot_vertical_selection_per_antenna()
+text_output.write(all_text)
 pdf.savefig(fig)
 
 #re-initialise the oppened file for new selection
 fileopened.select()
 
-fig = plt.figure()
-fig.suptitle('All antennas mean horizontal auto-correlation spectra per pointing',size = 'small', fontweight='bold')
-grid = Grid(fig, 111,  nrows_ncols =(4,5), axes_pad=0.0, share_all=True)
-for index, targ in enumerate(targets):
-    fileopened.select(corrprods='auto', pol='H',targets=targ,channels=chan_range, scans='~slew')
-    freqs = fileopened.channel_freqs*1.0e-6
-    data = np.abs(fileopened.vis[:].mean(axis=0))
-    ylim=(0,1.2*data.max())
-    xlim=(freqs[0],freqs[-1])
-    spikes = detect_spikes(data)
-    #detect spikes seen in all antennas per each pointing
-    rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
-    label = "Flags [MHz]:\n"
-    text = targ+'\n'+label+'\n'.join(['%.3f' % num for num in rfi_inall_ants])
-    at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
-    grid[index].add_artist(at)
-    #print targ, rfi_inall_ants
-    for k,ant in enumerate(antennas):
-        #detect spikes per antenna for each pointing
-        rfi_freqs = [freqs[i] for i,elem in enumerate(spikes[:,k]) if elem]
-        rfi_power = [data[:,k][i] for i,elem in enumerate(spikes[:,k]) if elem]
-        grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
-    grid[index].plot(freqs,data)
-    grid[index].add_artist(at)
-    plt.setp(grid[index],xticks=[],yticks=[], ylim=ylim, xlim=xlim)
+(all_text, fig) = plot_all_antenas_horizontal_selection_per_pointing()
+text_output.write(all_text)
 pdf.savefig(fig)
 
 fileopened.select()
 
-
-fig = plt.figure()
-fig.suptitle('All antennas mean vertical auto-correlation spectra per pointing',size = 'small', fontweight='bold')
-grid = Grid(fig, 111, (4,5),axes_pad=0.0, share_all=True)
-for index, targ in enumerate(targets):
-    fileopened.select(corrprods='auto', pol='V',targets=targ,channels=chan_range, scans='~slew')
-    freqs = fileopened.channel_freqs*1.0e-6
-    data = np.abs(fileopened.vis[:].mean(axis=0))
-    ylim=(0,1.2*data.max())
-    xlim=(freqs[0],freqs[-1])
-    spikes = detect_spikes(data)
-    rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
-    label = "Flags [MHz]:\n"
-    text = targ+'\n'+label+'\n'.join(['%.3f' % num for num in rfi_inall_ants])
-    at = AnchoredText(text,prop=dict(size=4), frameon=True,loc=2)
-    grid[index].add_artist(at)
-    for k,ant in enumerate(antennas):
-        rfi_freqs = [freqs[i] for i,elem in enumerate(spikes[:,k]) if elem]
-        rfi_power = [data[:,k][i] for i,elem in enumerate(spikes[:,k]) if elem]
-        grid[index].scatter(rfi_freqs,rfi_power,marker='+',color='Maroon')
-    grid[index].plot(freqs,data)
-    grid[index].add_artist(at)
-    plt.setp(grid[index],xticks=[],yticks=[],xlim=xlim, ylim=ylim)
-
+(all_text, fig) = plot_all_antenas_vertical_selection_per_pointing()
+text_output.write(all_text)
 pdf.savefig(fig)
 
 fileopened.select()
 
 # Horizontal selection per pointing
-for fig in plot_horizontal_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants):
+fileopened.select()
+for (all_text, fig) in plot_horizontal_selection_per_pointing():
+    text_output.write(all_text)
     pdf.savefig(fig)
 
 # Vertital selection per pointing
-for fig in plot_vertical_selection_per_pointing(fileopened, antennas, targets, chan_range, freqs, rfi_inall_ants):
+fileopened.select()
+for (all_text, fig) in plot_vertical_selection_per_pointing():
+    text_output.write(all_text)
     pdf.savefig(fig)
 
 # put all the contaminated freqs all pointing (like summary)
