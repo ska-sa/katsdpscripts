@@ -74,7 +74,7 @@ def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
     return flags
 
 #-------------------------------
-#--- FUNCTION :  plot_horizontal_selection_per_antenna
+#--- FUNCTION :  plot_selection_per_antenna
 #-------------------------------
 def plot_selection_per_antenna(fileopened, pol, antennas, chan_range, targets):
     fileopened.select(corrprods='auto', pol=pol, channels=chan_range,scans='~slew')
@@ -114,7 +114,7 @@ def plot_selection_per_antenna(fileopened, pol, antennas, chan_range, targets):
     return ('\n'.join(all_text), fig)
 
 #-------------------------------
-#--- FUNCTION :  plot_all_antenas_horizontal_selection_per_pointing
+#--- FUNCTION :  plot_all_antenas_selection_per_pointing
 #-------------------------------
 def plot_all_antenas_selection_per_pointing(fileopened, pol, antennas, chan_range, targets):
     fig = plt.figure()
@@ -150,7 +150,7 @@ def plot_all_antenas_selection_per_pointing(fileopened, pol, antennas, chan_rang
     return ('\n'.join(all_text), fig)
 
 #-------------------------------
-#--- FUNCTION :  plot_horizontal_selection_per_pointing
+#--- FUNCTION :  plot_selection_per_pointing
 #-------------------------------
 def plot_selection_per_pointing(fileopened, pol, antennas, chan_range, targets):
     # Horizontal selection per pointing
