@@ -1,18 +1,297 @@
-# imports
-from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-from matplotlib.backends.backend_pdf import PdfPages
-from mpl_toolkits.axes_grid import Grid
-import matplotlib.pyplot as plt; plt.ioff()
-import scipy.signal as signal
 from katfile import open as kfopen
+from math import log
+from matplotlib.backends.backend_pdf import PdfPages
+from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+from mpl_toolkits.axes_grid import Grid
+
+import matplotlib.pyplot as plt; plt.ioff()
 import numpy as np
 import optparse
 import os
+import scipy.signal as signal
+import scipy.interpolate as interpolate
+
+#----------------------------------------------------------------------------------
+#--- FUNCTION :  getbackground_spline
+# Fit the background to the array in "data" using an iterative fit of a spline to the 
+# data. On each iteration the number of density of knots in the spline is increased 
+# up to "spike_width", and residual peaks more than 5sigma are removed.
+#----------------------------------------------------------------------------------
+
+def getbackground_spline(data,spike_width):
+
+    """ From a 1-d data array determine a background iteratively by fitting a spline
+    and removing data more than a few sigma from the spline """
+
+    # Remove the first and last element in data from the fit.
+    y=np.copy(data[1:-1])
+    arraysize=y.shape[0]
+    x=np.arange(arraysize)
+
+    # Iterate 4 times
+    for iteration in range(4):
+
+        # First iteration fits a linear spline with 3 knots.
+        if iteration==0:
+            npieces=3
+        # Second iteration fits a quadratic spline with 10 knots.
+        elif iteration==1:
+            npieces=10
+        # Third and fourth iterations fit a cubic spline with 50 and 75 knots respectively.
+        elif iteration>1:
+            npieces=iteration*25
+        deg=min(iteration+1,3)
+        
+        # Size of each piece of the spline.
+        psize = arraysize/npieces
+        firstindex = arraysize%psize + int(psize/2)
+        indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
+
+        # Fit the spline
+        thisfit = interpolate.LSQUnivariateSpline(x,y,indices,k=deg)
+        
+        thisfitted_data=np.asarray(thisfit(x),y.dtype)
+
+        # Subtract the fitted spline from the data
+        residual = y-thisfitted_data
+        this_std = np.std(residual)
+
+        # Reject data more than 5sigma from the residual. 
+        flags = residual > 5*this_std
+
+        # Set rejected data value to the fitted value + 1sigma.
+        y[flags] = thisfitted_data[flags] + this_std
+
+    # Final iteration has knots separated by "spike_width".
+    npieces = int(y.shape[0]/spike_width)
+    psize = (x[-1]+1)/npieces
+    firstindex = int((y.shape[0]%psize))
+    indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
+
+    # Get the final background.
+    finalfit = interpolate.LSQUnivariateSpline(x,y,indices,k=3)
+    thisfitted_data = np.asarray(finalfit(x),y.dtype)
+    
+    # Insert the original data at the beginning and ends of the data array.
+    thisfitted_data = np.append(thisfitted_data,data[-1])
+    thisfitted_data = np.insert(thisfitted_data,0,data[0])
+
+    return(thisfitted_data)
+
+#----------------------------------------------------------------------------------
+#--- FUNCTION :  detect_spikes_sumthreshold
+# Given an array "data" from a baseline:
+# - determine if the data is an auto-correlation or a cross-correlation.
+# - Get the background in the data using a median filter for auto_correlations or a 
+#   cubic spline for cross correlations.
+# - Make an array of flags from the data using the "sumthreshold" method and return
+#   this array of flags.
+# Parameters
+# ----------
+# data : array-like
+#     An N-dimensional numpy array containing the data to flag
+# blarray : array-like
+#     An array of baseline labels used to determine if the 
+#     baseline index is an auto- or a cross- correlation. Should have the same
+#     shape as the baseline part of the data array.
+# spike_width : integer
+#     The width of the median filter and the gaps between knots in the spline fit.
+# outlier_sigma : float
+#     The number of sigma in the first iteration of the sumthreshold method.
+# buffer_size : int
+#     The number of timestamps in the data array to average.
+# window_size_auto : array of ints
+#     The sizes of the averaging windows in each sumthreshold iteration for auto-correlations.
+# window_size_cross : array of ints 
+#     The sizes of the averaging windows in each sumthreshold iteration for cross-correlations.
+#
+#----------------------------------------------------------------------------------
+def detect_spikes_sumthreshold(data, bline, spike_width=3, outlier_sigma=11.0, window_size_auto=[1,3], window_size_cross=[2,4,8]):
+
+
+    # Kernel size for the median filter.
+    kernel_size = 2 * max(int(spike_width), 0) + 1
+    #Init Flags
+    flags = np.zeros(list(data.shape), dtype=np.uint8)
+
+    for bl_index in range(data.shape[-1]):
+
+        # Extract this baseline from the data
+        this_data_buffer = data[:,bl_index]
+        
+        #Separate the auto-correlations and the cross-correlations
+        #auto-correlations use a median filter and cross correlations
+        #use a fitted spline.
+        bl_name = bline.bls_ordering[bl_index]
+        
+        # Check if this is an auto or a cross...
+        if bl_name[0][:-1] == bl_name[1][:-1]:
+            #Auto-Correlation.
+            filtered_data = np.asarray(signal.medfilt(this_data_buffer, kernel_size), this_data_buffer.dtype)
+            #Use the auto correlation window function
+            window_bl = window_size_auto
+            this_sigma = outlier_sigma
+        else:
+            #Cross-Correlation.
+            filtered_data = getbackground_spline(this_data_buffer,kernel_size)
+            #Use the cross correlation window function
+            window_bl = window_size_cross
+            # Can lower the threshold a little (10%) for cross correlations
+            this_sigma = outlier_sigma * 0.9
+
+        av_dev = (this_data_buffer-filtered_data)
+
+        av_abs_dev = np.abs(av_dev)
+            
+        # Calculate median absolute deviation (MAD)
+        med_abs_dev = np.median(av_abs_dev[av_abs_dev>0])
+            
+        # Assuming normally distributed deviations, this is a robust estimator of the standard deviation
+        estm_stdev = 1.4826 * med_abs_dev
+            
+        # Identify initial outliers (again based on normal assumption), and replace them with local median
+        threshold = this_sigma * estm_stdev
+        outliers = np.zeros(data.shape[0],dtype=np.bool)
+        # Always flag the first element of the array.
+        outliers[0] = True 
+
+        for window in window_bl:
+            #Set up 'this_data' from the averaged background subtracted buffer 
+            bl_data = av_dev.copy()
+                
+            #The threshold for this iteration is calculated from the initial threshold
+            #using the equation from Offringa (2010).
+            # rho=1.3 in the equation seems to work better for KAT-7 than rho=1.5 from AO.
+            thisthreshold = threshold / pow(1.2,(log(window)/log(2.0)))
+            #Set already flagged values to be the value of this threshold
+            bl_data[outliers] = thisthreshold
+                
+            #Calculate a rolling average array from the data with a windowsize for this iteration
+            weight = np.repeat(1.0, window)/window
+            avgarray = np.convolve(bl_data, weight,mode='valid')
+                
+            #Work out the flags from the convolved data using the current threshold.
+            #Flags are padded with zeros to ensure the flag array (derived from the convolved data)
+            #has the same dimension as the input data.
+            this_flags = (avgarray > thisthreshold)
+
+            #Convolve the flags to be of the same width as the current window.
+            convwindow = np.ones(window,dtype=np.bool)
+            this_outliers = np.convolve(this_flags,convwindow)
+                
+            #"OR" the flags with the flags from the previous iteration.
+            outliers = outliers | this_outliers
+                
+        flags[:,bl_index] = outliers
+
+    return flags
+
+
+#----------------------------------------------------------------------------------
+#--- FUNCTION :  detect_spikes_mad
+# Given an array "data" from a baseline determine flags using the "median absolute
+# deviation" method. The data is median filtered (with a kernel defined by "spike_width")
+# to find a background and then rfi spikes are found by finding peaks that are 
+#"outlier_sigma" from the median of the absolute values of the background subtracted data.
+# Parameters
+# ----------
+# data : array-like
+#     An N-dimensional numpy array containing the data to flag
+# blarray : CorrProdRef object
+#     Baseline labels used to determine if the 
+#     baseline index is an auto- or a cross- correlation.
+# spike_width : integer
+#     The width of the median filter and the gaps between knots in the spline fit.
+# outlier_sigma : float
+#     The number of sigma in the first iteration of the sumthreshold method.
+#
+#----------------------------------------------------------------------------------
+
+def detect_spikes_mad(data,blarray,spike_width=6,outlier_sigma=11):
+    
+    flags = np.zeros(list(data.shape, dtype=np.uint8))
+
+    for bl_index in range(data.shape[-1]):
+        spectral_data = np.abs(data[:,bl_index])
+        spectral_data = np.atleast_1d(spectral_data)
+        kernel_size = 2 * max(int(spike_width), 0) + 1
+        
+        # Medfilt now seems to upcast 32-bit floats to doubles - convert it back to floats...
+        filtered_data = np.asarray(signal.medfilt(spectral_data, kernel_size), spectral_data.dtype)
+        
+        # The deviation is measured relative to the local median in the signal
+        abs_dev = np.abs(spectral_data - filtered_data)
+
+        # Calculate median absolute deviation (MAD)
+        med_abs_dev = np.median(abs_dev[abs_dev>0])
+
+        #med_abs_dev = signal.medfilt(abs_dev, kernel)
+        # Assuming normally distributed deviations, this is a robust estimator of the standard deviation
+        estm_stdev = 1.4826 * med_abs_dev
+
+        # Identify outliers (again based on normal assumption), and replace them with local median
+        #outliers = ( abs_dev > self.n_sigma * estm_stdev)
+        #print outliers
+        # Identify only positve outliers
+        outliers = (spectral_data - filtered_data > outlier_sigma*estm_stdev)
+
+        flags[:,bl_index] = outliers
+        # set appropriate flag bit for detected RFI
+    
+    return flags
+        
+#-----------------------------------------------------------------------------------
+#--- FUNCTION :  detect_spikes_median
+# Given an array "data" from a baseline determine flags using a simple median filter.
+# Parameters
+# ----------
+# data : array-like
+#     An N-dimensional numpy array containing the data to flag
+# blarray : CorrProdRef object
+#     Baseline labels used to determine if the 
+#     baseline index is an auto- or a cross- correlation.
+# spike_width : integer
+#     The width of the median filter and the gaps between knots in the spline fit.
+# outlier_sigma : float
+#     The number of sigma in the first iteration of the sumthreshold method.
+#
+#----------------------------------------------------------------------------------
+
+# BUG: line 277 spectral_data called before it is defined.
+# def detect_spikes_median(data,blarray,spike_width=3,outlier_sigma=11.0):
+    
+#     """Simple RFI flagging through thresholding.
+
+#     Trivial thresholder that looks for n sigma deviations from the average
+#     of the supplied frame.
+
+#     Parameters
+#     ----------
+#     n_sigma : float
+#        The number of std deviations allowed
+
+#     """
+        
+#     flags = np.zeros(list(data.shape), dtype=np.uint8)
+#     for bl_index in range(data.shape[-1]):
+#         spectral_data = np.atleast_1d(spectral_data)
+        
+#         kernel_size=spike_width
+        
+#         # Medfilt now seems to upcast 32-bit floats to doubles - convert it back to floats...
+#         filtered_data = signal.medfilt(spectral_data, kernel_size)
+#         # The deviation is measured relative to the local median in the signal
+#         abs_dev = spectral_data - filtered_data
+#         # Identify outliers (again based on normal assumption), and replace them with local median
+#         outliers = (abs_dev > np.std(abs_dev)*2.3)
+#         flags[:,bl_index] = outliers
+
+#     return flags
 
 #-------------------------------
 #--- FUNCTION :  detect_spikes
 #-------------------------------
-def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
+def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
     """
     Detect and Remove outliers from data, replacing them with a local median value.
 
@@ -79,7 +358,7 @@ def detect_spikes(data, axis=0, spike_width=2, outlier_sigma=11.0):
 def plot_selection_per_antenna(fileopened, pol, antennas, chan_range, targets):
     fileopened.select(corrprods='auto', pol=pol, channels=chan_range,scans='~slew')
     d = np.abs(fileopened.vis[:].mean(axis=0))
-    spikes = detect_spikes(d)
+    spikes = detect_spikes_orig(d)
     freqs = fileopened.channel_freqs*1.0e-6
     #detects all the spikes seen by all antennas irrespective of pointing
     rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
@@ -94,7 +373,7 @@ def plot_selection_per_antenna(fileopened, pol, antennas, chan_range, targets):
         antenna = ant +'\n'
         ylim=(0,1.2*d[:,index].max())
         xlim=(freqs[0],freqs[-1])
-        spikes = detect_spikes(d[:,index])
+        spikes = detect_spikes_orig(d[:,index])
         rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
         rfi_power = [d[:,index][i] for i,elem in enumerate(spikes,0) if elem]
         label = "Flags [MHz]:\n"
@@ -130,7 +409,7 @@ def plot_all_antenas_selection_per_pointing(fileopened, pol, antennas, chan_rang
         data = np.abs(fileopened.vis[:].mean(axis=0))
         ylim=(0,1.2*data.max())
         xlim=(freqs[0],freqs[-1])
-        spikes = detect_spikes(data)
+        spikes = detect_spikes_orig(data)
         #detect spikes seen in all antennas per each pointing
         rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
         label = "Flags [MHz]:\n"
@@ -171,7 +450,7 @@ def plot_selection_per_pointing(fileopened, pol, antennas, chan_range, targets):
             ylim=(0,1.2*data.max())
             xlim=(freqs[0],freqs[-1])
             #at = AnchoredText(targ,prop=dict(size=5), frameon=False,loc=1)
-            spikes = detect_spikes(data)
+            spikes = detect_spikes_orig(data)
             rfi_inall_ants = [freqs[i] for i,elem in enumerate(spikes.all(axis=1)) if elem]
             rfi_freqs = [freqs[i] for i,elem in enumerate(spikes,0) if elem]
             rfi_power = [data[i] for i,elem in enumerate(spikes,0) if elem]
