@@ -1,12 +1,4 @@
 #!/usr/bin/python
-###############################################################################
-# SKA South Africa (http://ska.ac.za/)                                        #
-# Author: cam@ska.ac.za                                                       #
-# Copyright @ 2013 SKA SA. All rights reserved.                               #
-#                                                                             #
-# THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
-# WRITTEN PERMISSION OF SKA SA.                                               #
-###############################################################################
 #
 # This examines all noise diode firings in an HDF5 file and compares the timestamp
 # of each firing with one derived from the rise in recorded power.
