@@ -1,4 +1,12 @@
 #!/usr/bin/python
+###############################################################################
+# SKA South Africa (http://ska.ac.za/)                                        #
+# Author: cam@ska.ac.za                                                       #
+# Copyright @ 2013 SKA SA. All rights reserved.                               #
+#                                                                             #
+# THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
+# WRITTEN PERMISSION OF SKA SA.                                               #
+###############################################################################
 # Reduces tipping curve data and fits a tipping model to the data
 # Needs: noise diode models and tipping spillover model
 # The script expects to find the following files in a specified directory

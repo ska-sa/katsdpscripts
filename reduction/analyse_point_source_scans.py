@@ -1,4 +1,12 @@
 #!/usr/bin/python
+###############################################################################
+# SKA South Africa (http://ska.ac.za/)                                        #
+# Author: cam@ska.ac.za                                                       #
+# Copyright @ 2013 SKA SA. All rights reserved.                               #
+#                                                                             #
+# THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
+# WRITTEN PERMISSION OF SKA SA.                                               #
+###############################################################################
 # Script that uses scape to reduce data consisting of scans across multiple point sources.
 #
 # This can be used to determine gain curves, tipping curves and pointing models.
