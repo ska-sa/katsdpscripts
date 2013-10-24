@@ -248,8 +248,8 @@ parser.add_option("-a", "--baseline", default='sd',
                   help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", action="store_true",
                   help="Flag to do processing in batch mode without user interaction")
-parser.add_option("-f", "--freq-chans", default='90,424',
-                  help="Range of frequency channels to keep (zero-based, specified as 'start,end', default %default)")
+parser.add_option("-f", "--freq-chans",
+                  help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass)")
 parser.add_option("-k", "--keep", dest="keepfilename",
                   help="Name of optional CSV file used to select compound scans from dataset (implies batch mode)")
 parser.add_option("-m", "--monte-carlo", dest="mc_iterations", type='int', default=1,
@@ -323,10 +323,17 @@ if keep_datasets and dataset_name not in keep_datasets:
 logger.info("Loading dataset '%s'" % (filename,))
 dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
                         time_offset=opts.time_offset, katfile=not opts.old_loader)
-# Select frequency channels
-start_freq_channel = int(opts.freq_chans.split(',')[0])
-end_freq_channel = int(opts.freq_chans.split(',')[1])
-chan_range = range(start_freq_channel, end_freq_channel + 1)
+
+# Select frequency channels and setup defaults if not specified
+num_channels = len(dataset.channel_select)
+if opts.freq_chans is None:
+    # Default is drop first and last 25% of the bandpass
+    start_chan = num_channels // 4
+    end_chan   = start_chan * 3
+else:
+    start_chan = int(opts.freq_chans.split(',')[0])
+    end_chan = int(opts.freq_chans.split(',')[1])
+chan_range = range(start_chan,end_chan+1)
 dataset = dataset.select(freqkeep=chan_range)
 
 # Check scan count
