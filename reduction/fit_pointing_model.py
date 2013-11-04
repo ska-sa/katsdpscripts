@@ -426,6 +426,7 @@ def setup_param_button(p):
         save_button.hovercolor = (0.95, 0, 0)
         update(fig)
     param_button.on_clicked(toggle_param_callback)
+    return param_button # This is to stop the gc from deleting the data
 param_buttons = [setup_param_button(p) for p in xrange(len(display_params))]
 
 # Add old pointing model and labels
