@@ -60,7 +60,7 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
         once = True
         start_time = time.time()
-        while once or (opts.max_duration and time.time() > start_time + opts.max_duration) :
+        while once or  time.time() < start_time + opts.max_duration :
             once = False
             for fLO in fLOs: #loop over frequencys
                 session.set_centre_freq(fLO)
