@@ -28,8 +28,8 @@ if  not opts.description == 'Hotload and Coldload observation' :  opts.descripti
 fLOs=[(1200+64+i*128) for i in range(6)] # the centre frequency needed to get coverage across the band
 
 nd_off     = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
-nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
-nd_pin     = {'diode' : 'pin'    , 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
+nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'period' : -1.}
+nd_pin     = {'diode' : 'pin'    , 'on' : opts.track_duration, 'off' : 0., 'period' : -1.}
 
 if len(args) == 0:
     raise ValueError("Please specify the sources to observe as arguments, either as "
@@ -79,6 +79,6 @@ with verify_and_connect(opts) as kat:
                     time.sleep(opts.track_duration)
                     session.track(target, duration=opts.track_duration)
         if opts.max_duration and time.time() > start_time + opts.max_duration:
-            user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))       
+            user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
 
 
