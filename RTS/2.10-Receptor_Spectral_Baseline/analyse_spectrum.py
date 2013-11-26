@@ -4,6 +4,7 @@ import optparse
 
 import numpy as np
 from numpy.ma import MaskedArray
+import scipy.interpolate as interpolate
 
 import katdal
 from katdal import averager
@@ -19,6 +20,7 @@ def parse_arguments():
     parser.add_option("-c", "--freqaverage", type="float", default=None, help="Frequency averaging interval in MHz. Default is a bin size that will produce 100 frequency channels.")
     parser.add_option("-d", "--timeaverage", type="float", default=None, help="Time averageing interval in minutes. Default is the shortest scan length on the selected target.")
     parser.add_option("-f", "--freq-chans", help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.")
+    parser.add_option("-o", "--correct", default='spline', help="Method to use to correct the spectrum in each average timestamp. Options are 'spline' - fit a cubic spline,'channels' - use the average at each channel Default: 'spline'")
     (opts, args) = parser.parse_args()
 
     return vars(opts), args
@@ -76,6 +78,61 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     data.select(strict=False, reset='', **select_data)
     #return the selected data
     return data, ant1 + ant2, polarisation
+
+
+def getbackground_spline(data,spike_width):
+
+    """ From a 1-d data array determine a background iteratively by fitting a spline
+    and removing data more than a few sigma from the spline """
+
+    # Remove the first and last element in data from the fit.
+    y=data[:]
+    arraysize=y.shape[0]
+    x=np.arange(arraysize)
+
+    # Iterate 4 times
+    for iteration in range(2):
+
+        # First iteration fits a linear spline with 3 knots.
+        if iteration==0:
+            npieces=3
+        # Second iteration fits a quadratic spline with 10 knots.
+        elif iteration==1:
+            npieces=10
+        deg=min(iteration+1,3)
+        
+        # Size of each piece of the spline.
+        psize = arraysize/npieces
+        firstindex = arraysize%psize + int(psize/2)
+        indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
+
+        # Fit the spline
+        thisfit = interpolate.LSQUnivariateSpline(x,y,indices,k=deg)
+        
+        thisfitted_data=np.asarray(thisfit(x),y.dtype)
+
+        # Subtract the fitted spline from the data
+        residual = y-thisfitted_data
+        this_std = np.std(residual)
+
+        # Reject data more than 5sigma from the residual. 
+        flags = residual > 5*this_std
+
+        # Set rejected data value to the fitted value + 1sigma.
+        y[flags] = thisfitted_data[flags] + this_std
+
+    # Final iteration has knots separated by "spike_width".
+    npieces = int(y.shape[0]/spike_width)
+    psize = (x[-1]+1)/npieces
+    firstindex = int((y.shape[0]%psize))
+    indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
+
+    # Get the final background.
+    finalfit = interpolate.LSQUnivariateSpline(x,y,indices,k=3)
+    thisfitted_data = np.asarray(finalfit(x),y.dtype)
+
+    return(thisfitted_data)
+
 
 def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
     """
@@ -152,7 +209,7 @@ def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
         weight_data = np.append(weight_data, scan_weight_data, axis=0)
         channel_freqs = scan_channel_freqs
 
-    return np.array(vis_data), np.array(channel_freqs), np.array(flag_data), np.array(weight_data)
+    return np.array(vis_data), np.array(channel_freqs), np.array(flag_data), np.array(weight_data), freqav, timeav
 
 
 def condition_data(vis,flags,weight,opts):
@@ -250,7 +307,8 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
 
-def plot_results(visdata,freqdata,flagdata, baseline, pol):
+
+def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav):
 
     #Frerquency in MHz
     freqdata=freqdata/1e6
@@ -267,11 +325,14 @@ def plot_results(visdata,freqdata,flagdata, baseline, pol):
     flagged_chans = flagged_chans/flagdata.shape[0] > 0.5
     flag_freqs=freqdata[flagged_chans]
 
-    
-    plt.plot(freqdata,visdata)
-    plot_RFI_mask(plt,flag_freqs,channel_width)
+    #Set up the figure
+    fig = plt.figure(figsize=(8.3,8.3))
 
-    plt.xlabel('Frequency (MHz)')
+    fig.subplots_adjust(hspace=0.0)
+    #Plot the gain vs elevation for each target
+    ax1 = plt.subplot(211)
+    
+    ax1.plot(freqdata,corr_visdata_std/mean_visdata*100.0)
     plt.ylabel('Standard Deviation (% of mean)')
     tstring = 'Spectral Baseline, %s'%baseline
     if pol=='I':
@@ -279,12 +340,29 @@ def plot_results(visdata,freqdata,flagdata, baseline, pol):
     else:
         tstring += ', %s pol'%pol
 
-    pstring = 'Median standard deviation: %5.3f%%'%np.median(visdata)
-    plt.figtext(0.5,0.85,pstring)
+    # Add some pertinent information.
+    pstring = 'Time average: %4.1f min.\n'%timeav
+    pstring += 'Frequency average: %4.1f MHz.\n'%freqav
+    pstring += 'Median standard deviation: %5.3f%%'%np.median(corr_visdata_std/mean_visdata*100.0)
+    plt.figtext(0.5,0.83,pstring)
 
+    #plot title
     plt.title(tstring)
+
+    #Plot the spectrum with standard deviations around it
+    ax2 = plt.subplot(212, sharex=ax1)
+    ax2.plot(freqdata,mean_visdata)
+    plt.figtext(0.6,0.47,'Average spectrum')
+    plt.ylabel('Amplitude')
+    plt.xlabel('Frequency (MHz)')
+
+    #Overlay rfi
+    plot_RFI_mask(ax1,flag_freqs,channel_width)
+    plot_RFI_mask(ax2,flag_freqs,channel_width)
     plt.xlim((start_freq,end_freq))
-    plt.savefig('SpecBase_'+baseline+'_'+pol+'.pdf')
+    fig.savefig('SpecBase_'+baseline+'_'+pol+'.pdf')
+
+
 
 
 opts, args = parse_arguments()
@@ -293,7 +371,7 @@ opts, args = parse_arguments()
 data, bline, polarisation = read_and_select_file(args[0], bline=opts.get('baseline',None), target=opts.get('target',None), channels=opts.get('freq_chans',None), polarisation=opts.get('polarisation',None))
 
 # Average the data to the required time a frequency bins
-visdata, freqdata, flagdata, weightdata = extract_and_average(data, timeav=opts.get('timeaverage',None), freqav=opts.get('freqaverage',None))
+visdata, freqdata, flagdata, weightdata, freqav, timeav = extract_and_average(data, timeav=opts.get('timeaverage',None), freqav=opts.get('freqaverage',None))
 
 # Make a masked array out of visdata, get amplitudes and average to stokes I if required
 visdata, flagdata, weightdata = condition_data(visdata, flagdata, weightdata, opts)
@@ -303,13 +381,17 @@ vis_mean, vis_std = weighted_avg_and_std(visdata, weightdata, axis=0)
 
 #Correct the visibilities by subtracting the average of the channels at each timestamp
 #and the average of the timestamps at each channel.
-corr_vis = correct_by_mean(visdata,axis="Channel")
-corr_vis = correct_by_mean(corr_vis,axis="Time")
+correct=opts.get('correct',None)
+if correct=='channels':
+    corr_vis = correct_by_mean(visdata,axis="Channel")
+    corr_vis = correct_by_mean(corr_vis,axis="Time")
+# Correct the background in each time bin by fitting a cubic spline.
+elif correct=='spline':
+    corr_vis = np.array([data - getbackground_spline(data, 2) for data in visdata])
+
 
 #get weighted standard deviation of corrected visdata
 corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
 
-#Get the standard deviation as a percentage vis_mean
-vis_plot=corr_vis_std/vis_mean*100.0
 
-plot_results(vis_plot,freqdata,flagdata,bline, polarisation)
+plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav)
