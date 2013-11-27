@@ -1,4 +1,4 @@
-import katfile 
+import katdal 
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 from mpl_toolkits.axes_grid import Grid
@@ -8,6 +8,9 @@ import numpy as np
 import optparse
 import scipy.signal as signal
 import scipy.interpolate as interpolate
+import scipy.ndimage as ndimage
+import math
+
 
 #----------------------------------------------------------------------------------
 #--- FUNCTION :  getbackground_spline
@@ -15,7 +18,6 @@ import scipy.interpolate as interpolate
 # data. On each iteration the number of density of knots in the spline is increased 
 # up to "spike_width", and residual peaks more than 5sigma are removed.
 #----------------------------------------------------------------------------------
-
 def getbackground_spline(data,spike_width):
 
     """ From a 1-d data array determine a background iteratively by fitting a spline
@@ -113,9 +115,9 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
     if not extra is None:
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
+                
 
-
-def detect_spikes_sumthreshold(data, bline, spike_width=3, outlier_sigma=11.0, window_size_auto=[1,3], window_size_cross=[2,4,8]):
+def detect_spikes_sumthreshold(data, blarray=None, spike_width=4, outlier_sigma=11.0, window_size_auto=[1,3], window_size_cross=[2,4,8]):
     """FUNCTION :  detect_spikes_sumthreshold
     Given an array "data" from a baseline:
     determine if the data is an auto-correlation or a cross-correlation.
@@ -149,20 +151,21 @@ def detect_spikes_sumthreshold(data, bline, spike_width=3, outlier_sigma=11.0, w
     flags = np.zeros(list(data.shape), dtype=np.uint8)
 
     for bl_index in range(data.shape[-1]):
-
         # Extract this baseline from the data
         this_data_buffer = data[:,bl_index]
         
         #Separate the auto-correlations and the cross-correlations
         #auto-correlations use a median filter and cross correlations
         #use a fitted spline.
-        bl_name = bline.bls_ordering[bl_index]
+        if blarray is not None:
+            bl_name = bline.bls_ordering[bl_index]
         
-        # Check if this is an auto or a cross...
-        if bl_name[0][:-1] == bl_name[1][:-1]:
+        # Check if this is an auto or a cross... (treat as auto if we have no bl-ordering)
+        if blarray is None or bl_name[0][:-1] == bl_name[1][:-1]:
             #Auto-Correlation.
-            filtered_data = np.asarray(signal.medfilt(this_data_buffer, kernel_size), this_data_buffer.dtype)
+            #filtered_data = np.asarray(signal.medfilt(this_data_buffer, kernel_size), this_data_buffer.dtype)
             #Use the auto correlation window function
+            filtered_data = ndimage.grey_opening(this_data_buffer, (kernel_size,))
             window_bl = window_size_auto
             this_sigma = outlier_sigma
         else:
@@ -172,7 +175,7 @@ def detect_spikes_sumthreshold(data, bline, spike_width=3, outlier_sigma=11.0, w
             window_bl = window_size_cross
             # Can lower the threshold a little (10%) for cross correlations
             this_sigma = outlier_sigma * 0.9
-
+    
         av_dev = (this_data_buffer-filtered_data)
 
         av_abs_dev = np.abs(av_dev)
@@ -196,7 +199,7 @@ def detect_spikes_sumthreshold(data, bline, spike_width=3, outlier_sigma=11.0, w
             #The threshold for this iteration is calculated from the initial threshold
             #using the equation from Offringa (2010).
             # rho=1.3 in the equation seems to work better for KAT-7 than rho=1.5 from AO.
-            thisthreshold = threshold / pow(1.2,(log(window)/log(2.0)))
+            thisthreshold = threshold / pow(1.2,(math.log(window)/math.log(2.0)))
             #Set already flagged values to be the value of this threshold
             bl_data[outliers] = thisthreshold
                 
@@ -210,7 +213,7 @@ def detect_spikes_sumthreshold(data, bline, spike_width=3, outlier_sigma=11.0, w
             this_flags = (avgarray > thisthreshold)
             #Convolve the flags to be of the same width as the current window.
             convwindow = np.ones(window,dtype=np.bool)
-            this_outliers = np.convolve(this_flags,convwindow)             
+            this_outliers = np.convolve(this_flags,convwindow)
             #"OR" the flags with the flags from the previous iteration.
             outliers = outliers | this_outliers
         flags[:,bl_index] = outliers
@@ -431,27 +434,27 @@ def plot_selection_per_antenna(h5, pol, chan_range,detectfunc=None):
     for i,target  in enumerate(target_list) :
         h5.select(corrprods='auto', pol=pol,targets=target, channels=chan_range,scans='~slew') 
         if h5.shape[0] >  1 :#more than one timestamp 
-            autodata[i,:,:] =np.abs(h5.vis[:,:,:].mean(axis=0))
+            autodata[i,:,:] = np.abs(h5.vis[:,:,:].mean(axis=0))
             spikes[i,:,:] =  detectfunc(autodata[i,...]) #internal + external
-    rfiflag =  spikes[...].mean(axis=0) > 0.8 
+    rfiflag =  spikes[...].mean(axis=0) > 0.8
     figlist = []
     for i,ant in  enumerate(h5.ants):
-        text.append("\n Flagged Frequencys %s:"%(ant.name))
+        text.append("\n Flagged channels and frequencies %s, %s polarisation:"%(ant.name, pol))
         d1 = h5.channel_freqs[:]
         for j in xrange(h5.channel_freqs[:].shape[0]):
             d2 = spikes[:,:,i].mean(axis=0)
             if d2[j] > 0.8 :
-                text.append('     %f MHz , Percentage of pointings contaminated is %.3f  ' %(d1[j]/1e6,d2[j]*100) )
+                text.append('Channel: %5d,    %f MHz , Percentage of pointings contaminated is %.3f  ' %(j+1,d1[j]/1e6,d2[j]*100) )
 
         fig, ax = plt.subplots()
         ax.plot(h5.channel_freqs,np.abs(autodata[:,:,i].mean(axis=0)))
         plot_RFI_mask(ax,extra=h5.channel_freqs[ rfiflag[:,i]],channelwidth=h5.channel_width)
         if pol == 'H':
-            fig.suptitle('Mean Horizontal auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
+            fig.suptitle('Mean Horizontal auto-correlation spectrum on antenna: %s\nFlags shown on channels with >80%% bad data detected.'%(ant.name),size = 'small', fontweight='bold')
         elif pol == 'V':
-            fig.suptitle('Mean Vertical auto-correlation spectra per Antenna',size = 'small', fontweight='bold')
-        #ylim=(0,1.2*d[:,index].max())
-        #xlim=(freqs[0],freqs[-1])
+            fig.suptitle('Mean Vertical auto-correlation spectrum on antenna: %s\nFlags shown on channels with >80%% bad data detected.'%(ant.name),size = 'small', fontweight='bold')
+        
+        plt.xlim(d1[-1],d1[0])
         figlist.append(fig)
     return (text, figlist)
 
@@ -531,7 +534,7 @@ def plot_selection_per_pointing(fileopened, pol, antennas, chan_range, targets):
         yield ('\n'.join(all_text), fig)
 
 #command-line parameters
-parser = optparse.OptionParser(usage="Please specify the input file (Yes, this is a non-optional option)\n\
+parser = optparse.OptionParser(usage="Please specify the input file\n\
     USAGE: python analyse_self_generated_rfi.py <inputfile.h5> ",
     description="Evaluate the auto & cross correlation spectra to Find the RFI spikes\
     that appear consistently in all observations/pointings.")
@@ -543,7 +546,7 @@ if len(args) < 1:
     raise RuntimeError("No File passed as argument to script")
 
 filename = args[0]
-h5 = katfile.open(filename)
+h5 = katdal.open(filename)
 
 # user defined variables
 print("Please wait while analysis is in progress...")
@@ -554,10 +557,10 @@ pdf = PdfPages(filename.split('/')[-1]+'_RFI.pdf')
 #targets = [('%s' % (i.name)) for i in fileopened.catalogue.targets]
 chan_range = slice(1,-1) # remove dc spike
 #freqs = fileopened.channel_freqs*1.0e-6
-detection_function = detect_spikes_orig
+detection_function = detect_spikes_sumthreshold
 #plot_horizontal_selection_per_antenna
 for pol in ['H','V']: 
-    (all_text, figlist) = plot_selection_per_antenna(h5, pol, chan_range,)
+    (all_text, figlist) = plot_selection_per_antenna(h5, pol, chan_range, detection_function)
     line = 0
     for page in xrange(int(np.ceil(len(all_text)/70.))):
         fig = plt.figure(None,figsize = (10,16)) 
