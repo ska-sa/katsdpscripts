@@ -77,6 +77,7 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
 
     data.select(strict=False, reset='', **select_data)
     #return the selected data
+
     return data, ant1 + ant2, polarisation
 
 
@@ -172,7 +173,7 @@ def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
             print "Time averaging interval of %4.1fmin is longer than the longest scan. Scaling back to %4.1fmin to include all scans."%(timeav,dumpav*(data.dump_period/60.0))
             timeav = dumpav*(data.dump_period/60.0)
     else:
-        dumpav = short_scan
+        dumpav = int(short_scan/2)
         timeav = dumpav*(data.dump_period/60.0)
     print "Averaging %d dumps to %4.1fmin intervals."%(dumpav,timeav)
 
@@ -331,7 +332,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     fig.subplots_adjust(hspace=0.0)
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(211)
-    
+ 
     ax1.plot(freqdata,corr_visdata_std/mean_visdata*100.0)
     plt.ylabel('Standard Deviation (% of mean)')
     tstring = 'Spectral Baseline, %s'%baseline
@@ -359,7 +360,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     #Overlay rfi
     plot_RFI_mask(ax1,flag_freqs,channel_width)
     plot_RFI_mask(ax2,flag_freqs,channel_width)
-    plt.xlim((start_freq,end_freq))
+    plt.xlim((end_freq,start_freq))
     fig.savefig('SpecBase_'+baseline+'_'+pol+'.pdf')
 
 
