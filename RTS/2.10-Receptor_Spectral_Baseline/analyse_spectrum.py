@@ -169,7 +169,7 @@ def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
     if timeav:
         dumpav = max(1,int(np.round(timeav*60.0 / data.dump_period)))
         if dumpav > long_scan:
-            dumpav = short_scan
+            dumpav = int(short_scan/2)
             print "Time averaging interval of %4.1fmin is longer than the longest scan. Scaling back to %4.1fmin to include all scans."%(timeav,dumpav*(data.dump_period/60.0))
             timeav = dumpav*(data.dump_period/60.0)
     else:
