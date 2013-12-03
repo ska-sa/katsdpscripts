@@ -37,6 +37,10 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     """
 
     data = katdal.open(file)
+
+    #First only select tracks
+    data.select(reset='', scans='track')
+
     #Make selection from dictionary
     select_data={}
     #Antenna
@@ -47,11 +51,6 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     select_data['ants'] = (ant1,ant2)
     if ant1 != ant2: select_data['corrprods']='cross'
 
-    #Target
-    if target == None:
-        target = data.catalogue.targets[0]
-    select_data['targets']=target
-
     #Polarisation
     if polarisation is 'I':
         #Need HH and VV for I, can get this from corrprods
@@ -59,8 +58,10 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     else:
         select_data['pol']=polarisation
 
-    #Only tracks- no slews
-    select_data['scans']='track'
+    #Target
+    if target == None:
+        target = data.catalogue.targets[data.target_indices[0]]
+    select_data['targets']=target
 
     # Secect desired channel range
     # Select frequency channels and setup defaults if not specified
@@ -76,6 +77,7 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     select_data['channels']=chan_range
 
     data.select(strict=False, reset='', **select_data)
+
     #return the selected data
 
     return data, ant1 + ant2, polarisation
@@ -162,8 +164,9 @@ def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
     long_scan = -1
     for scan,state,target in data.scans():
         scan_length = data.timestamps.shape[0]
-        if short_scan > -1: short_scan = min((scan_length,short_scan))
-        else: short_scan = scan_length
+        if scan_length > 5:
+            if short_scan > -1: short_scan = min((scan_length,short_scan))
+            else: short_scan = scan_length
         long_scan = max((long_scan,scan_length))
     #Get the number of dumps to average
     if timeav:
@@ -360,7 +363,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     #Overlay rfi
     plot_RFI_mask(ax1,flag_freqs,channel_width)
     plot_RFI_mask(ax2,flag_freqs,channel_width)
-    plt.xlim((end_freq,start_freq))
+    plt.xlim((min(freqdata),max(freqdata)))
     fig.savefig('SpecBase_'+baseline+'_'+pol+'.pdf')
 
 
