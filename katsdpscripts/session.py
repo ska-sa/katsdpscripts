@@ -29,8 +29,7 @@ from .array import Array
 from .katcp_client import KATClient
 from .defaults import user_logger, activity_logger
 from katmisc.utils.utils import dynamic_doc
-from katoodt.archive_functions import download_product, ArchiveWorkFlowError
-from katoodt.oodt_clients import FileMgrClient
+
 
 # Obtain list of spherical projections and the default projection from antenna proxy
 projections, default_proj = Offset.PROJECTIONS.keys(), Offset.DEFAULT_PROJECTION
@@ -1068,71 +1067,6 @@ class CaptureSession(CaptureSessionBase):
             dbe.req.k7w_capture_done()
             activity_logger.info("----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
-    def get_archived_product(self, sleep_interval=10, download_dir='.'):
-        """Get a data file that was created during the session from the archive.
-
-        This function will wait until file appears in the archive or raise an
-        exception if an error occurs.
-
-        Parameters
-        ----------
-        sleep_interval : int
-            The sleep interval in seconds before checking the archive again.
-
-        download_dir : string
-            The target download directory.
-
-        Returns
-        -------
-        full_path_to_product : string
-            The absolute path to the local copy of the data file.
-
-        Raises
-        ------
-        ArchiveWorkFlowError
-            If the data file ends up in the archive failed directory.
-            If the data file does not exist in the system.
-       subprocess.CalledProcessError
-            If wget or curl exit code was not 0.
-        """
-        # Create references to allow easy copy-and-paste from this function
-        session, kat = self, self.kat
-        full_path_to_product = ''
-        while True:
-            print 'Checking to see if %s has been archived.' % (session.output_file)
-            # Query the archive
-            reply = kat.katarchive.req.locate(session.output_file, timeout=10)
-            if reply.succeeded:
-                transfer_status = reply.messages[0].arguments[3]
-                if transfer_status == 'RECEIVED':
-                    full_path_to_product = reply.messages[0].arguments[1]
-                    # download the file directory to local directory
-                    fm = FileMgrClient(kat.katarchive.sensor.filemgr_url.get_value())
-                    product = fm.get_product_by_name(session.output_file, thin_call=False)
-                    product_server_url = kat.katarchive.sensor.product_server_url.get_value()
-                    full_path_to_product = download_product(product, os.path.abspath(download_dir), product_server_url)
-                    break
-                elif transfer_status == 'TRANSFERING':
-                    print '%s is still being transferred into the archive. Sleeping for %d secs and checking again.' % (session.output_file, sleep_interval)
-                    time.sleep(sleep_interval)
-                    continue
-                elif transfer_status == 'STAGING':
-                    print '%s is still in the staging directory. Sleeping for %d secs and checking again.' % (session.output_file, sleep_interval)
-                    time.sleep(sleep_interval)
-                    continue
-                elif transfer_status == 'UNAUGMENTED':
-                    print '%s is still in the staging directory and is being augmented. Sleeping for %d secs and checking again.' % (session.output_file, sleep_interval)
-                    time.sleep(sleep_interval)
-                    continue
-                elif transfer_status == 'FAILED':
-                    raise ArchiveWorkFlowError('%s is in the failed directory and will need to be fixed or deleted.' % (session.output_file))
-                else:
-                    raise ArchiveWorkFlowError('%s cannot be found in the archive, the staging directory or the failed directory.')
-            else:
-                raise ArchiveWorkFlowError('The oodt filemgr katcp reply failed with reply: %s %s' % (reply.messages[0].arguments[0], reply.message[0].arguments[1]))
-        # Return the full path to the file
-        return full_path_to_product
-
 
 class TimeSession(CaptureSessionBase):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
@@ -1524,23 +1458,3 @@ class TimeSession(CaptureSessionBase):
                 del handler.old_level
 
         activity_logger.info("Timing simulation. ----- Script ended %s (%s). Output file None" % (sys.argv[0], ' '.join(sys.argv[1:])))
-
-    def get_archived_product(self, sleep_interval=10, check_local=False):
-        """Return an empyt string. This method exists for compatibility only.
-
-        Parameters
-        ----------
-        sleep_interval : int
-            The sleep interval in seconds before checking the archive again.
-
-        check_local: {True, False}
-            If set the function will look for a local copy of the file before
-            tries to download it from the server.
-
-        Returns
-        -------
-        No_filefile : string
-            An .
-
-        """
-        return ''
