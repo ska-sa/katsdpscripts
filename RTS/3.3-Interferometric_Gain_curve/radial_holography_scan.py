@@ -80,7 +80,11 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
         start_time = time.time()
         targets_observed = []
-        while time.time()-start_time  < opts.max_duration :
+        keep_going = True
+        while keep_going:
+            keep_going = (opts.max_duration is not None) and opts.repeat
+            targets_before_loop = len(targets_observed)
+            
             for target in targets.iterfilter(el_limit_deg=opts.horizon+(opts.scan_extent/2.0)):
                 # The entire sequence of commands on the same target forms a single compound scan
                 session.label('holo')
@@ -107,6 +111,13 @@ with verify_and_connect(opts) as kat:
                     session.ants = all_ants
                     user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                     session.fire_noise_diode(announce=False, **nd_params)
-                    
-                targets_observed.append(target.name)
+                if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
+                    user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %(opts.max_duration,))
+                    keep_going = False
+                    break
+                targets_observed.append(target.name)       
+            if keep_going and len(targets_observed) == targets_before_loop:
+                user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
+                keep_going = False
+
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
