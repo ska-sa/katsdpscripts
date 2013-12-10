@@ -163,7 +163,7 @@ class CaptureSession(CaptureSessionBase):
         try:
             self.kat = kat
             # If not a device itself, assume dbe is the name of the device
-            dbe, sys = kat.dbe7, kat.sys
+            dbe, katsys = kat.dbe7, kat.sys
             if not dbe.is_connected():
                 raise ValueError("DBE proxy '%s' is not connected "
                                  "(is the KAT system running?)" % (dbe.name,))
@@ -220,11 +220,11 @@ class CaptureSession(CaptureSessionBase):
             activity_logger.info("----- Script starting %s (%s). Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), outfile))
 
             # Log details of the script to the back-end
-            sys.req.set_script_param('script-starttime', time.time())
-            sys.req.set_script_param('script-endtime', '')
-            sys.req.set_script_param('script-name', sys.argv[0])
-            sys.req.set_script_param('script-arguments', ' '.join(sys.argv[1:]))
-            sys.req.set_script_param('script-status', 'busy')
+            katsys.req.set_script_param('script-starttime', time.time())
+            katsys.req.set_script_param('script-endtime', '')
+            katsys.req.set_script_param('script-name', sys.argv[0])
+            katsys.req.set_script_param('script-arguments', ' '.join(sys.argv[1:]))
+            katsys.req.set_script_param('script-status', 'busy')
         except Exception, e:
             msg = 'CaptureSession failed to initialise (%s)' % (e,)
             user_logger.error(msg)
@@ -382,7 +382,7 @@ class CaptureSession(CaptureSessionBase):
         """
 
         # Create references to allow easy copy-and-pasting from this function
-        session, kat, dbe, sys = self, self.kat, self.dbe, self.kat.sys
+        session, kat, dbe, katsys = self, self.kat, self.dbe, self.kat.sys
 
         session.ants = ants = ant_array(kat, self.get_ant_names())
         ant_names = [ant.name for ant in ants]
@@ -442,14 +442,14 @@ class CaptureSession(CaptureSessionBase):
         user_logger.info(nd_info + " while performing canned commands")
 
         # Log parameters to output file
-        sys.req.set_script_param('script-ants', ','.join(ant_names))
-        sys.req.set_script_param('script-observer', observer)
-        sys.req.set_script_param('script-description', description)
-        sys.req.set_script_param('script-experiment-id', experiment_id)
-        sys.req.set_script_param('script-rf-params',
-                                     'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, dump_rate))
-        sys.req.set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
-                                     (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
+        katsys.req.set_script_param('script-ants', ','.join(ant_names))
+        katsys.req.set_script_param('script-observer', observer)
+        katsys.req.set_script_param('script-description', description)
+        katsys.req.set_script_param('script-experiment-id', experiment_id)
+        katsys.req.set_script_param('script-rf-params',
+                                    'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, dump_rate))
+        katsys.req.set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
+                                    (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
         # Explicitly set the antenna mask (empty string indicates no mask, meaning all corrproducts are kept in file)
         dbe.req.k7w_set_antenna_mask('' if no_mask else ','.join(ant_names))
 
@@ -1034,7 +1034,7 @@ class CaptureSession(CaptureSessionBase):
         """
         try:
             # Create references to allow easy copy-and-pasting from this function
-            session, ants, dbe, sys = self, self.ants, self.dbe, self.kat.sys
+            session, ants, dbe, katsys = self, self.ants, self.dbe, self.kat.sys
 
             # Obtain the name of the file currently being written to
             reply = dbe.req.k7w_get_current_file()
@@ -1048,8 +1048,8 @@ class CaptureSession(CaptureSessionBase):
             # Stop streaming KATCP sensor updates to the capture thread
             dbe.req.katcp2spead_stop_stream()
             user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
-            sys.req.set_script_param('script-endtime', time.time())
-            sys.req.set_script_param('script-status', 'interrupted' if interrupted else 'completed')
+            katsys.req.set_script_param('script-endtime', time.time())
+            katsys.req.set_script_param('script-status', 'interrupted' if interrupted else 'completed')
             activity_logger.info('Ended data capturing session (%s) with experiment ID %s' %
                                  ('interrupted' if interrupted else 'completed', session.experiment_id,))
 
