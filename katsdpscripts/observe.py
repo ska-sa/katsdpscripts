@@ -16,8 +16,11 @@ import katpoint
 from .defaults import colors, user_logger
 from .utility import tbuild
 from .conf import get_system_configuration, configure_core
-from .session import (TimeSession, CaptureSession,
-                      projections, default_proj, ant_array)
+from .kat7_session import CaptureSession as KAT7CaptureSession
+from .kat7_session import TimeSession as KAT7TimeSession
+from .rts_session import CaptureSession as RTSCaptureSession
+from .rts_session import TimeSession as RTSTimeSession
+from .rts_session import projections, default_proj, ant_array
 
 
 def standard_script_options(usage, description):
@@ -99,7 +102,7 @@ def verify_and_connect(opts):
 
     Returns
     -------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object associated with this experiment
 
     Raises
@@ -168,14 +171,14 @@ def start_session(kat, **kwargs):
     """Start capture session (real or fake).
 
     This starts a capture session initialised with the given arguments, choosing
-    the appropriate session class to use based on the arguments. The *dbe*
-    parameter selects which version of :class:`CaptureSession` to use, while
-    the kat.dry_run flag decides whether a fake :class:`TimeSession` will
+    the appropriate session class to use based on the arguments. The system is
+    inspected to determine which version of :class:`CaptureSession` to use,
+    while the kat.dry_run flag decides whether a fake :class:`TimeSession` will
     be used instead.
 
     Parameters
     ----------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object associated with this experiment
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
@@ -186,7 +189,10 @@ def start_session(kat, **kwargs):
         Session object associated with started session
 
     """
-    return TimeSession(kat, **kwargs) if kat.dry_run else CaptureSession(kat, **kwargs)
+    if hasattr(kat, 'dbe7'):
+        return KAT7TimeSession(kat, **kwargs) if kat.dry_run else KAT7CaptureSession(kat, **kwargs)
+    else:
+        return RTSTimeSession(kat, **kwargs) if kat.dry_run else RTSCaptureSession(kat, **kwargs)
 
 
 def collect_targets(kat, args):
@@ -194,7 +200,7 @@ def collect_targets(kat, args):
 
     Parameters
     ----------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object associated with this experiment
     args : list of strings
         Argument list containing mixture of target names, description strings
