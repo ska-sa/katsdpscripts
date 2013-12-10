@@ -1,6 +1,9 @@
 import time
 import threading
 import types
+from ConfigParser import SafeConfigParser
+import weakref
+import csv
 
 import numpy as np
 
@@ -51,6 +54,8 @@ class IgnoreUnknownMethods(object):
         return IgnoreUnknownMethods()
     def __call__(self, *args, **kwargs):
         pass
+    def __nonzero__(self):
+        return False
 
 
 class FakeCamEventServer(DeviceServer):
@@ -86,25 +91,38 @@ class FakeCamEventServer(DeviceServer):
         return ("ok", repr(self.attributes))
 
 
+split = lambda args: csv.reader([args], skipinitialspace=True).next()
+cfg = SafeConfigParser()
+cfg.read('rts_sensors.cfg')
+comp_sensors = {}
+components = list(set([section.split(':')[0] for section in cfg.sections()]))
+for comp in components:
+    comp_sensors[comp] = [[name] + split(args) for name, args in cfg.items(comp + ':sensors')]
+
 class FakeClient(object):
     """Fake KATCP client."""
-    def __init__(self, name, model, sensors):
+    sensor_config = comp_sensors
+
+    def __init__(self, name, component, modeltype, *args, **kwargs):
+        sensors = FakeClient.sensor_config[component]
         self.name = name
-        self.model = model
-        self._time = time
+        self.model = object.__new__(modeltype)
         self.req = IgnoreUnknownMethods()
         self.sensor = IgnoreUnknownMethods()
-        for sensor in sensors:
+        for sensor_args in sensors:
+            sensor = FakeSensor(*sensor_args)
             setattr(self.sensor, sensor.name, sensor)
         self._register_sensors()
         self._register_requests()
+        self.model.__init__(*args, **kwargs)
 
     def _register_sensors(self):
+        self.model._client = weakref.proxy(self)
         def set_sensor_attr(model, attr_name, value):
-            sensor = getattr(self.sensor, attr_name, None)
-            print self, attr_name, '->', sensor
-            if sensor:
-                sensor.set_value(value, model._time.time())
+            if hasattr(model, '_client'):
+                sensor = getattr(model._client.sensor, attr_name, None)
+                if sensor:
+                    sensor.set_value(value, model._time.time())
             object.__setattr__(model, attr_name, value)
         # Modify __setattr__ on the *class* and not the instance
         # (see e.g. http://stackoverflow.com/questions/13408372)
@@ -123,12 +141,10 @@ class FakeClient(object):
         sensor = getattr(self.sensor, sensor_name)
         sensor.set_strategy(strategy, params=None)
 
-
-inner_threshold_deg: 0.01
-inner_threshold_min_time_sec: 2
-
-class AntennaModel(object):
+class AntennaPositionerModel(object):
     def __init__(self, antenna, slew_rates):
+        # Set this first as sensor updates (whenever attributes are assigned) need it
+        self._time = time
         self.ant = Antenna(antenna)
         self.observer = self.ant.description
         self.req_target('Zenith, azel, 0, 90')
@@ -140,7 +156,6 @@ class AntennaModel(object):
         self.max_az_vel = slew_rates[0]
         self.max_el_vel = slew_rates[1]
         self.last_update = None
-        self._time = time
 
     def req_target(self, target):
         self.target = target
@@ -175,27 +190,6 @@ class AntennaModel(object):
         print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
         self.last_update = timestamp
 
-    
-class FakeAntennaPositioner(FakeClient):
-    def __init__(self, name, antenna, slew_rates, sensors, time):
-        FakeClient.__init__(self, name, sensors, time)
-
-    def _register_sensors(self):
-        self._add_sensor('ant', 'observer', lambda ant: ant.description)
-        self._add_sensor('target', extract=lambda tgt: tgt.description)
-        self._add_sensor('activity')
-        self._add_sensor('az', 'pos_actual_scan_azim')
-        self._add_sensor('el', 'pos_actual_scan_elev')
-        self._add_sensor('requested_az', 'pos_request_scan_azim')
-        self._add_sensor('requested_el', 'pos_request_scan_elev')
-        self._add_sensor('lock')
-
-    def _register_requests(self):
-
-        
-        
-        
-        
 
 class FakeCorrelatorBeamformerModel(object):
     def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp):
@@ -232,13 +226,9 @@ class FakeConn(object):
                                          host=opts.fake_cam_host,
                                          port=opts.fake_cam_port) if opts else None
 
-def create_sensors(sensors):
-    comp_sensors = {}
-    sensor_table = np.loadtxt(sensors, delimiter=',', skiprows=1, dtype=np.str)
-    for fields in sensor_table:
-        fields = [f.strip() for f in fields]
-        comp, sensor_args = fields[0], fields[1:]
-        cs = comp_sensors.get(comp, [])
-        cs.append(FakeSensor(*sensor_args))
-        comp_sensors[comp] = cs
-    return comp_sensors
+
+
+
+import katpoint
+ant = katpoint.Antenna('ant, -33, 18, 30, 0')
+fc = FakeClient('m062', 'AntennaPositioner', AntennaPositionerModel, ant.description, [2, 1])
