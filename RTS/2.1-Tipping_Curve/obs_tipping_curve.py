@@ -15,6 +15,9 @@ parser = standard_script_options(usage="%prog [options]",
 # Add experiment-specific options
 parser.add_option('-z', '--az', type="float", default=None,
                   help='Azimuth angle along which to do tipping curve, in degrees (default="%default")')
+parser.add_option('--project-id',
+                  help='Project ID code the observation (**required**) This is a required option')
+
 
 parser.add_option('--spacing', type="float", default=1.0,
                   help='The Spacing along the elevation axis of the tipping curve that measuremnts are taken, in degrees (default="%default")')
@@ -25,6 +28,10 @@ parser.add_option('--no-delays', action="store_true", default=True,
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Tipping Curve')
+if not hasattr(opts, 'project_id') or opts.project_id is None:
+    raise ValueError('Please specify the Project id code via the --project_id option '
+                     '(yes, this is a non-optional option...)')
+
 # Parse the command line
 opts, args = parser.parse_args()
 on_time = 15.0
