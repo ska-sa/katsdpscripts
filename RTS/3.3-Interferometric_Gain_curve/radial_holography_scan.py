@@ -82,7 +82,6 @@ with verify_and_connect(opts) as kat:
         targets_observed = []
         keep_going = True
         while keep_going:
-            keep_going = (opts.max_duration is not None) and opts.repeat
             targets_before_loop = len(targets_observed)
             
             for target in targets.iterfilter(el_limit_deg=opts.horizon+(opts.scan_extent/2.0)):
