@@ -10,7 +10,7 @@ import unittest2 as unittest
 
 from katcorelib.testutils import NameSpace
 
-from katcorelib import session
+import katcorelib.rts_session as session
 
 class Test_CaptureSessionBase(unittest.TestCase):
     def setUp(self):

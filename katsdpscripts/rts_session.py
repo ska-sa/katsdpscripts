@@ -6,10 +6,10 @@
 # THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
 # WRITTEN PERMISSION OF SKA SA.                                               #
 ###############################################################################
-"""CaptureSession encompassing data capturing and standard observations with KAT.
+"""CaptureSession encompassing data capturing and standard observations with RTS.
 
 This defines the :class:`CaptureSession` class, which encompasses the capturing
-of data and the performance of standard scans with the KAT-7 system. It also
+of data and the performance of standard scans with the RTS system. It also
 provides a fake :class:`TimeSession` class, which goes through the motions in
 order to time them, but without performing any real actions.
 
@@ -43,7 +43,7 @@ def ant_array(kat, ants, name='ants'):
 
     Parameters
     ----------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object
     ants : :class:`Array` or :class:`KATClient` object, or list, or string
         Antennas specified by an Array object containing antenna devices, or
@@ -92,23 +92,24 @@ def report_compact_traceback(tb):
 
 
 class ScriptLogHandler(logging.Handler):
-    """Logging handler that writes logging records to HDF5 file via k7writer.
+    """Logging handler that writes logging records to HDF5 file via ingest.
 
     Parameters
     ----------
-    dbe : :class:`KATClient` object
-        DBE proxy device for the session
+    data : :class:`KATClient` object
+        Data proxy device for the session
 
     """
-    def __init__(self, dbe):
+    def __init__(self, data):
         logging.Handler.__init__(self)
-        self.dbe = dbe
+        self.data = data
 
     def emit(self, record):
         """Emit a logging record."""
         try:
             msg = self.format(record)
-            self.dbe.req.k7w_script_log(msg)
+# XXX This probably has to go to cam2spead as a req/sensor combo [YES]
+#            self.data.req.k7w_script_log(msg)
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -137,69 +138,60 @@ class CaptureSession(CaptureSessionBase):
     single scans and raster scans on a specific source.
 
     The initialisation of the session object does basic preparation of the data
-    capturing subsystem (k7_capture) and logging. It tries to do the minimum to
+    capturing subsystem (ingest) and logging. It tries to do the minimum to
     enable data capturing. The experimental setup is usually completed by
     calling :meth:`standard_setup` on the instantiated session object.
     The actual data capturing only starts once :meth:`capture_start` is called.
 
     Parameters
     ----------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object associated with this experiment
-    mode : string, optional
-        DBE mode (unchanged by default)
+    product : string, optional
+        Data product (unchanged by default)
+    dump_rate : float, optional
+        Correlator dump rate, in Hz (will be set by default)
     kwargs : dict, optional
         Ignore any other keyword arguments (simplifies passing options as dict)
 
     Raises
     ------
     ValueError
-        If DBE proxy is not connected
+        If data proxy is not connected
     RequestSensorError
-        If capturing system failed to initialise or DBE mode could not be set
+        If ingest system did not initialise or data product could not be selected
 
     """
-    def __init__(self, kat, mode=None, **kwargs):
+    def __init__(self, kat, product=None, dump_rate=1.0, **kwargs):
         try:
             self.kat = kat
-            # If not a device itself, assume dbe is the name of the device
-            dbe, katsys = kat.dbe7, kat.sys
-            if not dbe.is_connected():
-                raise ValueError("DBE proxy '%s' is not connected "
-                                 "(is the KAT system running?)" % (dbe.name,))
-            self.dbe = dbe
+            # Hard-code the RTS data proxy for now
+            data, katsys = kat.data_rts, kat.sys
+            if not data.is_connected():
+                raise ValueError("Data proxy '%s' is not connected "
+                                 "(is the KAT system running?)" % (data.name,))
+            self.data = data
 
             # Default settings for session parameters (in case standard_setup is not called)
             self.ants = None
             self.experiment_id = 'interactive'
             self.stow_when_done = False
-            self.nd_params = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
+            self.nd_params = {'diode': 'default', 'on': 0., 'off': 0., 'period': -1.}
             self.last_nd_firing = 0.
             self.output_file = ''
-            self.dump_period = self._requested_dump_period = 0.0
             self.horizon = 3.0
-            self._end_of_previous_session = dbe.sensor.k7w_last_dump_timestamp.get_value()
+            # Requested dump period, replaced by actual value after capture started
+            self.dump_period = session._requested_dump_period = 1.0 / dump_rate
 
-            if mode is None:
-                mode = dbe.sensor.dbe_mode.get_value()
-            if mode is None:
-                # This will happen if the mode sensor could not be read for some reason
-                mode = "<unknown mode>"
-            else:
-                # Set DBE mode (need at least 90-second timeout for narrowband modes)
-                # Setting the mode to the existing one is quick, though
-                user_logger.info("Setting DBE mode to '%s' (this may take a while...)" % (mode,))
-                if not (dbe.req.dbe_mode(mode, timeout=120) and dbe.sensor.dbe_mode.get_value() == mode):
-                    raise RequestSensorError("Unable to set DBE mode to '%s' and verify it" % (mode,))
+            # # XXX last dump timestamp?
+            # self._end_of_previous_session = data.sensor.k7w_last_dump_timestamp.get_value()
 
-            # Prepare the capturing system, which opens the HDF5 file (preferably after mode has been set)
-            reply = dbe.req.k7w_capture_init()
-            if not reply.succeeded:
-                raise RequestSensorError(reply[1])
-            # Start streaming KATCP sensor updates via SPEAD to the capture thread
-            dbe.req.katcp2spead_start_stream()
+            # XXX Hard-code product for now
+            self.product = 'c8n856M32k' if product is None else product
+            data.req.product_configure(self.product, dump_rate)
+
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
-            self._script_log_handler = ScriptLogHandler(dbe)
+            self._script_log_handler = ScriptLogHandler(data)
             if len(user_logger.handlers) > 0:
                 self._script_log_handler.setLevel(user_logger.handlers[0].level)
                 self._script_log_handler.setFormatter(user_logger.handlers[0].formatter)
@@ -208,13 +200,14 @@ class CaptureSession(CaptureSessionBase):
             user_logger.info('==========================')
             user_logger.info('New data capturing session')
             user_logger.info('--------------------------')
-            user_logger.info('DBE proxy used = %s' % (dbe.name,))
-            user_logger.info('DBE mode = %s' % (mode,))
+            user_logger.info('Data proxy used = %s' % (data.name,))
+            user_logger.info('Data product = %s' % (self.product,))
 
-            # Obtain the name of the file currently being written to
-            reply = dbe.req.k7w_get_current_file()
-            outfile = reply[1] if reply.succeeded else '<unknown file>'
-            user_logger.info('Opened output file = %s' % (outfile,))
+            # XXX file name? SB ID? Program block ID? -> [file via capture_done]
+            # # Obtain the name of the file currently being written to
+            # reply = data.req.k7w_get_current_file()
+            # outfile = reply[1] if reply.succeeded else '<unknown file>'
+            # user_logger.info('Opened output file = %s' % (outfile,))
             user_logger.info('')
 
             activity_logger.info("----- Script starting %s (%s). Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), outfile))
@@ -261,13 +254,8 @@ class CaptureSession(CaptureSessionBase):
         else:
             return False
 
-    def get_centre_freq(self, dbe_if=None):
-        """Get RF (sky) frequency associated with middle DBE channel.
-
-        Parameters
-        ----------
-        dbe_if : float, optional
-            DBE centre (IF) frequency in MHz (use to override actual value)
+    def get_centre_freq(self):
+        """Get RF (sky) frequency associated with middle CBF channel.
 
         Returns
         -------
@@ -275,45 +263,25 @@ class CaptureSession(CaptureSessionBase):
             Actual centre frequency in MHz (or NaN if something went wrong)
 
         """
-        try:
-            lo1 = self.kat.rfe7.sensor.rfe7_lo1_frequency.get_value() * 1e-6
-            lo2 = 4000.0
-            if dbe_if is None:
-                dbe_if = self.dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
-            return lo1 - lo2 - dbe_if
-        except TypeError:
-            user_logger.warning('Could not read centre frequency sensors (rfe7_lo1 and/or dbe_centerfreq)')
-            return np.nan
+        # XXX Something like this? [YES]
+        # return self.data.sensor.cbf_${product}_centerfrequency.get_value()
+        return 1284.0
 
     def set_centre_freq(self, centre_freq):
-        """Set RF (sky) frequency associated with middle DBE channel.
+        """Set RF (sky) frequency associated with middle CBF channel.
 
         Parameters
         ----------
         centre_freq : float
             Desired centre frequency in MHz
 
-        Raises
-        ------
-        RequestSensorError
-            If DBE centre frequency could not be read
-
         """
-        try:
-            dbe_if = self.dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
-        except TypeError:
-            raise RequestSensorError('Could not set RF centre frequency as DBE centre frequency could not be read')
-        else:
-            lo2 = 4000.0
-            lo1 = centre_freq + lo2 + dbe_if
-            self.kat.rfe7.req.rfe7_lo1_frequency(lo1, 'MHz')
-            # Also set the centre frequency in capturing system so that signal displays can pick it up
-            self.dbe.req.k7w_set_center_freq(centre_freq * 1e6)
+        # XXX This will be a data product change instead...
+        pass
 
     def standard_setup(self, observer, description, experiment_id=None,
-                       centre_freq=None, dump_rate=1.0, nd_params=None,
-                       record_slews=None, stow_when_done=None, horizon=None,
-                       dbe_centre_freq=None, no_mask=False, **kwargs):
+                       nd_params=None, stow_when_done=None, horizon=None,
+                       no_mask=False, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -349,10 +317,6 @@ class CaptureSession(CaptureSessionBase):
         experiment_id : string, optional
             Experiment ID, a unique string used to link the data files of an
             experiment together with blog entries, etc. (unchanged by default)
-        centre_freq : float, optional
-            RF centre frequency, in MHz (unchanged by default)
-        dump_rate : float, optional
-            Correlator dump rate, in Hz (will be set by default)
         nd_params : dict, optional
             Dictionary containing parameters that control firing of the noise
             diode during canned commands. These parameters are in the form of
@@ -364,9 +328,6 @@ class CaptureSession(CaptureSessionBase):
             (unchanged by default)
         horizon : float, optional
             Elevation limit serving as horizon for session, in degrees
-        dbe_centre_freq : float, optional
-            DBE centre frequency in MHz, used to select coarse band for
-            narrowband modes (unchanged by default)
         no_mask : {False, True}, optional
             Keep all correlation products by not applying baseline/antenna mask
         kwargs : dict, optional
@@ -377,12 +338,12 @@ class CaptureSession(CaptureSessionBase):
         ValueError
             If antenna with a specified name is not found on KAT connection object
         RequestSensorError
-            If DBE centre frequency could not be set
+            If Data centre frequency could not be set
 
         """
 
         # Create references to allow easy copy-and-pasting from this function
-        session, kat, dbe, katsys = self, self.kat, self.dbe, self.kat.sys
+        session, kat, data, katsys = self, self.kat, self.data, self.kat.sys
 
         session.ants = ants = ant_array(kat, self.get_ant_names())
         ant_names = [ant.name for ant in ants]
@@ -391,46 +352,30 @@ class CaptureSession(CaptureSessionBase):
         session.nd_params = nd_params = session.nd_params if nd_params is None else nd_params
         session.stow_when_done = stow_when_done = session.stow_when_done if stow_when_done is None else stow_when_done
         session.horizon = session.horizon if horizon is None else horizon
-        # Requested dump period, replaced by actual value after capture started
-        session._requested_dump_period = 1.0 / dump_rate
 
-        if dbe_centre_freq is not None:
-            reply = dbe.req.dbe_k7_frequency_select(int(dbe_centre_freq * 1e6))
-            if reply.succeeded:
-                requested_dbe_freq = int(reply.messages[0].arguments[1])
-                actual_dbe_freq = dbe.sensor.dbe_centerfrequency.get_value()
-                if actual_dbe_freq != requested_dbe_freq:
-                    raise RequestSensorError("Unable to set DBE centre frequency to %g Hz (read back as %g Hz)" %
-                                             (requested_dbe_freq, actual_dbe_freq))
-            else:
-                raise RequestSensorError("Unable to set DBE centre frequency: %s" % (reply,))
-        try:
-            dbe_centre_freq = dbe.sensor.dbe_centerfrequency.get_value() * 1e-6
-        except TypeError:
-            dbe_centre_freq = np.nan
+        # Prep capturing system
+        data.req.capture_init(self.product)
 
         # Setup strategies for the sensors we might be wait()ing on
         ants.req.sensor_sampling('lock', 'event')
         ants.req.sensor_sampling('scan.status', 'event')
         ants.req.sensor_sampling('mode', 'event')
-        dbe.req.sensor_sampling('k7w.spead_dump_period', 'event')
-        dbe.req.sensor_sampling('k7w.last_dump_timestamp', 'event')
+        # XXX can we still get these sensors somewhere?
+        # data.req.sensor_sampling('k7w.spead_dump_period', 'event')
+        # data.req.sensor_sampling('k7w.last_dump_timestamp', 'event')
 
-        # Set centre frequency in RFE stage 7 (else read the current value)
-        if centre_freq is not None:
-            session.set_centre_freq(centre_freq)
-        else:
-            centre_freq = session.get_centre_freq()
-        # The DBE proxy needs to know the dump period (in s) as well as the RF centre frequency
-        # of 400-MHz downconverted band (in Hz), which is used for fringe stopping / delay tracking
-        dbe.req.capture_setup(1. / dump_rate, session.get_centre_freq(200.0) * 1e6)
+        centre_freq = self.get_centre_freq()
+
+        # Check this...
+        # # The data proxy needs to know the dump period (in s) as well as the RF centre frequency
+        # # of 400-MHz downconverted band (in Hz), which is used for fringe stopping / delay tracking
+        # data.req.capture_setup(1. / dump_rate, session.get_centre_freq(200.0) * 1e6)
 
         user_logger.info('Antennas used = %s' % (' '.join(ant_names),))
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Experiment ID = %s' % (experiment_id,))
-        user_logger.info('DBE centre frequency = %g MHz' % (dbe_centre_freq,))
-        user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz" % (centre_freq, dump_rate))
+        user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz" % (centre_freq, 1.0 / self.dump_period))
         if nd_params['period'] > 0:
             nd_info = "Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
                       (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
@@ -447,41 +392,42 @@ class CaptureSession(CaptureSessionBase):
         katsys.req.set_script_param('script-description', description)
         katsys.req.set_script_param('script-experiment-id', experiment_id)
         katsys.req.set_script_param('script-rf-params',
-                                    'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, dump_rate))
+                                    'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, 1.0 / self.dump_period))
         katsys.req.set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
                                     (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
-        # Explicitly set the antenna mask (empty string indicates no mask, meaning all corrproducts are kept in file)
-        dbe.req.k7w_set_antenna_mask('' if no_mask else ','.join(ant_names))
+        # Can we still set this?
+        # # Explicitly set the antenna mask (empty string indicates no mask, meaning all corrproducts are kept in file)
+        # data.req.k7w_set_antenna_mask('' if no_mask else ','.join(ant_names))
 
-        # If the DBE is simulated, it will have position update commands
-        if hasattr(dbe.req, 'dbe_pointing_az') and hasattr(dbe.req, 'dbe_pointing_el'):
+        # If the CBF is simulated, it will have position update commands
+        if hasattr(data.req, 'cbf_pointing_az') and hasattr(data.req, 'cbf_pointing_el'):
 
             def listener_actual_azim(update_seconds, value_seconds, status, value):
-                #Listener callback now inlcudes status, use it here
+                #Listener callback now includes status, use it here
                 if status == 'nominal':
-                    dbe.req.dbe_pointing_az(value)
+                    data.req.cbf_pointing_az(value)
 
             def listener_actual_elev(update_seconds, value_seconds, status, value):
-                #Listener callback now inlcudes status, use it here
+                #Listener callback now includes status, use it here
                 if status == 'nominal':
-                    dbe.req.dbe_pointing_el(value)
+                    data.req.cbf_pointing_el(value)
 
             first_ant = ants[0]
             # The minimum time between position updates is fraction of dump period to ensure fresh data at every dump
-            update_period_seconds = 0.4 / dump_rate
+            update_period_seconds = 0.4 * self.dump_period
             # Tell the position sensors to report their values periodically at this rate
             first_ant.sensor.pos_actual_scan_azim.set_strategy('period', str(float(update_period_seconds)))
             first_ant.sensor.pos_actual_scan_elev.set_strategy('period', str(float(update_period_seconds)))
-            # Tell the DBE simulator where the first antenna is so that it can generate target flux at the right time
+            # Tell the Data simulator where the first antenna is so that it can generate target flux at the right time
             first_ant.sensor.pos_actual_scan_azim.register_listener(listener_actual_azim, update_period_seconds)
             first_ant.sensor.pos_actual_scan_elev.register_listener(listener_actual_elev, update_period_seconds)
-            user_logger.info("DBE simulator receives position updates from antenna '%s'" % (first_ant.name,))
+            user_logger.info("CBF simulator receives position updates from antenna '%s'" % (first_ant.name,))
         user_logger.info("--------------------------")
 
     def capture_start(self):
         """Start capturing data to HDF5 file."""
-        # This starts the SPEAD stream on the DBE
-        self.dbe.req.dbe_capture_start('k7')
+        # This starts the data product stream
+        self.data.req.capture_start(self.product)
 
     def label(self, label):
         """Add timestamped label to HDF5 file.
@@ -491,7 +437,8 @@ class CaptureSession(CaptureSessionBase):
 
         """
         if label:
-            self.dbe.req.k7w_set_label(label)
+            # Check where cam2spead commands go
+            # self.data.req.k7w_set_label(label)
             user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
@@ -633,97 +580,101 @@ class CaptureSession(CaptureSessionBase):
         (automatically done when this object is used in a with-statement)!
 
         """
-        if self.ants is None:
-            raise ValueError('No antennas specified for session - please run session.standard_setup first')
-        # Create references to allow easy copy-and-pasting from this function
-        session, kat, ants, dbe, dump_period = self, self.kat, self.ants, self.dbe, self.dump_period
+        # XXX This needs a rethink...
+        return False
 
-        # Wait for the dump period to become known, as it is needed to set a good timeout for the first dump
-        if dump_period == 0.0:
-            if not dbe.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1.5 * session._requested_dump_period, poll_period=0.2 * session._requested_dump_period):
-                dump_period = session.dump_period = session._requested_dump_period
-                user_logger.warning('SPEAD metadata header is overdue at k7_capture - noise diode will be out of sync')
-            else:
-                # Get actual dump period in seconds (as opposed to the requested period)
-                dump_period = session.dump_period = dbe.sensor.k7w_spead_dump_period.get_value()
-                # This can still go wrong if the sensor times out - again fall back to requested period
-                if dump_period is None:
-                    dump_period = session.dump_period = session._requested_dump_period
-                    user_logger.warning('Could not read actual dump period - noise diode will be out of sync')
-        # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
-        last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
-        if last_dump == session._end_of_previous_session or last_dump is None:
-            user_logger.info('waiting for correlator dump to arrive')
-            # Wait for the first correlator dump to appear
-            if not dbe.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > session._end_of_previous_session,
-                            timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
-                last_dump = time.time()
-                user_logger.warning('Correlator dump is overdue at k7_capture - noise diode will be out of sync')
-            else:
-                last_dump = dbe.sensor.k7w_last_dump_timestamp.get_value()
-                if last_dump is None:
-                    last_dump = time.time()
-                    user_logger.warning('Could not read last dump timestamp - noise diode will be out of sync')
-                else:
-                    user_logger.info('correlator dump arrived')
-
-        # If period is non-negative, quit if it is not yet time to fire the noise diode
-        if period < 0.0 or (time.time() - session.last_nd_firing) < period:
-            return False
-
-        if align:
-            # Round "on" duration up to the nearest integer multiple of dump period
-            on = np.ceil(float(on) / dump_period) * dump_period
-            # The last fully complete dump is more than 1 dump period in the past
-            next_dump = last_dump + 2 * dump_period
-            # The delay in setting up noise diode firing - next dump should be at least this far in future
-            lead_time = 0.25
-            # Find next suitable dump boundary
-            now = time.time()
-            while next_dump < now + lead_time:
-                next_dump += dump_period
-
-        if announce:
-            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
-        else:
-            user_logger.info('firing noise diode')
-
-        if align:
-            # Schedule noise diode switch-on on all antennas at the next suitable dump boundary
-            ants.req.rfe3_rfe15_noise_source_on(diode, 1, 1000 * next_dump, 0)
-            # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
-            if hasattr(dbe.req, 'dbe_fire_nd') and dump_period > 0:
-                time.sleep(max(next_dump - time.time(), 0))
-                dbe.req.dbe_fire_nd(np.ceil(float(on) / dump_period))
-            # Wait until the noise diode is on
-            time.sleep(max(next_dump + 0.5 * on - time.time(), 0))
-            # Schedule noise diode switch-off on all antennas a duration of "on" seconds later
-            ants.req.rfe3_rfe15_noise_source_on(diode, 0, 1000 * (next_dump + on), 0)
-            time.sleep(max(next_dump + on + off - time.time(), 0))
-            # Mark on -> off transition as last firing
-            session.last_nd_firing = next_dump + on
-        else:
-            # Switch noise diode on on all antennas
-            ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
-            # If using DBE simulator, fire the simulated noise diode for desired period to toggle power levels in output
-            if hasattr(dbe.req, 'dbe_fire_nd'):
-                dbe.req.dbe_fire_nd(np.ceil(float(on) / dump_period))
-            time.sleep(on)
-            # Mark on -> off transition as last firing
-            session.last_nd_firing = time.time()
-            # Switch noise diode off on all antennas
-            ants.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
-            time.sleep(off)
-
-        user_logger.info('noise diode fired')
-        return True
+#
+#         if self.ants is None:
+#             raise ValueError('No antennas specified for session - please run session.standard_setup first')
+#         # Create references to allow easy copy-and-pasting from this function
+#         session, kat, ants, data, dump_period = self, self.kat, self.ants, self.data, self.dump_period
+#
+#         # Wait for the dump period to become known, as it is needed to set a good timeout for the first dump
+#         if dump_period == 0.0:
+#             if not data.wait('k7w_spead_dump_period', lambda sensor: sensor.value > 0, timeout=1.5 * session._requested_dump_period, poll_period=0.2 * session._requested_dump_period):
+#                 dump_period = session.dump_period = session._requested_dump_period
+#                 user_logger.warning('SPEAD metadata header is overdue at ingest - noise diode will be out of sync')
+#             else:
+#                 # Get actual dump period in seconds (as opposed to the requested period)
+#                 dump_period = session.dump_period = data.sensor.k7w_spead_dump_period.get_value()
+#                 # This can still go wrong if the sensor times out - again fall back to requested period
+#                 if dump_period is None:
+#                     dump_period = session.dump_period = session._requested_dump_period
+#                     user_logger.warning('Could not read actual dump period - noise diode will be out of sync')
+#         # Wait for the first correlator dump to appear, both as a check that capturing works and to align noise diode
+#         last_dump = data.sensor.k7w_last_dump_timestamp.get_value()
+#         if last_dump == session._end_of_previous_session or last_dump is None:
+#             user_logger.info('waiting for correlator dump to arrive')
+#             # Wait for the first correlator dump to appear
+#             if not data.wait('k7w_last_dump_timestamp', lambda sensor: sensor.value > session._end_of_previous_session,
+#                             timeout=2.2 * dump_period, poll_period=0.2 * dump_period):
+#                 last_dump = time.time()
+#                 user_logger.warning('Correlator dump is overdue at k7_capture - noise diode will be out of sync')
+#             else:
+#                 last_dump = data.sensor.k7w_last_dump_timestamp.get_value()
+#                 if last_dump is None:
+#                     last_dump = time.time()
+#                     user_logger.warning('Could not read last dump timestamp - noise diode will be out of sync')
+#                 else:
+#                     user_logger.info('correlator dump arrived')
+#
+#         # If period is non-negative, quit if it is not yet time to fire the noise diode
+#         if period < 0.0 or (time.time() - session.last_nd_firing) < period:
+#             return False
+#
+#         if align:
+#             # Round "on" duration up to the nearest integer multiple of dump period
+#             on = np.ceil(float(on) / dump_period) * dump_period
+#             # The last fully complete dump is more than 1 dump period in the past
+#             next_dump = last_dump + 2 * dump_period
+#             # The delay in setting up noise diode firing - next dump should be at least this far in future
+#             lead_time = 0.25
+#             # Find next suitable dump boundary
+#             now = time.time()
+#             while next_dump < now + lead_time:
+#                 next_dump += dump_period
+#
+#         if announce:
+#             user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
+#         else:
+#             user_logger.info('firing noise diode')
+#
+#         if align:
+#             # Schedule noise diode switch-on on all antennas at the next suitable dump boundary
+#             ants.req.rfe3_rfe15_noise_source_on(diode, 1, 1000 * next_dump, 0)
+#             # If using Data simulator, fire the simulated noise diode for desired period to toggle power levels in output
+#             if hasattr(data.req, 'data_fire_nd') and dump_period > 0:
+#                 time.sleep(max(next_dump - time.time(), 0))
+#                 data.req.data_fire_nd(np.ceil(float(on) / dump_period))
+#             # Wait until the noise diode is on
+#             time.sleep(max(next_dump + 0.5 * on - time.time(), 0))
+#             # Schedule noise diode switch-off on all antennas a duration of "on" seconds later
+#             ants.req.rfe3_rfe15_noise_source_on(diode, 0, 1000 * (next_dump + on), 0)
+#             time.sleep(max(next_dump + on + off - time.time(), 0))
+#             # Mark on -> off transition as last firing
+#             session.last_nd_firing = next_dump + on
+#         else:
+#             # Switch noise diode on on all antennas
+#             ants.req.rfe3_rfe15_noise_source_on(diode, 1, 'now', 0)
+#             # If using Data simulator, fire the simulated noise diode for desired period to toggle power levels in output
+#             if hasattr(data.req, 'data_fire_nd'):
+#                 data.req.data_fire_nd(np.ceil(float(on) / dump_period))
+#             time.sleep(on)
+#             # Mark on -> off transition as last firing
+#             session.last_nd_firing = time.time()
+#             # Switch noise diode off on all antennas
+#             ants.req.rfe3_rfe15_noise_source_on(diode, 0, 'now', 0)
+#             time.sleep(off)
+#
+#         user_logger.info('noise diode fired')
+#         return True
 
     def set_target(self, target):
         """Set target to use for tracking or scanning.
 
         This sets the target on all antennas involved in the session, as well as
-        on the DBE (where it serves as delay-tracking centre). It also moves the
-        test target in the DBE simulator to match the requested target (if it is
+        on the CBF (where it serves as delay-tracking centre). It also moves the
+        test target in the Data simulator to match the requested target (if it is
         a stationary 'azel' type).
 
         Parameters
@@ -735,20 +686,20 @@ class CaptureSession(CaptureSessionBase):
         if self.ants is None:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
         # Create references to allow easy copy-and-pasting from this function
-        ants, dbe = self.ants, self.dbe
+        ants, data = self.ants, self.data
         # Convert description string to target object, or keep object as is
         target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
 
         # Set the antenna target (antennas will already move there if in mode 'POINT')
         ants.req.target(target)
-        # Provide target to the DBE proxy, which will use it as delay-tracking center
-        dbe.req.target(target)
-        # If using DBE simulator and target is azel type, move test target here (allows changes in correlation power)
-        if hasattr(dbe.req, 'dbe_test_target') and target.body_type == 'azel':
+        # Provide target to the data proxy, which will use it as delay-tracking center
+        data.req.target(target)
+        # If using Data simulator and target is azel type, move test target here (allows changes in correlation power)
+        if hasattr(data.req, 'cbf_test_target') and target.body_type == 'azel':
             azel = katpoint.rad2deg(np.array(target.azel()))
-            dbe.req.dbe_test_target(azel[0], azel[1], 100.)
+            data.req.cbf_test_target(azel[0], azel[1], 100.)
 
-    def track(self, target, duration=20.0, drive_strategy='shortest-slew', announce=True):
+    def track(self, target, duration=20.0, announce=True):
         """Track a target.
 
         This tracks the specified target with all antennas involved in the
@@ -760,11 +711,6 @@ class CaptureSession(CaptureSessionBase):
             Target to track, as an object or description string
         duration : float, optional
             Minimum duration of track, in seconds
-        drive_strategy : {'shortest-slew', 'longest-track'}, optional
-            Drive strategy employed by antennas, used to decide what to do when
-            target is in azimuth overlap region of antenna. The default is to
-            go to the wrap that will permit the longest possible track before
-            the target sets.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -795,8 +741,6 @@ class CaptureSession(CaptureSessionBase):
             user_logger.warning("Skipping track, as target '%s' will be below horizon" % (target.name,))
             return False
 
-        # Set the drive strategy for how antenna moves between targets, and the target
-        ants.req.drive_strategy(drive_strategy)
         session.set_target(target)
 
         session.fire_noise_diode(announce=False, **session.nd_params)
@@ -821,8 +765,8 @@ class CaptureSession(CaptureSessionBase):
         return True
 
     @dynamic_doc("', '".join(projections), default_proj)
-    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
-             projection=default_proj, drive_strategy='shortest-slew', announce=True):
+    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0),
+             index=-1, projection=default_proj, announce=True):
         """Scan across a target.
 
         This scans across a target with all antennas involved in the session,
@@ -849,11 +793,6 @@ class CaptureSession(CaptureSessionBase):
         projection : {'%s'}, optional
             Name of projection in which to perform scan relative to target
             (default = '%s')
-        drive_strategy : {'shortest-slew', 'longest-track'}, optional
-            Drive strategy employed by antennas, used to decide what to do when
-            target is in azimuth overlap region of antenna. The default is to
-            go to the wrap that is nearest to the antenna's current position,
-            thereby saving time.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -893,8 +832,6 @@ class CaptureSession(CaptureSessionBase):
             user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (target.name,))
             return False
 
-        # Set the drive strategy for how antenna moves between targets, and the target
-        ants.req.drive_strategy(drive_strategy)
         session.set_target(target)
 
         session.fire_noise_diode(announce=False, **session.nd_params)
@@ -921,7 +858,7 @@ class CaptureSession(CaptureSessionBase):
 
     @dynamic_doc("', '".join(projections), default_proj)
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew', announce=True):
+                    scan_in_azimuth=True, projection=default_proj, announce=True):
         """Perform raster scan on target.
 
         A *raster scan* is a series of scans across a target performed by all
@@ -958,11 +895,6 @@ class CaptureSession(CaptureSessionBase):
         projection : {'%s'}, optional
             Name of projection in which to perform scan relative to target
             (default = '%s')
-        drive_strategy : {'shortest-slew', 'longest-track'}
-            Drive strategy employed by antennas, used to decide what to do when
-            target is in azimuth overlap region of antenna. The default is to
-            go to the wrap that is nearest to the antenna's current position,
-            thereby saving time.
         announce : {True, False}, optional
             True if start of action should be announced, with details of settings
 
@@ -1034,19 +966,20 @@ class CaptureSession(CaptureSessionBase):
         """
         try:
             # Create references to allow easy copy-and-pasting from this function
-            session, ants, dbe, katsys = self, self.ants, self.dbe, self.kat.sys
+            session, ants, data, katsys = self, self.ants, self.data, self.kat.sys
 
-            # Obtain the name of the file currently being written to
-            reply = dbe.req.k7w_get_current_file()
-            outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
-            user_logger.info('Scans complete, data captured to %s' % (outfile,))
-            # The final output file name after augmentation
-            session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
+            # XXX still relevant? -> via [capture_done]
+            # # Obtain the name of the file currently being written to
+            # reply = data.req.k7w_get_current_file()
+            # outfile = reply[1].replace('writing', 'unaugmented') if reply.succeeded else '<unknown file>'
+            # user_logger.info('Scans complete, data captured to %s' % (outfile,))
+            # # The final output file name after augmentation
+            # session.output_file = os.path.basename(outfile).replace('.unaugmented', '')
 
-            # Stop the DBE data flow (this indirectly stops k7writer via a stop packet, but the HDF5 file is left open)
-            dbe.req.dbe_capture_stop('k7')
+            # Stop the data flow
+            data.req.capture_stop(self.product)
             # Stop streaming KATCP sensor updates to the capture thread
-            dbe.req.katcp2spead_stop_stream()
+            # data.req.katcp2spead_stop_stream()
             user_logger.info('Ended data capturing session with experiment ID %s' % (session.experiment_id,))
             katsys.req.set_script_param('script-endtime', time.time())
             katsys.req.set_script_param('script-status', 'interrupted' if interrupted else 'completed')
@@ -1064,15 +997,15 @@ class CaptureSession(CaptureSessionBase):
             # Disable logging to HDF5 file
             user_logger.removeHandler(self._script_log_handler)
             # Finally close the HDF5 file and prepare for augmentation after all logging and parameter settings are done
-            dbe.req.k7w_capture_done()
+            data.req.capture_done(self.product)
             activity_logger.info("----- Script ended  %s (%s)" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
 
 class TimeSession(CaptureSessionBase):
     """Fake CaptureSession object used to estimate the duration of an experiment."""
-    def __init__(self, kat, mode=None, **kwargs):
+    def __init__(self, kat, product=None, dump_rate=1.0, **kwargs):
         self.kat = kat
-        self.dbe = kat.dbe7
+        self.data = kat.data_rts
 
         # Default settings for session parameters (in case standard_setup is not called)
         self.ants = None
@@ -1081,7 +1014,7 @@ class TimeSession(CaptureSessionBase):
         self.nd_params = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
         self.last_nd_firing = 0.
         self.output_file = ''
-        self.dump_period = self._requested_dump_period = 0.0
+        self.dump_period = self._requested_dump_period = 1.0 / dump_rate
         self.horizon = 3.0
 
         self.start_time = self._end_of_previous_session = time.time()
@@ -1112,11 +1045,11 @@ class TimeSession(CaptureSessionBase):
         user_logger.info('==========================')
         user_logger.info('New data capturing session')
         user_logger.info('--------------------------')
-        user_logger.info("DBE proxy used = %s" % (self.dbe.name,))
-        if mode is None:
-            user_logger.info('DBE mode = unknown to simulator')
+        user_logger.info("Data proxy used = %s" % (self.data.name,))
+        if product is None:
+            user_logger.info('Data product = unknown to simulator')
         else:
-            user_logger.info('DBE mode = %s' % (mode,))
+            user_logger.info('Data product = %s' % (product,))
 
         activity_logger.info("Timing simulation. ----- Script starting %s (%s). Output file None" % (sys.argv[0], ' '.join(sys.argv[1:])))
 
@@ -1182,13 +1115,8 @@ class TimeSession(CaptureSessionBase):
         # Blindly assume all antennas are on target (or on horizon) after this interval
         self._teleport_to(target, mode)
 
-    def get_centre_freq(self, dbe_if=None):
-        """Get RF (sky) frequency associated with middle DBE channel.
-
-        Parameters
-        ----------
-        dbe_if : float, optional
-            DBE centre (IF) frequency in MHz (use to override actual value)
+    def get_centre_freq(self):
+        """Get RF (sky) frequency associated with middle CBF channel.
 
         Returns
         -------
@@ -1196,10 +1124,10 @@ class TimeSession(CaptureSessionBase):
             Actual centre frequency in MHz
 
         """
-        return 0.0
+        return 1284.0
 
     def set_centre_freq(self, centre_freq):
-        """Set RF (sky) frequency associated with middle DBE channel.
+        """Set RF (sky) frequency associated with middle CBF channel.
 
         Parameters
         ----------
@@ -1210,9 +1138,8 @@ class TimeSession(CaptureSessionBase):
         pass
 
     def standard_setup(self, observer, description, experiment_id=None,
-                       centre_freq=None, dump_rate=1.0, nd_params=None,
-                       record_slews=None, stow_when_done=None, horizon=None,
-                       dbe_centre_freq=None, **kwargs):
+                       centre_freq=None, nd_params=None,
+                       stow_when_done=None, horizon=None, no_mask=False, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate."""
         self.ants = ant_array(self.kat, self.get_ant_names())
         for ant in self.ants:
@@ -1228,21 +1155,17 @@ class TimeSession(CaptureSessionBase):
         self.nd_params = nd_params = self.nd_params if nd_params is None else nd_params
         self.stow_when_done = stow_when_done = self.stow_when_done if stow_when_done is None else stow_when_done
         self.horizon = self.horizon if horizon is None else horizon
-        self._requested_dump_period = 1.0 / dump_rate
 
         user_logger.info('Antennas used = %s' % (' '.join([ant[0].name for ant in self._fake_ants]),))
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Experiment ID = %s' % (experiment_id,))
-        if dbe_centre_freq is None:
-            user_logger.info('DBE centre frequency = unknown to simulator')
-        else:
-            user_logger.info('DBE centre frequency = %g MHz' % (dbe_centre_freq,))
-        # There is no way to find out the centre frequency in this fake session...
+        # There is no way to find out the centre frequency in this fake session... maybe
+        centre_freq = self.get_centre_freq()
         if centre_freq is None:
-            user_logger.info('RF centre frequency = unknown to simulator, dump rate = %g Hz' % (dump_rate,))
+            user_logger.info('RF centre frequency = unknown to simulator, dump rate = %g Hz' % (1.0 / self.dump_period,))
         else:
-            user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz' % (centre_freq, dump_rate))
+            user_logger.info('RF centre frequency = %g MHz, dump rate = %g Hz' % (centre_freq, 1.0 / self.dump_period))
         if nd_params['period'] > 0:
             nd_info = "Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
                       (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period'])
@@ -1307,25 +1230,27 @@ class TimeSession(CaptureSessionBase):
 
     def fire_noise_diode(self, diode='coupler', on=10.0, off=10.0, period=0.0, align=True, announce=True):
         """Estimate time taken to fire noise diode."""
-        if not self._fake_ants:
-            raise ValueError('No antennas specified for session - please run session.standard_setup first')
-        if self.dump_period == 0.0:
-            # Wait for the first correlator dump to appear
-            user_logger.info('waiting for correlator dump to arrive')
-            self.dump_period = self._requested_dump_period
-            time.sleep(self.dump_period)
-            user_logger.info('correlator dump arrived')
-        if period < 0.0 or (self.time - self.last_nd_firing) < period:
-            return False
-        if announce:
-            user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
-        else:
-            user_logger.info('firing noise diode')
-        self.time += on
-        self.last_nd_firing = self.time + 0.
-        self.time += off
-        user_logger.info('fired noise diode')
-        return True
+        return False
+        # XXX needs a rethink
+        # if not self._fake_ants:
+        #     raise ValueError('No antennas specified for session - please run session.standard_setup first')
+        # if self.dump_period == 0.0:
+        #     # Wait for the first correlator dump to appear
+        #     user_logger.info('waiting for correlator dump to arrive')
+        #     self.dump_period = self._requested_dump_period
+        #     time.sleep(self.dump_period)
+        #     user_logger.info('correlator dump arrived')
+        # if period < 0.0 or (self.time - self.last_nd_firing) < period:
+        #     return False
+        # if announce:
+        #     user_logger.info("Firing '%s' noise diode (%g seconds on, %g seconds off)" % (diode, on, off))
+        # else:
+        #     user_logger.info('firing noise diode')
+        # self.time += on
+        # self.last_nd_firing = self.time + 0.
+        # self.time += off
+        # user_logger.info('fired noise diode')
+        # return True
 
     def set_target(self, target):
         """Setting target has no timing effect."""
@@ -1435,7 +1360,7 @@ class TimeSession(CaptureSessionBase):
             self._teleport_to(katpoint.Target("azel, 0.0, 90.0"), mode="STOW")
         user_logger.info('==========================')
         duration = self.time - self.start_time
-        # Let kat-KATCoreConn know how long the estimated observation time was.
+        # Let KATCoreConn know how long the estimated observation time was.
         self.kat.set_estimated_duration(duration)
         if duration <= 100:
             duration = '%d seconds' % (np.ceil(duration),)
