@@ -74,6 +74,20 @@ with verify_and_connect(opts) as kat:
         skip_file = file(opts.skip_catalogue, "a") \
                     if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
+            if not opts.no_delays and not kat.dry_run :
+                if session.dbe.req.auto_delay('on'):
+                    user_logger.info("Turning on delay tracking.")
+                else:
+                    user_logger.error('Unable to turn on delay tracking.')
+            elif opts.no_delays and not kat.dry_run:
+                if session.dbe.req.auto_delay('off'):
+                    user_logger.info("Turning off delay tracking.")
+                else:
+                    user_logger.error('Unable to turn off delay tracking.')
+                if session.dbe.req.zero_delay():
+                    user_logger.info("Zeroed the delay values.")
+                else:
+                    user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -85,7 +99,7 @@ with verify_and_connect(opts) as kat:
             while keep_going:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
-                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
+                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
                     session.label('raster')
                     # Do different raster scan on strong and weak targets
                     if not opts.quick:
