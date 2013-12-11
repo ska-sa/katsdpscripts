@@ -37,6 +37,9 @@ parser.add_option('--source-strength', type='choice', default='auto', choices=('
 parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
                        'spaced 0.5 degrees apart with 2 Hz dump rate.')
+parser.add_option('--no-delays', action="store_true", default=False,
+                  help='Do not use delay tracking, and zero delays')
+
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()
