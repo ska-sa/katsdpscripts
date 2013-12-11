@@ -1,7 +1,7 @@
 import time
 import threading
 import types
-from ConfigParser import SafeConfigParser
+from ConfigParser import SafeConfigParser, NoSectionError
 import weakref
 import csv
 
@@ -91,22 +91,11 @@ class FakeCamEventServer(DeviceServer):
         return ("ok", repr(self.attributes))
 
 
-split = lambda args: csv.reader([args], skipinitialspace=True).next()
-cfg = SafeConfigParser()
-cfg.read('rts_sensors.cfg')
-comp_sensors = {}
-components = list(set([section.split(':')[0] for section in cfg.sections()]))
-for comp in components:
-    comp_sensors[comp] = [[name] + split(args) for name, args in cfg.items(comp + ':sensors')]
-
 class FakeClient(object):
     """Fake KATCP client."""
-    sensor_config = comp_sensors
-
-    def __init__(self, name, component, modeltype, *args, **kwargs):
-        sensors = FakeClient.sensor_config[component]
+    def __init__(self, name, model, attrs, sensors):
         self.name = name
-        self.model = object.__new__(modeltype)
+        self.model = object.__new__(model)
         self.req = IgnoreUnknownMethods()
         self.sensor = IgnoreUnknownMethods()
         for sensor_args in sensors:
@@ -114,7 +103,7 @@ class FakeClient(object):
             setattr(self.sensor, sensor.name, sensor)
         self._register_sensors()
         self._register_requests()
-        self.model.__init__(*args, **kwargs)
+        self.model.__init__(**attrs)
 
     def _register_sensors(self):
         self.model._client = weakref.proxy(self)
@@ -141,20 +130,22 @@ class FakeClient(object):
         sensor = getattr(self.sensor, sensor_name)
         sensor.set_strategy(strategy, params=None)
 
+
 class AntennaPositionerModel(object):
-    def __init__(self, antenna, slew_rates):
+    def __init__(self, description, max_azim_slew_degpersec, max_elev_slew_degpersec,
+                 inner_threshold_deg, **kwargs):
         # Set this first as sensor updates (whenever attributes are assigned) need it
         self._time = time
-        self.ant = Antenna(antenna)
-        self.observer = self.ant.description
+        self.ant = Antenna(description)
         self.req_target('Zenith, azel, 0, 90')
         self.mode = 'POINT'
         self.activity = 'stow'
         self.lock = True
+        self.lock_threshold = float(inner_threshold_deg)
         self.pos_actual_scan_azim = self.pos_request_scan_azim = 0.0
         self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
-        self.max_az_vel = slew_rates[0]
-        self.max_el_vel = slew_rates[1]
+        self.max_azim_slew_degpersec = float(max_azim_slew_degpersec)
+        self.max_elev_slew_degpersec = float(max_elev_slew_degpersec)
         self.last_update = None
 
     def req_target(self, target):
@@ -170,8 +161,8 @@ class AntennaPositionerModel(object):
 
     def update(self, timestamp):
         elapsed_time = timestamp - self.last_update if self.last_update else 0.0
-        max_delta_az = self.max_az_vel * elapsed_time
-        max_delta_el = self.max_el_vel * elapsed_time
+        max_delta_az = self.max_azim_slew_degpersec * elapsed_time
+        max_delta_el = self.max_elev_slew_degpersec * elapsed_time
         az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
         requested_az, requested_el = self._target.azel(timestamp)
         requested_az = rad2deg(angle_wrap(requested_az))
@@ -186,7 +177,7 @@ class AntennaPositionerModel(object):
         self.pos_actual_scan_elev = el
         dish = construct_azel_target(deg2rad(az), deg2rad(el))
         error = rad2deg(self._target.separation(dish, timestamp))
-        self.lock = error < 0.01
+        self.lock = error < self.lock_threshold
         print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
         self.last_update = timestamp
 
@@ -231,4 +222,26 @@ class FakeConn(object):
 
 import katpoint
 ant = katpoint.Antenna('ant, -33, 18, 30, 0')
-fc = FakeClient('m062', 'AntennaPositioner', AntennaPositionerModel, ant.description, [2, 1])
+
+split = lambda args: csv.reader([args], skipinitialspace=True).next()
+cfg = SafeConfigParser()
+cfg.read('rts_model.cfg')
+components = dict(cfg.items('Telescope'))
+comp_attrs, comp_sensors = {}, {}
+for comp_name, comp_type in components.items():
+    for name in ['*', comp_name]:
+        try:
+            attrs = comp_attrs.get(comp_name, {})
+            attrs.update(cfg.items(':'.join((comp_type, name, 'attrs'))))
+            comp_attrs[comp_name] = attrs
+        except NoSectionError:
+            pass
+        try:
+            sensors = comp_sensors.get(comp_name, [])
+            sensors.extend([[name] + split(args) for name, args in
+                            cfg.items(':'.join((comp_type, name, 'sensors')))])
+            comp_sensors[comp_name] = sensors
+        except NoSectionError:
+            pass
+
+fc = FakeClient('m062', AntennaPositionerModel, comp_attrs['m062'], comp_sensors['m062'])
