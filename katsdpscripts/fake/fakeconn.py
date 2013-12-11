@@ -93,11 +93,13 @@ class FakeCamEventServer(DeviceServer):
 
 class FakeClient(object):
     """Fake KATCP client."""
-    def __init__(self, name, model, attrs, sensors):
+    def __init__(self, name, model, telescope):
         self.name = name
         self.model = object.__new__(model)
         self.req = IgnoreUnknownMethods()
         self.sensor = IgnoreUnknownMethods()
+        attrs = telescope[name]['attrs']
+        sensors = telescope[name]['sensors']
         for sensor_args in sensors:
             sensor = FakeSensor(*sensor_args)
             setattr(self.sensor, sensor.name, sensor)
@@ -121,6 +123,7 @@ class FakeClient(object):
         for attr_name in dir(self.model):
             attr = getattr(self.model, attr_name)
             if callable(attr) and attr_name.startswith('req_'):
+                # Unbind attr function from model and bind it to req, removing 'req_' prefix
                 setattr(self.req, attr_name[4:], types.MethodType(attr.im_func, self.model))
 
     def is_connected(self):
@@ -141,11 +144,11 @@ class AntennaPositionerModel(object):
         self.mode = 'POINT'
         self.activity = 'stow'
         self.lock = True
-        self.lock_threshold = float(inner_threshold_deg)
+        self.lock_threshold = inner_threshold_deg
         self.pos_actual_scan_azim = self.pos_request_scan_azim = 0.0
         self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
-        self.max_azim_slew_degpersec = float(max_azim_slew_degpersec)
-        self.max_elev_slew_degpersec = float(max_elev_slew_degpersec)
+        self.max_azim_slew_degpersec = max_azim_slew_degpersec
+        self.max_elev_slew_degpersec = max_elev_slew_degpersec
         self.last_update = None
 
     def req_target(self, target):
@@ -182,66 +185,85 @@ class AntennaPositionerModel(object):
         self.last_update = timestamp
 
 
-class FakeCorrelatorBeamformerModel(object):
-    def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp):
+class CorrelatorBeamformerModel(object):
+    def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp, **kwargs):
+        self._time = time
         self.dbe_mode = 'c8n856M32k'
-        self.target = katpoint.Target('Zenith, special')
-        self.center_frequency_hz = 1300e6
+        self.req_target('Zenith, azel, 0, 90')
         self.auto_delay = True
 
-class FakeEnviroModel(object):
-    def __init__(self):
+    def req_target(self, target):
+        self.target = target
+        self._target = Target(target)
+#        self._target.antenna = self.ant
+
+
+class EnviroModel(object):
+    def __init__(self, **kwargs):
+        self._time = time
         self.air_pressure = 1020
         self.air_relative_humidity = 60.0
         self.air_temperature = 25.0
         self.wind_speed = 4.2
         self.wind_direction = 90.0
 
-class FakeDigitiser(IgnoreUnknownMethods):
-    def __init__(self):
+
+class DigitiserModel(object):
+    def __init__(self, **kwargs):
+        self._time = time
         self.overflow = False
+
+
+class ObservationModel(object):
+    def __init__(self, **kwargs):
+        self._time = time
+        self.label = ''
+        self.params = ''
+
 
 class FakeConn(object):
     """Connection object for a simulated KAT system."""
-    def __init__(self, system=None, sb_id_code=None, dry_run=False, attributes=None, opts=None, sensors=None):
-        self.create_sensors(sensors)
+    def __init__(self, config_file):
+        split = lambda args: csv.reader([args], skipinitialspace=True).next()
+        cfg = SafeConfigParser()
+        cfg.read(config_file)
+        components = dict(cfg.items('Telescope'))
+        telescope = {}
+        for comp_name, comp_type in components.items():
+            telescope[comp_name] = {'class' : comp_type, 'attrs' : {}, 'sensors' : []}
+            sections = [':'.join((comp_type, name, item)) for name in ['*', comp_name]
+                                                          for item in ['attrs', 'sensors']]
+            for section in sections:
+                try:
+                    items = cfg.items(section)
+                except NoSectionError:
+                    continue
+                if section.endswith('attrs'):
+                    attr_items = [(name, eval(value, {})) for name, value in items]
+                    telescope[comp_name]['attrs'].update(attr_items)
+                else:
+                    sensor_items = [[name] + split(args) for name, args in items]
+                    telescope[comp_name]['sensors'].extend(sensor_items)
+
+        self.telescope = telescope
         self.sensors = IgnoreUnknownMethods()
-        self.system = system
-        self.sb_id_code = sb_id_code
-        self.connected_objects = {}
-        self.controlled_objects = []
-        self.dry_run = dry_run
-        self.sources = katpoint.Catalogue()
-        self.attributes = attributes if attributes is not None else {}
-        self.server = FakeCamEventServer(self.attributes, opts.sensor_list,
-                                         host=opts.fake_cam_host,
-                                         port=opts.fake_cam_port) if opts else None
+        for comp_name in telescope:
+            component = telescope[comp_name]
+            model = globals().get(component['class'] + 'Model')
+            client = FakeClient(comp_name, model, telescope)
+            setattr(self, comp_name, client)
+            for sensor_args in component['sensors']:
+                sensor_name = sensor_args[0]
+                sensor = getattr(client.sensor, sensor_name)
+                setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
 
-
-
-
-import katpoint
-ant = katpoint.Antenna('ant, -33, 18, 30, 0')
-
-split = lambda args: csv.reader([args], skipinitialspace=True).next()
-cfg = SafeConfigParser()
-cfg.read('rts_model.cfg')
-components = dict(cfg.items('Telescope'))
-comp_attrs, comp_sensors = {}, {}
-for comp_name, comp_type in components.items():
-    for name in ['*', comp_name]:
-        try:
-            attrs = comp_attrs.get(comp_name, {})
-            attrs.update(cfg.items(':'.join((comp_type, name, 'attrs'))))
-            comp_attrs[comp_name] = attrs
-        except NoSectionError:
-            pass
-        try:
-            sensors = comp_sensors.get(comp_name, [])
-            sensors.extend([[name] + split(args) for name, args in
-                            cfg.items(':'.join((comp_type, name, 'sensors')))])
-            comp_sensors[comp_name] = sensors
-        except NoSectionError:
-            pass
-
-fc = FakeClient('m062', AntennaPositionerModel, comp_attrs['m062'], comp_sensors['m062'])
+        # self.system = system
+        # self.sb_id_code = sb_id_code
+        # self.connected_objects = {}
+        # self.controlled_objects = []
+        # self.dry_run = dry_run
+        # self.sources = katpoint.Catalogue()
+        # self.attributes = attributes if attributes is not None else {}
+        # self.server = FakeCamEventServer(self.attributes, opts.sensor_list,
+        #                                  host=opts.fake_cam_host,
+        #                                  port=opts.fake_cam_port) if opts else None
