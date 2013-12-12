@@ -191,7 +191,7 @@ class CaptureSession(CaptureSessionBase):
             if not data.is_connected():
                 raise ValueError("Data proxy '%s' is not connected "
                                  "(is the KAT system running?)" % (data.name,))
-            self.data = data
+            self.data = self.dbe = data
 
             # Default settings for session parameters (in case standard_setup is not called)
             self.ants = None
@@ -202,7 +202,7 @@ class CaptureSession(CaptureSessionBase):
             self.output_file = ''
             self.horizon = 3.0
             # Requested dump period, replaced by actual value after capture started
-            self.dump_period = session._requested_dump_period = 1.0 / dump_rate
+            self.dump_period = self._requested_dump_period = 1.0 / dump_rate
 
             # # XXX last dump timestamp?
             # self._end_of_previous_session = data.sensor.k7w_last_dump_timestamp.get_value()
@@ -228,7 +228,8 @@ class CaptureSession(CaptureSessionBase):
             # # Obtain the name of the file currently being written to
             # reply = data.req.k7w_get_current_file()
             # outfile = reply[1] if reply.succeeded else '<unknown file>'
-            # user_logger.info('Opened output file = %s' % (outfile,))
+            outfile = '<unknown file>'
+            user_logger.info('Opened output file = %s' % (outfile,))
             user_logger.info('')
 
             activity_logger.info("----- Script starting %s (%s). Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), outfile))
