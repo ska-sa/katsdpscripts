@@ -116,6 +116,27 @@ class ScriptLogHandler(logging.Handler):
             self.handleError(record)
 
 
+class ObsParams(dict):
+    """Dictionary-ish that writes observation parameters to CAM SPEAD stream.
+
+    Parameters
+    ----------
+    data : :class:`KATClient` object
+        Data proxy device for the session
+    product : string
+        Name of data product
+
+    """
+    def __init__(self, data, product):
+        dict.__init__(self)
+        self.data = data
+        self.product = product
+
+    def __setitem__(self, key, value):
+        self.data.req.cam2spead_set_obs_param(self.product, key, repr(value))
+        dict.__setitem__(self, key, value)
+
+
 class RequestSensorError(Exception):
     """Critical request failed or critical sensor could not be read."""
     pass
@@ -187,7 +208,7 @@ class CaptureSession(CaptureSessionBase):
             # self._end_of_previous_session = data.sensor.k7w_last_dump_timestamp.get_value()
 
             # XXX Hard-code product for now
-            self.product = 'c8n856M32k' if product is None else product
+            self.product = '856M32k' if product is None else product
             data.req.product_configure(self.product, dump_rate)
 
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
@@ -213,6 +234,7 @@ class CaptureSession(CaptureSessionBase):
             activity_logger.info("----- Script starting %s (%s). Output file %s" % (sys.argv[0], ' '.join(sys.argv[1:]), outfile))
 
             # Log details of the script to the back-end
+            self.obs_params = ObsParams(data, self.product)
             katsys.req.set_script_param('script-starttime', time.time())
             katsys.req.set_script_param('script-endtime', '')
             katsys.req.set_script_param('script-name', sys.argv[0])
@@ -280,8 +302,7 @@ class CaptureSession(CaptureSessionBase):
         pass
 
     def standard_setup(self, observer, description, experiment_id=None,
-                       nd_params=None, stow_when_done=None, horizon=None,
-                       no_mask=False, **kwargs):
+                       nd_params=None, stow_when_done=None, horizon=None, **kwargs):
         """Perform basic experimental setup including antennas, LO and dump rate.
 
         This performs the basic high-level setup that most experiments require.
@@ -328,8 +349,6 @@ class CaptureSession(CaptureSessionBase):
             (unchanged by default)
         horizon : float, optional
             Elevation limit serving as horizon for session, in degrees
-        no_mask : {False, True}, optional
-            Keep all correlation products by not applying baseline/antenna mask
         kwargs : dict, optional
             Ignore any other keyword arguments (simplifies passing options as dict)
 
@@ -375,6 +394,7 @@ class CaptureSession(CaptureSessionBase):
         user_logger.info('Observer = %s' % (observer,))
         user_logger.info("Description ='%s'" % (description,))
         user_logger.info('Experiment ID = %s' % (experiment_id,))
+        user_logger.info('Data product = %s' % (self.product,))
         user_logger.info("RF centre frequency = %g MHz, dump rate = %g Hz" % (centre_freq, 1.0 / self.dump_period))
         if nd_params['period'] > 0:
             nd_info = "Will switch '%s' noise diode on for %g s and off for %g s, every %g s if possible" % \
@@ -386,7 +406,17 @@ class CaptureSession(CaptureSessionBase):
             nd_info = "Noise diode will not fire automatically"
         user_logger.info(nd_info + " while performing canned commands")
 
-        # Log parameters to output file
+        # Send script options to SPEAD stream
+        self.obs_params['observer'] = observer
+        self.obs_params['description'] = description
+        self.obs_params['experiment_id'] = experiment_id
+        self.obs_params['nd_params'] = nd_params
+        self.obs_params['stow_when_done'] = stow_when_done
+        self.obs_params['horizon'] = session.horizon
+        self.obs_params['centre_freq'] = centre_freq
+        self.obs_params['product'] = self.product
+        self.obs_params.update(kwargs)
+        # Send script options to CAM system
         katsys.req.set_script_param('script-ants', ','.join(ant_names))
         katsys.req.set_script_param('script-observer', observer)
         katsys.req.set_script_param('script-description', description)
@@ -395,9 +425,6 @@ class CaptureSession(CaptureSessionBase):
                                     'Centre freq=%g MHz, Dump rate=%g Hz' % (centre_freq, 1.0 / self.dump_period))
         katsys.req.set_script_param('script-nd-params', 'Diode=%s, On=%g s, Off=%g s, Period=%g s' %
                                     (nd_params['diode'], nd_params['on'], nd_params['off'], nd_params['period']))
-        # Can we still set this?
-        # # Explicitly set the antenna mask (empty string indicates no mask, meaning all corrproducts are kept in file)
-        # data.req.k7w_set_antenna_mask('' if no_mask else ','.join(ant_names))
 
         # If the CBF is simulated, it will have position update commands
         if hasattr(data.req, 'cbf_pointing_az') and hasattr(data.req, 'cbf_pointing_el'):
@@ -437,8 +464,7 @@ class CaptureSession(CaptureSessionBase):
 
         """
         if label:
-            # Check where cam2spead commands go
-            # self.data.req.k7w_set_label(label)
+            self.data.req.cam2spead_set_obs_label(self.product, label)
             user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
