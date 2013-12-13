@@ -208,7 +208,7 @@ class CaptureSession(CaptureSessionBase):
             # self._end_of_previous_session = data.sensor.k7w_last_dump_timestamp.get_value()
 
             # XXX Hard-code product for now
-            self.product = '856M32k' if product is None else product
+            self.product = 'c856M32k' if product is None else product
             data.req.product_configure(self.product, dump_rate)
 
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
@@ -720,7 +720,8 @@ class CaptureSession(CaptureSessionBase):
         # Set the antenna target (antennas will already move there if in mode 'POINT')
         ants.req.target(target)
         # Provide target to the data proxy, which will use it as delay-tracking center
-        data.req.target(target)
+        # XXX No fringe stopping support in data_rts yet
+        # data.req.target(target)
         # If using Data simulator and target is azel type, move test target here (allows changes in correlation power)
         if hasattr(data.req, 'cbf_test_target') and target.body_type == 'azel':
             azel = katpoint.rad2deg(np.array(target.azel()))
