@@ -133,7 +133,8 @@ class ObsParams(dict):
         self.product = product
 
     def __setitem__(self, key, value):
-        self.data.req.cam2spead_set_obs_param(self.product, key, repr(value))
+        # XXX Changing data product name -> ID in a hard-coded fashion
+        self.data.req.cam2spead_set_obs_param('rts_' + self.product, key, repr(value))
         dict.__setitem__(self, key, value)
 
 
@@ -207,9 +208,9 @@ class CaptureSession(CaptureSessionBase):
             # # XXX last dump timestamp?
             # self._end_of_previous_session = data.sensor.k7w_last_dump_timestamp.get_value()
 
-            # XXX Hard-code product for now
+            # XXX Hard-code product name for now
             self.product = 'c856M32k' if product is None else product
-            data.req.product_configure(self.product, dump_rate)
+            data.req.product_configure(self.product, dump_rate, timeout=330)
 
             # Enable logging to the new HDF5 file via the usual logger (using same formatting and filtering)
             self._script_log_handler = ScriptLogHandler(data)
@@ -465,7 +466,8 @@ class CaptureSession(CaptureSessionBase):
 
         """
         if label:
-            self.data.req.cam2spead_set_obs_label(self.product, label)
+            # XXX Changing data product name -> ID in a hard-coded fashion
+            self.data.req.cam2spead_set_obs_label('rts_' + self.product, label)
             user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
