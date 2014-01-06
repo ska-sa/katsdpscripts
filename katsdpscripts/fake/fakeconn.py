@@ -221,31 +221,34 @@ class ObservationModel(object):
         self.params = ''
 
 
+def load_config(config_file):
+    split = lambda args: csv.reader([args], skipinitialspace=True).next()
+    cfg = SafeConfigParser()
+    cfg.read(config_file)
+    components = dict(cfg.items('Telescope'))
+    telescope = {}
+    for comp_name, comp_type in components.items():
+        telescope[comp_name] = {'class' : comp_type, 'attrs' : {}, 'sensors' : []}
+        sections = [':'.join((comp_type, name, item)) for name in ['*', comp_name]
+                                                      for item in ['attrs', 'sensors']]
+        for section in sections:
+            try:
+                items = cfg.items(section)
+            except NoSectionError:
+                continue
+            if section.endswith('attrs'):
+                attr_items = [(name, eval(value, {})) for name, value in items]
+                telescope[comp_name]['attrs'].update(attr_items)
+            else:
+                sensor_items = [[name] + split(args) for name, args in items]
+                telescope[comp_name]['sensors'].extend(sensor_items)
+    return telescope
+
+
 class FakeConn(object):
     """Connection object for a simulated KAT system."""
     def __init__(self, config_file):
-        split = lambda args: csv.reader([args], skipinitialspace=True).next()
-        cfg = SafeConfigParser()
-        cfg.read(config_file)
-        components = dict(cfg.items('Telescope'))
-        telescope = {}
-        for comp_name, comp_type in components.items():
-            telescope[comp_name] = {'class' : comp_type, 'attrs' : {}, 'sensors' : []}
-            sections = [':'.join((comp_type, name, item)) for name in ['*', comp_name]
-                                                          for item in ['attrs', 'sensors']]
-            for section in sections:
-                try:
-                    items = cfg.items(section)
-                except NoSectionError:
-                    continue
-                if section.endswith('attrs'):
-                    attr_items = [(name, eval(value, {})) for name, value in items]
-                    telescope[comp_name]['attrs'].update(attr_items)
-                else:
-                    sensor_items = [[name] + split(args) for name, args in items]
-                    telescope[comp_name]['sensors'].extend(sensor_items)
-
-        self.telescope = telescope
+        self.telescope = load_config(config_file)
         self.sensors = IgnoreUnknownMethods()
         for comp_name in telescope:
             component = telescope[comp_name]
