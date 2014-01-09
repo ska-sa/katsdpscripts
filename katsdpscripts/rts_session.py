@@ -134,7 +134,7 @@ class ObsParams(dict):
 
     def __setitem__(self, key, value):
         # XXX Changing data product name -> ID in a hard-coded fashion
-        self.data.req.cam2spead_set_obs_param('rts_' + self.product, key, repr(value))
+        self.data.req.set_obs_param(self.product, key, repr(value))
         dict.__setitem__(self, key, value)
 
 
@@ -467,7 +467,7 @@ class CaptureSession(CaptureSessionBase):
         """
         if label:
             # XXX Changing data product name -> ID in a hard-coded fashion
-            self.data.req.cam2spead_set_obs_label('rts_' + self.product, label)
+            self.data.req.set_obs_label(self.product, label)
             user_logger.info("New compound scan: '%s'" % (label,))
 
     def on_target(self, target):
