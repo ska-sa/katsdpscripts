@@ -102,8 +102,6 @@ with verify_and_connect(opts) as kat:
             targets_observed = []
             # Keep going until the time is up
             keep_going = True
-            kat.ants.req.sensor_sampling("lock","event")
-            kat.ants.req.sensor_sampling("scan.status","event")
             session.ants.set_sensor_strategies("lock", "event")
             session.ants.set_sensor_strategies("scan.status", "event")
             skip_file.write("# Record of targets observed on %s by %s\n" % (datetime.datetime.now(), opts.observer))
