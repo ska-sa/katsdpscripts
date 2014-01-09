@@ -1,5 +1,3 @@
-import time
-import threading
 import types
 from ConfigParser import SafeConfigParser, NoSectionError
 import weakref
@@ -12,6 +10,8 @@ from katpoint import (Antenna, Target, Catalogue, rad2deg, deg2rad, wrap_angle,
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
 from katcorelib import build_client
+
+from .update import PeriodicUpdateThread
 
 __version__ = 'dev'
 
@@ -234,24 +234,36 @@ def load_config(config_file):
 
 class FakeConn(object):
     """Connection object for a simulated KAT system."""
-    def __init__(self, config_file):
-        self.telescope = load_config(config_file)
+    def __init__(self, config_file, dry_run=False, start_time=None):
+        self._telescope = load_config(config_file)
         self.sensors = IgnoreUnknownMethods()
-        for comp_name in telescope:
-            component = telescope[comp_name]
+        self.dry_run = dry_run
+        self._timestamp = katpoint.Timestamp(start_time).secs
+        for comp_name, component in self._telescope.items():
             model = globals().get(component['class'] + 'Model')
-            client = FakeClient(comp_name, model, telescope)
+            client = FakeClient(comp_name, model, self._telescope, self)
             setattr(self, comp_name, client)
             for sensor_args in component['sensors']:
                 sensor_name = sensor_args[0]
                 sensor = getattr(client.sensor, sensor_name)
                 setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
+        self.update = PeriodicUpdateThread(self._telescope.values(),
+                                           dry_run, start_time, period=0.1)
+        self.update.start()
 
+    def time(self):
+        """Current time in UTC seconds since Unix epoch."""
+        return self.update.clock.time()
+
+    def sleep(self, seconds):
+        """Sleep for the requested duration in seconds."""
+        self.update.dorm.sleep(seconds)
+
+        
         # self.system = system
         # self.sb_id_code = sb_id_code
         # self.connected_objects = {}
         # self.controlled_objects = []
-        # self.dry_run = dry_run
         # self.sources = katpoint.Catalogue()
         # self.attributes = attributes if attributes is not None else {}
         # self.server = FakeCamEventServer(self.attributes, opts.sensor_list,
