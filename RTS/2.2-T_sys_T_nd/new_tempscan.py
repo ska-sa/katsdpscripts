@@ -33,12 +33,22 @@ parser.add_option('-z', '--skip-catalogue',
 parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
                        'spaced 0.5 degrees apart with 2 Hz dump rate.')
+
+parser.add_option('--project-id',
+                    help='Project ID code the observation (**required**) This is a required option')
+
+parser.add_option('--no-delays', action="store_true", default=False,
+                    help='Do not use delay tracking, and zero delays')
+
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()
 if opts.quick:
     opts.dump_rate = 2.0
 diode = 'coupler'
+if not hasattr(opts, 'project_id') or opts.project_id is None:
+    raise ValueError('Please specify the Project id code via the --project_id option '
+                     '(yes, this is a non-optional option...)')
 
 with verify_and_connect(opts) as kat:
     if len(args) > 0:
@@ -67,7 +77,20 @@ with verify_and_connect(opts) as kat:
         skip_file = file(opts.skip_catalogue, "a") \
                     if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
-            
+            if not opts.no_delays and not kat.dry_run :
+                if session.dbe.req.auto_delay('on'):
+                    user_logger.info("Turning on delay tracking.")
+                else:
+                    user_logger.error('Unable to turn on delay tracking.')
+            elif opts.no_delays and not kat.dry_run:
+                if session.dbe.req.auto_delay('off'):
+                    user_logger.info("Turning off delay tracking.")
+                else:
+                    user_logger.error('Unable to turn off delay tracking.')
+                if session.dbe.req.zero_delay():
+                    user_logger.info("Zeroed the delay values.")
+                else:
+                    user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
             session.nd_params =  {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
@@ -78,7 +101,7 @@ with verify_and_connect(opts) as kat:
             skip_file.write("# Record of targets observed on %s by %s\n" % (datetime.datetime.now(), opts.observer))
             def  rscan(target):
                 session.label('raster')
-                if not opts.quick
+                if not opts.quick:
                     session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                         scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                         projection=opts.projection)
