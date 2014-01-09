@@ -51,6 +51,9 @@ if not hasattr(opts, 'project_id') or opts.project_id is None:
     raise ValueError('Please specify the Project id code via the --project_id option '
                      '(yes, this is a non-optional option...)')
 
+
+
+
 with verify_and_connect(opts) as kat:
     if len(args) > 0:
         # Load pointing calibrator catalogues and command line targets
@@ -100,14 +103,74 @@ with verify_and_connect(opts) as kat:
             # Keep going until the time is up
             keep_going = True
             skip_file.write("# Record of targets observed on %s by %s\n" % (datetime.datetime.now(), opts.observer))
+            def  scan(target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
+                      projection=opts.projection, drive_strategy='shortest-slew', announce=True):
+                # Convert description string to target object, or keep object as is
+                target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+                scan_name = 'scan' if index < 0 else 'scan %d' % (index,)
+
+                if announce:
+                    user_logger.info("Initiating %g-second scan across target '%s'" % (duration, target.name))
+                if not session.target_visible(target, duration):
+                    user_logger.warning("Skipping scan, as target '%s' will be below horizon" % (target.name,))
+                    return False
+
+                # Set the drive strategy for how antenna moves between targets, and the target
+                session.ants.req.drive_strategy(drive_strategy)
+                session.set_target(target)
+
+                user_logger.info('slewing to start of %s' % (scan_name,))
+                # Move each antenna to the start position of the scan
+                session.ants.req.scan_asym(start[0], start[1], end[0], end[1], duration, projection)
+                session.ants.req.mode('POINT')
+                # Wait until they are all in position (with 5 minute timeout)
+                session.ants.wait('lock', True, 300)
+                user_logger.info('start of %s reached' % (scan_name,))
+
+                user_logger.info('performing %s' % (scan_name,))
+                # Start scanning the antennas
+                session.ants.req.mode('SCAN')
+                # Wait until they are all finished scanning (with 5 minute timeout)
+                session.ants.wait('scan_status', 'after', 300)
+                user_logger.info('%s complete' % (scan_name,))
+                return True
+
+            def raster_scan( target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
+                scan_in_azimuth=True, projection=opts.projection, drive_strategy='shortest-slew', announce=True):
+                # Convert description string to target object, or keep object as is
+                target = target if isinstance(target, katpoint.Target) else katpoint.Target(target)
+                
+                if announce:
+                    user_logger.info("Initiating raster scan (%d %g-second scans extending %g degrees) on target '%s'"%(num_scans, scan_duration, scan_extent, target.name))
+                # Check whether the target will be visible for entire duration of raster scan
+                if not session.target_visible(target, (scan_duration) * num_scans):
+                    user_logger.warning("Skipping raster scan, as target '%s' will be below horizon" % (target.name,))
+                    return False
+                
+                # Create start and end positions of each scan, based on scan parameters
+                scan_levels = np.arange(-(num_scans // 2), num_scans // 2 + 1)
+                scanning_coord = (scan_extent / 2.0) * (-1) ** scan_levels
+                stepping_coord = scan_spacing * scan_levels
+                # Flip sign of elevation offsets to ensure that the first scan always starts at the top left of target
+                scan_starts = zip(scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, -scanning_coord)
+                scan_ends = zip(-scanning_coord, -stepping_coord) if scan_in_azimuth else zip(stepping_coord, scanning_coord)
+                
+                # Perform multiple scans across the target
+                for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
+                    scan(target, duration=scan_duration, start=start, end=end, index=scan_index,
+                                 projection=projection, drive_strategy=drive_strategy, announce=False)
+                return True
+
+                
+                
             def  rscan(target):
                 session.label('raster')
                 if not opts.quick:
-                    session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
+                    raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                         scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                         projection=opts.projection)
                 else:
-                    session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                    raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                         scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                         projection=opts.projection)
 
