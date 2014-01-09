@@ -7,20 +7,13 @@ import csv
 
 import numpy as np
 
-from katpoint import (Antenna, Target, Catalogue, rad2deg, deg2rad,
+from katpoint import (Antenna, Target, Catalogue, rad2deg, deg2rad, wrap_angle,
                       construct_azel_target)
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
 from katcorelib import build_client
 
-
-def angle_wrap(angle, period=2.0 * np.pi):
-    """Wrap angle into interval centred on zero.
-
-    This wraps the *angle* into the interval -*period* / 2 ... *period* / 2.
-
-    """
-    return (angle + 0.5 * period) % period - 0.5 * period
+__version__ = 'dev'
 
 
 class FakeSensor(object):
@@ -168,9 +161,9 @@ class AntennaPositionerModel(object):
         max_delta_el = self.max_elev_slew_degpersec * elapsed_time
         az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
         requested_az, requested_el = self._target.azel(timestamp)
-        requested_az = rad2deg(angle_wrap(requested_az))
+        requested_az = rad2deg(wrap_angle(requested_az))
         requested_el = rad2deg(requested_el)
-        delta_az = angle_wrap(requested_az - az, period=360.)
+        delta_az = wrap_angle(requested_az - az, period=360.)
         delta_el = requested_el - el
         az += np.clip(delta_az, -max_delta_az, max_delta_az)
         el += np.clip(delta_el, -max_delta_el, max_delta_el)
