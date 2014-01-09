@@ -799,12 +799,9 @@ class CaptureSession(CaptureSessionBase):
              index=-1, projection=default_proj, announce=True):
         """Scan across a target.
 
-        This scans across a target with all antennas involved in the session,
-        either in azimuth or elevation (depending on the *scan_in_azimuth* flag).
+        This scans across a target with all antennas involved in the session.
         The scan starts at an offset of *start* degrees from the target and ends
-        at an offset of *end* degrees along the scanning coordinate, while
-        remaining at an offset of *offset* degrees from the target along the
-        non-scanning coordinate. These offsets are calculated in a projected
+        at an offset of *end* degrees. These offsets are calculated in a projected
         coordinate system (see *Notes* below). The scan lasts for *duration*
         seconds.
 
@@ -978,8 +975,8 @@ class CaptureSession(CaptureSessionBase):
 
         # Perform multiple scans across the target
         for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
-            session.scan(target, duration=scan_duration, start=start, end=end, index=scan_index,
-                         projection=projection, drive_strategy=drive_strategy, announce=False)
+            session.scan(target, duration=scan_duration, start=start, end=end,
+                         index=scan_index, projection=projection, announce=False)
         return True
 
     def end(self, interrupted=False):
@@ -1287,7 +1284,7 @@ class TimeSession(CaptureSessionBase):
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
 
-    def track(self, target, duration=20.0, drive_strategy='shortest-slew', announce=True):
+    def track(self, target, duration=20.0, announce=True):
         """Estimate time taken to perform track."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1310,8 +1307,8 @@ class TimeSession(CaptureSessionBase):
         self._teleport_to(target)
         return True
 
-    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
-             projection=default_proj, drive_strategy='shortest-slew', announce=True):
+    def scan(self, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0),
+             index=-1, projection=default_proj, announce=True):
         """Estimate time taken to perform single linear scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
@@ -1339,7 +1336,7 @@ class TimeSession(CaptureSessionBase):
         return True
 
     def raster_scan(self, target, num_scans=3, scan_duration=30.0, scan_extent=6.0, scan_spacing=0.5,
-                    scan_in_azimuth=True, projection=default_proj, drive_strategy='shortest-slew', announce=True):
+                    scan_in_azimuth=True, projection=default_proj, announce=True):
         """Estimate time taken to perform raster scan."""
         if not self._fake_ants:
             raise ValueError('No antennas specified for session - please run session.standard_setup first')
