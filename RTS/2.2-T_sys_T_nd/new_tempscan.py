@@ -102,8 +102,8 @@ with verify_and_connect(opts) as kat:
             targets_observed = []
             # Keep going until the time is up
             keep_going = True
-            session.ants.set_sensor_strategies("lock", "event")
-            session.ants.set_sensor_strategies("scan.status", "event")
+#session.ants.set_sensor_strategies("lock", "event")
+#session.ants.set_sensor_strategies("scan.status", "event")
             skip_file.write("# Record of targets observed on %s by %s\n" % (datetime.datetime.now(), opts.observer))
             def  scan(target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0), index=-1,
                       projection=opts.projection, drive_strategy='shortest-slew', announce=True):
@@ -168,11 +168,21 @@ with verify_and_connect(opts) as kat:
             def  rscan(target):
                 session.label('raster')
                 if not opts.quick:
-                    raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
+                    if kat.dry_run:
+                        session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
+                                scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
+                                projection=opts.projection)
+                    else:
+                        raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                         scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                         projection=opts.projection)
                 else:
-                    raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                    if kat.dry_run:
+                        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                                        scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
+                                        projection=opts.projection)
+                    else:
+                        raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                         scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                         projection=opts.projection)
 
