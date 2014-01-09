@@ -210,6 +210,8 @@ with verify_and_connect(opts) as kat:
                 if keep_going and len(targets_observed) == targets_before_loop:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                     keep_going = False
+            session.ants.req.rfe3_rfe15_noise_source_on(diode, 0, time.time()+2.0, 0)
+            time.sleep(2)
             user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
 
         skip_file.close()
