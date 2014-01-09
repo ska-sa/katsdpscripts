@@ -86,7 +86,7 @@ class FakeCamEventServer(DeviceServer):
 
 class FakeClient(object):
     """Fake KATCP client."""
-    def __init__(self, name, model, telescope):
+    def __init__(self, name, model, telescope, clock=None):
         self.name = name
         self.model = object.__new__(model)
         self.req = IgnoreUnknownMethods()
@@ -96,17 +96,18 @@ class FakeClient(object):
         for sensor_args in sensors:
             sensor = FakeSensor(*sensor_args)
             setattr(self.sensor, sensor.name, sensor)
-        self._register_sensors()
+        self._register_sensors(clock if clock is not None else time)
         self._register_requests()
         self.model.__init__(**attrs)
 
-    def _register_sensors(self):
+    def _register_sensors(self, clock):
         self.model._client = weakref.proxy(self)
+        self.model._clock = weakref.proxy(clock)
         def set_sensor_attr(model, attr_name, value):
             if hasattr(model, '_client'):
                 sensor = getattr(model._client.sensor, attr_name, None)
                 if sensor:
-                    sensor.set_value(value, model._time.time())
+                    sensor.set_value(value, model._clock.time())
             object.__setattr__(model, attr_name, value)
         # Modify __setattr__ on the *class* and not the instance
         # (see e.g. http://stackoverflow.com/questions/13408372)
@@ -130,8 +131,6 @@ class FakeClient(object):
 class AntennaPositionerModel(object):
     def __init__(self, description, max_azim_slew_degpersec, max_elev_slew_degpersec,
                  inner_threshold_deg, **kwargs):
-        # Set this first as sensor updates (whenever attributes are assigned) need it
-        self._time = time
         self.ant = Antenna(description)
         self.req_target('Zenith, azel, 0, 90')
         self.mode = 'POINT'
@@ -175,12 +174,10 @@ class AntennaPositionerModel(object):
         error = rad2deg(self._target.separation(dish, timestamp))
         self.lock = error < self.lock_threshold
         print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
-        self.last_update = timestamp
 
 
 class CorrelatorBeamformerModel(object):
     def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp, **kwargs):
-        self._time = time
         self.dbe_mode = 'c8n856M32k'
         self.req_target('Zenith, azel, 0, 90')
         self.auto_delay = True
@@ -193,7 +190,6 @@ class CorrelatorBeamformerModel(object):
 
 class EnviroModel(object):
     def __init__(self, **kwargs):
-        self._time = time
         self.air_pressure = 1020
         self.air_relative_humidity = 60.0
         self.air_temperature = 25.0
@@ -203,13 +199,11 @@ class EnviroModel(object):
 
 class DigitiserModel(object):
     def __init__(self, **kwargs):
-        self._time = time
         self.overflow = False
 
 
 class ObservationModel(object):
     def __init__(self, **kwargs):
-        self._time = time
         self.label = ''
         self.params = ''
 
