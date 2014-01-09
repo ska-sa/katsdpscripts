@@ -117,7 +117,7 @@ with verify_and_connect(opts) as kat:
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
                     if not np.isnan(target.flux_density(opts.centre_freq)): # check flux model
                         session.ants.req.rfe3_rfe15_noise_source_on(diode, 1, time.time()+2.0, 0)
-                        time.time.sleep(2)
+                        time.sleep(2)
                         rscan(target)
                         session.ants.req.rfe3_rfe15_noise_source_on(diode, 0, time.time()+2.0, 0)
                         time.sleep(2)
