@@ -8,6 +8,7 @@ from __future__ import with_statement
 import os.path
 from cStringIO import StringIO
 import datetime
+import numpy as np
 import time
 
 from katcorelib import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
