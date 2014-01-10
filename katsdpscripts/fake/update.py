@@ -66,6 +66,10 @@ class Dormitory(object):
                 bed.seconds_left -= seconds
                 if bed.seconds_left <= 0.0:
                     bed.wake_up()
+            beds = ' '.join('(0x%x, %d, %f)' %
+                            (id(bed.awake), bed.awake.isSet(), bed.seconds_left)
+                            for bed in self.beds)
+            logger.debug('Beds: ' + beds)
             # Make the beds
             self.beds = [bed for bed in self.beds if not bed.awake.isSet()]
 
