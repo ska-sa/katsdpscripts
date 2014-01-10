@@ -4,7 +4,7 @@
 # The script expects to find the following files in a specified directory
 # 'K7H_1200.txt', 'K7V_1200.txt', 'K7H_1600.txt', 'K7V_1600.txt', 'K7H_2000.txt', 'K7V_2000.txt'
 # If the filenames or frequencies change, please modify the function interp_spillover accordingly
-# Note also that this version takes into account of the Tsky by reading a sky model from  my /usr/local/aips/FITS/TBGAL_CONVL.FITS
+# Note also that this version takes into account of the Tsky by reading a sky model from  my TBGAL_CONVL.FITS
 # You also need pyfits. The TBGAL_CONVL is a map at 1.4GHz convolved with 1deg resolution
 # To run type the following: %run fit_tipping_curve_nad.py -a 'A7A7' -t  /Users/nadeem/Dev/svnScience/KAT-7/comm/scripts/K7_tip_predictions
 # /mrt2/KAT/DATA/Tipping/Ant7/1300572919.h5
@@ -73,9 +73,9 @@ class Sky_temp:
 
     def plot_sky(self,ra=None,dec=None,figure_no=None):
         """ plot_sky plots the sky tempreture and overlays pointing centers as red dots
-        The sky tempreture is the data that was loaded when the class was iniitated. 
+        The sky tempreture is the data that was loaded when the class was iniitated.
         plot_sky takes in 3 optional parameters:
-                ra,dec  are list/1D-array like values of right assension and declanation 
+                ra,dec  are list/1D-array like values of right assension and declanation
                 figure_no is the figure number, None just makes a new figure.
         returns matplotlib figure object that the plot is assosated with.
         """
@@ -85,9 +85,9 @@ class Sky_temp:
             fig =plt.figure(figure_no)
             fig.clf()
         if not ra is None and not dec is None :
-            if len(dec) == len(ra) : 
+            if len(dec) == len(ra) :
                 plt.plot(ra,dec,'ro')
-        else: 
+        else:
             raise RuntimeError('Number of Declanation values (%s) is not equal to the number of Right assension values (%s) in plot_sky'%(len(dec),len(ra)))
         plt.xlabel("RA(J2000) [degrees]")
         plt.ylabel("Dec(J2000) [degrees]")
@@ -101,17 +101,17 @@ class Spill_Temp:
         produces fitted functions for a frequency
         The class/__init__function takes in one parameter:
         path : (default='') This is the path to the directory containing
-               spillover models that have names  
+               spillover models that have names
                kat7H_spill.txt,kat7V_spill.txt
                these files have 3 cols:
                 theta(Degrees, 0 at Zenith),tempreture (MHz),Frequency (MHz)
                if there are no files zero spilover is assumed.
         returns :
-               dict  spill with two elements 'HH' 'VV' that 
-               are intepolation functions that take in elevation & Frequency(MHz) 
+               dict  spill with two elements 'HH' 'VV' that
+               are intepolation functions that take in elevation & Frequency(MHz)
                and return tempreture in Kelven.
         """
-#TODO Need to sort out better frequency interpolation & example        
+#TODO Need to sort out better frequency interpolation & example
         try:
             spillover_H_file = os.path.join(path, 'kat7H_spill.txt')
             spillover_V_file = os.path.join(path, 'kat7V_spill.txt')
@@ -249,10 +249,10 @@ def plot_data(Tsys,fit_HH,fit_VV):
     ax1 = fig.add_axes(rect1)
     plt.plot(Tsys.elevation, Tsys.Tsys['HH'], marker='o', color='b', label='HH measured', linewidth=0)
     plt.errorbar(Tsys.elevation, Tsys.Tsys['HH'], Tsys.sigma_Tsys['HH'], ecolor='b', color='b', capsize=6, linewidth=0)
-    plt.plot(Tsys.elevation, fit_HH['fit'], color='b' , label="HH $T_{rec}$ = %.2f K, $T_0$ = %.5f \n HH-$X^{2}$= %.3f" % (fit_HH['params'][0], fit_HH['params'][1], fit_HH['chisq']))
+    plt.plot(Tsys.elevation, fit_HH['fit'], color='b' , label="HH" )
     plt.plot(Tsys.elevation, Tsys.Tsys['VV'], marker='^', color='r', label='VV measured', linewidth=0)
     plt.errorbar(Tsys.elevation, Tsys.Tsys['VV'],  Tsys.sigma_Tsys['VV'], ecolor='r', color='r', capsize=6, linewidth=0)
-    plt.plot(Tsys.elevation, fit_VV['fit'], color='r', label="VV $T_{rec}$ = %.2f K, $T_0$ = %.5f \n VV-$X^{2}$= %.3f" %  (fit_VV['params'][0], fit_VV['params'][1], fit_VV['chisq']))
+    plt.plot(Tsys.elevation, fit_VV['fit'], color='r', label="VV" )
     plt.legend()
     plt.title('Tipping curve for antenna %s using data file: %s' % (Tsys.name,Tsys.filename))
     plt.xlabel('Elevation (degrees)')
@@ -275,7 +275,10 @@ def plot_data(Tsys,fit_HH,fit_VV):
     plt.setp(baseline, 'color','r', 'linewidth', 2)
     plt.legend(("","VV"))
     plt.grid()
-    return fig
+    text = []
+    text.append("HH $T_{rec}$ = %.2f K, $T_0$ = %.5f \n HH-$X^{2}$= %.3f" % (fit_HH['params'][0], fit_HH['params'][1], fit_HH['chisq']))
+    text.append("VV $T_{rec}$ = %.2f K, $T_0$ = %.5f \n VV-$X^{2}$= %.3f" % (fit_VV['params'][0], fit_VV['params'][1], fit_VV['chisq']))
+    return fig,text
     
 
 
@@ -318,10 +321,10 @@ for ant in h5.ants:
     nice_filename =  args[0]+ '_' +d.antenna.name+'_tipping_curve'
     pp = PdfPages(nice_filename+'.pdf')
     T_SysTemp.sky_fig.savefig(pp,format='pdf')
-    fig = plot_data(T_SysTemp,fit_H,fit_V)
+    fig,text = plot_data(T_SysTemp,fit_H,fit_V)
     fig.savefig(pp,format='pdf')    
     fig = plt.figure(None,figsize = (10,16))
-    plt.figtext(0.1,0.1,'\n'.join(fit_H['text']+fit_V['text']),fontsize=10)
+    plt.figtext(0.1,0.1,'\n'.join(text+fit_H['text']+fit_V['text']),fontsize=10)
     fig.savefig(pp,format='pdf')    
     plt.close('all')
     pp.close()
