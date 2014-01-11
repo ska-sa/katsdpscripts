@@ -131,7 +131,7 @@ parser.add_option("-f",'--freq', default='1650',
                   help="Comma delimatated list of frequencys in MHz to calculate maps for, default %default)")
 parser.add_option("--in",
                   help="Name of directory containing spillover models")
-parser.add_option( "--emss-pattern", default='Dish_1600.pat',
+parser.add_option( "--emss-pattern", default='Dish_2000.pat',
                   help="Name of map of sky tempreture in fits format', default = '%default'")
 
 (opts, args) = parser.parse_args()
@@ -145,6 +145,9 @@ interactive = True
 dataset=katholog.Dataset(args[0],'kat7')
 if interactive: dataset.flagplot()#TODO add automated rfi flagging 
 plt.show()
+
+
+
 
 for freq in np.array(opts.freq.split(',')).astype(float).tolist():
 
@@ -169,7 +172,7 @@ for freq in np.array(opts.freq.split(',')).astype(float).tolist():
     emsspower=np.abs(emssbeam.Gx)**2+np.abs(emssbeam.Gy)**2+np.abs(emssbeam.Dx)**2+np.abs(emssbeam.Dy)**2
     emsspower/=np.max(emsspower)
 
-    aperturemap=katholog.ApertureMap(dataset)
+    aperturemap=katholog.ApertureMap(dataset,freqMHz=freq)
 
     text = []
 
