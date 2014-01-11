@@ -226,15 +226,15 @@ def fit_tipping(T_sys,SpillOver,pol,freqs):
     tip = scape.fitting.NonLinearLeastSquaresFit(func, [70, 0.005])
     tip.fit(T_sys.elevation, T_sys.Tsys[pol])
     returntext.append('Fit results for %s polarisation:' % (pol,))
-    returntext.append('T_ant %s = %.2f K' % (pol,tip.params[0],))
-    returntext.append('Zenith opacity tau_0 %s= %.5f' % (pol,tip.params[1],))
+    returntext.append('$T_{ant}$ %s = %.2f K' % (pol,tip.params[0],))
+    returntext.append('Zenith opacity $tau_{0}$ %s= %.5f' % (pol,tip.params[1],))
     # Calculate atmospheric noise contribution at 10 degrees elevation for comparison with requirements
     T_atm_10 = T_atm * (1 - np.exp(-tip.params[1] / np.sin(deg2rad(10))))
     fit_func = []
     returntext.append('Atmospheric noise contribution at 10 degrees %s is: %.2f K' % (pol,T_atm_10,))
     for el in T_sys.elevation: fit_func.append(func(tip.params,el))
     chisq =chisq_pear(fit_func,T_sys.Tsys[pol])
-    returntext.append('Chi square for %s is: %6f ' % (pol,chisq,))
+    returntext.append('$\chi^2$ for %s is: %6f ' % (pol,chisq,))
     return {'params': tip.params,'fit':fit_func,'scatter': (T_sys.Tsys[pol]-fit_func),'chisq':chisq,'text':returntext}
 
 def plot_data(Tsys,fit_HH,fit_VV):
@@ -247,18 +247,18 @@ def plot_data(Tsys,fit_HH,fit_VV):
     rect2 = [left, 0.27, width, 0.15]
     rect3 = [left, 0.1, width, 0.15]
     ax1 = fig.add_axes(rect1)
-    plt.plot(Tsys.elevation, Tsys.Tsys['HH'], marker='o', color='b', label='HH measured', linewidth=0)
+    plt.plot(Tsys.elevation, Tsys.Tsys['HH'], marker='o', color='b', label='HH', linewidth=0)
     plt.errorbar(Tsys.elevation, Tsys.Tsys['HH'], Tsys.sigma_Tsys['HH'], ecolor='b', color='b', capsize=6, linewidth=0)
-    plt.plot(Tsys.elevation, fit_HH['fit'], color='b' , label="HH" )
-    plt.plot(Tsys.elevation, Tsys.Tsys['VV'], marker='^', color='r', label='VV measured', linewidth=0)
+    plt.plot(Tsys.elevation, fit_HH['fit'], color='b'  )
+    plt.plot(Tsys.elevation, Tsys.Tsys['VV'], marker='^', color='r', label='VV', linewidth=0)
     plt.errorbar(Tsys.elevation, Tsys.Tsys['VV'],  Tsys.sigma_Tsys['VV'], ecolor='r', color='r', capsize=6, linewidth=0)
-    plt.plot(Tsys.elevation, fit_VV['fit'], color='r', label="VV" )
+    plt.plot(Tsys.elevation, fit_VV['fit'], color='r')
     plt.legend()
     plt.title('Tipping curve for antenna %s using data file: %s' % (Tsys.name,Tsys.filename))
     plt.xlabel('Elevation (degrees)')
     plt.grid()
     if Tsys.units == 'K':
-        plt.ylabel('Tsys (K)')
+        plt.ylabel('$T_{sys} $(K)')
     else:
         plt.ylabel('Raw power (counts)')
         plt.legend()
@@ -276,8 +276,8 @@ def plot_data(Tsys,fit_HH,fit_VV):
     plt.legend(("","VV"))
     plt.grid()
     text = []
-    text.append("HH $T_{rec}$ = %.2f K, $T_0$ = %.5f \n HH-$X^{2}$= %.3f" % (fit_HH['params'][0], fit_HH['params'][1], fit_HH['chisq']))
-    text.append("VV $T_{rec}$ = %.2f K, $T_0$ = %.5f \n VV-$X^{2}$= %.3f" % (fit_VV['params'][0], fit_VV['params'][1], fit_VV['chisq']))
+    text.append("HH $T_{rec}$ = %.2f K, $T_0$ = %.5f \n HH-$\chi^{2}$= %.3f" % (fit_HH['params'][0], fit_HH['params'][1], fit_HH['chisq']))
+    text.append("VV $T_{rec}$ = %.2f K, $T_0$ = %.5f \n VV-$\chi^{2}$= %.3f" % (fit_VV['params'][0], fit_VV['params'][1], fit_VV['chisq']))
     return fig,text
     
 
