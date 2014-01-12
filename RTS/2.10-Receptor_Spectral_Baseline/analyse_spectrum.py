@@ -37,10 +37,6 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     """
 
     data = katdal.open(file)
-
-    #First only select tracks
-    data.select(reset='', scans='track')
-
     #Make selection from dictionary
     select_data={}
     #Antenna
@@ -51,6 +47,11 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     select_data['ants'] = (ant1,ant2)
     if ant1 != ant2: select_data['corrprods']='cross'
 
+    #Target
+    if target == None:
+        target = data.catalogue.targets[0]
+    select_data['targets']=target
+
     #Polarisation
     if polarisation is 'I':
         #Need HH and VV for I, can get this from corrprods
@@ -58,10 +59,8 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     else:
         select_data['pol']=polarisation
 
-    #Target
-    if target == None:
-        target = data.catalogue.targets[data.target_indices[0]]
-    select_data['targets']=target
+    #Only tracks- no slews
+    select_data['scans']='track'
 
     # Secect desired channel range
     # Select frequency channels and setup defaults if not specified
@@ -77,7 +76,6 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     select_data['channels']=chan_range
 
     data.select(strict=False, reset='', **select_data)
-
     #return the selected data
 
     return data, ant1 + ant2, polarisation
@@ -164,15 +162,14 @@ def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
     long_scan = -1
     for scan,state,target in data.scans():
         scan_length = data.timestamps.shape[0]
-        if scan_length > 5:
-            if short_scan > -1: short_scan = min((scan_length,short_scan))
-            else: short_scan = scan_length
+        if short_scan > -1: short_scan = min((scan_length,short_scan))
+        else: short_scan = scan_length
         long_scan = max((long_scan,scan_length))
     #Get the number of dumps to average
     if timeav:
         dumpav = max(1,int(np.round(timeav*60.0 / data.dump_period)))
         if dumpav > long_scan:
-            dumpav = int(short_scan/2)
+            dumpav = short_scan
             print "Time averaging interval of %4.1fmin is longer than the longest scan. Scaling back to %4.1fmin to include all scans."%(timeav,dumpav*(data.dump_period/60.0))
             timeav = dumpav*(data.dump_period/60.0)
     else:
@@ -312,7 +309,7 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
 
 
-def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav):
+def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav,fileprefix='filename'):
 
     #Frerquency in MHz
     freqdata=freqdata/1e6
@@ -363,8 +360,8 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     #Overlay rfi
     plot_RFI_mask(ax1,flag_freqs,channel_width)
     plot_RFI_mask(ax2,flag_freqs,channel_width)
-    plt.xlim((min(freqdata),max(freqdata)))
-    fig.savefig('SpecBase_'+baseline+'_'+pol+'.pdf')
+    plt.xlim((end_freq,start_freq))
+    fig.savefig(fileprefix+'_SpecBase_'+baseline+'_'+pol+'.pdf')
 
 
 
@@ -397,5 +394,5 @@ elif correct=='spline':
 #get weighted standard deviation of corrected visdata
 corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
 
-
-plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav)
+fileprefix = args[0].split('/')[-1]
+plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav,fileprefix)
