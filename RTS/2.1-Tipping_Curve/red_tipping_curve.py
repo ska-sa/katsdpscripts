@@ -318,7 +318,7 @@ for ant in h5.ants:
     print ('Chi square for HH is: %6f ' % (fit_H['chisq'],))
     print ('Chi square for VV is: %6f ' % (fit_V['chisq'],))
 
-    nice_filename =  args[0]+ '_' +d.antenna.name+'_tipping_curve'
+    nice_filename =  args[0].split('/')[-1]+ '_' +d.antenna.name+'_tipping_curve'
     pp = PdfPages(nice_filename+'.pdf')
     T_SysTemp.sky_fig.savefig(pp,format='pdf')
     fig,text = plot_data(T_SysTemp,fit_H,fit_V)

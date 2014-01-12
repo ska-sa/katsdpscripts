@@ -137,8 +137,7 @@ for ant in h5.ants:
     #Apply noise diode calibration
     d_cal.convert_power_to_temperature(min_samples=opts.min_nd, time_width=opts.time_width)
     d_cal.average()
-
-    nice_filename =  args[0]+ '_' +d.antenna.name+'_gain_stability'
+    nice_filename =  args[0].split('/')[-1]+ '_' +d.antenna.name+'_gain_stability'
     pp = PdfPages(nice_filename+'.pdf')
     fig = plot_figures(d_uncal, d_cal, time, gain_hh, 'HH')
     fig.savefig(pp,format='pdf') 

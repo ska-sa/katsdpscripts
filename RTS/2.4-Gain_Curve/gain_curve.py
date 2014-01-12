@@ -150,20 +150,25 @@ def determine_good_data(data, targets=None, tsys=None, tsys_lim=150, eff=None, e
     """
     #Initialise boolean array of True for defaults
     good = [True] * data.shape[0]
+    print "1",np.sum(good)
     #Check for wanted targets
     if targets is not None:
         good = good & np.array([test_targ in targets for test_targ in data['target']])
+    print "2",np.sum(good)
     #Check for wanted tsys
     if tsys is not None and not interferometric:
         good = good & (tsys < tsys_lim)
+    print "3",np.sum(good)
     #Check for wanted eff
     if eff is not None and not interferometric:
         good = good & ((eff>eff_lim[0]) & (eff<eff_lim[1]))
+    print "4",np.sum(good)
     #Check for nans
     good = good & ~(np.isnan(data['calc_beam_height'])) & ~(np.isnan(data['calc_baseline_height']))
+    print "5",np.sum(good)
     #Check for units
     good = good & (data['data_unit'] == units)
-
+    print "6",np.sum(good)
     return good
 
 def fit_atmospheric_absorption(gain, elevation):
