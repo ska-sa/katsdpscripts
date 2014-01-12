@@ -309,7 +309,7 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
 
 
-def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav):
+def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav,fileprefix='filename'):
 
     #Frerquency in MHz
     freqdata=freqdata/1e6
@@ -361,7 +361,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     plot_RFI_mask(ax1,flag_freqs,channel_width)
     plot_RFI_mask(ax2,flag_freqs,channel_width)
     plt.xlim((end_freq,start_freq))
-    fig.savefig('SpecBase_'+baseline+'_'+pol+'.pdf')
+    fig.savefig(fileprefix+'_SpecBase_'+baseline+'_'+pol+'.pdf')
 
 
 
@@ -394,5 +394,5 @@ elif correct=='spline':
 #get weighted standard deviation of corrected visdata
 corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
 
-
-plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav)
+fileprefix = args[0].split('/')[-1]
+plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav,fileprefix)
