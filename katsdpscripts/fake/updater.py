@@ -43,7 +43,7 @@ class Bed(object):
         self.awake.set()
 
 
-class PeriodicUpdateThread(threading.Thread):
+class PeriodicUpdaterThread(threading.Thread):
     """Thread which periodically updates a group of components."""
     def __init__(self, components, dry_run=False, start_time=None, period=0.1):
         threading.Thread.__init__(self)

@@ -3,7 +3,7 @@ import threading
 import logging
 import time
 
-from katscripts import update
+from katscripts.updater import PeriodicUpdaterThread
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.DEBUG)
 class TestingUpdate(unittest.TestCase):
     """Run 'nosetests -s --nologcapture' to see output."""
     def setUp(self):
-        self.updater = update.PeriodicUpdateThread([self], dry_run=True,
-                                                   start_time=None, period=0.1)
+        self.updater = PeriodicUpdaterThread([self], dry_run=True,
+                                             start_time=None, period=0.1)
 
     def update(self, timestamp):
         print 'Updated at', timestamp

@@ -11,7 +11,7 @@ from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
 from katcorelib import build_client
 
-from .update import PeriodicUpdateThread
+from .updater import PeriodicUpdaterThread
 
 __version__ = 'dev'
 
@@ -247,17 +247,17 @@ class FakeConn(object):
                 sensor_name = sensor_args[0]
                 sensor = getattr(client.sensor, sensor_name)
                 setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
-        self.update = PeriodicUpdateThread(self._telescope.values(),
-                                           dry_run, start_time, period=0.1)
-        self.update.start()
+        self.updater = PeriodicUpdaterThread(self._telescope.values(),
+                                             dry_run, start_time, period=0.1)
+        self.updater.start()
 
     def time(self):
         """Current time in UTC seconds since Unix epoch."""
-        return self.update.clock.time()
+        return self.updater.time()
 
     def sleep(self, seconds):
         """Sleep for the requested duration in seconds."""
-        self.update.dorm.sleep(seconds)
+        self.updater.sleep(seconds)
 
         
         # self.system = system
