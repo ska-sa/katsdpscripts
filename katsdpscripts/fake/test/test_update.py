@@ -1,6 +1,7 @@
 import unittest
 import threading
 import logging
+import time
 
 from katscripts import update
 
@@ -9,18 +10,20 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class TestingUpdate(unittest.TestCase):
+    """Run 'nosetests -s --nologcapture' to see output."""
     def setUp(self):
-        self.dorm = update.Dormitory()
-        self.sleeper = threading.Thread(target=self.sleep, name='SleeperThread')
+        self.updater = update.PeriodicUpdateThread([self], dry_run=True,
+                                                   start_time=None, period=0.1)
 
-    def sleep(self):
-        print 'Going to bed'
-        self.dorm.check_in(1.0)
-        print 'Woke up'
+    def update(self, timestamp):
+        print 'Updated at', timestamp
 
-    def test_dormitory(self):
-        self.sleeper.start()
-        for n in range(14):
-            print 'Iteration', n + 1
-            self.dorm.run(0.1)
-        self.sleeper.join()
+    def test_warp_and_normal_sleep(self):
+        """Expect to do 0.5 second warp and 1.0 second normal sleep."""
+        self.updater.start()
+        self.updater.sleep(0.5)
+        time.sleep(0.5)
+        self.updater.dry_run = False
+        self.updater.sleep(0.5)
+        self.updater.stop()
+        self.updater.join()
