@@ -60,7 +60,7 @@ class PeriodicUpdaterThread(threading.Thread):
         while self._thread_active:
             timestamp = self.clock.time()
             for component in self.components:
-                component.update(timestamp)
+                component.update(timestamp, self.last_update)
             self.last_update = timestamp
             after_update = self.clock.time()
             update_time = after_update - timestamp

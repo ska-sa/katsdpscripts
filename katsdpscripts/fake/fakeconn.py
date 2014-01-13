@@ -141,7 +141,6 @@ class AntennaPositionerModel(object):
         self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
         self.max_azim_slew_degpersec = max_azim_slew_degpersec
         self.max_elev_slew_degpersec = max_elev_slew_degpersec
-        self.last_update = None
 
     def req_target(self, target):
         self.target = target
@@ -154,8 +153,8 @@ class AntennaPositionerModel(object):
     def req_scan_asym(self):
         pass
 
-    def update(self, timestamp):
-        elapsed_time = timestamp - self.last_update if self.last_update else 0.0
+    def update(self, timestamp, last_update=None):
+        elapsed_time = timestamp - last_update if last_update else 0.0
         max_delta_az = self.max_azim_slew_degpersec * elapsed_time
         max_delta_el = self.max_elev_slew_degpersec * elapsed_time
         az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
