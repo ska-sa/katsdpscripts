@@ -138,10 +138,10 @@ with verify_and_connect(opts) as kat:
                         anglekey += 1
                         if anglekey < len(angle):
                             offset = np.array((np.cos(angle[anglekey]), -np.sin(angle[anglekey]))) * opts.offset * (-1) ** anglekey
-                            offset_targetval = np.degrees(target.astrometric_radec())/np.abs((15,1)) + offset
-                            offsettarget = katpoint.Target('offset,radec, %s , %s'%(offset_targetval[0],offset_targetval[1]))
+                            offset_targetval = (np.degrees(target.astrometric_radec()) + offset/(np.cos(target.astrometric_radec()[1]),1.0))
+                            offsettarget = katpoint.Target('offset,radec, %s , %s'%(offset_targetval[0]/15.,offset_targetval[1])) # the ra is in decimal hours for some reason
                             user_logger.info("Target & offset seperation = %s "%(np.degrees(target.separation(offsettarget))))
-                            session.track(target, duration=0, announce=False,projection=opts.projection)
+                            session.track(target, duration=0, announce=False)
                         else :
                             offsetloop = False
                             
@@ -152,7 +152,10 @@ with verify_and_connect(opts) as kat:
                     if opts.min_time <= 0.0 :
                         keep_going = False
                     # If the time is up, stop immediately
-                    elif time.time() - start_time >= opts.min_time or targets_observed == opts.number_sources:
+                    elif time.time() - start_time >= opts.min_time :
+                        keep_going = False
+                        break
+                    if len(targets_observed) > opts.number_sources -1 :
                         keep_going = False
                         break
                 if keep_going and len(targets_observed) == targets_before_loop:
