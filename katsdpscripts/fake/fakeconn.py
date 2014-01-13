@@ -11,7 +11,7 @@ from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
 from katcorelib import build_client
 
-from .updater import PeriodicUpdaterThread
+from .updater import SleepWarpClock, PeriodicUpdaterThread
 
 __version__ = 'dev'
 
@@ -237,26 +237,28 @@ class FakeConn(object):
         self._telescope = load_config(config_file)
         self.sensors = IgnoreUnknownMethods()
         self.dry_run = dry_run
-        self._timestamp = katpoint.Timestamp(start_time).secs
+        self._clock = SleepWarpClock(start_time, dry_run)
+        self._models = []
         for comp_name, component in self._telescope.items():
             model = globals().get(component['class'] + 'Model')
-            client = FakeClient(comp_name, model, self._telescope, self)
+            client = FakeClient(comp_name, model, self._telescope, self._clock)
             setattr(self, comp_name, client)
+            self._models.append(client.model)
+            # Add component sensors to the top-level sensors group
             for sensor_args in component['sensors']:
                 sensor_name = sensor_args[0]
                 sensor = getattr(client.sensor, sensor_name)
                 setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
-        self.updater = PeriodicUpdaterThread(self._telescope.values(),
-                                             dry_run, start_time, period=0.1)
+        self.updater = PeriodicUpdaterThread(self._models, self._clock, period=2.0)
         self.updater.start()
 
     def time(self):
         """Current time in UTC seconds since Unix epoch."""
-        return self.updater.time()
+        return self.clock.time()
 
     def sleep(self, seconds):
         """Sleep for the requested duration in seconds."""
-        self.updater.sleep(seconds)
+        self.clock.slave_sleep(seconds)
 
         
         # self.system = system

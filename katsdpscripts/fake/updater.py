@@ -8,22 +8,6 @@ from katpoint import Timestamp
 logger = logging.getLogger(__name__)
 
 
-class WarpClock(object):
-    """Time source that can warp ahead during a sleep phase."""
-    def __init__(self, start_time=None):
-        self.offset = 0.0 if start_time is None else \
-                      Timestamp(start_time).secs - time.time()
-
-    def time(self):
-        return time.time() + self.offset
-
-    def sleep(self, seconds, warp=False):
-        if warp:
-            self.offset += seconds
-        else:
-            time.sleep(seconds)
-
-
 class Bed(object):
     """A place where one thread sleeps, to be awoken by another thread."""
     def __init__(self):
@@ -43,16 +27,44 @@ class Bed(object):
         self.awake.set()
 
 
+class SleepWarpClock(object):
+    """Time source with Bed that can warp ahead when both threads sleep."""
+    def __init__(self, start_time=None, warp=False):
+        self.warp = warp
+        self.offset = 0.0 if start_time is None else \
+                      Timestamp(start_time).secs - time.time()
+        self.bed = Bed()
+
+    def time(self):
+        return time.time() + self.offset
+
+    def check_and_wake_slave(self, timestamp=None):
+        timestamp = self.time() if timestamp is None else timestamp
+        if self.bed.occupied() and timestamp >= self.bed.time_to_wake:
+            self.bed.wake_up()
+
+    def master_sleep(self, seconds):
+        if self.warp and self.bed.occupied():
+            self.offset += seconds
+            logger.debug('Master warped %g s ahead at %.2f' % (seconds, self.time()))
+        else:
+            time.sleep(seconds)
+            logger.debug('Master slept for %g s at %.2f' % (seconds, self.time()))
+
+    def slave_sleep(self, seconds):
+        logger.debug('Slave going to bed for %g s at %.2f' % (seconds, self.time()))
+        self.bed.climb_in(self.time() + seconds, seconds)
+        logger.debug('Slave woke up at %.2f' % (self.time(),))
+
+
 class PeriodicUpdaterThread(threading.Thread):
     """Thread which periodically updates a group of components."""
-    def __init__(self, components, dry_run=False, start_time=None, period=0.1):
+    def __init__(self, components, clock, period=0.1):
         threading.Thread.__init__(self)
         self.name = 'UpdateThread'
         self.components = components
-        self.dry_run = dry_run
+        self.clock = clock
         self.period = period
-        self.clock = WarpClock(start_time)
-        self.bed = Bed()
         self.last_update = None
         self._thread_active = True
 
@@ -69,23 +81,8 @@ class PeriodicUpdaterThread(threading.Thread):
                 logger.warn("Update thread is struggling: updates take "
                             "%g seconds but repeat every %g seconds" %
                             (update_time, self.period))
-            warp = False
-            if self.bed.occupied():
-                if after_update >= self.bed.time_to_wake:
-                    self.bed.wake_up()
-                elif self.dry_run:
-                    warp = True
-            logger.debug('Updater sleeping for %g s, %s' %
-                         (remaining_time, 'warp' if warp else 'normal'))
-            self.clock.sleep(remaining_time if remaining_time > 0 else 0, warp)
+            self.clock.check_and_wake_slave(after_update)
+            self.clock.master_sleep(remaining_time if remaining_time > 0 else 0)
 
     def stop(self):
         self._thread_active = False
-
-    def time(self):
-        """Current time in UTC seconds since Unix epoch."""
-        return self.clock.time()
-
-    def sleep(self, seconds):
-        """Sleep for the requested duration in seconds."""
-        self.bed.climb_in(self.clock.time() + seconds, seconds)
