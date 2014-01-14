@@ -128,8 +128,13 @@ class FakeClient(object):
         sensor.set_strategy(strategy, params=None)
 
 
-class AntennaPositionerModel(object):
-    def __init__(self, description, max_azim_slew_degpersec, max_elev_slew_degpersec,
+class FakeModel(object):
+    def update(self, timestamp, last_update=None):
+        pass
+
+
+class AntennaPositionerModel(FakeModel):
+    def __init__(self, description, max_slew_azim_dps, max_slew_elev_dps,
                  inner_threshold_deg, **kwargs):
         self.ant = Antenna(description)
         self.req_target('Zenith, azel, 0, 90')
@@ -139,8 +144,8 @@ class AntennaPositionerModel(object):
         self.lock_threshold = inner_threshold_deg
         self.pos_actual_scan_azim = self.pos_request_scan_azim = 0.0
         self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
-        self.max_azim_slew_degpersec = max_azim_slew_degpersec
-        self.max_elev_slew_degpersec = max_elev_slew_degpersec
+        self.max_slew_azim_dps = max_slew_azim_dps
+        self.max_slew_elev_dps = max_slew_elev_dps
 
     def req_target(self, target):
         self.target = target
@@ -155,8 +160,8 @@ class AntennaPositionerModel(object):
 
     def update(self, timestamp, last_update=None):
         elapsed_time = timestamp - last_update if last_update else 0.0
-        max_delta_az = self.max_azim_slew_degpersec * elapsed_time
-        max_delta_el = self.max_elev_slew_degpersec * elapsed_time
+        max_delta_az = self.max_slew_azim_dps * elapsed_time
+        max_delta_el = self.max_slew_elev_dps * elapsed_time
         az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
         requested_az, requested_el = self._target.azel(timestamp)
         requested_az = rad2deg(wrap_angle(requested_az))
@@ -175,7 +180,7 @@ class AntennaPositionerModel(object):
         print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
 
 
-class CorrelatorBeamformerModel(object):
+class CorrelatorBeamformerModel(FakeModel):
     def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp, **kwargs):
         self.dbe_mode = 'c8n856M32k'
         self.req_target('Zenith, azel, 0, 90')
@@ -187,7 +192,7 @@ class CorrelatorBeamformerModel(object):
 #        self._target.antenna = self.ant
 
 
-class EnviroModel(object):
+class EnviroModel(FakeModel):
     def __init__(self, **kwargs):
         self.air_pressure = 1020
         self.air_relative_humidity = 60.0
@@ -196,12 +201,12 @@ class EnviroModel(object):
         self.wind_direction = 90.0
 
 
-class DigitiserModel(object):
+class DigitiserModel(FakeModel):
     def __init__(self, **kwargs):
         self.overflow = False
 
 
-class ObservationModel(object):
+class ObservationModel(FakeModel):
     def __init__(self, **kwargs):
         self.label = ''
         self.params = ''
