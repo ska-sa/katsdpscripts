@@ -167,7 +167,7 @@ if not offsetdata is None :
         """Determine and sky RMS from pointing model."""
         text = []
         measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
-        abs_sky_error = np.zeros_like(residual_el)
+        abs_sky_error = np.zeros_like(measured_delta_xel)
         for target in set(offsetdata['target']):
             keep = np.ones((len(offsetdata)),dtype=np.bool)
             for key,targetv in enumerate(offsetdata['target']):
