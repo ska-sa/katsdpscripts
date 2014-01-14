@@ -257,6 +257,21 @@ class FakeConn(object):
         self.updater = PeriodicUpdaterThread(self._models, self._clock, period=2.0)
         self.updater.start()
 
+    def __enter__(self):
+        """Enter context."""
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit context and stop the system."""
+        self.stop()
+        # Don't suppress exceptions
+        return False
+
+    def stop(self):
+        """Stop the system."""
+        self.updater.stop()
+        self.updater.join()
+
     def time(self):
         """Current time in UTC seconds since Unix epoch."""
         return self.clock.time()
@@ -265,7 +280,6 @@ class FakeConn(object):
         """Sleep for the requested duration in seconds."""
         self.clock.slave_sleep(seconds)
 
-        
         # self.system = system
         # self.sb_id_code = sb_id_code
         # self.connected_objects = {}
