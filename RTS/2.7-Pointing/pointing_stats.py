@@ -155,7 +155,6 @@ text += text1
 text.append("\n\n")
 
 
-for line in text: print line
 
 #print new_model.description
 
@@ -191,8 +190,9 @@ if not offsetdata is None :
 
     text1 = referencemetrics(measured_delta_az, measured_delta_el)
     text += text1
-    print('')
-    print(text1)
+
+
+for line in text: print line
 
 
 
