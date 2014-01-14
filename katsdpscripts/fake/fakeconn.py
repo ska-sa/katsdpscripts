@@ -125,7 +125,7 @@ class FakeClient(object):
 
     def sensor_sampling(self, sensor_name, strategy, params=None):
         sensor = getattr(self.sensor, sensor_name)
-        sensor.set_strategy(strategy, params=None)
+        sensor.set_strategy(strategy, params)
 
 
 def load_config(config_file):

@@ -56,15 +56,17 @@ class AntennaPositionerModel(FakeModel):
 
 
 class CorrelatorBeamformerModel(FakeModel):
-    def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp, **kwargs):
+    def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth,
+                 sync_time, int_time, scale_factor_timestamp, ref_ant, **kwargs):
         self.dbe_mode = 'c8n856M32k'
+        self.ref_ant = Antenna(ref_ant)
         self.req_target('Zenith, azel, 0, 90')
         self.auto_delay = True
 
     def req_target(self, target):
         self.target = target
         self._target = Target(target)
-#        self._target.antenna = self.ant
+        self._target.antenna = self.ref_ant
 
 
 class EnviroModel(FakeModel):
