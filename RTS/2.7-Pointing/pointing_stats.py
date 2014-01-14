@@ -76,13 +76,13 @@ if len(args) != 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Please specify a single CSV data file as argument to the script')
 filename = args[0]
 offset_file = opts.offset_file
-opts.min_rms
+min_rms=opts.min_rms
 text = []
 
 
-offset_file = 'offset_scan.csv'
-filename = '1386710316_point_source_scans.csv'
-min_rms= np.sqrt(2) * 60. * 1e-12
+#offset_file = 'offset_scan.csv'
+#filename = '1386710316_point_source_scans.csv'
+#min_rms= np.sqrt(2) * 60. * 1e-12
 
 data = read_offsetfile(filename)
 keep = np.ones((len(data)),dtype=np.bool)
