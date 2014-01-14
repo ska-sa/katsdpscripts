@@ -155,9 +155,9 @@ text += text1
 text.append("\n\n")
 
 
-print text
+for line in text: print line
 
-print new_model.description
+#print new_model.description
 
 if not offsetdata is None :
     az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevation'])
@@ -166,7 +166,7 @@ if not offsetdata is None :
     def referencemetrics(measured_delta_az, measured_delta_el):
         """Determine and sky RMS from pointing model."""
         text = []
-        measured_delta_xel  = residual_az * np.cos(el)
+        measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
         abs_sky_error = np.zeros_like(residual_el)
         for target in set(offsetdata['target']):
             keep = np.ones((len(offsetdata)),dtype=np.bool)
