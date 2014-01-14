@@ -5,13 +5,13 @@ import csv
 
 import numpy as np
 
-from katpoint import (Antenna, Target, Catalogue, rad2deg, deg2rad, wrap_angle,
-                      construct_azel_target)
+from katpoint import Catalogue
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
 from katcorelib import build_client
 
-from .updater import SleepWarpClock, PeriodicUpdaterThread
+from katscripts.updater import SleepWarpClock, PeriodicUpdaterThread
+from katscripts import fake_models
 
 __version__ = 'dev'
 
@@ -128,90 +128,6 @@ class FakeClient(object):
         sensor.set_strategy(strategy, params=None)
 
 
-class FakeModel(object):
-    def update(self, timestamp, last_update=None):
-        pass
-
-
-class AntennaPositionerModel(FakeModel):
-    def __init__(self, description, max_slew_azim_dps, max_slew_elev_dps,
-                 inner_threshold_deg, **kwargs):
-        self.ant = Antenna(description)
-        self.req_target('Zenith, azel, 0, 90')
-        self.mode = 'POINT'
-        self.activity = 'stow'
-        self.lock = True
-        self.lock_threshold = inner_threshold_deg
-        self.pos_actual_scan_azim = self.pos_request_scan_azim = 0.0
-        self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
-        self.max_slew_azim_dps = max_slew_azim_dps
-        self.max_slew_elev_dps = max_slew_elev_dps
-
-    def req_target(self, target):
-        self.target = target
-        self._target = Target(target)
-        self._target.antenna = self.ant
-
-    def req_mode(self, mode):
-        self.mode = mode
-
-    def req_scan_asym(self):
-        pass
-
-    def update(self, timestamp, last_update=None):
-        elapsed_time = timestamp - last_update if last_update else 0.0
-        max_delta_az = self.max_slew_azim_dps * elapsed_time
-        max_delta_el = self.max_slew_elev_dps * elapsed_time
-        az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
-        requested_az, requested_el = self._target.azel(timestamp)
-        requested_az = rad2deg(wrap_angle(requested_az))
-        requested_el = rad2deg(requested_el)
-        delta_az = wrap_angle(requested_az - az, period=360.)
-        delta_el = requested_el - el
-        az += np.clip(delta_az, -max_delta_az, max_delta_az)
-        el += np.clip(delta_el, -max_delta_el, max_delta_el)
-        self.pos_request_scan_azim = requested_az
-        self.pos_request_scan_elev = requested_el
-        self.pos_actual_scan_azim = az
-        self.pos_actual_scan_elev = el
-        dish = construct_azel_target(deg2rad(az), deg2rad(el))
-        error = rad2deg(self._target.separation(dish, timestamp))
-        self.lock = error < self.lock_threshold
-        print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
-
-
-class CorrelatorBeamformerModel(FakeModel):
-    def __init__(self, n_chans, n_accs, n_bls, bls_ordering, bandwidth, sync_time, int_time, scale_factor_timestamp, **kwargs):
-        self.dbe_mode = 'c8n856M32k'
-        self.req_target('Zenith, azel, 0, 90')
-        self.auto_delay = True
-
-    def req_target(self, target):
-        self.target = target
-        self._target = Target(target)
-#        self._target.antenna = self.ant
-
-
-class EnviroModel(FakeModel):
-    def __init__(self, **kwargs):
-        self.air_pressure = 1020
-        self.air_relative_humidity = 60.0
-        self.air_temperature = 25.0
-        self.wind_speed = 4.2
-        self.wind_direction = 90.0
-
-
-class DigitiserModel(FakeModel):
-    def __init__(self, **kwargs):
-        self.overflow = False
-
-
-class ObservationModel(FakeModel):
-    def __init__(self, **kwargs):
-        self.label = ''
-        self.params = ''
-
-
 def load_config(config_file):
     split = lambda args: csv.reader([args], skipinitialspace=True).next()
     cfg = SafeConfigParser()
@@ -241,11 +157,10 @@ class FakeConn(object):
     def __init__(self, config_file, dry_run=False, start_time=None):
         self._telescope = load_config(config_file)
         self.sensors = IgnoreUnknownMethods()
-        self.dry_run = dry_run
         self._clock = SleepWarpClock(start_time, dry_run)
         self._models = []
         for comp_name, component in self._telescope.items():
-            model = globals().get(component['class'] + 'Model')
+            model = vars(fake_models).get(component['class'] + 'Model')
             client = FakeClient(comp_name, model, self._telescope, self._clock)
             setattr(self, comp_name, client)
             self._models.append(client.model)
@@ -274,11 +189,18 @@ class FakeConn(object):
 
     def time(self):
         """Current time in UTC seconds since Unix epoch."""
-        return self.clock.time()
+        return self._clock.time()
 
     def sleep(self, seconds):
         """Sleep for the requested duration in seconds."""
-        self.clock.slave_sleep(seconds)
+        self._clock.slave_sleep(seconds)
+
+    @property
+    def dry_run(self):
+        return self._clock.warp
+    @dry_run.setter
+    def dry_run(self, flag):
+        self._clock.warp = flag
 
         # self.system = system
         # self.sb_id_code = sb_id_code
