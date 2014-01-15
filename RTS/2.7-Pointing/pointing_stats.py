@@ -72,8 +72,9 @@ parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e
                   help="Minimum uncertainty of data points, expressed as the sky RMS in arcminutes")
 (opts, args) = parser.parse_args()
 
-if len(args) != 1 or not args[0].endswith('.csv'):
-    raise RuntimeError('Please specify a single CSV data file as argument to the script')
+#if len(args) != 1 or not args[0].endswith('.csv'):
+#    raise RuntimeError('Please specify a single CSV data file as argument to the script')
+
 filename = args[0]
 offset_file = opts.offset_file
 min_rms=opts.min_rms
@@ -87,12 +88,15 @@ text = []
 if  args[0].endswith('.csv'):
     data = read_offsetfile(filename)
     keep = np.ones((len(data)),dtype=np.bool)
+else:
+    print('No pointing Data file. Skipping Poinint Model determination')
 if not offset_file is None :
     offsetdata = read_offsetfile(offset_file)
     for key,target in enumerate(data['target']):
         keep[key] = target not in set(offsetdata['target'])
 else:
     offsetdata = None
+
 
 
 if  args[0].endswith('.csv'):
@@ -200,6 +204,8 @@ if not offsetdata is None :
 
     text1 = referencemetrics(measured_delta_az, measured_delta_el)
     text += text1
+else:
+    print("No offset data file given, skipping tests.")
 
 text.append("\n")
 
