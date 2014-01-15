@@ -75,7 +75,7 @@ parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e
 #if len(args) != 1 or not args[0].endswith('.csv'):
 #    raise RuntimeError('Please specify a single CSV data file as argument to the script')
 
-filename = args[0]
+
 offset_file = opts.offset_file
 min_rms=opts.min_rms
 text = []
@@ -86,6 +86,7 @@ text = []
 #min_rms= np.sqrt(2) * 60. * 1e-12
 
 if  args[0].endswith('.csv'):
+    filename = args[0]
     data = read_offsetfile(filename)
     keep = np.ones((len(data)),dtype=np.bool)
 else:
