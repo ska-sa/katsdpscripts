@@ -120,7 +120,7 @@ with verify_and_connect(opts) as kat:
                         session.ants = all_ants
                         user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                         session.fire_noise_diode(announce=False, **nd_params)
-                    scantime = opts.num_scans*opts.scan_duration*1.2
+                    scantime = opts.num_scans*opts.scan_duration*1.5
                     angle = np.arange(0., np.pi, np.pi /float(1200//scantime) )
                     anglekey += 1
                     if anglekey < len(angle):
