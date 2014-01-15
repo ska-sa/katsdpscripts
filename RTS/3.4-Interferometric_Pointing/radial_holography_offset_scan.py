@@ -10,6 +10,7 @@ import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
                        start_session, user_logger, ant_array
 import numpy as np
+import katpoint
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
