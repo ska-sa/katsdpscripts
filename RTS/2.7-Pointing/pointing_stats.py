@@ -85,7 +85,7 @@ text = []
 #filename = '1386710316_point_source_scans.csv'
 #min_rms= np.sqrt(2) * 60. * 1e-12
 
-if  args[0].endswith('.csv'):
+if len(args) != 1 or not args[0].endswith('.csv'):
     filename = args[0]
     data = read_offsetfile(filename)
     keep = np.ones((len(data)),dtype=np.bool)
@@ -100,7 +100,7 @@ else:
 
 
 
-if  args[0].endswith('.csv'):
+if len(args) != 1 or not args[0].endswith('.csv'):
     # Initialise new pointing model and set default enabled parameters
     new_model = katpoint.PointingModel()
     num_params = new_model.num_params
