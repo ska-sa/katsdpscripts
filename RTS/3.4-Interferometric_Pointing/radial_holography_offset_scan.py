@@ -130,7 +130,6 @@ with verify_and_connect(opts) as kat:
                         session.track(target, duration=0, announce=False)
                     else :
                         offsetloop = False
-            
                 if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                     user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %(opts.max_duration,))
                     keep_going = False
