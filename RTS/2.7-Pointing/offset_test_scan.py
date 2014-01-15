@@ -1,4 +1,4 @@
-#!/usr/bin/python
+cd#!/usr/bin/python
 # Perform mini (Zorro) raster scans across (point) sources from a catalogue
 # for pointing model fits and gain curve calculation.
 
@@ -122,17 +122,17 @@ with verify_and_connect(opts) as kat:
                                 session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                                         scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                         projection=opts.projection)
-                                scantime = 5*30*1.1
+                                scantime = 5*30*1.5
                             else:
                                 session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
                                                     scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                     projection=opts.projection)
-                                scantime = 5*60*1.1
+                                scantime = 5*60*1.5
                         else:
                             session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                                 scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                            scantime = 3*15*1.1
+                            scantime = 3*15*1.5
                         #session.label('slew')
                         angle = np.arange(0., np.pi, np.pi /float(1200//scantime) )
                         anglekey += 1
