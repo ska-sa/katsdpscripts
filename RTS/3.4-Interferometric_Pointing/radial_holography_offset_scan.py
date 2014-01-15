@@ -27,7 +27,7 @@ parser.add_option('-t', '--scan-duration', type='float', default=20.0,
                   help='Minimum duration of each scan across target, in seconds (default=%default)')
 parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
-parser.add_option('-m','--max-duration', type='float', default=3600,
+parser.add_option('-m','--max-duration', type='float', default=-1,
                   help='Minimum duration of obsevation (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
@@ -131,11 +131,15 @@ with verify_and_connect(opts) as kat:
                         session.track(target, duration=0, announce=False)
                     else :
                         offsetloop = False
-                if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
+                if not opts.max_duration < 0 and (time.time() - start_time >= opts.max_duration):
                     user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %(opts.max_duration,))
                     keep_going = False
                     break
-                targets_observed.append(target.name)       
+                targets_observed.append(target.name)
+                    # The default is to do only one iteration through source list
+                if opts.min_time <= 0.0 :
+                    keep_going = False
+
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                 keep_going = False
