@@ -94,7 +94,6 @@ with verify_and_connect(opts) as kat:
                 anglekey = -1
                 offsetloop = True
                 while offsetloop:
-                
                     # The entire sequence of commands on the same target forms a single compound scan
                     session.label('holo')
                     user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
@@ -138,9 +137,10 @@ with verify_and_connect(opts) as kat:
                 targets_observed.append(target.name)
                 if len(targets_observed) > opts.number_sources -1 :
                     keep_going = False
+                    break
 
                     # The default is to do only one iteration through source list
-            if opts.min_time <= 0.0 :
+            if opts.max_duration <= 0.0 :
                 keep_going = False
 
             if keep_going and len(targets_observed) == targets_before_loop:
