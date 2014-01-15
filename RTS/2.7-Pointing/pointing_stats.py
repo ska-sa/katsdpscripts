@@ -91,6 +91,8 @@ if not offset_file is None :
     offsetdata = read_offsetfile(offset_file)
     for key,target in enumerate(data['target']):
         keep[key] = target not in set(offsetdata['target'])
+else:
+    offsetdata = None
 
 
 if  args[0].endswith('.csv'):
