@@ -120,7 +120,7 @@ with verify_and_connect(opts) as kat:
                         session.ants = all_ants
                         user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                         session.fire_noise_diode(announce=False, **nd_params)
-                    scantime = opts.num_scans*opts.scan_duration*1.5
+                    scantime = opts.num_scans*opts.scan_duration*1.4
                     angle = np.arange(0., np.pi, np.pi /float(1200//scantime) )
                     anglekey += 1
                     if anglekey < len(angle):
@@ -136,9 +136,12 @@ with verify_and_connect(opts) as kat:
                     keep_going = False
                     break
                 targets_observed.append(target.name)
-                    # The default is to do only one iteration through source list
-                if opts.min_time <= 0.0 :
+                if len(targets_observed) > opts.number_sources -1 :
                     keep_going = False
+
+                    # The default is to do only one iteration through source list
+            if opts.min_time <= 0.0 :
+                keep_going = False
 
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
