@@ -27,6 +27,45 @@ class Bed(object):
         self.awake.set()
 
 
+class SingleThreadError(Exception):
+    """The SingleThreadLock only allows a single thread ever to use it."""
+
+
+class SingleThreadLock(object):
+    """A lock that only ever allows one thread to use it."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.thread_name = ''
+
+    def __enter__(self):
+        self.acquire()
+
+    def __exit__(self, type, value, traceback):
+        self.release()
+        # Don't suppress exceptions
+        return False
+
+    def current_thread_name(self):
+        thread = threading.current_thread()
+        return "%s [%d]" % (thread.name, thread.ident)
+
+    def acquire(self, blocking=True):
+        """Acquire lock, raising exception if thread changed."""
+        current_thread = self.current_thread_name()
+        if self.thread_name and current_thread != self.thread_name:
+            msg = 'SingleThreadLock already used by thread %r, cannot accept %r' % \
+                  (self.thread_name, current_thread)
+            raise SingleThreadError(msg)
+        if not self._lock.acquire(False):
+            msg = 'Thread %r has re-entered SingleThreadLock' % (self.thread_name,)
+            raise SingleThreadError(msg)
+        self.thread_name = current_thread
+        return True
+
+    def release(self):
+        self._lock.release()
+
+
 class SleepWarpClock(object):
     """Time source with Bed that can warp ahead when both threads sleep."""
     def __init__(self, start_time=None, warp=False):
@@ -34,27 +73,38 @@ class SleepWarpClock(object):
         self.offset = 0.0 if start_time is None else \
                       Timestamp(start_time).secs - time.time()
         self.bed = Bed()
+        self.master_lock = SingleThreadLock()
+        self.slave_lock = SingleThreadLock()
 
     def time(self):
         return time.time() + self.offset
 
     def check_and_wake_slave(self, timestamp=None):
         timestamp = self.time() if timestamp is None else timestamp
-        if self.bed.occupied() and timestamp >= self.bed.time_to_wake:
-            self.bed.wake_up()
+        with self.master_lock:
+            if self.bed.occupied() and timestamp >= self.bed.time_to_wake:
+                self.bed.wake_up()
 
     def master_sleep(self, seconds):
-        if self.warp and self.bed.occupied():
-            self.offset += seconds
-            logger.debug('Master warped %g s ahead at %.2f' % (seconds, self.time()))
-        else:
-            time.sleep(seconds)
-            logger.debug('Master slept for %g s at %.2f' % (seconds, self.time()))
+        with self.master_lock:
+            if self.warp and self.bed.occupied():
+                self.offset += seconds
+                logger.debug('Master %r warped %g s ahead at %.2f' %
+                             (self.master_lock.thread_name, seconds, self.time()))
+            else:
+                time.sleep(seconds)
+                logger.debug('Master %r slept for %g s at %.2f' %
+                             (self.master_lock.thread_name, seconds, self.time()))
 
     def slave_sleep(self, seconds):
-        logger.debug('Slave going to bed for %g s at %.2f' % (seconds, self.time()))
-        self.bed.climb_in(self.time() + seconds, seconds)
-        logger.debug('Slave woke up at %.2f' % (self.time(),))
+        with self.slave_lock:
+            logger.debug('Slave %r going to bed for %g s at %.2f' %
+                         (self.slave_lock.thread_name, seconds, self.time()))
+            self.bed.climb_in(self.time() + seconds, seconds)
+            logger.debug('Slave %r woke up at %.2f' %
+                         (self.slave_lock.thread_name, self.time(),))
+
+    sleep = slave_sleep
 
 
 class PeriodicUpdaterThread(threading.Thread):
@@ -67,6 +117,18 @@ class PeriodicUpdaterThread(threading.Thread):
         self.period = period
         self.last_update = None
         self._thread_active = True
+
+    def __enter__(self):
+        """Enter context."""
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit context and stop the system."""
+        self.stop()
+        self.join()
+        # Don't suppress exceptions
+        return False
 
     def run(self):
         while self._thread_active:
