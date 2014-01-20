@@ -91,7 +91,7 @@ def verify_and_connect(opts):
     the sb-id-code if that is available) and verifies noise diode parameters if
     given. It then creates a KAT connection based on the *system* option,
     reusing an existing connection or falling back to the local system if
-    required. The resulting KATKATCoreConn object is returned.
+    required. The resulting KATCoreConn object is returned.
 
     Parameters
     ----------
@@ -153,7 +153,7 @@ def verify_and_connect(opts):
                   "\nTHERE MAY BE CONTROL CLASHES!!!!\nBut for one last time we will allow it ...", colors.Normal
             choice = raw_input(colors.Red + "Do you want to cancel this build? y/n ...." + colors.Normal)
             if choice not in ['n', 'N']:
-                raise ValueError("Cancelled build of KAT KATCoreConn object connection for site=%s system=%s" % (site, system))
+                raise ValueError("Cancelled build of KATCoreConn object connection for site=%s system=%s" % (site, system))
             kat = tbuild(system=system, conn_clients='all', controlled_clients='all')
         user_logger.info("Using KAT connection with configuration=%s "
                          "sb_id_code=%s\nControlled objects: %s" %
@@ -161,8 +161,8 @@ def verify_and_connect(opts):
     except ValueError, err:
         # Don't default to local build.
         kat = None
-        user_logger.error("Could not build KAT KATCoreConn object connection for site=%s system=%s (%s)" % (site, system, err))
-        raise ValueError("Could not build KAT KATCoreConn object connection for site=%s system=%s (%s)" % (site, system, err))
+        user_logger.error("Could not build KATCoreConn object connection for site=%s system=%s (%s)" % (site, system, err))
+        raise ValueError("Could not build KATCoreConn object connection for site=%s system=%s (%s)" % (site, system, err))
 
     return kat
 
