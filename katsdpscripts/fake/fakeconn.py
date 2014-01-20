@@ -10,7 +10,7 @@ from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
 from katcorelib import build_client
 
-from katscripts.updater import SleepWarpClock, PeriodicUpdaterThread
+from katscripts.updater import WarpClock, PeriodicUpdaterThread
 from katscripts import fake_models
 
 __version__ = 'dev'
@@ -157,7 +157,7 @@ class FakeConn(object):
     def __init__(self, config_file, dry_run=False, start_time=None):
         self._telescope = load_config(config_file)
         self.sensors = IgnoreUnknownMethods()
-        self._clock = SleepWarpClock(start_time, dry_run)
+        self._clock = WarpClock(start_time, dry_run)
         self._models = []
         for comp_name, component in self._telescope.items():
             model = vars(fake_models).get(component['class'] + 'Model')

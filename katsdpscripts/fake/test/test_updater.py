@@ -3,7 +3,7 @@ import threading
 import logging
 import time
 
-from katscripts.updater import (SleepWarpClock, PeriodicUpdaterThread,
+from katscripts.updater import (WarpClock, PeriodicUpdaterThread,
                                 SingleThreadError)
 
 
@@ -12,24 +12,35 @@ logging.basicConfig(level=logging.DEBUG)
 
 class TestingUpdate(unittest.TestCase):
     """Run 'nosetests -s --nologcapture' to see output."""
+    def setUp(self):
+        self.counter = 0
+
     def update(self, timestamp, last_update):
-        print 'Updated at', timestamp
+        self.counter += 1
+        time.sleep(0.01)
+        print 'Updated at', timestamp, 'counter =', self.counter
 
     def test_slave_sleep(self):
         """Expect to do 1.0 second warp and 1.0 second normal sleep."""
-        self.clock = SleepWarpClock(warp=True)
+        self.clock = WarpClock(warp=True)
         with PeriodicUpdaterThread([self], self.clock, period=0.1):
             self.clock.slave_sleep(1.0)
             time.sleep(0.5)
             self.clock.warp = False
             self.clock.slave_sleep(0.5)
 
+    def test_overloaded_thread(self):
+        """Exercise thread overload warning."""
+        self.clock = WarpClock(warp=True)
+        with PeriodicUpdaterThread([self], self.clock, period=0.01):
+            self.clock.slave_sleep(0.05)
+
     def bad_sleep(self):
         self.assertRaises(SingleThreadError, self.clock.slave_sleep, 1)
 
     def test_single_master_slave(self):
         """Check that only a single master and slave thread is allowed."""
-        self.clock = SleepWarpClock(warp=True)
+        self.clock = WarpClock(warp=True)
         with PeriodicUpdaterThread([self], self.clock, period=0.1):
             # Ensure that master sleep has happened at least once
             self.clock.slave_sleep(0.5)
@@ -39,3 +50,12 @@ class TestingUpdate(unittest.TestCase):
             pest_thread.start()
             with self.clock.slave_lock:
                 self.assertRaises(SingleThreadError, self.clock.slave_sleep, 1)
+
+    def test_sleep_condition(self):
+        """Check that a condition can wake up a sleeping thread."""
+        self.clock = WarpClock(warp=True)
+        with PeriodicUpdaterThread([self], self.clock, period=0.1):
+            self.clock.slave_sleep(0.95, condition=lambda: self.counter == 5)
+            self.assertEquals(self.counter, 5, 'Sleep condition not satisfied')
+            self.clock.slave_sleep(0.95, condition=lambda: self.counter == 1000)
+            self.assertEquals(self.counter, 15, 'Sleep timeout not satisfied')

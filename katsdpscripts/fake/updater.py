@@ -66,15 +66,16 @@ class SingleThreadLock(object):
         self._lock.release()
 
 
-class SleepWarpClock(object):
+class WarpClock(object):
     """Time source with Bed that can warp ahead when both threads sleep."""
     def __init__(self, start_time=None, warp=False):
-        self.warp = warp
         self.offset = 0.0 if start_time is None else \
                       Timestamp(start_time).secs - time.time()
+        self.warp = warp
         self.bed = Bed()
         self.master_lock = SingleThreadLock()
         self.slave_lock = SingleThreadLock()
+        self.condition = None
 
     def time(self):
         return time.time() + self.offset
@@ -82,7 +83,8 @@ class SleepWarpClock(object):
     def check_and_wake_slave(self, timestamp=None):
         timestamp = self.time() if timestamp is None else timestamp
         with self.master_lock:
-            if self.bed.occupied() and timestamp >= self.bed.time_to_wake:
+            if self.bed.occupied() and (timestamp >= self.bed.time_to_wake or
+                                        self.condition and self.condition()):
                 self.bed.wake_up()
 
     def master_sleep(self, seconds):
@@ -96,8 +98,9 @@ class SleepWarpClock(object):
                 logger.debug('Master %r slept for %g s at %.2f' %
                              (self.master_lock.thread_name, seconds, self.time()))
 
-    def slave_sleep(self, seconds):
+    def slave_sleep(self, seconds, condition=None):
         with self.slave_lock:
+            self.condition = condition
             logger.debug('Slave %r going to bed for %g s at %.2f' %
                          (self.slave_lock.thread_name, seconds, self.time()))
             self.bed.climb_in(self.time() + seconds, seconds)
