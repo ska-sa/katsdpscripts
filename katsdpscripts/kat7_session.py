@@ -43,7 +43,7 @@ def ant_array(kat, ants, name='ants'):
 
     Parameters
     ----------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object
     ants : :class:`Array` or :class:`KATClient` object, or list, or string
         Antennas specified by an Array object containing antenna devices, or
@@ -144,7 +144,7 @@ class CaptureSession(CaptureSessionBase):
 
     Parameters
     ----------
-    kat : :class:`utility.KATKATCoreConn` object
+    kat : :class:`utility.KATCoreConn` object
         KAT connection object associated with this experiment
     mode : string, optional
         DBE mode (unchanged by default)
@@ -1435,7 +1435,7 @@ class TimeSession(CaptureSessionBase):
             self._teleport_to(katpoint.Target("azel, 0.0, 90.0"), mode="STOW")
         user_logger.info('==========================')
         duration = self.time - self.start_time
-        # Let kat-KATCoreConn know how long the estimated observation time was.
+        # Let kat object know how long the estimated observation time was.
         self.kat.set_estimated_duration(duration)
         if duration <= 100:
             duration = '%d seconds' % (np.ceil(duration),)
