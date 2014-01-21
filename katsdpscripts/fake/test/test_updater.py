@@ -15,7 +15,7 @@ class TestingUpdate(unittest.TestCase):
     def setUp(self):
         self.counter = 0
 
-    def update(self, timestamp, last_update):
+    def update(self, timestamp):
         self.counter += 1
         time.sleep(0.01)
         print 'Updated at', timestamp, 'counter =', self.counter

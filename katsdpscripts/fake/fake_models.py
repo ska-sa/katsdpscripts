@@ -4,7 +4,7 @@ from katpoint import (Antenna, Target, rad2deg, deg2rad, wrap_angle,
                       construct_azel_target)
 
 class FakeModel(object):
-    def update(self, timestamp, last_update=None):
+    def update(self, timestamp):
         pass
 
 
@@ -21,6 +21,7 @@ class AntennaPositionerModel(FakeModel):
         self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
         self.max_slew_azim_dps = max_slew_azim_dps
         self.max_slew_elev_dps = max_slew_elev_dps
+        self._last_update = 0.0
 
     def req_target(self, target):
         self.target = target
@@ -33,8 +34,8 @@ class AntennaPositionerModel(FakeModel):
     def req_scan_asym(self):
         pass
 
-    def update(self, timestamp, last_update=None):
-        elapsed_time = timestamp - last_update if last_update else 0.0
+    def update(self, timestamp):
+        elapsed_time = timestamp - self._last_update if self._last_update else 0.0
         max_delta_az = self.max_slew_azim_dps * elapsed_time
         max_delta_el = self.max_slew_elev_dps * elapsed_time
         az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
@@ -52,6 +53,7 @@ class AntennaPositionerModel(FakeModel):
         dish = construct_azel_target(deg2rad(az), deg2rad(el))
         error = rad2deg(self._target.separation(dish, timestamp))
         self.lock = error < self.lock_threshold
+        self._last_update = timestamp
         print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
 
 
