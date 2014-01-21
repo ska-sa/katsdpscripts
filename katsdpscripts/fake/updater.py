@@ -17,9 +17,9 @@ class Bed(object):
     def occupied(self):
         return self.time_to_wake is not None and not self.awake.isSet()
 
-    def climb_in(self, time_to_wake, seconds):
+    def climb_in(self, time_to_wake, timeout):
         self.time_to_wake = time_to_wake
-        self.awake.wait(seconds)
+        self.awake.wait(timeout)
         self.time_to_wake = None
         self.awake.clear()
 
@@ -76,6 +76,7 @@ class WarpClock(object):
         self.master_lock = SingleThreadLock()
         self.slave_lock = SingleThreadLock()
         self.condition = None
+        self.condition_achieved = False
 
     def time(self):
         return time.time() + self.offset
@@ -83,9 +84,12 @@ class WarpClock(object):
     def check_and_wake_slave(self, timestamp=None):
         timestamp = self.time() if timestamp is None else timestamp
         with self.master_lock:
-            if self.bed.occupied() and (timestamp >= self.bed.time_to_wake or
-                                        self.condition and self.condition()):
-                self.bed.wake_up()
+            if self.bed.occupied():
+                if self.condition and self.condition():
+                    self.condition_achieved = True
+                    self.bed.wake_up()
+                elif timestamp >= self.bed.time_to_wake:
+                    self.bed.wake_up()
 
     def master_sleep(self, seconds):
         with self.master_lock:
@@ -101,11 +105,13 @@ class WarpClock(object):
     def slave_sleep(self, seconds, condition=None):
         with self.slave_lock:
             self.condition = condition
+            self.condition_achieved = False
             logger.debug('Slave %r going to bed for %g s at %.2f' %
                          (self.slave_lock.thread_name, seconds, self.time()))
             self.bed.climb_in(self.time() + seconds, seconds)
             logger.debug('Slave %r woke up at %.2f' %
                          (self.slave_lock.thread_name, self.time(),))
+        return self.condition_achieved
 
     sleep = slave_sleep
 
