@@ -54,7 +54,7 @@ class AntennaPositionerModel(FakeModel):
         error = rad2deg(self._target.separation(dish, timestamp))
         self.lock = error < self.lock_threshold
         self._last_update = timestamp
-        print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
+#        print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
 
 
 class CorrelatorBeamformerModel(FakeModel):

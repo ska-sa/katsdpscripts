@@ -2,12 +2,15 @@ import types
 from ConfigParser import SafeConfigParser, NoSectionError
 import weakref
 import csv
+import threading
+import time
 
 import numpy as np
 
-from katpoint import Catalogue
+from katpoint import Catalogue, is_iterable
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import return_reply, Str
+from katcp.sampling import SampleStrategy
 from katcorelib import build_client
 
 from katscripts.updater import WarpClock, PeriodicUpdaterThread
@@ -16,30 +19,119 @@ from katscripts import fake_models
 __version__ = 'dev'
 
 
+# XXX How about moving this to katcp?
+def normalize_strategy_parameters(params):
+    # Normalize strategy parameters to be a list of strings, e.g.:
+    # ['1.234', # number
+    #  'stringparameter']
+    if not params:
+        return []
+    def fixup_numbers(val):
+        try:                          # See if it is a number
+            return str(float(val))
+        except ValueError:
+            # ok, it is not a number we know of, perhaps a string
+            return str(val)
+
+    if isinstance(params, basestring):
+        param_args = [fixup_numbers(p) for p in params.split(' ')]
+    else:
+        if not is_iterable(params):
+            params = (params,)
+        param_args = [fixup_numbers(p) for p in params]
+    return param_args
+
+
+# XXX This should ideally live in katcp
+def escape_name(name):
+    """Helper function for escaping sensor and request names, replacing '.' and '-' with '_' """
+    return name.replace(".","_").replace("-","_")
+
+
+class SensorUpdate(object):
+    """"""
+    def __init__(self, update_seconds, value_seconds, status, value):
+        self.update_seconds = update_seconds
+        self.value_seconds = value_seconds
+        self.status = status
+        self.value = value
+
+
 class FakeSensor(object):
     """Fake sensor."""
-    def __init__(self, name, sensor_type, description, units=''):
+    def __init__(self, name, sensor_type, description, units='', clock=time):
+        self.name = name
         sensor_type = Sensor.parse_type(sensor_type)
         params = ['unknown'] if sensor_type == Sensor.DISCRETE else None
         self._sensor = Sensor(sensor_type, name, description, units, params)
-        self.name = name
-        self.description = description
+        self.__doc__ = self.description = description
+        self._clock = clock
+        self._listeners = set()
+        self._last_update = SensorUpdate(0.0, 0.0, 'unknown', None)
+        self._strategy = None
+        self._next_period = None
+        self.set_strategy('none')
 
     def get_value(self):
         return self._sensor.value()
 
-    def set_value(self, value, timestamp):
+    def _set_value(self, value):
         if self._sensor.stype == 'discrete':
             self._sensor._kattype._values.append(value)
             self._sensor._kattype._valid_values.add(value)
-        self._sensor.set(timestamp, Sensor.NOMINAL, value)
+        self._sensor.set(self._clock.time(), Sensor.NOMINAL, value)
 
     def set_strategy(self, strategy, params=None):
-        pass
-    def register_listener(self, listener, limit=-1):
-        pass
+        """Set sensor strategy."""
+        def inform_callback(sensor_name, timestamp_str, status_str, value_str):
+            """Inform callback for sensor strategy."""
+            update_seconds = self._clock.time()
+            value_seconds = float(timestamp_str)
+            value = self._sensor.parse_value(value_str)
+            self._last_update = SensorUpdate(update_seconds, value_seconds,
+                                             status_str, value)
+            for listener in set(self._listeners):
+                listener(update_seconds, value_seconds, status_str, value_str)
+            print sensor_name, timestamp_str, status_str, value_str
+
+        if self._strategy:
+            self._strategy.detach()
+        params = normalize_strategy_parameters(params)
+        self._strategy = SampleStrategy.get_strategy(strategy, inform_callback,
+                                                     self._sensor, *params)
+        self._strategy.attach()
+        self._next_period = self._strategy.periodic(self._clock.time())
+
+    def update(self, timestamp):
+        while self._next_period and timestamp >= self._next_period:
+            self._next_period = self._strategy.periodic(self._next_period)
+
+    def register_listener(self, listener, min_wait=-1.0):
+        """Add a callback function that is called when sensor value is updated.
+
+        Parameters
+        ----------
+        listener : function
+            Callback signature: listener(update_seconds, value_seconds, status, value)
+        min_wait : float, optional
+            Minimum waiting period before listener can be called again, used
+            to limit the callback rate (zero or negative for no rate limit)
+            *This is ignored* as the same effect can be achieved with an
+            event-rate strategy on the sensor.
+
+        """
+        self._listeners.add(listener)
+
     def unregister_listener(self, listener):
-        pass
+        """Remove a listener callback added with register_listener().
+
+        Parameters
+        ----------
+        listener : function
+            Reference to the callback function that should be removed
+
+        """
+        self._listeners.discard(listener)
 
 
 class IgnoreUnknownMethods(object):
@@ -86,7 +178,7 @@ class FakeCamEventServer(DeviceServer):
 
 class FakeClient(object):
     """Fake KATCP client."""
-    def __init__(self, name, model, telescope, clock=None):
+    def __init__(self, name, model, telescope, clock=time):
         self.name = name
         self.model = object.__new__(model)
         self.req = IgnoreUnknownMethods()
@@ -94,20 +186,20 @@ class FakeClient(object):
         attrs = telescope[name]['attrs']
         sensors = telescope[name]['sensors']
         for sensor_args in sensors:
-            sensor = FakeSensor(*sensor_args)
+            sensor = FakeSensor(*sensor_args, clock=clock)
             setattr(self.sensor, sensor.name, sensor)
-        self._register_sensors(clock if clock is not None else time)
+        self._clock = clock
+        self._register_sensors()
         self._register_requests()
         self.model.__init__(**attrs)
 
-    def _register_sensors(self, clock):
+    def _register_sensors(self):
         self.model._client = weakref.proxy(self)
-        self.model._clock = weakref.proxy(clock)
         def set_sensor_attr(model, attr_name, value):
             if hasattr(model, '_client'):
                 sensor = getattr(model._client.sensor, attr_name, None)
                 if sensor:
-                    sensor.set_value(value, model._clock.time())
+                    sensor._set_value(value)
             object.__setattr__(model, attr_name, value)
         # Modify __setattr__ on the *class* and not the instance
         # (see e.g. http://stackoverflow.com/questions/13408372)
@@ -120,12 +212,20 @@ class FakeClient(object):
                 # Unbind attr function from model and bind it to req, removing 'req_' prefix
                 setattr(self.req, attr_name[4:], types.MethodType(attr.im_func, self.model))
 
+    def update(self, timestamp):
+        self.model.update(timestamp)
+        for sensor in vars(self.sensor).values():
+            sensor.update(timestamp)
+
     def is_connected(self):
         return True
 
     def sensor_sampling(self, sensor_name, strategy, params=None):
         sensor = getattr(self.sensor, sensor_name)
         sensor.set_strategy(strategy, params)
+
+    def wait(self, sensor, condition, timeout=5, poll_period=1, status="nominal"):
+        pass
 
 
 def load_config(config_file):
@@ -158,18 +258,18 @@ class FakeConn(object):
         self._telescope = load_config(config_file)
         self.sensors = IgnoreUnknownMethods()
         self._clock = WarpClock(start_time, dry_run)
-        self._models = []
+        self._clients = []
         for comp_name, component in self._telescope.items():
             model = vars(fake_models).get(component['class'] + 'Model')
             client = FakeClient(comp_name, model, self._telescope, self._clock)
             setattr(self, comp_name, client)
-            self._models.append(client.model)
+            self._clients.append(client)
             # Add component sensors to the top-level sensors group
             for sensor_args in component['sensors']:
                 sensor_name = sensor_args[0]
                 sensor = getattr(client.sensor, sensor_name)
                 setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
-        self.updater = PeriodicUpdaterThread(self._models, self._clock, period=2.0)
+        self.updater = PeriodicUpdaterThread(self._clients, self._clock, period=0.1)
         self.updater.start()
 
     def __enter__(self):
