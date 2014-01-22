@@ -76,7 +76,7 @@ class WarpClock(object):
         self.master_lock = SingleThreadLock()
         self.slave_lock = SingleThreadLock()
         self.condition = None
-        self.condition_achieved = False
+        self.condition_satisfied = False
 
     def time(self):
         return time.time() + self.offset
@@ -86,7 +86,7 @@ class WarpClock(object):
         with self.master_lock:
             if self.bed.occupied():
                 if self.condition and self.condition():
-                    self.condition_achieved = True
+                    self.condition_satisfied = True
                     self.bed.wake_up()
                 elif timestamp >= self.bed.time_to_wake:
                     self.bed.wake_up()
@@ -105,13 +105,13 @@ class WarpClock(object):
     def slave_sleep(self, seconds, condition=None):
         with self.slave_lock:
             self.condition = condition
-            self.condition_achieved = False
+            self.condition_satisfied = False
             logger.debug('Slave %r going to bed for %g s at %.2f' %
                          (self.slave_lock.thread_name, seconds, self.time()))
             self.bed.climb_in(self.time() + seconds, seconds)
             logger.debug('Slave %r woke up at %.2f' %
                          (self.slave_lock.thread_name, self.time(),))
-        return self.condition_achieved
+        return self.condition_satisfied
 
     sleep = slave_sleep
 

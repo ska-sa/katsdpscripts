@@ -55,9 +55,9 @@ class TestingUpdate(unittest.TestCase):
         """Check that a condition can wake up a sleeping thread."""
         self.clock = WarpClock(warp=True)
         with PeriodicUpdaterThread([self], self.clock, period=0.1):
-            achieved = self.clock.slave_sleep(0.95, condition=lambda: self.counter == 5)
-            self.assertTrue(achieved, 'Sleep condition not satisfied')
+            satisfied = self.clock.slave_sleep(0.95, condition=lambda: self.counter == 5)
+            self.assertTrue(satisfied, 'Sleep condition not satisfied')
             self.assertEquals(self.counter, 5, 'Sleep condition not satisfied')
-            achieved = self.clock.slave_sleep(0.95, condition=lambda: self.counter == 1000)
-            self.assertFalse(achieved, 'Sleep timeout not satisfied')
+            satisfied = self.clock.slave_sleep(0.95, condition=lambda: self.counter == 1000)
+            self.assertFalse(satisfied, 'Sleep timeout not satisfied')
             self.assertEquals(self.counter, 15, 'Sleep timeout not satisfied')
