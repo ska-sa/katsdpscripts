@@ -4,6 +4,7 @@ import weakref
 import csv
 import threading
 import time
+import logging
 
 import numpy as np
 
@@ -16,7 +17,9 @@ from katcorelib import build_client
 from katscripts.updater import WarpClock, PeriodicUpdaterThread
 from katscripts import fake_models
 
+
 __version__ = 'dev'
+user_logger = logging.getLogger("user")
 
 
 # XXX How about moving this to katcp?
@@ -71,6 +74,14 @@ class FakeSensor(object):
         self._strategy = None
         self._next_period = None
         self.set_strategy('none')
+
+    @property
+    def value(self):
+        return self._last_update.value
+
+    @property
+    def status(self):
+        return self._last_update.status
 
     def get_value(self):
         return self._sensor.value()
@@ -224,8 +235,22 @@ class FakeClient(object):
         sensor = getattr(self.sensor, sensor_name)
         sensor.set_strategy(strategy, params)
 
-    def wait(self, sensor, condition, timeout=5, poll_period=1, status="nominal"):
-        pass
+    def wait(self, sensor_name, condition, timeout=5, status='nominal'):
+        sensor_name = escape_name(sensor_name)
+        try:
+            sensor = getattr(self.sensor, sensor_name)
+        except AttributeError:
+            raise ValueError("Cannot wait on sensor %r which does not exist "
+                             "on client %r" % (sensor_name, self.name))
+        full_condition = lambda: sensor.status == status and (
+                                 callable(condition) and condition(sensor) or
+                                 sensor.value == condition)
+        try:
+            return self._clock.slave_sleep(timeout, full_condition)
+        except KeyboardInterrupt:
+            user_logger.info("User requested interrupt of wait on sensor %r "
+                             "which has value %r" % (sensor_name, sensor.value))
+            raise
 
 
 def load_config(config_file):
