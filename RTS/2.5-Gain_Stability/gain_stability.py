@@ -106,17 +106,27 @@ def calc_stats(timestamps,gainfunc,freq,pol='no polarizarion',windowtime=1200):
     returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Percentage variation over %i samples of %s is: %.5f"%(window,pol,windowgainchange.mean()*100))
-    returntext.append("The max Percentage variation over %i samples of %s is: %.5f"%(window,pol,windowgainchange.max()*100))
-    return returntext  # a plot would be cool
+    returntext.append("The mean Percentage variation over %i samples of %s is: %.5f    (req < 2 )"%(window,pol,windowgainchange.mean()*100))
+    returntext.append("The max  Percentage variation over %i samples of %s is: %.5f    (req < 2 )"%(window,pol,windowgainchange.max()*100))
+    pltobj = plt.figure()
+    plt.title(" %s pol Gain"%(pol))
+    plt.plot(windowgainchange.mean(),'b',label='20 Min (std/mean)')
+    plt.plot(np.ones_like(windowgainchange.mean())*2.0,'r',label=' 2 level')
+    return returntext,pltobj  # a plot would be cool
     
 
+def remove_rfi(d,width=3,sigma=5,axis=1):
+    for i in range(len(d.scans)):
+        d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
+    return d
 
 
 h5 = katfile.open(args[0])
+h5.select(ants='ant3')
 for ant in h5.ants:
     d = scape.DataSet(args[0], baseline="A%sA%s" % (ant.name[3:], ant.name[3:]))
     d = d.select(freqkeep=range(start_freq_channel, end_freq_channel+1))
+    d = remove_rfi(d,width=7,sigma=5)  # rfi flaging
     #Leave the d dataset unchanged after this so that it can be examined interactively if necessary
     antenna = d.antenna
     d_uncal = d.select(copy = True)
@@ -152,8 +162,13 @@ for ant in h5.ants:
     #time = np.hstack(time.data)
     #amp_hh = np.hstack(amp_hh.data)
     #amp_vv = np.hstack(amp_vv.data)
-    returntext = calc_stats(timestamps,g_hh,d.freqs,'HH',1200)+calc_stats(timestamps,g_vv,d.freqs,'VV',1200)
-    
+    returntext,fig = calc_stats(timestamps,g_hh,d.freqs,'HH',1200)
+    fig.savefig(pp,format='pdf')
+    plt.close()
+    tmp,fig = calc_stats(timestamps,g_vv,d.freqs,'VV',1200)
+    fig.savefig(pp,format='pdf')
+    plt.close()
+    returntext += tmp
     #detrend data
     fig = plt.figure(None,figsize = (10,16))
     plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
