@@ -297,6 +297,10 @@ class FakeConn(object):
         self.updater = PeriodicUpdaterThread(self._clients, self._clock, period=0.1)
         self.updater.start()
 
+    def __del__(self):
+        """Before deleting object, stop the system (this might not get called!)."""
+        self.stop()
+
     def __enter__(self):
         """Enter context."""
         return self

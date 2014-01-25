@@ -121,6 +121,7 @@ class PeriodicUpdaterThread(threading.Thread):
     def __init__(self, components, clock, period=0.1):
         threading.Thread.__init__(self)
         self.name = 'UpdateThread'
+        self.daemon = True
         self.components = components
         self.clock = clock
         self.period = period
