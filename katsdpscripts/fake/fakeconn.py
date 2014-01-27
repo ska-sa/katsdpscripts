@@ -83,6 +83,10 @@ class FakeSensor(object):
     def status(self):
         return self._last_update.status
 
+    @property
+    def strategy(self):
+        return SampleStrategy.SAMPLING_LOOKUP[self._strategy.get_sampling()]
+
     def get_value(self):
         # XXX Check whether this also triggers a sensor update a la strategy
         return self._sensor.value()
@@ -192,7 +196,7 @@ class FakeCamEventServer(DeviceServer):
 
 class FakeClient(object):
     """Fake KATCP client."""
-    def __init__(self, name, model, telescope, clock=time):
+    def __init__(self, name, model, telescope, clock):
         self.name = name
         self.model = object.__new__(model)
         self.req = IgnoreUnknownMethods()
@@ -245,14 +249,96 @@ class FakeClient(object):
         except AttributeError:
             raise ValueError("Cannot wait on sensor %r which does not exist "
                              "on client %r" % (sensor_name, self.name))
+        if sensor.strategy == 'none':
+	        raise ValueError("Cannot wait on sensor %r if it has no strategy "
+                             "set - see kat.%s.sensor.%s.set_strategy" %
+                             (sensor_name, self.name, sensor_name))
+
         full_condition = lambda: sensor.status == status and (
                                  callable(condition) and condition(sensor) or
                                  sensor.value == condition)
         try:
-            return self._clock.slave_sleep(timeout, full_condition)
+            success = self._clock.slave_sleep(timeout, full_condition)
+            if not success:
+                msg = "Waiting for sensor %r %s reached timeout of %d seconds" % \
+                      (sensor_name, ("condition" if callable(condition) else
+                                     "== " + str(condition)), timeout)
+                user_logger.warning(msg)
+            return success
         except KeyboardInterrupt:
             user_logger.info("User requested interrupt of wait on sensor %r "
                              "which has value %r" % (sensor_name, sensor.value))
+            raise
+
+
+class GroupRequest(object):
+    """The old ArrayRequest class."""
+    def __init__(self, array, name, description):
+        self.array = array
+        self.name = name
+        self.__doc__ = description
+
+    def __call__(self, *args, **kwargs):
+        for client in self.array.clients:
+            method = getattr(client.req, self.name, None)
+            if method:
+                method(*args, **kwargs)
+
+
+class ClientGroup(object):
+    """The old Array class."""
+    def __init__(self, name, clients, clock):
+        self.name = name
+        self.clients = list(clients)
+        self._clock = clock
+        self.req = IgnoreUnknownMethods()
+        # Register requests
+        for client in self.clients:
+            existing_requests = vars(self.req).keys()
+            for name, request in vars(client.req).iteritems():
+                if name not in existing_requests:
+                    setattr(self.req, name, GroupRequest(self, name, request.__doc__))
+
+    def sensor_sampling(self, sensor_name, strategy, params=None):
+        for client in self.clients:
+            client.sensor_sampling(sensor_name, strategy, params)
+
+    def wait(self, sensor_name, condition, timeout=5, status='nominal'):
+        sensor_name = escape_name(sensor_name)
+        missing = [client.name for client in self.clients
+                   if not hasattr(client.sensor, sensor_name)]
+        if missing:
+            raise ValueError("Cannot wait on sensor %r in array %r which is "
+                             "not present on clients %r" %
+                             (sensor_name, self.name, missing))
+        sensors = [getattr(client.sensor, sensor_name) for client in self.clients]
+        no_strategy = [client.name for client, sensor in zip(self.clients, sensors)
+                       if sensor.strategy == 'none']
+        if no_strategy:
+            raise ValueError("Cannot wait on sensor %r in array %r which has "
+                             "no strategy set on clients %r" %
+                             (sensor_name, self.name, no_strategy))
+
+        def sensor_condition(sensor):
+             return sensor.status == status and (callable(condition) and
+                    condition(sensor) or sensor.value == condition)
+        full_condition = lambda: all(sensor_condition(s) for s in sensors)
+        try:
+            success = self._clock.slave_sleep(timeout, full_condition)
+            if not success:
+                non_matched = [c.name for c, s in zip(self.clients, sensors)
+                               if not sensor_condition(s)]
+                msg = "Waiting for sensor %r %s reached timeout of %d seconds. " \
+                      "Clients %r failed." % (sensor_name,
+                      ("condition" if callable(condition) else "== " + str(condition)),
+                      timeout, non_matched)
+                user_logger.warning(msg)
+            return success
+        except KeyboardInterrupt:
+            user_logger.info("User requested interrupt of wait on sensor %r "
+                             "which has values %s" % (sensor_name,
+                             dict((c.name, s.value)
+                                  for c, s in zip(self.clients, sensors))))
             raise
 
 
@@ -287,7 +373,11 @@ class FakeConn(object):
         self.sensors = IgnoreUnknownMethods()
         self._clock = WarpClock(start_time, dry_run)
         self._clients = []
+        groups = {}
         for comp_name, component in self._telescope.items():
+            if component['class'] == 'Group':
+                groups[comp_name] = component['attrs']['members']
+                continue
             model = vars(fake_models).get(component['class'] + 'Model')
             client = FakeClient(comp_name, model, self._telescope, self._clock)
             setattr(self, comp_name, client)
@@ -297,6 +387,11 @@ class FakeConn(object):
                 sensor_name = sensor_args[0]
                 sensor = getattr(client.sensor, sensor_name)
                 setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
+        for group_name, client_names in groups.items():
+            group = ClientGroup(comp_name, [getattr(self, client_name, None)
+                                            for client_name in client_names],
+                                self._clock)
+            setattr(self, group_name, group)
         self.updater = PeriodicUpdaterThread(self._clients, self._clock, period=0.1)
         self.updater.start()
 
