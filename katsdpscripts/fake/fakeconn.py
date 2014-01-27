@@ -84,6 +84,7 @@ class FakeSensor(object):
         return self._last_update.status
 
     def get_value(self):
+        # XXX Check whether this also triggers a sensor update a la strategy
         return self._sensor.value()
 
     def _set_value(self, value):
@@ -92,17 +93,19 @@ class FakeSensor(object):
             self._sensor._kattype._valid_values.add(value)
         self._sensor.set(self._clock.time(), Sensor.NOMINAL, value)
 
+    def _update_value(self, timestamp, status_str, value_str):
+        update_seconds = self._clock.time()
+        value = self._sensor.parse_value(value_str)
+        self._last_update = SensorUpdate(update_seconds, timestamp,
+                                         status_str, value)
+        for listener in set(self._listeners):
+            listener(update_seconds, timestamp, status_str, value_str)
+
     def set_strategy(self, strategy, params=None):
         """Set sensor strategy."""
         def inform_callback(sensor_name, timestamp_str, status_str, value_str):
             """Inform callback for sensor strategy."""
-            update_seconds = self._clock.time()
-            value_seconds = float(timestamp_str)
-            value = self._sensor.parse_value(value_str)
-            self._last_update = SensorUpdate(update_seconds, value_seconds,
-                                             status_str, value)
-            for listener in set(self._listeners):
-                listener(update_seconds, value_seconds, status_str, value_str)
+            self._update_value(float(timestamp_str), status_str, value_str)
             print sensor_name, timestamp_str, status_str, value_str
 
         if self._strategy:
