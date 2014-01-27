@@ -2,12 +2,12 @@ import sys
 import optparse
 import logging
 import time
-
+from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.projections import PolarAxes
-
+from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
 
@@ -91,10 +91,12 @@ if not len(args) != 1 and args[0].endswith('.csv'):
     keep = np.ones((len(data)),dtype=np.bool)
 else:
     print('No pointing Data file. Skipping Poinint Model determination')
+
 if not offset_file is None :
     offsetdata = read_offsetfile(offset_file)
-    for key,target in enumerate(data['target']):
-        keep[key] = target not in set(offsetdata['target'])
+    if not len(args) != 1 and args[0].endswith('.csv'):
+        for key,target in enumerate(data['target']):
+            keep[key] = target not in set(offsetdata['target'])
 else:
     offsetdata = None
 
@@ -152,7 +154,7 @@ if not len(args) != 1 and args[0].endswith('.csv'):
         # The chi^2 value is what is actually optimised by the least-squares fitter (evaluated on the training set)
         chi2 = np.sum(((residual_xel / std_delta_az) ** 2 + (residual_el / std_delta_el) ** 2))
         text = []
-        text.append("$\chi^2$ = %g " % chi2)
+        #text.append("$\chi^2$ = %g " % chi2)
         text.append("all sky rms = %.3f' (robust %.3f') " % (sky_rms, robust_sky_rms))
         return sky_rms,robust_sky_rms,chi2,text
 
@@ -179,7 +181,7 @@ if not offsetdata is None :
         text = []
         measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
         abs_sky_error = np.ma.array(data=measured_delta_xel,mask=False)
-        
+
         for target in set(offsetdata['target']):
             keep = np.ones((len(offsetdata)),dtype=np.bool)
             for key,targetv in enumerate(offsetdata['target']):
@@ -187,7 +189,7 @@ if not offsetdata is None :
             abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) * 60.
             abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
             text.append("Test Target: '%s'  Reference RMS = %.3f' (robust %.3f')  (N=%i Data Points)" % (target,np.sqrt((abs_sky_error[keep] ** 2).mean()), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
-            
+
         ###### On the calculation of all-sky RMS #####
         # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
         # They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
@@ -210,7 +212,15 @@ else:
 
 text.append("\n")
 
+nice_filename =  args[0].split('/')[-1]+ '_pointing_stats'
+pp = PdfPages(nice_filename+'.pdf')
 for line in text: print line
+fig = plt.figure(None,figsize = (10,16))
+plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
+fig.savefig(pp,format='pdf')
+
+plt.close('all')
+pp.close()
 
 
 
