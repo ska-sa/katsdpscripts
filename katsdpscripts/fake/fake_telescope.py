@@ -75,7 +75,7 @@ def load_config(config_file):
     return telescope
 
 
-class FakeConn(object):
+class FakeTelescope(object):
     """Connection object for a simulated KAT system."""
     def __init__(self, config_file, dry_run=False, start_time=None):
         self._telescope = load_config(config_file)
