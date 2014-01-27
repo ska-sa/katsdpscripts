@@ -1,5 +1,5 @@
 import types
-from ConfigParser import SafeConfigParser, NoSectionError
+from ConfigParser import SafeConfigParser, NoSectionError, Error
 import weakref
 import csv
 import threading
@@ -345,7 +345,9 @@ class ClientGroup(object):
 def load_config(config_file):
     split = lambda args: csv.reader([args], skipinitialspace=True).next()
     cfg = SafeConfigParser()
-    cfg.read(config_file)
+    files_read = cfg.read(config_file)
+    if files_read != [config_file]:
+        raise Error('Could not open config file %r' % (config_file,))
     components = dict(cfg.items('Telescope'))
     telescope = {}
     for comp_name, comp_type in components.items():
