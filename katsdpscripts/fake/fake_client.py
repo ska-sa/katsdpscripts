@@ -123,6 +123,14 @@ class ClientGroup(object):
                 if name not in existing_requests:
                     setattr(self.req, name, GroupRequest(self, name, request.__doc__))
 
+    def __iter__(self):
+        """Iterate over client members of group."""
+        return iter(self.clients)
+
+    def __len__(self):
+        """Number of client members in group."""
+        return len(self.clients)
+
     def wait(self, sensor_name, condition, timeout=5, status='nominal'):
         sensor_name = escape_name(sensor_name)
         missing = [client.name for client in self.clients
