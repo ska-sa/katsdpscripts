@@ -1,7 +1,6 @@
-import numpy as np
-
 from katpoint import (Antenna, Target, rad2deg, deg2rad, wrap_angle,
                       construct_azel_target)
+
 
 class FakeModel(object):
     def update(self, timestamp):
@@ -9,16 +8,21 @@ class FakeModel(object):
 
 
 class AntennaPositionerModel(FakeModel):
-    def __init__(self, description, max_slew_azim_dps, max_slew_elev_dps,
-                 inner_threshold_deg, **kwargs):
+    def __init__(self, description, real_az_min_deg, real_az_max_deg,
+                 real_el_min_deg, real_el_max_deg, max_slew_azim_dps,
+                 max_slew_elev_dps, inner_threshold_deg, **kwargs):
         self.ant = Antenna(description)
         self.req_target('Zenith, azel, 0, 90')
-        self.mode = 'POINT'
+        self.mode = 'STOP'
         self.activity = 'stow'
         self.lock = True
         self.lock_threshold = inner_threshold_deg
         self.pos_actual_scan_azim = self.pos_request_scan_azim = 0.0
         self.pos_actual_scan_elev = self.pos_request_scan_elev = 90.0
+        self.real_az_min_deg = real_az_min_deg
+        self.real_az_max_deg = real_az_max_deg
+        self.real_el_min_deg = real_el_min_deg
+        self.real_el_max_deg = real_el_max_deg
         self.max_slew_azim_dps = max_slew_azim_dps
         self.max_slew_elev_dps = max_slew_elev_dps
         self._last_update = 0.0
@@ -36,6 +40,9 @@ class AntennaPositionerModel(FakeModel):
 
     def update(self, timestamp):
         elapsed_time = timestamp - self._last_update if self._last_update else 0.0
+        self._last_update = timestamp
+        if self.mode not in ('POINT', 'SCAN', 'STOW'):
+            return
         max_delta_az = self.max_slew_azim_dps * elapsed_time
         max_delta_el = self.max_slew_elev_dps * elapsed_time
         az, el = self.pos_actual_scan_azim, self.pos_actual_scan_elev
@@ -44,16 +51,21 @@ class AntennaPositionerModel(FakeModel):
         requested_el = rad2deg(requested_el)
         delta_az = wrap_angle(requested_az - az, period=360.)
         delta_el = requested_el - el
-        az += np.clip(delta_az, -max_delta_az, max_delta_az)
-        el += np.clip(delta_el, -max_delta_el, max_delta_el)
+        # Truncate velocities to slew rate limits and update position
+        az += min(max(delta_az, -max_delta_az), max_delta_az)
+        el += min(max(delta_el, -max_delta_el), max_delta_el)
+        # Truncate coordinates to antenna limits
+        az = min(max(az, self.real_az_min_deg), self.real_az_max_deg)
+        el = min(max(el, self.real_el_min_deg), self.real_el_max_deg)
+        # Check angular separation to determine lock
+        dish = construct_azel_target(deg2rad(az), deg2rad(el))
+        error = rad2deg(self._target.separation(dish, timestamp))
+        self.lock = error < self.lock_threshold
+        # Update position sensors
         self.pos_request_scan_azim = requested_az
         self.pos_request_scan_elev = requested_el
         self.pos_actual_scan_azim = az
         self.pos_actual_scan_elev = el
-        dish = construct_azel_target(deg2rad(az), deg2rad(el))
-        error = rad2deg(self._target.separation(dish, timestamp))
-        self.lock = error < self.lock_threshold
-        self._last_update = timestamp
 #        print 'elapsed: %g, max_daz: %g, max_del: %g, daz: %g, del: %g, error: %g' % (elapsed_time, max_delta_az, max_delta_el, delta_az, delta_el, error)
 
 
