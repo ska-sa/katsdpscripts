@@ -45,10 +45,10 @@ class SensorUpdate(object):
 
 class FakeSensor(object):
     """Fake sensor."""
-    def __init__(self, name, sensor_type, description, units='', clock=time):
+    def __init__(self, name, sensor_type, description, units='', params=None, clock=time):
         self.name = name
         sensor_type = Sensor.parse_type(sensor_type)
-        params = ['unknown'] if sensor_type == Sensor.DISCRETE else None
+        params = str(params).split(' ') if params else None
         self._sensor = Sensor(sensor_type, name, description, units, params)
         self.__doc__ = self.description = description
         self._clock = clock
@@ -74,11 +74,8 @@ class FakeSensor(object):
         # XXX Check whether this also triggers a sensor update a la strategy
         return self._sensor.value()
 
-    def _set_value(self, value):
-        if self._sensor.stype == 'discrete':
-            self._sensor._kattype._values.append(value)
-            self._sensor._kattype._valid_values.add(value)
-        self._sensor.set(self._clock.time(), Sensor.NOMINAL, value)
+    def _set_value(self, value, status=Sensor.NOMINAL):
+        self._sensor.set_value(value, status, self._clock.time())
 
     def _update_value(self, timestamp, status_str, value_str):
         update_seconds = self._clock.time()
