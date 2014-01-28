@@ -46,12 +46,17 @@ class FakeClient(object):
         # (see e.g. http://stackoverflow.com/questions/13408372)
         setattr(self.model.__class__, '__setattr__', set_sensor_attr)
 
+    def _req_sensor_sampling(self, sensor_name, strategy, params=None):
+        sensor = getattr(self.sensor, sensor_name)
+        sensor.set_strategy(strategy, params)
+
     def _register_requests(self):
         for attr_name in dir(self.model):
             attr = getattr(self.model, attr_name)
             if callable(attr) and attr_name.startswith('req_'):
                 # Unbind attr function from model and bind it to req, removing 'req_' prefix
                 setattr(self.req, attr_name[4:], types.MethodType(attr.im_func, self.model))
+        setattr(self.req, 'sensor_sampling', self._req_sensor_sampling)
 
     def update(self, timestamp):
         self.model.update(timestamp)
@@ -60,10 +65,6 @@ class FakeClient(object):
 
     def is_connected(self):
         return True
-
-    def sensor_sampling(self, sensor_name, strategy, params=None):
-        sensor = getattr(self.sensor, sensor_name)
-        sensor.set_strategy(strategy, params)
 
     def wait(self, sensor_name, condition, timeout=5, status='nominal'):
         sensor_name = escape_name(sensor_name)
@@ -121,10 +122,6 @@ class ClientGroup(object):
             for name, request in vars(client.req).iteritems():
                 if name not in existing_requests:
                     setattr(self.req, name, GroupRequest(self, name, request.__doc__))
-
-    def sensor_sampling(self, sensor_name, strategy, params=None):
-        for client in self.clients:
-            client.sensor_sampling(sensor_name, strategy, params)
 
     def wait(self, sensor_name, condition, timeout=5, status='nominal'):
         sensor_name = escape_name(sensor_name)
