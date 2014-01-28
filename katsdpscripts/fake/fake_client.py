@@ -30,18 +30,25 @@ class FakeClient(object):
             sensor = FakeSensor(*sensor_args, clock=clock)
             setattr(self.sensor, sensor.name, sensor)
         self._clock = clock
+        self._aggregates = {}
         self._register_sensors()
         self._register_requests()
         self.model.__init__(**attrs)
+        self._register_aggregate_sensors()
 
     def _register_sensors(self):
         self.model._client = weakref.proxy(self)
         def set_sensor_attr(model, attr_name, value):
-            if hasattr(model, '_client'):
-                sensor = getattr(model._client.sensor, attr_name, None)
+            client = getattr(model, '_client', None)
+            if client:
+                sensor = getattr(client.sensor, attr_name, None)
                 if sensor:
                     sensor._set_value(value)
             object.__setattr__(model, attr_name, value)
+            if client and attr_name in client._aggregates:
+                for parent, rule, children in client._aggregates[attr_name]:
+                    child_values = [getattr(model, c) for c in children]
+                    setattr(model, parent, rule(*child_values))
         # Modify __setattr__ on the *class* and not the instance
         # (see e.g. http://stackoverflow.com/questions/13408372)
         setattr(self.model.__class__, '__setattr__', set_sensor_attr)
@@ -57,6 +64,17 @@ class FakeClient(object):
                 # Unbind attr function from model and bind it to req, removing 'req_' prefix
                 setattr(self.req, attr_name[4:], types.MethodType(attr.im_func, self.model))
         setattr(self.req, 'sensor_sampling', self._req_sensor_sampling)
+
+    def _register_aggregate_sensors(self):
+        for attr_name in dir(self.model):
+            attr = getattr(self.model, attr_name)
+            if callable(attr) and attr_name.startswith('_aggregate_'):
+                agg_parent = attr_name[11:]
+                agg_func = attr.im_func.func_code
+                agg_children = agg_func.co_varnames[1:agg_func.co_argcount]
+                for child in agg_children:
+                    self._aggregates[child] = self._aggregates.get(child, []) + \
+                                              [(agg_parent, attr, agg_children)]
 
     def update(self, timestamp):
         self.model.update(timestamp)
