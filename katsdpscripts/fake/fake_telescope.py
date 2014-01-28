@@ -106,7 +106,8 @@ class FakeTelescope(object):
 
     def __del__(self):
         """Before deleting object, stop the system (this might not get called!)."""
-        self.stop()
+        self.updater.stop()
+        self.updater.join()
 
     def __enter__(self):
         """Enter context."""
@@ -114,14 +115,10 @@ class FakeTelescope(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit context and stop the system."""
-        self.stop()
-        # Don't suppress exceptions
-        return False
-
-    def stop(self):
-        """Stop the system."""
         self.updater.stop()
         self.updater.join()
+        # Don't suppress exceptions
+        return False
 
     def time(self):
         """Current time in UTC seconds since Unix epoch."""
