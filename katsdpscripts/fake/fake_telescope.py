@@ -97,8 +97,8 @@ class FakeTelescope(object):
                 sensor = getattr(client.sensor, sensor_name)
                 setattr(self.sensors, comp_name + '_' + sensor_name, sensor)
         for group_name, client_names in groups.items():
-            group = ClientGroup(comp_name, [getattr(self, client_name, None)
-                                            for client_name in client_names],
+            group = ClientGroup(group_name, [getattr(self, client_name, None)
+                                             for client_name in client_names],
                                 self._clock)
             setattr(self, group_name, group)
         self.updater = PeriodicUpdaterThread(self._clients, self._clock, period=0.1)
@@ -134,6 +134,48 @@ class FakeTelescope(object):
     @dry_run.setter
     def dry_run(self, flag):
         self._clock.warp = flag
+
+    def receptor_subset(self, rcps, name='receptors'):
+        """Group a subset of receptors from a flexible specification.
+
+        Parameters
+        ----------
+        rcps : :class:`ClientGroup` or :class:`FakeClient` object / list / string
+            Receptors specified by a ClientGroup object containing receptor
+            clients, or a single receptor client or a list of receptor clients,
+            or a string of comma-separated receptor names, or the string 'all'
+            for all receptors controlled by the FakeTelescope
+        name : string, optional
+            Name of receptor subset
+
+        Returns
+        -------
+        group : :class:`ClientGroup` object
+            ClientGroup object containing selected receptor clients
+
+        Raises
+        ------
+        ValueError
+            If receptor with a specified name is not found on FakeTelescope
+
+        """
+        if isinstance(rcps, ClientGroup):
+            rcps.name = name
+            rcps._clock = self._clock
+            return rcps
+        elif isinstance(rcps, FakeClient):
+            return ClientGroup(name, [rcps], self._clock)
+        elif isinstance(rcps, basestring):
+            if rcps.strip() == 'all':
+                return self.rcps
+            try:
+                rcps = [getattr(self, rcp.strip()) for rcp in rcps.split(',')]
+            except AttributeError:
+                raise ValueError("Receptor %r not found on Telescope" % (rcp,))
+            return ClientGroup(name, rcps, self._clock)
+        else:
+            # The default assumes that *rcps* is a list of receptor clients
+            return ClientGroup(name, rcps, self._clock)
 
         # self.system = system
         # self.sb_id_code = sb_id_code

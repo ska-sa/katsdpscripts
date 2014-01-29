@@ -136,10 +136,12 @@ class ClientGroup(object):
         self.req = IgnoreUnknownMethods()
         # Register requests
         for client in self.clients:
-            existing_requests = vars(self.req).keys()
-            for name, request in vars(client.req).iteritems():
-                if name not in existing_requests:
-                    setattr(self.req, name, GroupRequest(self, name, request.__doc__))
+            if client:
+                existing_requests = vars(self.req).keys()
+                for name, request in vars(client.req).iteritems():
+                    if name not in existing_requests:
+                        setattr(self.req, name,
+                                GroupRequest(self, name, request.__doc__))
 
     def __iter__(self):
         """Iterate over client members of group."""
