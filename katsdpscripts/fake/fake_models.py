@@ -11,6 +11,7 @@ class AntennaPositionerModel(FakeModel):
     def __init__(self, description, real_az_min_deg, real_az_max_deg,
                  real_el_min_deg, real_el_max_deg, max_slew_azim_dps,
                  max_slew_elev_dps, inner_threshold_deg, **kwargs):
+        self.observer = description
         self.ant = Antenna(description)
         self.mode = 'STOP'
         self.req_target('')
