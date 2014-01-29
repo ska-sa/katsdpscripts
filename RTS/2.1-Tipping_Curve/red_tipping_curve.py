@@ -468,7 +468,7 @@ for ant in h5.ants:
     for el in select_el : 
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(el))
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1))))
         fig.savefig(pp,format='pdf') 
      
     fig = plt.figure(None,figsize = (8,8))
