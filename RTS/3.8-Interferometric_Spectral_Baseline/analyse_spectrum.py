@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import optparse
+import os
 
 import numpy as np
 from numpy.ma import MaskedArray
@@ -330,9 +331,11 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     fig = plt.figure(figsize=(8.3,8.3))
 
     fig.subplots_adjust(hspace=0.0)
+
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(211)
- 
+    
+    ax1.axhline(0.005,ls='--', color='red')
     ax1.plot(freqdata,corr_visdata_std/mean_visdata*100.0)
     plt.ylabel('Standard Deviation (% of mean)')
     tstring = 'Spectral Baseline, %s'%baseline
@@ -349,7 +352,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
 
     #plot title
     plt.title(tstring)
-
+    
     #Plot the spectrum with standard deviations around it
     ax2 = plt.subplot(212, sharex=ax1)
     ax2.plot(freqdata,mean_visdata)
@@ -361,6 +364,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     plot_RFI_mask(ax1,flag_freqs,channel_width)
     plot_RFI_mask(ax2,flag_freqs,channel_width)
     plt.xlim((end_freq,start_freq))
+    
     fig.savefig(fileprefix+'_SpecBase_'+baseline+'_'+pol+'.pdf')
 
 
@@ -394,5 +398,5 @@ elif correct=='spline':
 #get weighted standard deviation of corrected visdata
 corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
 
-fileprefix = args[0].split('/')[-1]
+fileprefix = os.path.splitext(args[0].split('/')[-1])[0]
 plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav,fileprefix)
