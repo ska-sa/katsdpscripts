@@ -277,13 +277,14 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
             plt.plot(plot_elevation, plot_gain, 'o', label=targ)
             # Plot a pass fail line
             plt.axhline(0.95, 0.0, 90.0, ls='--', color='red')
+            plt.ylabel('Normalised gain')
         else:
             plt.plot(data['elevation'][good & targetmask[targ]], gain[good & targetmask[targ]], 'o', label=targ)
+            plt.ylabel('Gain (%s/Jy)'%opts.units)
     #Plot the model curve for the gains if units are K
     if opts.units!="counts":
         fit_gain = g_0*np.exp(-tau/np.sin(np.radians(fit_elev)))
         plt.plot(fit_elev, fit_gain, 'k-')
-    plt.ylabel('Gain (%s/Jy)'%opts.units)
 
     #Get a title string
     title = 'Gain Curve, '
