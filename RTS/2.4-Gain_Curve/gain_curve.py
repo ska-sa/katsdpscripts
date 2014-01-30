@@ -8,6 +8,7 @@ import sys
 import logging
 import optparse
 import glob
+import time
 
 import numpy as np
 import numpy.lib.recfunctions as nprec
@@ -37,6 +38,7 @@ def parse_arguments():
     parser.add_option("-c", "--correct_atmosphere", action="store_true", default=False, help="Correct for atmospheric effects.")
     parser.add_option("-e", "--elev_min", type="float", default=15, help="Minimum acceptable elevation for median calculations.")
     parser.add_option("-u", "--units", default="counts", help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: K, Options: counts, K")
+    parser.add_option("-n", "--no_normalise_gain", action="store_true", default=False, help="Don't normalise the measured gains to the maximum fit to the data.")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
         print 'Please specify a csv file output from analyse_point_source_scans.py.'
@@ -169,6 +171,7 @@ def determine_good_data(data, targets=None, tsys=None, tsys_lim=150, eff=None, e
     #Check for units
     good = good & (data['data_unit'] == units)
     print "6",np.sum(good)
+
     return good
 
 def fit_atmospheric_absorption(gain, elevation):
@@ -237,6 +240,9 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
         and a txt file with the plotting data.
     """
 
+    # Multipage Pdf
+    pdf = PdfPages(output_filename+'.pdf')
+
     #Set up list of separate targets for plotting
     if opts.targets:
         targets = opts.targets.split(',')
@@ -257,13 +263,28 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     fig.subplots_adjust(hspace=0.0)
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(511)
+
     for targ in targets:
-        plt.plot(data['elevation'][good & targetmask[targ]], gain[good & targetmask[targ]], 'o', label=targ)
-    #Plot the model curve for the gains if not interferometric
+        # Normalise the data by fit of line to it
+        if not opts.no_normalise_gain:
+            use_elev = data['elevation']>opts.min_elevation
+            fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
+            fit_gain = gain[good & targetmask[targ] & use_elev]
+            fit=np.polyfit(fit_elev, fit_gain, 1)
+            g90=fit[0]*90.0 + fit[1]
+            plot_gain = gain[good & targetmask[targ]]/g90
+            plot_elevation = data['elevation'][good & targetmask[targ]]
+            plt.plot(plot_elevation, plot_gain, 'o', label=targ)
+            # Plot a pass fail line
+            plt.axhline(0.95, 0.0, 90.0, ls='--', color='red')
+        else:
+            plt.plot(data['elevation'][good & targetmask[targ]], gain[good & targetmask[targ]], 'o', label=targ)
+    #Plot the model curve for the gains if units are K
     if opts.units!="counts":
         fit_gain = g_0*np.exp(-tau/np.sin(np.radians(fit_elev)))
         plt.plot(fit_elev, fit_gain, 'k-')
-        plt.ylabel('Gain (%s/Jy)'%opts.units)
+    plt.ylabel('Gain (%s/Jy)'%opts.units)
+
     #Get a title string
     title = 'Gain Curve, '
     title += antenna.name + ','
@@ -320,7 +341,44 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
         outputtext += 'Fit of atmospheric emission:  '
         outputtext += 'T_rec (K): %.2f   T_atm (K): %.2f'%(T_rec, T_atm)
     plt.figtext(0.1,0.1, outputtext,fontsize=11)
-    fig.savefig(output_filename+'.pdf')
+    fig.savefig(pdf,format='pdf')
+    plt.close(fig)
+
+    # Plot weather data on next page of pdf.2013-12-10 21:23:43.733
+    # Get the time offsets from the first timestamp in hours
+    timestamps = np.array([time.mktime(time.strptime(thistime[:19], '%Y-%m-%d %H:%M:%S')) for thistime in data['timestamp_ut']])
+    timeoffsets = (timestamps - timestamps[0])/3600.0
+    #Set up the figure
+    fig = plt.figure(figsize=(8.3,11.7))
+    #date format for plots
+    fig.subplots_adjust(hspace=0.0)
+    #Plot the gain vs elevation for each target
+    ax1 = plt.subplot(411)
+    plt.title('Atmospheric Conditions')
+    plt.ylabel('Wind Speed (km/s)')
+    # Wind
+    for targ in targets:
+        plt.plot(timeoffsets[good & targetmask[targ]], data['wind_speed'][good & targetmask[targ]], 'o', label=targ)
+    # Temperature
+    ax2 = plt.subplot(412)
+    plt.ylabel('Temperature (Celcius)')
+    for targ in targets:
+        plt.plot(timeoffsets[good & targetmask[targ]], data['temperature'][good & targetmask[targ]], 'o', label=targ)
+    # Humidity
+    ax3 = plt.subplot(413)
+    plt.ylabel('Relative Humidity (per cent)')
+    for targ in targets:
+        plt.plot(timeoffsets[good & targetmask[targ]], data['humidity'][good & targetmask[targ]], 'o', label=targ)
+    # Pressure
+    ax4 = plt.subplot(414)
+    plt.ylabel('Air Pressure (mbar)')
+    for targ in targets:
+        plt.plot(timeoffsets[good & targetmask[targ]], data['pressure'][good & targetmask[targ]], 'o', label=targ)
+    plt.xlabel('Time since start (hours)')
+    fig.savefig(pdf, format='pdf')
+    plt.close(fig)
+
+    pdf.close()
 
     #Write out gain data to file
     output_file = file(output_filename+'.csv',mode='w')
