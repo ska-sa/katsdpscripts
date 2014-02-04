@@ -1,6 +1,6 @@
-from katsdpscripts.fake_telescope import FakeTelescope
+from katsdpscripts.fake.telescope import FakeTelescope
 
-kat = FakeTelescope('katsdpscripts/rts_model.cfg')
+kat = FakeTelescope('katsdpscripts/fake/rts_model.cfg')
 kat.dry_run = True
 kat.rcps.req.sensor_sampling('lock', 'event')
 kat.m062.req.sensor_sampling('pos_actual_scan_azim', 'period', 2.0)

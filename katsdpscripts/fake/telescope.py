@@ -7,10 +7,10 @@ from katpoint import Catalogue
 from katcp import DeviceServer
 from katcp.kattypes import return_reply, Str
 
-from katsdpscripts.updater import WarpClock, PeriodicUpdaterThread
-from katsdpscripts.fake_sensor import FakeSensor
-from katsdpscripts.fake_client import FakeClient, ClientGroup, IgnoreUnknownMethods
-from katsdpscripts import fake_models
+from katsdpscripts.fake.updater import WarpClock, PeriodicUpdaterThread
+from katsdpscripts.fake.sensor import FakeSensor
+from katsdpscripts.fake.client import FakeClient, ClientGroup, IgnoreUnknownMethods
+from katsdpscripts.fake import models
 
 
 __version__ = 'dev'
@@ -87,7 +87,7 @@ class FakeTelescope(object):
             if component['class'] == 'Group':
                 groups[comp_name] = component['attrs']['members']
                 continue
-            model = vars(fake_models).get(component['class'] + 'Model')
+            model = vars(models).get(component['class'] + 'Model')
             client = FakeClient(comp_name, model, self._telescope, self._clock)
             setattr(self, comp_name, client)
             self._clients.append(client)
