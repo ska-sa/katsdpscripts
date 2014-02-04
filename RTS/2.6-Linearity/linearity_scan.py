@@ -97,7 +97,7 @@ with verify_and_connect(opts) as kat:
                         user_logger.info("Offset of %f,%f degrees " %(offset,0.0))
                         session.ants.req.offset_fixed(offset*180.0/np.pi,0*180.0/np.pi,opts.projection)
                         nd_params = session.nd_params
-                        session.fire_noise_diode(announce=False, **nd_params)
+                        session.fire_noise_diode(announce=True, **nd_params)
                         time.sleep(opts.track_duration)
                     targets_observed.append(target.name)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
