@@ -1,0 +1,16 @@
+
+# /
+/build
+/dist
+*.egg-info
+*.pyc
+*~
+.ropeproject
+# /docs/
+/docs/_build
+
+# /katsdpscripts/
+/katsdpscripts/*.pyc
+/katsdpscripts/.coverage
+/katsdpscripts/fake/*.pyc
+/katsdpscripts/fake/.coverage
