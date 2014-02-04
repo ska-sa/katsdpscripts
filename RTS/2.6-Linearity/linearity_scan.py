@@ -102,6 +102,8 @@ with verify_and_connect(opts) as kat:
                             if not next_track <= 0:
                                 #session.track(target, duration=next_track, announce=False)
                                 session.ants.req.offset_fixed(offset*180.0/np.pi,0*180.0/np.pi,opts.projection)
+                                nd_params = session.nd_params
+                                session.fire_noise_diode(announce=False, **nd_params)
                                 time.sleep(next_track)
                             else:
                                 break
