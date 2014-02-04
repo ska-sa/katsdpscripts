@@ -99,7 +99,7 @@ with verify_and_connect(opts) as kat:
                         nd_params = session.nd_params
                         session.fire_noise_diode(announce=False, **nd_params)
                         time.sleep(next_track)
-                   if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
+                    if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                         user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
                                             (opts.max_duration,))
                         keep_going = False
