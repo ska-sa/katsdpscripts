@@ -99,12 +99,13 @@ with verify_and_connect(opts) as kat:
                         nd_params = session.nd_params
                         session.fire_noise_diode(announce=False, **nd_params)
                         time.sleep(opts.track_duration)
+                    targets_observed.append(target.name)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                         user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
                                             (opts.max_duration,))
                         keep_going = False
                         break
-                    targets_observed.append(target.name)
+            
                 if keep_going and len(targets_observed) == targets_before_loop:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                     keep_going = False
