@@ -90,6 +90,7 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
+                    session.track(target, duration=0, announce=False)
                     for offset in np.linspace(opts.max_extent,0,opts.number_of_steps):
                         session.label('track')
                         user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
