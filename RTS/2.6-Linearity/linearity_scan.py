@@ -21,6 +21,10 @@ parser.add_option('-t', '--track-duration', type='float', default=60.0,
 parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
+parser.add_option( '--max-extent', type='float', default=3.0,
+                  help='Maximum extent in degrees, the script will scan ')
+parser.add_option( '--number-of-steps', type='int', default=10,
+                  help='Number of pointings to do while scaning , the script will scan ')
 parser.add_option('--repeat', action="store_true", default=False,
                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 parser.add_option('--no-delays', action="store_true", default=False,
@@ -86,7 +90,7 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    for offset in np.linspace(3,0,10):
+                    for offset in np.linspace(opts.max_extent,0,opts.number_of_steps):
                         session.label('track')
                         user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                         # Split the total track on one target into segments lasting as long as the noise diode period
