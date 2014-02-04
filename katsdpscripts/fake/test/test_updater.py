@@ -3,7 +3,7 @@ import threading
 import logging
 import time
 
-from katscripts.updater import (WarpClock, PeriodicUpdaterThread,
+from katsdpscripts.updater import (WarpClock, PeriodicUpdaterThread,
                                 SingleThreadError)
 
 

@@ -2,9 +2,9 @@
 from setuptools import setup, find_packages
 
 setup (
-    name = "katscripts",
+    name = "katsdpscripts",
     version = "trunk",
-    description = "KAT observation scripting framework",
+    description = "KAT observation scripting framework and SDP scripts",
     author = "MeerKAT SDP, CAM and Commissioning Teams",
     author_email = "spt@ska.ac.za",
     packages = find_packages(),
@@ -21,7 +21,7 @@ setup (
         "Topic :: Scientific/Engineering :: Astronomy",
     ],
     platforms = [ "OS Independent" ],
-    install_requires = ['numpy', 'katpoint'],
+    install_requires = ['numpy', 'katpoint', 'katcp'],
     keywords = "meerkat kat ska",
     zip_safe = False,
 )

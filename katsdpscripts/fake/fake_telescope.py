@@ -7,10 +7,10 @@ from katpoint import Catalogue
 from katcp import DeviceServer
 from katcp.kattypes import return_reply, Str
 
-from katscripts.updater import WarpClock, PeriodicUpdaterThread
-from katscripts.fake_sensor import FakeSensor
-from katscripts.fake_client import FakeClient, ClientGroup, IgnoreUnknownMethods
-from katscripts import fake_models
+from katsdpscripts.updater import WarpClock, PeriodicUpdaterThread
+from katsdpscripts.fake_sensor import FakeSensor
+from katsdpscripts.fake_client import FakeClient, ClientGroup, IgnoreUnknownMethods
+from katsdpscripts import fake_models
 
 
 __version__ = 'dev'

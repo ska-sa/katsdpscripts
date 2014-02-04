@@ -2,7 +2,7 @@ import weakref
 import types
 import logging
 
-from katscripts.fake_sensor import FakeSensor, escape_name
+from katsdpscripts.fake_sensor import FakeSensor, escape_name
 
 
 user_logger = logging.getLogger("user")
