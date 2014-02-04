@@ -5,7 +5,7 @@
 from __future__ import with_statement
 import numpy as np
 import time
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+from katcorelib import standard_script_options, verify_and_connect,  start_session, user_logger
 import katpoint
 
 # Set up standard script options
@@ -98,7 +98,7 @@ with verify_and_connect(opts) as kat:
                         session.ants.req.offset_fixed(offset*180.0/np.pi,0*180.0/np.pi,opts.projection)
                         nd_params = session.nd_params
                         session.fire_noise_diode(announce=False, **nd_params)
-                        time.sleep(next_track)
+                        time.sleep(opts.strack_duration)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                         user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
                                             (opts.max_duration,))
