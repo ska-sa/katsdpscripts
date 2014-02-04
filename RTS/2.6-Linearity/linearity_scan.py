@@ -94,31 +94,16 @@ with verify_and_connect(opts) as kat:
                     for offset in np.linspace(opts.max_extent,0,opts.number_of_steps):
                         session.label('track')
                         user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
-                        # Split the total track on one target into segments lasting as long as the noise diode period
-                        # This ensures the maximum number of noise diode firings
-                        total_track_time = 0.
-                        while total_track_time < opts.track_duration:
-                            next_track = opts.track_duration - total_track_time
-                            # Cut the track short if time ran out
-                            if opts.max_duration is not None:
-                                next_track = min(next_track, opts.max_duration - (time.time() - start_time))
-                            if opts.nd_params['period'] > 0:
-                                next_track = min(next_track, opts.nd_params['period'])
-                            if not next_track <= 0:
-                                #session.track(target, duration=next_track, announce=False)
-                                user_logger.info("Offset of %f,%f degrees " %(offset,0.0))
-                                session.ants.req.offset_fixed(offset*180.0/np.pi,0*180.0/np.pi,opts.projection)
-                                nd_params = session.nd_params
-                                session.fire_noise_diode(announce=False, **nd_params)
-                                time.sleep(next_track)
-                            else:
-                                break
-                            total_track_time += next_track
-                        if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                            user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
-                                                (opts.max_duration,))
-                            keep_going = False
-                            break
+                        user_logger.info("Offset of %f,%f degrees " %(offset,0.0))
+                        session.ants.req.offset_fixed(offset*180.0/np.pi,0*180.0/np.pi,opts.projection)
+                        nd_params = session.nd_params
+                        session.fire_noise_diode(announce=False, **nd_params)
+                        time.sleep(next_track)
+                   if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
+                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
+                                            (opts.max_duration,))
+                        keep_going = False
+                        break
                     targets_observed.append(target.name)
                 if keep_going and len(targets_observed) == targets_before_loop:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
