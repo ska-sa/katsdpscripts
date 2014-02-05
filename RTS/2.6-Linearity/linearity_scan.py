@@ -90,11 +90,13 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    session.track(target, duration=0, announce=False) # Set the target
+                    session.set_target(target) # Set the target
+                    session.track(target, duration=0, announce=False) # Set the target & mode = point
                     for offset in np.linspace(opts.max_extent,0,opts.number_of_steps):
                         session.label('track')
                         user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                         user_logger.info("Offset of %f,%f degrees " %(offset,0.0))
+                        session.set_target(target)
                         session.ants.req.offset_fixed(offset,0,opts.projection)
                         nd_params = session.nd_params
                         session.fire_noise_diode(announce=True, **nd_params)
