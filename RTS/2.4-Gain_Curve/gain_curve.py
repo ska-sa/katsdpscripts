@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.widgets as widgets
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import optimize
+import scipy.interpolate as interpolate
 
 import scape
 import katpoint
@@ -39,6 +40,7 @@ def parse_arguments():
     parser.add_option("-e", "--elev_min", type="float", default=15, help="Minimum acceptable elevation for median calculations.")
     parser.add_option("-u", "--units", default="counts", help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: K, Options: counts, K")
     parser.add_option("-n", "--no_normalise_gain", action="store_true", default=False, help="Don't normalise the measured gains to the maximum fit to the data.")
+    parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
         print 'Please specify a csv file output from analyse_point_source_scans.py.'
@@ -129,7 +131,7 @@ def compute_tsys_sefd(data, gain, antenna):
     return e, Tsys, SEFD
 
 
-def determine_good_data(data, targets=None, tsys=None, tsys_lim=150, eff=None, eff_lim=[35,100], units='K', interferometric=False):
+def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, eff=None, eff_lim=[35,100], units='K', interferometric=False, condition_select="none"):
     """ Apply conditions to the data to choose which can be used for 
     fitting.
     Conditions are:
@@ -152,27 +154,92 @@ def determine_good_data(data, targets=None, tsys=None, tsys_lim=150, eff=None, e
     """
     #Initialise boolean array of True for defaults
     good = [True] * data.shape[0]
-    print "1",np.sum(good)
+    print "1: All data",np.sum(good)
     #Check for wanted targets
     if targets is not None:
         good = good & np.array([test_targ in targets for test_targ in data['target']])
-    print "2",np.sum(good)
+    print "2: Flag for unwanted targets",np.sum(good)
     #Check for wanted tsys
     if tsys is not None and not interferometric:
         good = good & (tsys < tsys_lim)
-    print "3",np.sum(good)
+    print "3: Flag for Tsys",np.sum(good)
     #Check for wanted eff
     if eff is not None and not interferometric:
         good = good & ((eff>eff_lim[0]) & (eff<eff_lim[1]))
-    print "4",np.sum(good)
+    print "4: Flag for efficiency",np.sum(good)
     #Check for nans
     good = good & ~(np.isnan(data['calc_beam_height'])) & ~(np.isnan(data['calc_baseline_height']))
-    print "5",np.sum(good)
+    print "5: Flag for NaN in data",np.sum(good)
     #Check for units
     good = good & (data['data_unit'] == units)
-    print "6",np.sum(good)
+    print "6: Flag for correct units",np.sum(good)
+    #Check for environmental conditions if required
+    if condition_select!="none":
+        good = good & select_environment(data, antenna, condition_select)
+    print "7: Flag for environmental condition", np.sum(good)
 
     return good
+
+def select_environment(data, antenna, condition="normal"):
+    """ Flag data for environmental conditions. Options are:
+    normal: Wind < 9.8m/s, -5C < Temperature < 40C, DeltaTemp < 3deg in 20 minutes
+    optimal: Wind < 2.9m/s, -5C < Temperature < 35C, DeltaTemp < 2deg in 10 minutes
+    ideal: Wind < 1m/s, 19C < Temp < 21C, DeltaTemp < 1deg in 30 minutes
+    """
+    # Convert timestamps to UTCseconds using katpoint
+    timestamps = np.array([katpoint.Timestamp(timestamp) for timestamp in data["timestamp_ut"]],dtype='float32')
+    # Fit a smooth function (cubic spline) in time to the temperature and wind data
+    raw_wind = data["wind_speed"]
+    raw_temp = data["temperature"]
+
+    fit_wind = interpolate.InterpolatedUnivariateSpline(timestamps,raw_wind,k=3)
+    fit_temp = interpolate.InterpolatedUnivariateSpline(timestamps,raw_temp,k=3)
+    #fit_temp_grad = fit_temp.derivative()
+
+    # Day/Night
+    # Night is defined as when the Sun is at -5deg.
+    # Set up Sun target
+    sun = katpoint.Target('Sun, special',antenna=antenna)
+    sun_elevation = katpoint.rad2deg(sun.azel(timestamps)[1])
+
+    # Apply limits on environmental conditions
+    good = [True] * data.shape[0]
+
+    # Set up limits on environmental conditions
+    if condition=='ideal':
+        windlim        =   1.
+        temp_low       =   19.
+        temp_high      =   21.
+        deltatemp      =   1./(30.*60.)
+        sun_elev_lim   =   -5.
+    elif condition=='optimum':
+        windlim        =   2.9
+        temp_low       =   -5.
+        temp_high      =   35.
+        deltatemp      =   2./(10.*60.)
+        sun_elev_lim   =   -5.
+    elif condition=='normal':
+        windlim        =   9.8
+        temp_low       =   -5.
+        temp_high      =   40.
+        deltatemp      =   3./(20.*60.)
+        sun_elev_lim   =   100.       #Daytime
+    else:
+        return good
+
+    good = good & (fit_wind(timestamps) < windlim)
+    good = good & ((fit_temp(timestamps) > temp_low) & (fit_temp(timestamps) < temp_high))
+    
+    #Get the temperature gradient
+    temp_grad = [fit_temp.derivatives(timestamp)[1] for timestamp in timestamps]
+    good = good & (np.abs(temp_grad) < deltatemp)
+
+    #Day or night?
+    good = good & (sun_elevation < sun_elev_lim)
+
+    return good
+
+
 
 def fit_atmospheric_absorption(gain, elevation):
     """ Fit an elevation dependent atmospheric absorption model.
@@ -287,10 +354,15 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
         plt.plot(fit_elev, fit_gain, 'k-')
 
     #Get a title string
+    if opts.condition_select not in ['ideal','optimum','normal']:
+        condition = 'all'
+    else:
+        condition = opts.condition_select
     title = 'Gain Curve, '
     title += antenna.name + ','
     title += ' ' + opts.polarisation + ' polarisation,'
     title += ' ' + '%.0f MHz'%(data['frequency'][0])
+    title += ' ' + '%s conditions'%(condition)
     plt.title(title)
     legend = plt.legend(loc=4)
     plt.setp(legend.get_texts(), fontsize='small')
@@ -355,7 +427,7 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     fig.subplots_adjust(hspace=0.0)
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(411)
-    plt.title('Atmospheric Conditions')
+    plt.title('Atmospheric Conditions (%s)'%(condition))
     plt.ylabel('Wind Speed (km/s)')
     # Wind
     for targ in targets:
@@ -409,8 +481,13 @@ if opts.units=="K":
     e, Tsys, SEFD = compute_tsys_sefd(data, gain, antenna)
 
 # Determine "good" data to use for fitting and plotting
-good = determine_good_data(data, targets=opts.targets, tsys=Tsys, tsys_lim=opts.tsys_lim, 
-                            eff=e, eff_lim=[opts.eff_min,opts.eff_max], units=opts.units)
+good = determine_good_data(data, antenna, targets=opts.targets, tsys=Tsys, tsys_lim=opts.tsys_lim, 
+                            eff=e, eff_lim=[opts.eff_min,opts.eff_max], units=opts.units,
+                            condition_select=opts.condition_select)
+
+# Check if we have flagged all the data
+if np.sum(good)==0:
+    raise Exception('All data flagged according to selection criteria.')
 
 # Obtain desired elevations in radians
 az, el = angle_wrap(katpoint.deg2rad(data['azimuth'])), katpoint.deg2rad(data['elevation'])
