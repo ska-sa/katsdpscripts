@@ -5,7 +5,7 @@
 from __future__ import with_statement
 import numpy as np
 import time
-from katcorelib import standard_script_options, verify_and_connect,  start_session, user_logger
+from katcorelib import collect_targets, standard_script_options, verify_and_connect,  start_session, user_logger
 import katpoint
 
 # Set up standard script options
@@ -52,9 +52,9 @@ with verify_and_connect(opts) as kat:
             observation_sources.add_tle(file(catfile))
         except IOError: # If the file failed to load assume it is a target string
             args_target_list.append(catfile)
-        #if len(args_target_list) > 0 :
-            #args_target_obj = lookup_targets(kat,args_target_list)
-            #observation_sources.add(args_target_obj)
+        if len(args_target_list) > 0 :
+            args_target_obj = collect_targets(kat,args_target_list)
+            observation_sources.add(args_target_obj)
             #user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " %
             #                         (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
     # Quit early if there are no sources to observe
