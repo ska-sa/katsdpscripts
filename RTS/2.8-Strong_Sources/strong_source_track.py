@@ -80,13 +80,11 @@ with verify_and_connect(opts) as kat:
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
-                    total_track_time = 0.
                     start_time = time.time()
-                    while total_track_time < track_duration:
-                        next_track = track_duration - total_track_time
+                    while (time.time() - start_time) < track_duration:
+                        next_track = track_duration - (time.time() - start_time)
                         # Cut the track short if time ran out
                         if opts.nd_params['period'] > 0:
                             next_track = min(next_track, opts.nd_params['period'])
                         if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
                             break
-                        total_track_time += next_track
