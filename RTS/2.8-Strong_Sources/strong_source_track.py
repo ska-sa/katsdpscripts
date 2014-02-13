@@ -77,7 +77,7 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the first one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label('track')
-                    user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
+                    user_logger.info("Initiating %g-second track on target '%s'" % (track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
                     start_time = time.time()
