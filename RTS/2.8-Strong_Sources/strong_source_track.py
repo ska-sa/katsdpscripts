@@ -6,27 +6,27 @@ from __future__ import with_statement
 
 import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
-import katpoint
+#import katpoint
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Track one or more sources for a specified time. At least one '
-                                             'target must be specified. Note also some **required** options below.')
+parser = standard_script_options(usage="%prog [options] <'target/catalogue'>  [--cold-target=<'target/catalogue'> ...]",
+                                 description='Track 2 sources , one strong source which is bracketed by the cold sky scource' 
+                                             'for a specified time. The strong target must be specified.'
+                                             'The first valid source in the catalogue give will be used')
 # Add experiment-specific options
 parser.add_option('--project-id',
                   help='Project ID code the observation (**required**) This is a required option')
-parser.add_option('-t', '--track-duration', type='float', default=60.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
-parser.add_option('-m', '--max-duration', type='float', default=None,
-                  help='Maximum duration of the script in seconds, after which script will end '
-                       'as soon as the current track finishes (no limit by default)')
-parser.add_option('--repeat', action="store_true", default=False,
-                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
+parser.add_option('-t', '--track-duration', type='float', default=7200.0,
+                  help='Length of time to track the Main source in seconds (default=%default)')
+parser.add_option('--cold-duration', type='float', default=900.0,
+                  help='Length of time to track the cold sky source in seconds when bracketing the obsevation (default=%default)')
+parser.add_option('--cold-target', type='string', default="SCP,radec,0,-90",
+                  help='The target/catalogue of the cold sky source to use when bracketing the obsevation (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Target track',dump_rate=0.1)
+parser.set_defaults(description='Strong Sources track',dump_rate=0.1)
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -34,17 +34,22 @@ if not hasattr(opts, 'project_id') or opts.project_id is None:
     raise ValueError('Please specify the Project id code via the --project_id option '
                      '(yes, this is a non-optional option...)')
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
+    raise ValueError("Please specify at target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = collect_targets(kat, args)
-
+    strong_sources = collect_targets(kat, args)
+    cold_sources = collect_targets(kat, opts.cold_target)
     # Quit early if there are no sources to observe
-    if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
-        user_logger.warning("No targets are currently visible - please re-run the script later")
-    else:
+    valid_targets = True
+    if len(strong_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        user_logger.warning("No strong source targets are currently visible - please re-run the script later")
+        valid_targets = False
+    if len(cold_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        user_logger.warning("No cold source targets are currently visible - please re-run the script later")
+        valid_targets = False
+    if valid_targets:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
             if not opts.no_delays and not kat.dry_run :
@@ -64,38 +69,24 @@ with verify_and_connect(opts) as kat:
 
             session.standard_setup(**vars(opts))
             session.capture_start()
-
-            start_time = time.time()
-            targets_observed = []
-            # Keep going until the time is up
-            keep_going = True
-            while keep_going:
-                keep_going = (opts.max_duration is not None) and opts.repeat
-                targets_before_loop = len(targets_observed)
-                # Iterate through source list, picking the next one that is up
+            target_list = []
+            target_list.append((cold_sources,opts.cold_duration)) 
+            target_list.append((strong_sources,opts.track_duration))
+            target_list.append((cold_sources,opts.cold_duration))
+            for observation_sources,track_duration in target_list:    
+                # Iterate through source list, picking the first one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label('track')
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
                     total_track_time = 0.
-                    while total_track_time < opts.track_duration:
-                        next_track = opts.track_duration - total_track_time
+                    start_time = time.time()
+                    while total_track_time < track_duration:
+                        next_track = track_duration - total_track_time
                         # Cut the track short if time ran out
-                        if opts.max_duration is not None:
-                            next_track = min(next_track, opts.max_duration - (time.time() - start_time))
                         if opts.nd_params['period'] > 0:
                             next_track = min(next_track, opts.nd_params['period'])
                         if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
                             break
                         total_track_time += next_track
-                    if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
-                                            (opts.max_duration,))
-                        keep_going = False
-                        break
-                    targets_observed.append(target.name)
-                if keep_going and len(targets_observed) == targets_before_loop:
-                    user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
-                    keep_going = False
-            user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
