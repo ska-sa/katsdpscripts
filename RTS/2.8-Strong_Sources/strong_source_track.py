@@ -40,7 +40,7 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     strong_sources = collect_targets(kat, args)
-    cold_sources = collect_targets(kat, opts.cold_target)
+    cold_sources = collect_targets(kat, [opts.cold_target])
     # Quit early if there are no sources to observe
     valid_targets = True
     if len(strong_sources.filter(el_limit_deg=opts.horizon)) == 0:
