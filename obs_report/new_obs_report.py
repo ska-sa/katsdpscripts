@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import katfile
 import matplotlib as mpl; mpl.use('Agg')
-import matplotlib.pyplot as pl
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import textwrap
@@ -39,7 +39,7 @@ def make_frontpage(file_ptr):
     scp='Instruction_set : %s' % (instruction_set,)
     scp='\n'.join(textwrap.wrap(scp, 126)) #add new line after every 126 charecters
     scp='\n'+scp+'\n' #add space before and after instruction set
-
+    prog='http://192.168.193.8:8081/tailtask/'+file_ptr.experiment_id+'/progress'
     mystring_seperated=str(file_ptr).split('\n')
 
     startdate = time.strftime('%d %b %y', time.localtime(file_ptr.start_time))
@@ -51,6 +51,7 @@ def make_frontpage(file_ptr):
     frontpage.append('Description: %s' % (file_ptr.description,))
     frontpage.append('Name: %s' % (file_ptr.name,))
     frontpage.append('Experiment ID: %s' % (file_ptr.experiment_id,))
+    frontpage.append('Progess Output: %s' %(prog))
     frontpage.append(scp)
     frontpage.append('Observer: %s' % (file_ptr.observer,))
     frontpage.append(mystring_seperated[5])
@@ -68,76 +69,111 @@ def make_frontpage(file_ptr):
     frontpage.append('\n')
     return '\n'.join(frontpage)
 
+def make_last_page():
+    FName="/home/kat/svn/auto_imager/new_obs_report.py"
+    rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","***\nThis report was generated using "+FName+", svn revesion: ")
+    lastpage=[]
 
-def lst_time(f)
-    lstime=[]
+    lastpage.append("Description of the plots In the report\n==================================\n")
+    lastpage.append("Time Series Plot:\n \t This plot shows the mean of the autocorrelation amplitude against time, for the duration of the observation.\
+    The first time series plot\n shows HH while the second one shows VV. On primary x-axis is LTS and secondary x-axis shows SAST corresponding to \
+    the LST at the \n time of observation.\n")
+    lastpage.append("Antenna X Spectrum:\n\t This plot shows the power (left y-axis), against channels, with the frequency corresponding to the channels \
+    plotted on the secondary\n x-axis. The mean of the autocorrelation spectrum is plotted in green, minimum in blue, and the maximum in magenta. For wide\n \
+    band (1k channels) observation only channel 170 to 854 is plotted. On the same plot overlaid is the histogram of the percentage of\n data flagged per channel \
+    for the duration of the observation the.\n")
+    lastpage.append("Weather Data:\n\t This is the representation of the weather conditions during the period of the observation.  The plots include wind speed, \
+    temperature,\n absolute humidity and air pressure. These plots are against LST as well as SAST on the secondary x-axis.\n")
+    lastpage.append("Band pass calibator fringes\n\t This plot shows the spectrograms between all the baselines present during the observation. This give us an \
+    idea of how \n the phase between the baselines were behaving. This plot is time(y-axis) vs channels (x-axis).\n")
+    lastpage.append("Correlation Spectra\n\t This plot shows the correlation spectrum for each baseline. Common features between the crossed antenna will be amplified.\n\n\n")
+    lastpage.append(rev)
+    
+    return '\n'.join(lastpage)
+
+
+def lst_date(f):
+    lststring=[]
+    #changing lst to string
     for t in range(len(f.lst)):
-        lstime.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
+        lststring.append(("%s:%s"%(("00" if int(np.modf(f.lst[t])[1])==0 else int(np.modf(f.lst[t])[1])), int(np.modf(f.lst[t])[0]*60))))
+
     elem="None"
-    for a in range(len(lstime)):
-        if lstime[a]=='23:59':
+    for a in range(len(lststring)):
+        if lststring[a]=='23:59':
             elem=a
-        
+
+
     if elem!="None":
         for a in range(0,(elem+1)):
-            lstime[a]="1/3/1991 "+lstime[a]
+            lststring[a]="18/4/2013 "+lststring[a]
         for b in range(elem,(len(f.lst)-1)):
-            lstime[b+1]="2/3/1991 "+lstime[b+1]
+            lststring[b+1]="19/4/2013 "+lststring[b+1]
+    else:
+        for c in range(len(f.lst)):
+            lststring[c]="18/4/2013 "+lststring[c]
 
-    lstime_date=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lstime]
-    return lstime_date    
+    # converting string to time
+    lstime=[dt.datetime.strptime(d,"%d/%m/%Y %H:%M") for d in lststring]
 
-def plot_time_series(ants,pol,startime,lstime_date):
+    loc_time=[]
+    for t in range(len(f.timestamps)):
+        loc_time.append(time.localtime(f.timestamps[t]))
+    time_string=[time.strftime("%Y/%m/%d %H:%M:%S",d) for d in loc_time]
+    date_time=[dt.datetime.strptime(d,"%Y/%m/%d %H:%M:%S") for d in time_string]
+
+    return lstime, date_time
+
+
+def plot_time_series(ants,pol,startime,lst_time,loc_datetime):
     #Time Series
-    fig=figure(figsize=(13.5,10), facecolor='w', edgecolor='k')
-    pl.suptitle("Time series plot",fontsize=16, fontweight="bold")
-    axis1=fig.add_subplot(111)
-    axis1.set_xlabel("LST on "+starttime,fontweight="bold")
-    axis1.set_ylabel("Amplitude",fontweight="bold")
+    fig=plt.figure(figsize=(13,10), facecolor='w', edgecolor='k')
+    plt.suptitle("Time series plot",fontsize=16, fontweight="bold")
+    sub1 = fig.add_subplot(111)
+    sub1.set_xlabel("SAST on "+starttime,fontweight="bold")
+    sub1.set_ylabel("Amplitude",fontweight="bold")
     for ant in ants:
         print ("plotting "+ant.name+"_" +pol+pol+ " time series")
         f.select(ants=ant,corrprods='auto',pol=pol)
         if len(f.channels)<1025:
-            f.select(channels=range(170,854))
-        
-        axis1.plot(lstime_date,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
+            f.select(channels=range(200,800))
+        sub1.plot(loc_datetime,10*np.log10(mean(abs(f.vis[:]),1)),label=(ant.name+'_'+pol+pol))
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     legend(loc='right', bbox_to_anchor=(1.13, 0.92), ncol=2, fancybox=True, shadow=False)
-
-    #Plot SAST on top of the figure
-    ylocs,ylabels=yticks()
-    axis2=axis1.twiny()
-    axis2.set_xlabel("SAST "+starttime,fontweight="bold")
-    dummy=[]
-    for ts in range(len(f.timestamps)):
-        dummy.append(min(ylocs))
-    axis2.plot(f.timestamps,dummy,'k-', linewidth=0.15)
-    axis2.set_xlim(xmin=f.timestamps[0], xmax= f.timestamps[-1])
-    for tl in axis2.get_xticklabels():
+    #create a dummy array to plot LST on top x axis
+    sub2=sub1.twiny()
+    dummy=[min(sub1.get_yticks()) for i in range(len(f.lst))]
+    sub2.plot(lst_time,dummy,'k')
+    sub2.set_xlabel("LST on "+starttime,fontweight="bold")
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    for tl in sub2.get_xticklabels():
 	    tl.set_color('DarkViolet')
-	    
+
+    #legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=4, fancybox=True, shadow=False)
     savefig(pp,format='pdf')
 
-def plot_spectrum(pol, datafile, starttime, ant):
+
+
+def plot_spectrum(pol, ant):
     #Spectrum function
     fig=figure(figsize=(13,10), facecolor='w', edgecolor='k')
     fig.subplots_adjust(hspace=0.25)
     axes(frame_on=False)
     xticks([])
     yticks([])
-    pl.suptitle("Antenna "+ant.name+" Spectrum ",fontsize=16, fontweight="bold")
+    plt.suptitle("Antenna "+ant.name+" Spectrum ",fontsize=16, fontweight="bold")
     ab = []
     for  count in (0,1):
         ab.append(fig.add_subplot(2,1,(count+1)))
         ab[-1].set_ylim(2,16)
         if len(f.channels)<1025:
-            ab[-1].set_xlim(170,854)
+            ab[-1].set_xlim(195,805)
         ab[-1].set_xlabel("Channels", fontweight="bold")
         ab[-1].set_ylabel("Amplitude", fontweight="bold")
         f.select(ants=ant,corrprods='auto',pol=pol[count])
         abs_vis=np.abs(f.vis[:])
-        #if (10*np.log10((abs_vis.max(axis=0)).max())) >16:
-            #ab[-1].set_ylim(2,ymax=0.5+(10*np.log10((abs_vis.max(axis=0)).max())))
+        if (10*np.log10((abs_vis.max(axis=0)).max())) >16:
+            ab[-1].set_ylim(2,ymax=0.5+(10*np.log10((abs_vis.max(axis=0)).max())))
         label_format = '%s_%s%s' % (ant.name, pol[count], pol[count])
         print "Starting to plot the %s spectrum." % (label_format,)
         plotcolours=['g','b','m']
@@ -148,11 +184,11 @@ def plot_spectrum(pol, datafile, starttime, ant):
         ab[-1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.03), ncol=4, fancybox=True, shadow=False)
         minorLocator   = AutoMinorLocator()
         ab[-1].xaxis.set_minor_locator(minorLocator)
-        pl.tick_params(which='both', color='k')
-        pl.tick_params(which='major', length=6,width=2)
-        pl.tick_params(which='minor', width=1,length=4)
-        pl.xlim(xmin=f.channels[0],xmax=f.channels[-1])
-#====================================================================================================
+        plt.tick_params(which='both', color='k')
+        plt.tick_params(which='major', length=6,width=2)
+        plt.tick_params(which='minor', width=1,length=4)
+
+        #plot Frequncy on the top axis
         ylocs,ylabels=yticks()
         xaxis2=ab[-1].twiny()
         dummy=[]
@@ -164,7 +200,8 @@ def plot_spectrum(pol, datafile, starttime, ant):
         xaxis2.invert_xaxis()
         xaxis2.set_xlim(xmin=(f.channel_freqs[0]-(f.channel_width*170))/1e6, xmax=(f.channel_freqs[-1]+(f.channel_width*170))/1e6)
         xaxis2.set_xlabel("Frequency MHz",fontweight="bold")
-#========================================================================================================
+
+        #still to take a closer look at the calculation of the flags
         ab.append(ab[-1].twinx())
         flag=f.flags()[:]
         # total_sum=0
@@ -179,59 +216,43 @@ def plot_spectrum(pol, datafile, starttime, ant):
         ab[-1].set_ylabel("% flagged", fontweight="bold")
         ab[-1].set_ylim(0,100)
         if len(f.channels)<1025:
-            ab[-1].set_xlim(170,854)
+            ab[-1].set_xlim(195,805)
     savefig(pp,format='pdf')
 
-def plot_envioronmental_sensors(f,lstime_date):
-          
+def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
     print "Getting wind and temperature sensors"
-    fig=pl.figure(figsize=(13,10))
-    axes(frame_on=False)
-    xticks([])
-    yticks([])
-    pl.suptitle("Weather Data",fontsize=16, fontweight="bold")
+    fig=plt.figure(figsize=(13,10))
+    plt.suptitle("Weather Data",fontsize=16, fontweight="bold")
     ax1 = fig.add_subplot(211)
-    fig.subplots_adjust(hspace=0.04)
-    ax1.plot(lstime_date,f.sensor['Enviro/asc.air.temperature'],'g-')
-    airtemp=f.sensor['Enviro/asc.air.temperature']
-    locs,labels=xticks()
-    labels=[]
-    xticks(locs,labels)
-    ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax1.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
-    ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
-    for tl in ax1.get_yticklabels():
-        tl.set_color('g')
+    
+    #Plot Air Temperature
+    ax1.plot(loc_datetime,f.sensor['Enviro/asc.air.temperature'],'g-')
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
-#============================================================
-    ax7=ax1.twiny()
-    ax7.set_xlabel("SAST "+starttime,fontweight="bold")
-    dummy=[]
-    for ts in range(len(f.timestamps)):
-        dummy.append(0)
-    ax7.plot(f.timestamps,dummy,'k-', linewidth=0.15)
     airtemp=f.sensor['Enviro/asc.air.temperature']
-    ylim(ymin=0,ymax=35)
+    ylim(ymin=-1,ymax=35)
     mintemp=min(airtemp)
     maxtemp=max(airtemp)
     if maxtemp>=35:
 	    ylim(ymax=(maxtemp+1))
-    if mintemp<=(0):
+    if mintemp<=(-1.0):
 	    ylim(ymin=(mintemp-1))
-    locs,labels=xticks()
-    loctime=[]
-    for loc in range(len(locs)):
-        loctime.append(time.localtime(locs[loc]))
-        labels[loc]=str(loctime[loc].tm_hour)+":"+str(loctime[loc].tm_min)
-    pl.xticks(locs,labels)
-    ax7.set_xlim(xmin=f.timestamps[0], xmax= f.timestamps[-1])
-    for tl in ax7.get_xticklabels():
-	    tl.set_color('DarkViolet')
     
+    ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+    ax1.set_xlabel("LST on "+starttime, fontweight="bold")
+    ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
+    for tl in ax1.get_yticklabels():
+        tl.set_color('g')
+    #Create the twin Y to plot LST on the top axis
+    ay1=ax1.twiny()
+    ay1.set_xlabel("LST "+starttime,fontweight="bold")
+    dummy=[min(ax1.get_yticks()) for i in range(len(f.lst))]
+    ay1.plot(lst_time,dummy,'k')
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    for tl in ay1.get_xticklabels():
+	    tl.set_color('DarkViolet')
 
-    #=============================================================    
-
-    #Relative to Absolute
+    #Convert Relative to Absolute
     rh=f.sensor['Enviro/asc.air.relative-humidity']
     t=f.sensor['Enviro/asc.air.temperature']
     Pws=[]
@@ -245,7 +266,7 @@ def plot_envioronmental_sensors(f,lstime_date):
         ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
 
     ax2=ax1.twinx()
-    ax2.plot(lstime_date,ah,'c-')
+    ax2.plot(loc_datetime,ah,'c-')
     ylim(ymin=1,ymax=8)
     minah=min(ah)
     maxah=max(ah)
@@ -254,12 +275,17 @@ def plot_envioronmental_sensors(f,lstime_date):
     if minah<=(1.0):
 	    ylim(ymin=(minah-1))
     locs,labels=xticks()
+    ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
     ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
     for tl in ax2.get_yticklabels():
         tl.set_color('c')
-        
+
     ax3=fig.add_subplot(212)
-    ax3.plot(lstime_date,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
+    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+    ax3.plot(loc_datetime,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+
+
     airpress=f.sensor['Enviro/asc.air.pressure']/10
     ylim(ymin=87,ymax=92)
     minairpress=min(airpress)
@@ -269,14 +295,13 @@ def plot_envioronmental_sensors(f,lstime_date):
     if minairpress<=87:
 	    ylim(ymin=(minairpress-1))
     
-    ax3.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
-    ax3.set_xlabel("LST on "+starttime,fontweight="bold")
+    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
     ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
     for tl in ax3.get_yticklabels():
 	    tl.set_color('r')
 	
     ax4=ax3.twinx()
-    ax4.plot(lstime_date,f.sensor['Enviro/asc.wind.speed'],'b-')
+    ax4.plot(loc_datetime,f.sensor['Enviro/asc.wind.speed'],'b-')
     wspeed=f.sensor['Enviro/asc.wind.speed']
     ylim(ymin=-0.5,ymax=16)
     minwind=min(wspeed)
@@ -285,18 +310,17 @@ def plot_envioronmental_sensors(f,lstime_date):
 	    ylim(ymax=(maxwind+1))
     if minwind<=-0.5:
 	    ylim(ymin=(minwind-1))
+    ax4.set_xlabel("SAST on "+starttime,fontweight="bold")
     ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
-    ax4.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax4.xaxis.grid(True,'major', linewidth=0.15, linestyle='-', color='k')
     for tl in ax4.get_yticklabels():
 	    tl.set_color('b')
     savefig(pp,format='pdf')
-    
+
 def plot_bpcal_selection(f):
     bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
     bp = np.arange(len(bp))[bp][0]
     fig = plt.figure(figsize=(21,15))
-    pl.suptitle("Bp cal Fringes",fontsize=16, fontweight="bold")
+    plt.suptitle("Bp cal Fringes",fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=bp, corrprods='cross', pol=pol, scans='track')
@@ -333,7 +357,7 @@ def plot_bpcal_selection(f):
 
 def plot_target_selection(f):
     fig = plt.figure(figsize=(21,15))
-    pl.suptitle("Correlation Spectra",fontsize=16, fontweight="bold")
+    plt.suptitle("Correlation Spectra",fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=f.catalogue.filter(tags='target'), corrprods='cross', pol=pol, scans='track')
@@ -369,9 +393,10 @@ def plot_target_selection(f):
         print 'Failed to read scans from File: ',f,' with Value Error:',error
     plt.savefig(pp,format='pdf')
 
-################################################################################
+###########################################################################################################################################
 
 opts = get_options()
+
 #get data file using katarchive and open it using katfile
 datafile = os.path.basename(opts.filename)
 
@@ -398,7 +423,7 @@ else:
 print "Opening %s using katfile, this might take a while" % (datafile,)
 f=katfile.open(d[0], quicklook=True)
 #start a figure
-figure(figsize = (13.5,6))
+figure(figsize = (13.5,6.5))
 axes(frame_on=False)
 xticks([])
 yticks([])
@@ -410,19 +435,20 @@ text(0,0,frontpage,fontsize=12)
 savefig(pp,format='pdf')
 print f
 
-count=0
+lst_time,loc_datetime=lst_date(f)
+
 ants=f.ants
 pol=['h','v']
 starttime = time.strftime('%d %b %y', time.localtime(f.start_time))
-lstime_date = lst_time(f)
-plot_time_series(ants, pol[0], starttime, lstime_date)
-plot_time_series(ants, pol[1], starttime, lstime_date)
+plot_time_series(ants, pol[0], starttime,lst_time,loc_datetime)
+plot_time_series(ants, pol[1], starttime,lst_time,loc_datetime)
 
 for ant in ants:
-    plot_spectrum(pol,datafile,starttime,ant)
+    plot_spectrum(pol,ant)
 
-plot_envioronmental_sensors(f,lstime_date)
+plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime)
 f.select()
+
 if f.catalogue.filter(tags='bpcal'):
     print "Plotting bpcal fringes."
     plot_bpcal_selection(f)
@@ -435,40 +461,18 @@ if f.catalogue.filter(tags='target'):
 else:
     print "No target tags found in catalog, we wont plot the target cross correlation spectra."
 
-#=============
-#Last page
 
-figure(figsize = (13,6))
+#creating the last page
+figure(figsize = (13.5,7))
 axes(frame_on=False)
 xticks([])
 yticks([])
-#title(" Index",fontsize=16, fontweight="bold")
+lastpage=make_last_page()
 
-FName="/home/kat/svn/auto_imager/new_obs_report.py"
-rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","***\nThis report was generated using "+FName+", svn revesion: ")
-lastpage=[]
-
-lastpage.append("Description of the plots In the report\n==================================\n")
-lastpage.append("Time Series Plot:\n \t This plot shows the mean of the autocorrelation amplitude against time, for the duration of the observation.\
-The first time series plot\n shows HH while the second one shows VV. On primary x-axis is LTS and secondary x-axis shows SAST corresponding to \
-the LST at the \n time of observation.\n")
-lastpage.append("Antenna X Spectrum:\n\t This plot shows the power (left y-axis), against channels, with the frequency corresponding to the channels \
-plotted on the secondary\n x-axis. The mean of the autocorrelation spectrum is plotted in green, minimum in blue, and the maximum in magenta. For wide\n \
-band (1k channels) observation only channel 170 to 854 is plotted. On the same plot overlaid is the histogram of the percentage of\n data flagged per channel \
-for the duration of the observation the.\n")
-lastpage.append("Weather Data:\n\t This is the representation of the weather conditions during the period of the observation.  The plots include wind speed, \
-temperature,\n absolute humidity and air pressure. These plots are against LST as well as SAST on the secondary x-axis.\n")
-#lastpage.append("Band pass calibator fringes\n\t bla bla bla............\n")
-lastpage.append("Correlation Spectra\n\t This plot shows the correlation spectrum for each baseline. Common features between the crossed antenna will be amplified.\n\n\n")
-lastpage.append(rev)
-
-text(0,0,'\n'.join(lastpage),fontsize=12)
+text(0,0,lastpage,fontsize=12)
 savefig(pp,format='pdf')
-#=============
 plt.close('all')
 pp.close()
 text_log.close()
-
 print 'The results are save in %s and the text report in %s' % (pdf_filename, text_log_filename,)
 
-#import pdb; pdb.set_trace();
