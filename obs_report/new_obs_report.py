@@ -39,6 +39,7 @@ def make_frontpage(file_ptr):
     scp='Instruction_set : %s' % (instruction_set,)
     scp='\n'.join(textwrap.wrap(scp, 126)) #add new line after every 126 charecters
     scp='\n'+scp+'\n' #add space before and after instruction set
+    scp1 = scp.decode('ascii', 'ignore')
     prog='http://192.168.193.8:8081/tailtask/'+file_ptr.experiment_id+'/progress'
     mystring_seperated=str(file_ptr).split('\n')
 
@@ -52,7 +53,7 @@ def make_frontpage(file_ptr):
     frontpage.append('Name: %s' % (file_ptr.name,))
     frontpage.append('Experiment ID: %s' % (file_ptr.experiment_id,))
     frontpage.append('Progess Output: %s' %(prog))
-    frontpage.append(scp)
+    frontpage.append(scp1)
     frontpage.append('Observer: %s' % (file_ptr.observer,))
     frontpage.append(mystring_seperated[5])
     frontpage.append('Observed on: %s from %s LST to %s LST' % (startdate, lststart, lststop))
