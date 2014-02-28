@@ -15,7 +15,7 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
 # Add experiment-specific options
 parser.add_option('--project-id',
                   help='Project ID code the observation (**required**) This is a required option')
-parser.add_option('-b', '--scan-antennas', default='',
+parser.add_option('-b', '--scan-ants', default='',
                   help='This is the selcted antenna that must be offset from the antennas that remain on target(default=%default)')
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
@@ -26,8 +26,6 @@ parser.add_option( '--max-extent', type='float', default=3.0,
                   help='Maximum extent in degrees, the script will scan ')
 parser.add_option( '--number-of-steps', type='int', default=10,
                   help='Number of pointings to do while scaning , the script will scan ')
-parser.add_option('--repeat', action="store_true", default=False,
-                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
