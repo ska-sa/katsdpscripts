@@ -17,6 +17,8 @@ parser.add_option('--project-id',
                   help='Project ID code the observation (**required**) This is a required option')
 parser.add_option('-b', '--scan-ants', default='',
                   help='This is the selcted antenna that must be offset from the antennas that remain on target(default=%default)')
+parser.add_option('--repeat', action="store_true", default=False,
+                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=None,
