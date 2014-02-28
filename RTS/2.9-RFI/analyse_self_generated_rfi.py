@@ -356,7 +356,6 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     return np.lib.stride_tricks.as_strided(a1, shape=shape, strides=strides).swapaxes(-2,axis) # Move original axis to 
 
 
-
 def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
     """
     Detect and Remove outliers from data, replacing them with a local median value.
