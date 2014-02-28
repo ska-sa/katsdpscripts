@@ -321,14 +321,13 @@ def plot_temps_time(alltimes,alltempshh,alltempsvv,antenna):
 
 # Print out the 'on' and 'off' values of noise diode firings from an on->off transition to a text file.
 opts, args = parse_arguments()
-pdf = PdfPages(os.path.splitext(os.path.basename(args[0]))[0] +'_SystemTemp.pdf')
 
 #get the targets
 targets=opts.get('targets','all')
 
 # Get data from h5 file and use 'select' to obtain a useable subset of it.
 data = read_and_select_file(args[0], bline=opts.get('antenna',None), channels=opts.get('freq_chans',None))
-
+pdf = PdfPages(os.path.splitext(os.path.basename(args[0]))[0] +'_SystemTemp_'+data.antenna.name+'.pdf')
 # loop through compscans in file and get noise diode firings
 #nd_data = extract_cal_dataset(data)
 
