@@ -1,13 +1,30 @@
 #!/usr/bin/python
 #Plots uncalibrated power, noise diode firings, derived gains to assess gain stability and effectiveness of the gain calibration
- 
+import matplotlib.dates as mdates
 import numpy as np
 import matplotlib.pyplot as plt   
 import optparse
-import katfile
+import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import stefcal
+import pandas
 
+def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
+    """
+    Modified polyfit:Any nan values in x are 'masked' and std is returned .
+    """
+    if np.isnan(y).sum() >= y.shape[0]+1 : return 0.0
+    z = np.ma.array(data=np.nan_to_num(y),mask=np.isnan(y))
+    if x.shape[0] <= deg +1  :
+        z = np.zeros((deg+1))
+        z[-1] = np.ma.mean(x)
+        return z[0]
+    gg = np.ma.polyfit(x, z, deg, rcond, full, w, cov)
+    #if np.isnan(gg[0]) : raise RuntimeError('NaN in polyfit, Error')
+    return np.ma.std(z-x*gg[0])
+
+def detrend(x):
+    return polyfitstd(np.arange(x.shape[0]),x,1)
 
 def cplot(data,*args,**kwargs):
     if data.dtype.kind == 'c': plot(np.real(data),np.imag(data),*args,**kwargs)
@@ -134,6 +151,7 @@ def plot_AntennaGain(gains,freq,inputs):
         ax[0].set_title('Phase %s'%(inputs[i]))
         ax[1].set_title('Amplitude %s'%(inputs[i]))
         ax[0].set_ylabel('Degrees')
+        ax[1].set_ylim(0,20)
         ax[1].set_xlabel("Frequency (MHz)")
         ax[0].plot(freq/1e6,np.degrees(np.angle(gains[:,:,i].T)))
         ax[1].plot(freq/1e6,np.abs(gains[:,:,i].T))
@@ -262,7 +280,56 @@ def c_str(a,figures=4):
     if np.iscomplex(a) : return "($Arg = %s  $,$ \phi = %s\degree$)"%(np.round(np.abs(a),figures),np.round(np.degrees(np.angle(a)),figures) )
     return str(a)
 
-def calc_stats(timestamps,data,freq,pol='no polarizarion',windowtime=1200):
+
+def peak2peak(y):
+    return np.ma.ptp(np.ma.array(data=np.nan_to_num(y),mask=np.isnan(y)))
+
+def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
+    """ calculate the Stats needed to evaluate the obsevation"""
+    returntext = []
+    gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s')).asfreq(freq='1s')
+    mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
+    std = pandas.rolling_std(gain_ts,windowtime,minsamples)
+    windowgainchange = std/mean*100
+    peak = pandas.rolling_apply(gain_ts,windowtime,peak2peak,minsamples)
+    dtrend_std = pandas.rolling_apply(gain_ts,windowtime,detrend,minsamples)
+    #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
+    detrended_windowgainchange = dtrend_std/mean*100
+    timeval = timestamps.max()-timestamps.min()
+    #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
+    
+    #rms = np.sqrt((gain**2).mean())
+    returntext.append("Total time of obsevation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
+    #returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
+    #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
+    #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
+    #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
+    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f  (req < 3 )"%(windowtime,pol,peak.mean()))
+    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f   (req < 3 )"%(windowtime,pol,peak.max()))
+    returntext.append("The mean Percentage variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,windowgainchange.mean()))
+    returntext.append("The Max  Percentage variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,windowgainchange.max()))
+    returntext.append("The mean detrended Percentage variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,detrended_windowgainchange.mean()))
+    returntext.append("The Max  detrended Percentage variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,detrended_windowgainchange.max()))
+    #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
+    
+    pltobj = plt.figure()
+    plt.title('Percentage Variation of %s, %i Second sliding Window'%(pol,windowtime,))
+    windowgainchange.plot(label='Orignal')
+    detrended_windowgainchange.plot(label='Detrended')
+    peak.plot(label='')
+    #window_occ.plot(label='Window Occupancy')
+    plt.hlines(2.3, timestamps.min(), timestamps.max(), colors='k')
+    plt.hlines(2.5, timestamps.min(), timestamps.max(), colors='k')
+    plt.hlines(3, timestamps.min(), timestamps.max(), colors='k')
+    plt.ylabel('Percentage Variation')
+    plt.xlabel('Date/Time')
+    plt.legend(loc='best')
+    #plt.title(" %s pol Gain"%(pol))
+    #plt.plot(windowgainchange.mean(),'b',label='20 Min (std/mean)')
+    #plt.plot(np.ones_like(windowgainchange.mean())*2.0,'r',label=' 2 level')
+    return returntext,pltobj  # a plot would be cool
+
+def calc_astats(timestamps,data,freq,pol='no polarizarion',windowtime=1200):
     """ calculate the Stats needed to evaluate the obsevation"""
     returntext = []
    
@@ -299,78 +366,99 @@ if len(args) ==0:
 # frequency channels to keep
 start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
-
+start_freq_channel = 200
+end_freq_channel = 800
 
 
 #h5 = katfile.open(args[0])
-h5 = katfile.open('1363727516.h5')
-h5.select(corrprods='cross')
-# loop over both polarisations
-h5.select(ants='ant1,ant2,ant3,ant4,ant5',pol='h',corrprods='cross',scans='track',dumps=slice(1,500))
-if np.all(h5.sensor['DBE/auto-delay'] == '0') :
-    vis = fringe_stopping(h5)
-else:
-    vis = h5.vis
-
-flaglist = ~h5.flags()[:,:,:].any(axis=0).any(axis=-1)
-flaglist[0:200] = False
-flaglist[800:1024] = False
-antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
-antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
-
-N_ants = len(h5.ants)
-#full_vis = np.concatenate((vis, vis.conj()), axis=-1)
-full_antA = np.r_[antA, antB]
-full_antB = np.r_[antB, antA]
-
-weights= np.abs(1./np.angle(absstd(vis[:,:,:],axis=0)))
-weights= np.concatenate((weights, weights), axis=-1)
-
-# use vector mean == np.mean  on visabilitys
-# but use angle mean on solutions/phase change.
-gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
-calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
-
-h5.select(ants='ant1,ant2,ant3,ant4,ant5',pol='h',corrprods='cross',scans='track')
-data = np.zeros((h5.shape[0:3:2]),dtype=np.complex)
-i = 0
-for scan in h5.scans():
-    print scan
-    if np.all(h5.sensor['DBE/auto-delay'] == '0') :
-        print "stopping fringes for size ",h5.shape
-        vis = fringe_stopping(h5)
-    else:
-        vis = h5.vis
-    data[i:i+h5.shape[0]] = mean((vis*calfac[:,:,:h5.shape[-1]])[:,flaglist,:],axis=1)
-    i += h5.shape[0]
-    break
-
-
-
-#figlist = plot_AntennaGain(gains,h5.channel_freqs,h5.inputs)
-#figlist += plot_DataStd(gains,freq,h5.inputs)
-#figlist += plot_DataStd(vis,freq,h5.corr_products)
-figlist = []
+h5 = katdal.open('1387000585.h5')
 nice_filename =  args[0]+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
-for fig in figlist:
-    fig = plot_figures(d_uncal, d_cal, time, gain_hh, 'HH')
-    fig.savefig(pp,format='pdf') 
-    plt.close(fig)
+for pol in ('h','v'):
+    h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track',dumps=slice(1,60)) 
+    # loop over both polarisations
+    if np.all(h5.sensor['DBE/auto-delay'] == '0') :
+        print "Need to do fringe stopping "
+        vis = fringe_stopping(h5)
+    else:
+        print "Fringe stopping done in the correlator"
+        vis = h5.vis[:,:,:]
 
-returntext = calc_stats(d.timestamps,g_hh,d.freqs,'HH',1200)+calc_stats(d.timestamps,g_vv,d.freqs,'VV',1200)
-fig = plt.figure(None,figsize = (10,16))
-plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
-fig.savefig(pp,format='pdf')
+    flaglist = ~h5.flags()[:,:,:].any(axis=0).any(axis=-1)
+    #flaglist[0:start_freq_channel] = False
+    #flaglist[end_freq_channel:] = False
+    antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
+    antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
+
+    N_ants = len(h5.ants)
+    #full_vis = np.concatenate((vis, vis.conj()), axis=-1)
+    full_antA = np.r_[antA, antB]
+    full_antB = np.r_[antB, antA]
+
+    weights= np.abs(1./np.angle(absstd(vis[:,:,:],axis=0)))
+    weights= np.concatenate((weights, weights), axis=-1)
+
+    # use vector mean == np.mean  on visabilitys
+    # but use angle mean on solutions/phase change.
+    gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
+    calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
+
+    h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track')
+    data = np.zeros((h5.shape[0:3:2]),dtype=np.complex)
+    i = 0
+    for scan in h5.scans():
+        print scan
+        if np.all(h5.sensor['DBE/auto-delay'] == '0') :
+            print "stopping fringes for size ",h5.shape
+            vis = fringe_stopping(h5)
+        else:
+            vis = h5.vis[:,:,:]
+        data[i:i+h5.shape[0]] = mean((vis*calfac[:,:,:h5.shape[-1]])[:,flaglist,:],axis=1)
+        i += h5.shape[0]
+    figlist = []
+    figlist += plot_AntennaGain(gains,h5.channel_freqs,h5.inputs)
+    fig = plt.figure()
+    plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='nearest')
+    #ax = plt.subplot(111)
+    #ax.yaxis_date()
+    plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Baseline Number')
+    plt.colorbar()
+    fig.savefig(pp,format='pdf')
+    plt.close(fig)
+    
+    for i,(ant1,ant2) in  enumerate(h5.corr_products):
+        print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
+        returntext,pltfig = calc_stats(h5.timestamps[:],np.degrees(np.angle(data[:,i])) ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1)
+        pltfig.savefig(pp,format='pdf') 
+        plt.close(pltfig)
+        fig = plt.figure(None,figsize = (10,10))
+        plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
+        
+
+        
+
+
+
+#figlist += plot_DataStd(gains,freq,h5.inputs)
+#figlist += plot_DataStd(vis,freq,h5.corr_products)
+#returntext = calc_stats(d.timestamps,g_hh,d.freqs,'HH',1200)+calc_stats(d.timestamps,g_vv,d.freqs,'VV',1200)
+#fig = plt.figure(None,figsize = (10,16))
+#plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
+#fig.savefig(pp,format='pdf')
 pp.close()
-plt.close(fig)
+plt.close('all')
 
 
 #data = mean(rolling_window(mean(vis[:,flaglist,:]*calfac[:,flaglist,:calfac.shape[-1]//2],axis=1),50,axis=0),axis=-1)
 
 
 
-for i in xrange(h5.shape[0]) :plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[i,200:800,0][0,:,0]),'b.',alpha=0.1)
-plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0)),'g',)
-plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0))+3*np.abs(h5.vis[:,200:800,0].std(axis=0)),'r')
-plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0))-3*np.abs(h5.vis[:,200:800,0].std(axis=0)),'r')
+#for i in xrange(h5.shape[0]) :plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[i,200:800,0][0,:,0]),'b.',alpha=0.1)
+#plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0)),'g',)
+#plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0))+3*np.abs(h5.vis[:,200:800,0].std(axis=0)),'r')
+#plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0))-3*np.abs(h5.vis[:,200:800,0].std(axis=0)),'r')
+
+
+
