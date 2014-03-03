@@ -21,7 +21,7 @@ def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
         return z[0]
     gg = np.ma.polyfit(x, z, deg, rcond, full, w, cov)
     #if np.isnan(gg[0]) : raise RuntimeError('NaN in polyfit, Error')
-    return np.ma.std(z-x*gg[0])
+    return anglestd(z-x*gg[0])
 
 def detrend(x):
     return polyfitstd(np.arange(x.shape[0]),x,1)
@@ -123,19 +123,46 @@ def absstd(a,axis=None):
          This returns a an array or a one value array
     Example:
     """
+    a = np.ma.array(data=np.nan_to_num(a),mask=np.isnan(a))
     if a.dtype.kind == 'c':
-        rstd = np.sqrt(a.real**2 + a.imag**2).std(axis=axis)#std
-        rmean = np.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
-        th = np.arctan2(a.imag,a.real)
-        sa = np.sin(th).sum(axis=axis)
-        ca = np.cos(th).sum(axis=axis)
-        thme = np.arctan2(sa,ca)        
+        rstd = np.ma.sqrt(a.real**2 + a.imag**2).std(axis=axis)#std
+        rmean = np.ma.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
+        th = np.ma.arctan2(a.imag,a.real)
+        sa = np.ma.sin(th).sum(axis=axis)
+        ca = np.ma.cos(th).sum(axis=axis)
+        thme = np.ma.arctan2(sa,ca)        
         nshape = np.array(th.shape)
         nshape[axis] = 1
-        S0 = 1-np.cos(th-np.reshape(thme,nshape)).mean(axis=axis)
-        return (rstd/rmean)*np.exp(1j*np.sqrt(-2.*np.log(1.-S0)))
+        S0 = 1-np.ma.cos(th-np.ma.reshape(thme,nshape)).mean(axis=axis)
+        return (rstd/rmean)*np.exp(1j*np.ma.sqrt(-2.*np.log(1.-S0)))
     else:
         return np.std(a,axis=axis)/np.mean(a,axis=axis)
+
+def anglestd(a,axis=None):
+    """This function calclates the standard devation along the chosen axis of the array
+    This function has been writen to calculate the mean of complex numbers correctly
+    by taking the standard devation  of the angle (exp(1j*theta) )
+    and standard devation over the mean of the argument
+    Input :
+    a    : N-D numpy array
+    axis : The axis to perform the operation over
+           The Default is over all axies
+    Output:
+         This returns a an array or a one value array
+    Example:
+    """
+    a = np.ma.array(data=np.nan_to_num(np.exp(1j* a)),mask=np.isnan(a))
+    rstd = np.ma.sqrt(a.real**2 + a.imag**2).std(axis=axis)#std
+    rmean = np.ma.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
+    th = np.ma.arctan2(a.imag,a.real)
+    sa = np.ma.sin(th).sum(axis=axis)
+    ca = np.ma.cos(th).sum(axis=axis)
+    thme = np.ma.arctan2(sa,ca)        
+    nshape = np.array(th.shape)
+    nshape[axis] = 1
+    S0 = 1-np.ma.cos(th-np.ma.reshape(thme,nshape)).mean(axis=axis)
+    return np.degrees(np.angle(np.exp(1j*np.ma.sqrt(-2.*np.log(1.-S0)))))
+
 
 def plot_AntennaGain(gains,freq,inputs):
     """ This plots the Amplitude and Phase across the bandpass
@@ -158,28 +185,7 @@ def plot_AntennaGain(gains,freq,inputs):
         returned_plots.append(fig)
     return returned_plots
 
-def plot_DataStd(data,freq,corr_products,log_amplitude=True):
-    """ This plots the Amplitude and Phase across the bandpass
-    gains         : complex array shape (time,frequency,corrprod) or (time,frequency,corrprod+corrprod.conj())
-    freq          : array shape (frequency) in Herts
-    corr_products : list of string names of the correlation pair or antenna
-    returns       : a list of figure objects
-    """
-    returned_plots = []
-    corr_products = np.array(corr_products)
-    if len(np.shape(corr_products)) == 2 : corr_products = np.array(["%s x %s" %(c1,c2) for c1,c2 in corr_products])
-    for i in xrange(corr_products.shape[0]):
-        tmpdata = std(data[:,:,i],axis=0) # ease up the memory usage
-        fig, (ax) = plt.subplots(nrows=2, sharex=True)
-        ax[0].set_title('Circular Standard Devation of the Phase -: %s'%(corr_products[i]))
-        ax[1].set_title('Standard Devation of the Amplitude -: %s'%(corr_products[i]))
-        ax[0].set_ylabel('Degrees')
-        ax[1].set_xlabel("Frequency (MHz)")
-        if log_amplitude : ax[1].set_yscale('log')
-        ax[0].plot(freq/1e6,np.degrees(np.angle(tmpdata)))
-        ax[1].plot(freq/1e6,np.abs(tmpdata))
-        returned_plots.append(fig)
-    return returned_plots
+
 
 
 
@@ -217,84 +223,20 @@ def  fringe_stopping(data):
     return vis_set
 
 
-
-
-def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
-    """
-     This function produces a rolling window shaped data with the rolled data in the last col
-        a      :  n-D array of data  
-        window : integer is the window size
-        axis   : integer, axis to move the window over
-                 default is the last axis.
-        pad    : {Boolean} Pad the array to the origanal size
-        mode : {str, function} from the function numpy.pad
-        One of the following string values or a user supplied function.
-        'constant'      Pads with a constant value.
-        'edge'          Pads with the edge values of array.
-        'linear_ramp'   Pads with the linear ramp between end_value and the
-                        array edge value.
-        'maximum'       Pads with the maximum value of all or part of the
-                        vector along each axis.
-        'mean'          Pads with the mean value of all or part of the
-                      con  vector along each axis.
-        'median'        Pads with the median value of all or part of the
-                        vector along each axis.
-        'minimum'       Pads with the minimum value of all or part of the
-                        vector along each axis.
-        'reflect'       Pads with the reflection of the vector mirrored on
-                        the first and last values of the vector along each
-                        axis.
-        'symmetric'     Pads with the reflection of the vector mirrored
-                        along the edge of the array.
-        'wrap'          Pads with the wrap of the vector along the axis.
-                        The first values are used to pad the end and the
-                        end values are used to pad the beginning.
-        <function>      of the form padding_func(vector, iaxis_pad_width, iaxis, **kwargs)
-                        see numpy.pad notes
-        **kargs are passed to the function numpy.pad
-        
-    Returns:
-        an array with shape = np.array(a.shape+(window,))
-        and the rolled data on the last axis
-        
-    Example:
-        import numpy as np
-        data = np.random.normal(loc=1,scale=np.sin(5*np.pi*np.arange(10000).astype(float)/10000.)+1.1, size=10000)
-        stddata = rolling_window(data, 400).std(axis=-1)
-    """
-    if axis == -1 : axis = len(a.shape)-1 
-    if pad :
-        pad_width = []
-        for i in xrange(len(a.shape)):
-            if i == axis: 
-                pad_width += [(window//2,window//2 -1 +mod(window,2))]
-            else :  
-                pad_width += [(0,0)] 
-        a = np.pad(a,pad_width=pad_width,mode=mode,**kargs)
-    a1 = np.swapaxes(a,axis,-1) # Move target axis to last axis in array
-    shape = a1.shape[:-1] + (a1.shape[-1] - window + 1, window)
-    strides = a1.strides + (a1.strides[-1],)
-    return np.lib.stride_tricks.as_strided(a1, shape=shape, strides=strides).swapaxes(-2,axis) # Move original axis to 
-
-def c_str(a,figures=4):
-    if np.iscomplex(a) : return "($Arg = %s  $,$ \phi = %s\degree$)"%(np.round(np.abs(a),figures),np.round(np.degrees(np.angle(a)),figures) )
-    return str(a)
-
-
 def peak2peak(y):
-    return np.ma.ptp(np.ma.array(data=np.nan_to_num(y),mask=np.isnan(y)))
+    return np.degrees(np.ma.ptp(np.ma.angle(np.ma.array(data=np.nan_to_num(y),mask=np.isnan(y)))))
 
 def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
     """ calculate the Stats needed to evaluate the obsevation"""
     returntext = []
     gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s')).asfreq(freq='1s')
-    mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
-    std = pandas.rolling_std(gain_ts,windowtime,minsamples)
-    windowgainchange = std/mean*100
-    peak = pandas.rolling_apply(gain_ts,windowtime,peak2peak,minsamples)
+    #mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
+    std = pandas.rolling_apply(gain_ts,windowtime,anglestd,minsamples)    
+    peakmin= pandas.rolling_min(gain_ts,windowtime,minsamples)
+    peakmax= pandas.rolling_max(gain_ts,windowtime,minsamples)
+    peak = peakmax-peakmin
     dtrend_std = pandas.rolling_apply(gain_ts,windowtime,detrend,minsamples)
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
-    detrended_windowgainchange = dtrend_std/mean*100
     timeval = timestamps.max()-timestamps.min()
     #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
     
@@ -304,24 +246,23 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f  (req < 3 )"%(windowtime,pol,peak.mean()))
-    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f   (req < 3 )"%(windowtime,pol,peak.max()))
-    returntext.append("The mean Percentage variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,windowgainchange.mean()))
-    returntext.append("The Max  Percentage variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,windowgainchange.max()))
-    returntext.append("The mean detrended Percentage variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,detrended_windowgainchange.mean()))
-    returntext.append("The Max  detrended Percentage variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,detrended_windowgainchange.max()))
+    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f  (req < 3 )"%(windowtime,pol,np.degrees(peak.mean())))
+    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f   (req < 3 )"%(windowtime,pol,np.degrees(peak.max())))
+    returntext.append("The mean variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,np.degrees(std.mean())))
+    returntext.append("The Max  variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,np.degrees(std.max())))
+    returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.mean())))
+    returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
     #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
     
     pltobj = plt.figure()
-    plt.title('Percentage Variation of %s, %i Second sliding Window'%(pol,windowtime,))
-    windowgainchange.plot(label='Orignal')
-    detrended_windowgainchange.plot(label='Detrended')
-    peak.plot(label='')
+    plt.title('Variation of %s, %i Second sliding Window'%(pol,windowtime,))
+    std.plot(label='Orignal')
+    dtrend_std.plot(label='Detrended')
     #window_occ.plot(label='Window Occupancy')
     plt.hlines(2.3, timestamps.min(), timestamps.max(), colors='k')
     plt.hlines(2.5, timestamps.min(), timestamps.max(), colors='k')
     plt.hlines(3, timestamps.min(), timestamps.max(), colors='k')
-    plt.ylabel('Percentage Variation')
+    plt.ylabel('Variation')
     plt.xlabel('Date/Time')
     plt.legend(loc='best')
     #plt.title(" %s pol Gain"%(pol))
@@ -329,25 +270,6 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #plt.plot(np.ones_like(windowgainchange.mean())*2.0,'r',label=' 2 level')
     return returntext,pltobj  # a plot would be cool
 
-def calc_astats(timestamps,data,freq,pol='no polarizarion',windowtime=1200):
-    """ calculate the Stats needed to evaluate the obsevation"""
-    returntext = []
-   
-    time = timestamps.max() - timestamps.min()
-    time_step = time/timestamps.shape[0]
-    window = int(round(windowtime/time_step) )
-    for i in xrange(data.shape[-1]):
-        windowgainchange = absstd(rolling_window(data, window,axis=-2),axis=-1)
-        returntext.append("Total time of obsevation : %f (seconds) with %i accumulations."%(time,timestamps.shape[0]))
-        returntext.append("The mean gain of %s is: %.5f"%(pol,mean(data)))
-        returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
-        returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
-        returntext.append("The variation of %s is: %.5f"%(pol, c_str(absstd(data))))
-        returntext.append("The mean variation over %i samples of %s is: %.5f"%(window,pol,mean(windowgainchange)))
-        returntext.append("The max variation over %i samples of %s is: %.5f"%(window,pol,np.max(windowgainchange))) 
-        returntext.append("The Peak to Peak  average over %i samples of %s is: %.5f"%(window,pol,np.mean(np.ptp(windowgainchange))))
-        returntext.append("The Max Peak to Peak over %i sample set for the obsevation of %s is: %.5f"%(window,pol,np.max(np.ptp(windowgainchange))))
-    return returntext  # a plot would be cool
 
 
 # Parse command-line opts and arguments
@@ -370,7 +292,7 @@ start_freq_channel = 200
 end_freq_channel = 800
 
 
-#h5 = katfile.open(args[0])
+#h5 = katdal.open(args)
 h5 = katdal.open('1387000585.h5')
 nice_filename =  args[0]+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
@@ -418,6 +340,7 @@ for pol in ('h','v'):
     figlist = []
     figlist += plot_AntennaGain(gains,h5.channel_freqs,h5.inputs)
     fig = plt.figure()
+    plt.title('Phase angle in Baseline vs. Time for %s pol baselines '%(pol))
     plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='nearest')
     #ax = plt.subplot(111)
     #ax.yaxis_date()
@@ -428,7 +351,7 @@ for pol in ('h','v'):
     
     for i,(ant1,ant2) in  enumerate(h5.corr_products):
         print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
-        returntext,pltfig = calc_stats(h5.timestamps[:],np.degrees(np.angle(data[:,i])) ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1)
+        returntext,pltfig = calc_stats(h5.timestamps[:],np.angle(data[:,i]) ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1)
         pltfig.savefig(pp,format='pdf') 
         plt.close(pltfig)
         fig = plt.figure(None,figsize = (10,10))
