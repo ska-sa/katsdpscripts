@@ -82,7 +82,6 @@ with verify_and_connect(opts) as kat:
                     session.nd_params = nd_off
                     user_logger.info("Now capturing data - noise diode off")
                     session.label('track')
-                    time.sleep(opts.track_duration)
                     session.track(target, duration=opts.track_duration)
         if opts.max_duration and time.time() > start_time + opts.max_duration:
             user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
