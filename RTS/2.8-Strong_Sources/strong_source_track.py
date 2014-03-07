@@ -102,14 +102,14 @@ with verify_and_connect(opts) as kat:
             session.standard_setup(**vars(opts))
             session.capture_start()
             target_list = []
-            target_list.append((cold_sources,opts.cold_duration)) 
-            target_list.append((strong_sources,opts.track_duration))
-            target_list.append((cold_sources,opts.cold_duration))
-            for observation_sources,track_duration in target_list:
+            target_list.append((cold_sources,opts.cold_duration,"track_before")) 
+            target_list.append((strong_sources,opts.track_duration,"track_strong"))
+            target_list.append((cold_sources,opts.cold_duration,"track_after"))
+            for observation_sources,track_duration,label in target_list:
                 if endobs : break
                 # Iterate through source list, picking the first one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    session.label('track')
+                    session.label(label)
                     user_logger.info("Initiating %g-second track on target '%s'" % (track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
