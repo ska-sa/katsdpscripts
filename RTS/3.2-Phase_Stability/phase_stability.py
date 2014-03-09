@@ -292,8 +292,8 @@ start_freq_channel = 200
 end_freq_channel = 800
 
 
-#h5 = katdal.open(args)
-h5 = katdal.open('1387000585.h5')
+h5 = katdal.open(args)
+#h5 = katdal.open('1387000585.h5')
 nice_filename =  args[0]+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
