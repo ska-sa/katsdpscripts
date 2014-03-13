@@ -9,6 +9,7 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 #import katpoint
 
 def read_sensors(ants,sensorlist):
+    sensors = {}
     for ant in ants.clients:
         for sen in sensorlist:
             clean_sen = sen.replace('.','_').replace('-','_')
