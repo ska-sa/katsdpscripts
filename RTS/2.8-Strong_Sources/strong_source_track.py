@@ -13,14 +13,13 @@ def read_sensors(ants,sensorlist):
     for ant in ants.clients:
         for sen in sensorlist:
             clean_sen = sen.replace('.','_').replace('-','_')
-            sensors["%s_%s"(ant.name,clean_sen)] = ant.sensor.get(clean_sen).get_value()
+            sensors["%s_%s"%(ant.name,clean_sen)] = ant.sensor.get(clean_sen).get_value()
     return sensors
     
 def compare_sensors(sensors1,sensors2,num):
     """ return True if sensors2 - sensors1 > num"""
     return_value = False
-    for sen in sensors1.key():
-        return_value = True
+    for sen in sensors1.keys():
         if sensors2[sen] - sensors1[sen] > num :
             return_value = True
             user_logger.error('%s has changed by %g from %g to  %g')
@@ -122,8 +121,10 @@ with verify_and_connect(opts) as kat:
                         if opts.nd_params['period'] > 0:
                             next_track = min(next_track, opts.nd_params['period'])
                         if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
+                            user_logger.info("Exiting Time Loop" )
                             break
                         if compare_sensors(sensors,read_sensors(kat.ants,sensorlist),opts.change_limit):
+                            user_logger.error("Sensor Compare Failed. Ending obsevation " )
                             endobs = True
                             break
                     if endobs : break
