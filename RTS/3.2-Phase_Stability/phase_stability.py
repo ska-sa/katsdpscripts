@@ -297,7 +297,7 @@ h5 = katdal.open(args)
 nice_filename =  args[0]+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
-    h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track',dumps=slice(1,60)) 
+    h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
     # loop over both polarisations
     if np.all(h5.sensor['DBE/auto-delay'] == '0') :
         print "Need to do fringe stopping "
