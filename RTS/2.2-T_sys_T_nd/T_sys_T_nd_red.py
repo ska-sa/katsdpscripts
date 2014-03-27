@@ -4,7 +4,7 @@
 # <codecell>
 
 import katarchive
-import katfile
+import katdal as katfile
 import scape
 
 import numpy as np
