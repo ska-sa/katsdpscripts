@@ -35,7 +35,7 @@ fLOs=[(1200+64+i*128) for i in range(6)] # the centre frequency needed to get co
 
 nd_off     = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
 nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
-nd_pin     = {'diode' : 'pin'    , 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
+#nd_pin     = {'diode' : 'pin'    , 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
 
 if len(args) == 0:
     raise ValueError("Please specify the sources to observe as arguments, either as "
@@ -73,7 +73,7 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Change Frequency to %d" % (float(fLO)))
                 for target in sources:
                     session.nd_params = nd_off
-                    for nd in [nd_coupler, nd_pin]:
+                    for nd in [nd_coupler]:
                         session.nd_params = nd_off
                         session.track(target, duration=0) # get onto the source
                         user_logger.info("Now capturing data - diode %s on" % nd['diode'])
