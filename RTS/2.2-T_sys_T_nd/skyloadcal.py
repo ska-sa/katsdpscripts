@@ -68,21 +68,18 @@ with verify_and_connect(opts) as kat:
         start_time = time.time()
         while once or  time.time() < start_time + opts.max_duration :
             once = False
-            for fLO in fLOs: #loop over frequencys
-                session.set_centre_freq(fLO)
-                user_logger.info("Change Frequency to %d" % (float(fLO)))
-                for target in sources:
+            for target in sources:
+                session.nd_params = nd_off
+                for nd in [nd_coupler]:
                     session.nd_params = nd_off
-                    for nd in [nd_coupler]:
-                        session.nd_params = nd_off
-                        session.track(target, duration=0) # get onto the source
-                        user_logger.info("Now capturing data - diode %s on" % nd['diode'])
-                        session.label('%s'%(nd['diode']))
-                        if not session.fire_noise_diode(announce=True, **nd) : user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd['diode']  )
-                    session.nd_params = nd_off
-                    user_logger.info("Now capturing data - noise diode off")
-                    session.label('track')
-                    session.track(target, duration=opts.track_duration)
+                    session.track(target, duration=0) # get onto the source
+                    user_logger.info("Now capturing data - diode %s on" % nd['diode'])
+                    session.label('%s'%(nd['diode']))
+                    if not session.fire_noise_diode(announce=True, **nd) : user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd['diode']  )
+                session.nd_params = nd_off
+                user_logger.info("Now capturing data - noise diode off")
+                session.label('track')
+                session.track(target, duration=opts.track_duration)
         if opts.max_duration and time.time() > start_time + opts.max_duration:
             user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
 
