@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Perform tipping curve scan for a specified azimuth position.
+# Perform tipping curve scan  and find a specified azimith if one is not give.
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
