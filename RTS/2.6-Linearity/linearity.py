@@ -1,151 +1,256 @@
 #! /usr/bin/python
 
-import katarchive
+from matplotlib.backends.backend_pdf import PdfPages
+from optparse import OptionParser
+from scipy import integrate
+
 import katfile
 
+import matplotlib
 import numpy
+import os
 import pylab
 
-## -- Globals --
-DISPLAY = True
-## -- Globals --
 
-## -- Input --
-infile = '1393418142.h5'
-ant    = 'ant6'
-pol    = 'h'
-inpt   = ant + pol
-## -- Input --
+## -- Noise diode profile over passband frequency range
+def NoiseProfile(noise_model, frequency_range):
+  nd_freqs = numpy.array(noise_model)[:,0]
+  nd_temps = numpy.array(noise_model)[:,1]
+  min_idx = numpy.argmin(numpy.abs(nd_freqs - frequency_range[-1]))-1
+  max_idx = numpy.argmin(numpy.abs(nd_freqs - frequency_range[0]))+1
+  nd_freq_range = nd_freqs[min_idx:max_idx]
+  nd_temp_range = nd_temps[min_idx:max_idx]
+  coefficients  = numpy.polyfit(nd_freqs, nd_temps, 7)
+  polynomial    = numpy.poly1d(coefficients)
+  Tcal_range    = numpy.array(polynomial(frequency_range))
 
-## -- Calculation of frequency to channel --
-def freq2chan(freq_mhz, bw_mhz=400, n_chans=1024):
-  chan_nr = round(float(freq_mhz)/float(bw_mhz)*n_chans)%n_chans
-  return int(chan_nr)
-## -- Calculation of frequency to channel --
-
-## -- Power calibration --
-def Tcal(vis, freq_idx, T):
-  spectrum = numpy.mean(numpy.abs(vis), axis=0).flatten()
-  # Tsys cal for frequency region
-  track_values = numpy.mean(numpy.abs(vis[:,freq_idx]), axis=1)
-  # the noise diode according to the observation script is always the first 10 dumps
-  S_on  = numpy.mean(track_values[:10])
-  S_off = numpy.mean(track_values[10:21])
-  # calibration scale factor
-  C = numpy.array(T/numpy.abs(S_on-S_off))
-  # Power [dBm] on baseline region
-  B_ch = (h5.spectral_windows[0]).channel_width # 400e6/1024
-  k = 1.38e-23
-  return (10*numpy.log10(k*spectrum*C*B_ch)+30)
-## -- Power calibration --
-
-## -- Input power from EIRP calculations --
-EIRP = 60      # dBW
-freq = 1.575e9 # Hz
-l = (3e8/freq) # m
-n=0.8
-D=12           # m
-d=38899e3      # m
-gain = 10.*numpy.log10(n*(numpy.pi*D/l)**2) # dB
-path_loss = 20.*numpy.log10(4*numpy.pi*d/l) # dB
-## -- Input power from EIRP calculations --
-
-
-## -- Main --
-f = katarchive.get_archived_products(infile)
-h5 = katfile.open(f[0])
-
-# assume center frequency 1.575 GHz
-passband = h5.channel_freqs
-max_idx = numpy.argmin(numpy.abs(passband-1.5025e9))
-min_idx = numpy.argmin(numpy.abs(passband-1.5075e9))
-null_idx = range(min_idx, max_idx)
-target_idx = range(370,630)    # channel indices of target
-passband_idx = range(freq2chan(72),freq2chan(328))
-
-# noise diode profile
-sensor_data = h5.file['MetaData/Configuration/Antennas/%s/%s_coupler_noise_diode_model' % (ant,pol)]
-nd_freqs = numpy.array(sensor_data)[:,0]
-nd_temps = numpy.array(sensor_data)[:,1]
-passband_min_idx = numpy.argmin(numpy.abs(nd_freqs - passband[passband_idx[-1]]))-1
-passband_max_idx = numpy.argmin(numpy.abs(nd_freqs - passband[passband_idx[0]]))+1
-nd_freq_passband = nd_freqs[passband_min_idx:passband_max_idx]
-nd_temp_passband = nd_temps[passband_min_idx:passband_max_idx]
-coefficients  = numpy.polyfit(nd_freqs, nd_temps, 7)
-polynomial    = numpy.poly1d(coefficients)
-Tcal_passband = numpy.array(polynomial(passband))
-if DISPLAY:
   pylab.figure()
   pylab.clf()
+  pylab.hold(True)
   pylab.subplots_adjust(hspace=.7)
   pylab.subplots_adjust(wspace=.7)
-  pylab.plot(nd_freqs/1e6, nd_temps, 'y',nd_freq_passband/1e6, nd_temp_passband, 'r')
-  pylab.plot(passband/1e6, Tcal_passband, 'm:')
+  pylab.plot(nd_freqs/1e6, nd_temps, 'y',nd_freq_range/1e6, nd_temp_range, 'r')
+  pylab.plot(frequency_range/1e6, Tcal_range, 'm:')
+  pylab.hold(False)
   pylab.legend(['NS model', 'NS temp passband', 'Tcal passband'], 0)
   pylab.ylabel('Temp [K]')
   pylab.xlabel('Freq [MHz]')
   pylab.title('Noise diode profile')
 
+  return Tcal_range
+## -- Noise diode profile over passband frequency range
 
-# Calibrate target spectrum
-h5.select(reset='T')
-h5.select(inputs=inpt,corrprods='auto',scans='track')
-scan_indices = h5.scan_indices
-# extract on target spectrum
-h5.select(reset='T')
-h5.select(inputs=inpt, corrprods='auto', scans=scan_indices[-1])
-Ph_dbm = Tcal(h5.vis[:], target_idx, Tcal_passband)
-if DISPLAY:
+## -- Tsys calibration: C = Tcal/(Son-Soff)
+def Tcal(vis, freq_idx, noise_model):
+  spectrum = numpy.mean(numpy.abs(vis), axis=0).flatten()
+  # Tsys cal for frequency region
+  track_means = numpy.mean(numpy.abs(vis[:,freq_idx]), axis=1)
+  # the noise diode according to the observation script is always the first 10 dumps
+#   S_on  = numpy.mean(track_means[:10])
+#   S_off = numpy.mean(track_means[10:21])
+  threshold = numpy.average(track_means)
+# everything above the threshold = with noise diode
+  src_nd_idx = numpy.nonzero(track_means > threshold)[0]
+  S_on = numpy.mean(track_means[src_nd_idx])
+  # everything below the threshold = without noise diode
+  src_idx = numpy.nonzero(track_means < threshold)[0]
+  S_off = numpy.mean(track_means[src_idx])
+  # calibration scale factor
+  C = numpy.array(noise_model/numpy.abs(S_on-S_off))
+  return [spectrum, C]
+## -- Tsys calibration: C = Tcal/(Son-Soff)
+
+## -- 1dB compression point and headroom
+def Headroom(power, target_offset):
+  # indices over range where the system is moving on source, but is linear
+  lin_off = target_offset[-15:-10]
+  lin_gps = power[-15:-10]
+  p = numpy.polyfit(lin_off,lin_gps,1)
+  # fit a curve over the target region
+  coefficients = numpy.polyfit(target_offset[-15:], power[-15:], 2)
+  polynomial = numpy.poly1d(coefficients)
+  nx = numpy.arange(target_offset[-1], target_offset[-15], 0.001)[::-1]
+  line = p[0]*nx+p[1]
+  curve = polynomial(nx)
+  zero_crossings = numpy.where(numpy.diff(numpy.sign((line-curve)-1)))[0]
   pylab.figure()
-  pylab.plot(passband[passband_idx]/1e6, Ph_dbm[passband_idx], 'b')
-  pylab.axvline(x=passband[min_idx]/1e6, color='r')
-  pylab.axvline(x=passband[max_idx]/1e6, color='r')
-  pylab.legend(['GPS spectra', 'null win'],0)
+  pylab.hold(True)
+  pylab.plot(target_offset, power, 'y.:')
+  pylab.plot(lin_off, lin_gps, 'b:')
+  pylab.plot(nx, curve, 'm-')
+  pylab.plot(nx, line, 'r-')
+  pylab.axvline(x=nx[zero_crossings[-1]], color='g', linestyle=':')
+  pylab.axhline(y=curve[zero_crossings[-1]], color='g')
+  pylab.hold(False)
+  pylab.gca().invert_xaxis()
+  pylab.ylabel('Headroom [dB]')
+  pylab.xlabel('Offset [deg]')
+  pylab.title('Headroom to P1dB = %d dB' % (curve[zero_crossings[-1]]))
+
+  return curve[zero_crossings[-1]]
+## -- 1dB compression point and headroom
+
+## -- Generate output report --
+def Report(pp, h5, data):
+  pagetext = "Description: %s\nName: %s\nExperiment ID: %s\n\n" %(h5.description, h5.name, h5.experiment_id)
+  pagetext = pagetext + "Antenna: %s\nPolarisation: %s\n" %(data['ant'], data['pol'])
+  pagetext = pagetext + "\n"
+  pagetext = pagetext + "Measurement results\n"
+  pagetext = pagetext + 'Headroom to 1dB compression point = %.2f [dB]\n' % data['headroom']
+  pylab.figure()
+  pylab.axes(frame_on=False)
+  pylab.xticks([])
+  pylab.yticks([])
+  pylab.title("RTS Report %s"%outfile,fontsize=14, fontweight="bold")
+  pylab.text(0,0,pagetext,fontsize=12)
+  pylab.savefig(pp,format='pdf')
+  pylab.close()
+
+  figures=[manager.canvas.figure
+           for manager in matplotlib._pylab_helpers.Gcf.get_all_fig_managers()]
+  for i, figure in enumerate(figures):
+    figure.savefig(pp,format='pdf')
+## -- Generate output report --
+
+## -- Use headroom as a measure of linearity
+def Linearity(h5, ant, pol, null_hz, target_hz):
+  inpt = ant + pol
+
+  # identify target spectrum observations
+  h5.select(reset='T')
+  h5.select(inputs=inpt,corrprods='auto',scans='track')
+  scan_indices = h5.scan_indices
+  passband     = h5.channel_freqs
+  nr_channels  = h5.channels
+  channel_bw   = (h5.spectral_windows[0]).channel_width # Hz
+  bandwidth    = channel_bw*len(nr_channels) # Hz
+
+  # channel indices for null -- range of 10 MHz
+  max_idx = numpy.argmin(numpy.abs(passband-(null_hz-5e6/2)))
+  min_idx = numpy.argmin(numpy.abs(passband-(null_hz+5e6/2)))
+  null_range = range(min_idx, max_idx)
+
+  # channel indices over target -- range of 40 MHz
+  max_idx = numpy.argmin(numpy.abs(passband-(target_hz-20e6/2)))
+  min_idx = numpy.argmin(numpy.abs(passband-(target_hz+20e6/2)))
+  target_range = range(min_idx, max_idx)
+
+  pylab.figure()
+  pylab.semilogy(passband[1:]/1e6, numpy.mean(numpy.abs(h5.vis[:]), axis=0)[1:], 'b')
+  pylab.axvline(x=passband[null_range[0]]/1e6, color='g')
+  pylab.axvline(x=passband[target_range[0]]/1e6, color='r')
+  pylab.axvline(x=passband[null_range[-1]]/1e6, color='g')
+  pylab.axvline(x=passband[target_range[-1]]/1e6, color='r')
+  pylab.axis('tight')
+  pylab.legend(['GPS spectra', 'null win', 'target'],0)
   pylab.xlabel('Feq [MHz]')
   pylab.ylabel('Power [dBm]')
-  pylab.title('GPS satellite, center freq = 1575 MHz')
+  pylab.title('GPS satellite, center freq = %.2f MHz' % (target_hz/1e6))
 
-# passband suppression round null frequency
-target_offset = [5.000000, 4.897959, 4.795918, 4.693878, 4.591837, 4.489796, 4.387755, 4.285714, 4.183673, 4.081633, 3.979592, 3.877551, 3.775510, 3.673469, 3.571429, 3.469388, 3.367347, 3.265306, 3.163265, 3.061224, 2.959184, 2.857143, 2.755102, 2.653061, 2.551020, 2.448980, 2.346939, 2.244898, 2.142857, 2.040816, 1.938776, 1.836735, 1.734694, 1.632653, 1.530612, 1.428571, 1.326531, 1.224490, 1.122449, 1.020408, 0.918367, 0.816327, 0.714286, 0.612245, 0.510204, 0.408163, 0.306122, 0.204082, 0.102041, 0.000000]
-compression = []
-for idx in range(1,len(scan_indices)):
-  h5.select(reset='T')
-  h5.select(inputs=inpt, corrprods='auto', scans=scan_indices[idx])
-  Ph_dbm = Tcal(h5.vis[:], target_idx, Tcal_passband)
-  compression.append(numpy.mean(Ph_dbm[null_idx]))
+  # noise diode profile
+  noise_model   = h5.file['MetaData/Configuration/Antennas/%s/%s_coupler_noise_diode_model' % (ant,pol)]
+  Tcal_passband = NoiseProfile(noise_model, passband)
 
-P1dB = numpy.mean(compression[1:10])-1
-cmp_idx = numpy.argmin(numpy.abs(compression-P1dB))
+  # calibrate measured temperatures
+  k = 1.38e-23
+  Pns = []
+  Pgps = []
+  for idx in range(2,len(scan_indices)):
+    h5.select(reset='T')
+    h5.select(inputs=inpt, corrprods='auto', scans=scan_indices[idx])
+    [spectrum, Tcal_factor] = Tcal(h5.vis[:], null_range, Tcal_passband)
+    # apply calibration and compute integrated power over noise floor (null region) and target
+    calib_vis=k*numpy.array(Tcal_factor)*numpy.array(spectrum)
+    Pns.append(10.*numpy.log10(numpy.average(calib_vis[null_range])*bandwidth))
+    Pgps.append(10.*numpy.log10(integrate.simps((calib_vis[target_range]-numpy.average(calib_vis[null_range])).flatten(),passband[target_range][::-1])*channel_bw))
 
-if DISPLAY:
-  pylab.figure()
-  pylab.plot(target_offset[1:],compression[1:])
-  pylab.axhline(y=P1dB, color='r')
-  pylab.gca().invert_xaxis()
-  pylab.legend(['compression','P1dB'],0)
-  pylab.ylabel('Power [dBm]')
-  pylab.xlabel('Offset [deg]')
-  pylab.title('Baseline compression at %f [deg]' % target_offset[cmp_idx])
+  # approximate off target degrees from observation output
+  target_offset = numpy.arange(5,-0.1, -0.1)[::-1][:len(scan_indices)-1][::-1]
+  # identify 1dB compression point and read off headroom to 1dB compression point
+  cal_pwr = numpy.array(Pgps) - numpy.array(Pns)
+  return Headroom(cal_pwr, target_offset[1:])
+## -- Use headroom as a measure of linearity
 
-h5.select(reset='T')
-h5.select(inputs=inpt, corrprods='auto', scans=scan_indices[cmp_idx+1])
-Ph_dbm = Tcal(h5.vis[:], target_idx, Tcal_passband)
-# pylab.figure()
-# pylab.plot(passband[passband_idx]/1e6, Ph_dbm[passband_idx], 'b')
-# pylab.axvline(x=passband[min_idx]/1e6, color='r')
-# pylab.axvline(x=passband[max_idx]/1e6, color='r')
-# pylab.legend(['GPS spectra', 'null win'],0)
-# pylab.xlabel('Feq [MHz]')
-# pylab.ylabel('Power [dBm]')
-# pylab.title('GPS satellite offset angle %f [deg]' % target_offset[cmp_idx])
 
-# Input power needed to produce 1dB compression
-loss = numpy.mean(compression[1:10]) -1 - compression[cmp_idx] # dB
-print 'Input power to produce 1dB compression = %f [dBm]' % (numpy.max(Ph_dbm[target_idx]) + gain - loss)
-print "Receiver power %f [dBm]" % (EIRP - path_loss + gain)
+## -- Main --
+if __name__ == '__main__':
 
-pylab.show()
+  usage = "\npython %prog [options] -f <filename>"
+  parser = OptionParser(usage=usage, version="%prog 1.0")
+  parser.add_option('-f', '--file',
+                    action='store',
+                    dest='filename',
+                    type=str,
+                    default=None,
+                    help='Full path name of H5 observation file, e.g. \'/var/kat/archive/data/comm/2014/02/26/1393418142.h5\'.')
+  parser.add_option('--ant',
+                    action='store',
+                    dest='ant',
+                    type=str,
+                    default='all',
+                    help='Antenna to use, e.g. \'ant1\', default is to do analysis for all available antennas.')
+  parser.add_option('--pol',
+                    action='store',
+                    dest='pol',
+                    type=str,
+                    default='all',
+                    help='Polarisation, horisontal (\'h\') or vertical (\'v\'), default is to do analysis for both polarisations.')
+  parser.add_option('--null',
+                    action='store',
+                    dest='null',
+                    type=float,
+                    default=1503.81e6,
+                    help='Frequency of expected null in Hz, default = \'%default\' Hz.')
+  parser.add_option('--target',
+                    action='store',
+                    dest='target',
+                    type=float,
+                    default=1575e6,
+                    help='Frequency of expected target in Hz, default = \'%default\' Hz.')
+  parser.add_option('--out',
+                    action='store',
+                    dest='outfile',
+                    type=str,
+                    default=None,
+                    help='Name of output report file.')
 
+  (opts, args) = parser.parse_args()
+
+  if opts.filename is None: raise SystemExit(parser.print_usage())
+
+  try:
+    h5 = katfile.open(opts.filename, quicklook=True)
+  except Exception as err_msg: raise SystemExit('An error as occured:\n%s' % err_msg)
+
+  outfile = opts.outfile
+  if outfile is None: outfile = os.path.splitext(os.path.basename(opts.filename))[0]
+
+  ants = [opts.ant]
+  pols = [opts.pol]
+  if opts.ant == 'all':
+    ants = [ant.name for ant in h5.ants]
+    outants = 'all_antennas'
+  else: outants = opts.ant
+  if opts.pol == 'all':
+    pols = ['h', 'v']
+    outpols = 'H_V'
+  else: outpols = opts.pol
+  outfile = outfile + '_' + outants + '_' + outpols + '_linearity'
+
+  # Generate output report
+  pp = PdfPages(outfile+'.pdf')
+
+  for ant in ants:
+    for pol in pols:
+      print 'Headroom analysis for antenna %s polarisation %s' % (ant, pol)
+      headroom_1db = Linearity(h5, ant, pol, opts.null, opts.target)
+      Report(pp, h5, {'headroom':headroom_1db, 'ant':ant, 'pol':pol})
+      try: pylab.close('all')
+      except: pass # nothing to close
+
+  # cleanup before exit
+  pp.close()
+  try: pylab.close('all')
+  except: pass # nothing to close
 
 # -fin-
-
