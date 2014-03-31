@@ -23,7 +23,7 @@ parser.add_option('--spacing', type="float", default=1.0,
                   help='The Spacing along the elevation axis of the tipping curve that measuremnts are taken, in degrees (default="%default")')
 parser.add_option( '--tip-both-directions', action="store_true" , default=False,
                   help='Do tipping curve from low to high elevation and then from high to low elevation')
-parser.add_option('--no-delays', action="store_true", default=True,
+parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays (default="%default")')
 
 # Set default value for any option (both standard and experiment-specific options)
