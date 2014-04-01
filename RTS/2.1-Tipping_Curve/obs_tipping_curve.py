@@ -37,6 +37,11 @@ if not hasattr(opts, 'project_id') or opts.project_id is None:
 
 on_time = 15.0
 with verify_and_connect(opts) as kat:
+    # Start Antenna for observing
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
         user_logger.info("No Azimuth selected , selecting clear Azimith")
@@ -63,10 +68,6 @@ with verify_and_connect(opts) as kat:
     user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
 
     with start_session(kat, **vars(opts)) as session:
-        if not kat.dry_run and session.ants.req.mode('STOP') :
-            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        else:
-            user_logger.error("Unable to set Antenna mode to 'STOP'.")
         if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
                 user_logger.info("Turning on delay tracking.")
