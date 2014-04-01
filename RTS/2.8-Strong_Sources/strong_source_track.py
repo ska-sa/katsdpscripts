@@ -15,7 +15,7 @@ def read_sensors(ants,sensorlist):
             clean_sen = sen.replace('.','_').replace('-','_')
             sensors["%s_%s"%(ant.name,clean_sen)] = ant.sensor.get(clean_sen).get_value()
     return sensors
-    
+
 def compare_sensors(sensors1,sensors2,num):
     """ return True if sensors2 - sensors1 > num"""
     return_value = False
@@ -24,7 +24,7 @@ def compare_sensors(sensors1,sensors2,num):
             return_value = True
             user_logger.error('%s has changed by %g from %g to  %g')
     return return_value
- 
+
 
 
 # Set up standard script options
@@ -45,7 +45,7 @@ parser.add_option('--cold-target', type='string', default="SCP,radec,0,-90",
                   help='The target/catalogue of the cold sky source to use when bracketing the obsevation (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
-parser.add_option('--sensor-watch',  default="rxl.omt.temperature,rxl.cryostat.body-temperature",
+parser.add_option('--sensor-watch',  default="rsc.rxl.omt.temperature,rsc.rxl.cryostat.body-temperature",
                   help='comma delimited list of sensors to monitor while the obsevation is in progress (default=%default)')
 parser.add_option('--change-limit', type='float', default=15.0,
                   help='The amount of +change in the sensor that is allowed to happen bet the script exits.(default=%default)')
@@ -69,6 +69,10 @@ endobs = False
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     strong_sources = collect_targets(kat, args)
     cold_sources = collect_targets(kat, [opts.cold_target])
     # Quit early if there are no sources to observe
