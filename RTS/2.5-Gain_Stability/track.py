@@ -40,6 +40,10 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
