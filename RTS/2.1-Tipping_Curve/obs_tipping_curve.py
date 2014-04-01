@@ -63,7 +63,7 @@ with verify_and_connect(opts) as kat:
     user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
 
     with start_session(kat, **vars(opts)) as session:
-        if session.ants.req.mode('STOP') :
+        if not kat.dry_run and session.ants.req.mode('STOP') :
             user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         else:
             user_logger.error("Unable to set Antenna mode to 'STOP'.")
@@ -84,9 +84,9 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         session.capture_start()
         # Iterate through elevation angles
-        spacings = list(np.arange(10.0,90.1,opts.spacing))
+        spacings = list(np.arange(15.0,90.1,opts.spacing))
         if opts.tip_both_directions :
-            spacings += list(np.arange(90.0,9.,-opts.spacing))
+            spacings += list(np.arange(90.0,14.9,-opts.spacing))
         for el in spacings:
             session.label('track')
             session.track('azel, %f, %f' % (opts.az, el), duration=on_time)
