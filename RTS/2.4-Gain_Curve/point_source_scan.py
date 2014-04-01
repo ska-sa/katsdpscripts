@@ -51,6 +51,11 @@ if opts.quick:
     opts.dump_rate = 2.0
 
 with verify_and_connect(opts) as kat:
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
+
     if len(args) > 0:
         # Load pointing calibrator catalogues and command line targets
         pointing_sources = collect_targets(kat, args)
