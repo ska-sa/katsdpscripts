@@ -41,7 +41,7 @@ def plane_to_sphere_holography(targetaz,targetel,ll,mm):
     scanaz=targetaz-np.arcsin(np.clip(ll/np.cos(targetel),-1.0,1.0))
     scanel=np.arcsin(np.clip((np.sqrt(1.0-ll**2-mm**2)*np.sin(targetel)+np.sqrt(np.cos(targetel)**2-ll**2)*mm)/(1.0-ll**2),-1.0,1.0))
     return scanaz,scanel
-    
+
 #same as katpoint.projection._sphere_to_plane_common(az0=scanaz,el0=scanel,az=targetaz,el=targetel) with ll=ortho_x,mm=-ortho_y
 def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
     #produces direction cosine coordinates from scanning antenna azimuth,elevation coordinates
@@ -150,7 +150,7 @@ def generatespiral(totextent,tottime,tracktime=1,sampletime=1,kind='uniform',mir
             compositey[ia]=y
             ncompositex[ia]=nx
             ncompositey[ia]=ny
-    
+
     return compositex,compositey,ncompositex,ncompositey
 
 
@@ -193,6 +193,10 @@ if len(args) == 0:
 
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     catalogue = collect_targets(kat, args)
     targets=catalogue.targets
     if len(targets) == 0:
