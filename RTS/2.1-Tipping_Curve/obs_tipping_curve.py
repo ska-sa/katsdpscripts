@@ -48,21 +48,25 @@ with verify_and_connect(opts) as kat:
             for source in observation_sources.targets:
                 az, el = np.degrees(source.azel(timestamp=timestamp))   # was rad2deg
                 az[az > 180] = az[az > 180] - 360
-                source_az += list(set(az[el > 5]))
+                source_az += list(set(az[el > 15]))
             source_az.sort()
             gap = np.diff(source_az).argmax()+1
             opts.az = (source_az[gap] + source_az[gap+1]) /2.0
             user_logger.info("Selecting Satillite clear Azimuth=%f"%(opts.az,))
         else:
-            opts.az = 0 
+            opts.az = 0
             user_logger.info("Selecting dummey Satillite clear Azimuth=%f"%(opts.az,))
-    else:  
+    else:
         if (opts.az < -185.) or (opts.az > 275.):
             opts.az = (opts.az + 180.) % 360. - 180.
         user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
     user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
 
-    with start_session(kat, **vars(opts)) as session:      
+    with start_session(kat, **vars(opts)) as session:
+        if session.ants.req.mode('STOP') :
+            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        else:
+            user_logger.error("Unable to set Antenna mode to 'STOP'.")
         if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
                 user_logger.info("Turning on delay tracking.")
