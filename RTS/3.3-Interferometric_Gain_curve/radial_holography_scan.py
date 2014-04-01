@@ -48,6 +48,10 @@ if len(args) == 0:
 
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+            user_logger.error("Unable to set Antenna mode to 'STOP'.")
     targets = collect_targets(kat, args)
 
     # Initialise a capturing session (which typically opens an HDF5 file)
