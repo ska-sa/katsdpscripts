@@ -8,7 +8,6 @@ import katdal as katfile
 import scape
 
 import numpy as np
-import scipy.signal as sig 
 
 import optparse
 from matplotlib.backends.backend_pdf import PdfPages
@@ -37,7 +36,7 @@ filename = args[0]
 nice_filename =  filename.split('/')[-1]+ '_T_sys_T_nd'
 pp = PdfPages(nice_filename+'.pdf')
 
-h5 = katfile.open(args[0])
+h5 = katfile.open(filename)
 
 ants = h5.ants
 
@@ -65,7 +64,7 @@ for pol in pols:
             nd_temp = nd.temperature(freq / 1e6)
             cold_data = np.ma.array(h5.vis[:].real,mask=h5.flags()[:],fill_value=np.nan)
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
-            buff = 20
+            buff = 5
             n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
             n_on = np.roll(on,buff) & np.roll(on,-buff)
             cold_off = n_off
@@ -74,7 +73,7 @@ for pol in pols:
             h5.select(ants=a.name,spw=s_i,pol=pol,freqrange=(f_c - opts.freq_band/2, f_c + opts.freq_band/2),targets = 'Moon',scans='track')
             hot_data = np.ma.array(h5.vis[:].real,mask=h5.flags()[:],fill_value=np.nan)
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
-            buff = 20
+            buff = 5
             n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
             n_on = np.roll(on,buff) & np.roll(on,-buff)
             hot_off = n_off
@@ -108,8 +107,7 @@ for pol in pols:
         plt.subplot(7,2,p)
         plt.ylim(1.5 ,6)
         if p ==ant_num * 2-1: plt.ylabel(ant)
-        fs,ds = f,sig.medfilt(Tdiode,21)
-        plt.plot(fs,ds,'b')
+        plt.plot(f,Tdiode,'b')
         #outfile = file('%s.%s.%s.csv' % (ant, diode, pol.lower()), 'w')
         #outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
         # Write CSV part of file
@@ -121,7 +119,7 @@ for pol in pols:
         plt.subplot(7,2,p)
         plt.ylim(10,60)
         if p == ant_num * 2 -1: plt.ylabel(ant)
-        plt.plot(fs,Tsys,'b')
+        plt.plot(f,Tsys,'b')
         plt.grid()
     
 plt.figure(1)
