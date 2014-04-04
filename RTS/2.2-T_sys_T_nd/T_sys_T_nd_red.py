@@ -63,7 +63,7 @@ for pol in pols:
             h5.select(ants=a.name,spw=s_i,pol=pol,freqrange=(f_c - opts.freq_band/2, f_c + opts.freq_band/2),targets = 'OFF',scans='track')
             freq = h5.channel_freqs
             nd_temp = nd.temperature(freq / 1e6)
-            cold_data = np.ma.array(h5.vis[:,:,:],mask=h5.flags()[:],fill_value=np.nan)
+            cold_data = np.ma.array(h5.vis[:].real,mask=h5.flags()[:],fill_value=np.nan)
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
             buff = 20
             n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
@@ -72,17 +72,17 @@ for pol in pols:
             cold_on = n_on
             #hot data
             h5.select(ants=a.name,spw=s_i,pol=pol,freqrange=(f_c - opts.freq_band/2, f_c + opts.freq_band/2),targets = 'Moon',scans='track')
-            hot_data = np.ma.array(h5.vis[:,:,:],mask=h5.flags()[:],fill_value=np.nan)
+            hot_data = np.ma.array(h5.vis[:].real,mask=h5.flags()[:],fill_value=np.nan)
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
             buff = 20
             n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
             n_on = np.roll(on,buff) & np.roll(on,-buff)
             hot_off = n_off
             hot_on = n_on
-            cold_spec = np.median(cold_data[cold_off,:,0].real,0).filled()
-            hot_spec = np.median(hot_data[hot_off,:,0].real,0).filled()
-            cold_nd_spec = np.median(cold_data[cold_on,:,0].real,0).filled()
-            hot_nd_spec = np.median(hot_data[hot_on,:,0].real,0).filled()
+            cold_spec = np.median(cold_data[cold_off,:,0].filled(),0)
+            hot_spec = np.median(hot_data[hot_off,:,0].filled(),0)
+            cold_nd_spec = np.median(cold_data[cold_on,:,0].filled(),0)
+            hot_nd_spec = np.median(hot_data[hot_on,:,0].filled(),0)
             continue
 
         
