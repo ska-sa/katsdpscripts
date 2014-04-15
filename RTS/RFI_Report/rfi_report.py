@@ -1,4 +1,5 @@
-import katdal 
+import katdal
+import katpoint 
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 from mpl_toolkits.axes_grid import Grid
@@ -10,6 +11,9 @@ import scipy.signal as signal
 import scipy.interpolate as interpolate
 import scipy.ndimage as ndimage
 import math
+
+import cPickle as pickle
+import os
 
 #########################
 # RFI Detection routines
@@ -425,49 +429,45 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 # End of RFI detection routines
 ##############################
 
-def sensibly_average_target_records(h5data,target):
-	"""
-	Given a katdal object, remove a dc offset for each scan
-	(ignoring severe spikes) and correct for changes in elevation
-	during the observation then obtain an average spectrum of
-	all of the scans in the data - rejecting outliers in the DC offset domain.
-	Return the average spectrum with dc offset removed.
-	"""
-	h5.select(targets=target)
-	#get the target object
-	target = h5.catalogue.targets[h5.target_indices[0]]
-	sumarray=np.zeros((h5data.shape[1],2))
-	offsetarray=np.zeros((h5data.shape[0],2))
-	elevationarray=np.zeros(h5data.shape[0])
-	print target.name
-	for num,(thisdata,thistime) in enumerate(zip(h5data.vis[:],h5data.timestamps)):
-		#Extract pols
-		thisdata = np.abs(thisdata[:,:2])
-		#Flag data for severe spikes
-		record_flags = detect_spikes_sumthreshold(thisdata)
-		#Convert thisdata to a masked array
-		thisdata = np.ma.array(thisdata,mask=record_flags)
-		#Get DC height (median rather than mean is more robust...)
-		offset = np.ma.median(thisdata,axis=0)
-		#Make an elevation corrected offset to remove outliers
-		elevationarray[num] = target.azel(thistime)[1]*180.0/np.pi
-		offsetarray[num,:] = offset
-		print elevationarray[num],offsetarray[num,0]
-		#Remove the DC height
-		thisdata = thisdata.data[:]/offset
-		#plt.plot(thisdata[1:,0])
-		#Sum the data for this target
-		sumarray = sumarray + thisdata
-		#print thisdata
-	plt.plot(elevationarray,offsetarray[:,0])
-	plt.show()
-	#print offsetarray
-	averagespec = sumarray/h5data.shape[0]
-	flags = detect_spikes_sumthreshold(averagespec)
-	#plt.plot(averagespec[1:,0])
-	#plot_RFI_mask(plt,extra=flags[1:,0]==True,channelwidth=1)
-	#plt.show()
-	#print flags
+def get_flag_data(h5data):
+    """
+    Given a katdal object, remove a dc offset for each record
+    (ignoring severe spikes) and correct for changes in elevation
+    during the observation then obtain an average spectrum of
+    all of the scans in the data - rejecting outliers in the DC offset domain.
+    Return the average spectrum with dc offset removed and the number of times
+    each channel is flagged.
+    """
+
+    sumarray=np.zeros((h5data.shape[1],2))
+    offsetarray=np.zeros((h5data.shape[0],2))
+    weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
+    for num,thisdata in enumerate(h5data.vis[:]):
+        #Extract pols
+        thisdata = np.abs(thisdata[:,:2])
+        #Flag data for severe spikes
+        record_flags = detect_spikes_sumthreshold(thisdata,outlier_sigma=7)
+        #Get DC height (median rather than mean is more robust...)
+        offset = np.median(thisdata[np.where(record_flags==0)],axis=0)
+        #Make an elevation corrected offset to remove outliers
+        offsetarray[num,:] = offset
+        #Remove the DC height
+        weights = (~record_flags.astype(np.bool)).astype(np.float)
+        thisdata = thisdata/offset
+        weightsum += weights
+        #Sum the data for this target
+        sumarray = sumarray + thisdata*weights
+    averagespec = sumarray/(weightsum.astype(np.float)+1.e-10)
+    flagfrac = 1. - (weightsum.astype(np.float)/h5data.shape[0].astype(np.float))
+    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
+
+def plot_flag_data(target,spectrum,flagfrac,freqs,pdf):
+
+
+    pass
+
+
+
 
 
 #command-line parameters
@@ -477,7 +477,6 @@ parser = optparse.OptionParser(usage="Please specify the input file\n\
 
 parser.add_option("-a", "--antenna", type="string", default=None, help="Name of the antenna to produce the report for, default is first antenna in file")
 parser.add_option("-t", "--targets", type="string", default=None, help="List of targets to produce report for, default is all targets in the file")
-
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
@@ -492,15 +491,32 @@ ant=opts.antenna or h5.ants[0].name
 
 # Set up the output file
 print("Please wait while RFI analysis is in progress...")
-pdf = PdfPages(filename.split('/')[-1]+'_' + ant + '_RFI.pdf')
+basename = os.path.splitext(filename.split('/')[-1])[0]+'_' + ant + '_RFI'
+pdf = PdfPages(basename+'.pdf')
 
 # Select the desired antenna and remove slews from the file
 h5.select(scans='~slew',ants=ant)
 
 targets=opts.targets or h5.catalogue.targets
+
+#Set up the output data dictionary
+data_dict = {}
+
+# Do calculation for all the data and store in the dictionary
+data_dict['all_data']=get_flag_data(h5)
+
 # Loop through targets
 for target in targets:
+    #Get the target name if it is a target object
+    if isinstance(target, katpoint.Target):
+        target = target.name
+    #Extract target from file
+    h5.select(targets=target)
 	#get an average over scans for this target
-	targ_average = sensibly_average_target_records(h5,target)
+    data_dict[target]=get_flag_data(h5)
+    plot_flag_data(target,data_dict[target]['spectrum'],data_dict[target]['flagfrac'],h5.channel_freqs,pdf)
 
-
+#Output pickle file
+outfile=open(basename+'.pickle','w')
+pickle.dump(data_dict,outfile)
+outfile.close()
