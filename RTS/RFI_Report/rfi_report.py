@@ -461,13 +461,53 @@ def get_flag_data(h5data):
     flagfrac = 1. - (weightsum.astype(np.float)/h5data.shape[0].astype(np.float))
     return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
 
-def plot_flag_data(target,spectrum,flagfrac,freqs,pdf):
+def plot_flag_data(label,spectrum,flagfrac,freqs,pdf):
+    """
+    Produce a plot of the average spectrum in H and V 
+    after flagging and attach it to the pdf output.
+    Also show fraction of times flagged per channel.
+    """
 
+    #Set up the figure
+    fig = plt.figure(figsize=(8.3,11.7))
+    fig.subplots_adjust(hspace=0.0)
 
-    pass
+    #Plot the spectrum for each target
+    ax1 = plt.subplot(411)
+    plt.title(label)
+    plt.plot(freqs,spectrum[:,0])
+    plot_RFI_mask(ax1)
+    ticklabels=ax1.get_xticklabels()
+    plt.setp(ticklabels,visible=False)
+    ticklabels=ax1.get_yticklabels()
+    plt.setp(ticklabels,visible=False)
+    plt.ylabel('Mean HH amplitude\n(arbitrary units)')
 
+    ax = plt.subplot(412,sharex=ax1)
+    plt.plot(freqs,flagfrac[:,0],'r-')
+    plt.ylim((0.,1.))
+    plot_RFI_mask(ax)
+    ticklabels=ax.get_xticklabels()
+    plt.setp(ticklabels,visible=False)
+    plt.ylabel('HH fraction flagged')
 
+    ax = plt.subplot(413,sharex=ax1)
+    plt.plot(freqs,spectrum[:,1])
+    plot_RFI_mask(ax)
+    ticklabels=ax.get_xticklabels()
+    plt.setp(ticklabels,visible=False)
+    ticklabels=ax.get_yticklabels()
+    plt.setp(ticklabels,visible=False)
+    plt.ylabel('Mean VV amplitude\n(arbitrary units)')
 
+    ax = plt.subplot(414,sharex=ax1)
+    plt.plot(freqs,flagfrac[:,1], 'r-')
+    plt.ylim((0.,1.))
+    plot_RFI_mask(ax)
+    plt.xlim((min(freqs),max(freqs)))
+    plt.ylabel('VV fraction flagged')
+    plt.xlabel('Frequency (Hz)')
+    pdf.savefig(fig)
 
 
 #command-line parameters
@@ -490,7 +530,6 @@ h5 = katdal.open(filename)
 ant=opts.antenna or h5.ants[0].name
 
 # Set up the output file
-print("Please wait while RFI analysis is in progress...")
 basename = os.path.splitext(filename.split('/')[-1])[0]+'_' + ant + '_RFI'
 pdf = PdfPages(basename+'.pdf')
 
@@ -514,9 +553,17 @@ for target in targets:
     h5.select(targets=target)
 	#get an average over scans for this target
     data_dict[target]=get_flag_data(h5)
-    plot_flag_data(target,data_dict[target]['spectrum'],data_dict[target]['flagfrac'],h5.channel_freqs,pdf)
+    label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
+    plot_flag_data(label,data_dict[target]['spectrum'],data_dict[target]['flagfrac'],h5.channel_freqs,pdf)
 
 #Output pickle file
 outfile=open(basename+'.pickle','w')
 pickle.dump(data_dict,outfile)
 outfile.close()
+
+#Plot the flags for all data in the file
+label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
+plot_flag_data(label,data_dict[target]['spectrum'],data_dict['all_data']['flagfrac'],h5.channel_freqs,pdf)
+
+#close the plot
+pdf.close()
