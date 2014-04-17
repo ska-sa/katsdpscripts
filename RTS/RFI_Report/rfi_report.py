@@ -124,7 +124,7 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
                 
 
-def detect_spikes_sumthreshold(data, blarray=None, spike_width=4, outlier_sigma=11.0, window_size_auto=[1,3], window_size_cross=[2,4,8]):
+def detect_spikes_sumthreshold(data, blarray=None, spike_width=5, outlier_sigma=11.0, window_size_auto=[1,3], window_size_cross=[2,4,8]):
     """FUNCTION :  detect_spikes_sumthreshold
     Given an array "data" from a baseline:
     determine if the data is an auto-correlation or a cross-correlation.
@@ -170,7 +170,8 @@ def detect_spikes_sumthreshold(data, blarray=None, spike_width=4, outlier_sigma=
         # Check if this is an auto or a cross... (treat as auto if we have no bl-ordering)
         if blarray is None or bl_name[0][:-1] == bl_name[1][:-1]:
             #Auto-Correlation.
-            filtered_data = np.asarray(signal.medfilt(this_data_buffer, kernel_size), this_data_buffer.dtype)
+            #filtered_data = np.asarray(signal.medfilt(this_data_buffer, kernel_size), this_data_buffer.dtype)
+            filtered_data = getbackground_spline(this_data_buffer,kernel_size)
             #Use the auto correlation window function
             #filtered_data = ndimage.grey_opening(this_data_buffer, (kernel_size,))
             window_bl = window_size_auto
@@ -446,7 +447,7 @@ def get_flag_data(h5data):
         #Extract pols
         thisdata = np.abs(thisdata[:,:2])
         #Flag data for severe spikes
-        record_flags = detect_spikes_sumthreshold(thisdata,outlier_sigma=7)
+        record_flags = detect_spikes_sumthreshold(thisdata,outlier_sigma=10.0,spike_width=3.0)
         #Get DC height (median rather than mean is more robust...)
         offset = np.median(thisdata[np.where(record_flags==0)],axis=0)
         #Make an elevation corrected offset to remove outliers
