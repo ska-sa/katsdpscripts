@@ -408,7 +408,7 @@ def find_nearest(array,value):
 select_freq= np.array(opts.select_freq.split(','),dtype=float)
 select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
-h5.select(ants='ant3',scans='track')
+h5.select(scans='track')
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
     #Load the data file
