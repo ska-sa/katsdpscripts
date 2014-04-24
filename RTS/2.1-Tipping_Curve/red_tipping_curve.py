@@ -19,7 +19,7 @@ import pyfits
 
 import warnings
 from matplotlib.backends.backend_pdf import PdfPages
-import katfile
+import katdal
 import scape
 import scikits.fitting as fit
 from katpoint import rad2deg, deg2rad,  construct_azel_target
@@ -34,10 +34,10 @@ class Sky_temp:
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
         This takes in 2 optional parameters:
         inputfile (filename) a fits file at 1420 MHz
-        nu (MHz) center frequency 
+        nu (MHz) center frequency
         the data is scaled by the alpha=-0.727
         This needs to be checked
-        This initilises the sky temp object. 
+        This initilises the sky temp object.
 
         """
         self.ra =  lambda x: int(x/0.25) # helper functions
@@ -120,7 +120,7 @@ class Spill_Temp:
         # the models are in a format of theta=0  == el=90
         spillover_H[0]= 90-spillover_H[0]
         spillover_V[0]= 90-spillover_V[0]
-        
+
         #np.array([[33.0,],[1200.]])
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.Spline2DScatterFit(degree=(1,1))
@@ -130,7 +130,7 @@ class Spill_Temp:
         self.spill = {}
         self.spill['HH'] = T_H # The HH and VV is a scape thing
         self.spill['VV'] = T_V
-        
+
     def save(filename=None,HH=np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]]),VV=np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])):
         """ Save a Spillover model in the correct format
         filename : String filename
@@ -154,7 +154,7 @@ class Rec_Temp:
         produces fitted functions for a frequency
         The class/__init__function takes in one parameter:
         filename : (default='') This is the filename
-               of the recever model 
+               of the recever model
                these files have 2 cols:
                 Frequency (MHz),tempreture (MHz),
                if there are no file 15k recever  is assumed.
@@ -168,7 +168,7 @@ class Rec_Temp:
         except IOError:
             receiver_h = np.array([[900.,2000],[15.,15.]])
             receiver_v = np.array([[900.,2000],[15.,15.]])
-            warnings.warn('Warning: Failed to load Receiver models, setting models to 15 K ')   
+            warnings.warn('Warning: Failed to load Receiver models, setting models to 15 K ')
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.Spline1DFit(degree=1)
         T_V = fit.Spline1DFit(degree=1)
@@ -177,7 +177,7 @@ class Rec_Temp:
         self.rec = {}
         self.rec['HH'] = T_H # The HH and VV is a scape thing
         self.rec['VV'] = T_V
-    
+
     def save(filename=None,HH=np.array([[900.,2000],[15.,15.]]),VV=np.array([[900.,2000],[15.,15.]])):
         """ Save a Recever model in the correct format
         filename : String filename
@@ -238,8 +238,8 @@ class System_Temp:
         TmpSky = scape.fitting.PiecewisePolynomial1DFit()
         TmpSky.fit(self.elevation, self.T_sky)
         self.Tsky = TmpSky
-    
-    def sky_fig(self):  
+
+    def sky_fig(self):
         T_skytemp = Sky_temp(inputfile=self.inputpath,nu=self.freq)
         T_skytemp.set_freq(self.freq)
         return T_skytemp.plot_sky(self.ra,self.dec)
@@ -284,8 +284,8 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     """The 'tipping curve' is fitted using the expression below, with the free parameters of $T_{ant}$ and $\tau_{0}$
         the Antenna tempreture and the atmospheric opacity. All the varables are also functions of frequency .
         $T_{sys}(el) = T_{cmb}(ra,dec) + T_{gal}(ra,dec) + T_{atm}*(1-\exp(\frac{-\ta   u_{0}}{\sin(el)})) + T_spill(el) + T_{ant} + T_{rx}$
-        We will fit the opacity and $T_{ant}$.s 
-        T_cmb + T_gal is obtained from the T_sys.Tsky() function 
+        We will fit the opacity and $T_{ant}$.s
+        T_cmb + T_gal is obtained from the T_sys.Tsky() function
         if fixopacity is set to true then $\tau_{0}$ is set to 0.01078 (Van Zee et al.,1997) this means that $T_{ant}$ becomes
         The excess tempreture since the other components are known. When fixopacity is not True then it is fitted and T_ant
         is assumed to be constant with elevation
@@ -346,7 +346,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42):
         plt.ylabel('Raw power (counts)')
         plt.legend()
     return fig
-    
+
 def plot_data_freq(frequency,Tsys,Tant,title=''):
     fig = plt.figure()
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
@@ -401,13 +401,13 @@ parser.add_option( "--sky-map", default='TBGAL_CONVL.FITS',
 
 if len(args) < 1:
     raise RuntimeError('Please specify the data file to reduce')
-        
+
 def find_nearest(array,value):
     return (np.abs(array-value)).argmin()
 
 select_freq= np.array(opts.select_freq.split(','),dtype=float)
-select_el = np.array(opts.select_el.split(','),dtype=float)           
-h5 = katfile.open(args[0])
+select_el = np.array(opts.select_el.split(','),dtype=float)
+h5 = katdal.open(args[0])
 h5.select(ants='ant3',scans='track')
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
@@ -427,7 +427,7 @@ for ant in h5.ants:
     tant = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     print "Selecting channel data to form %f MHz Channels"%(channel_bw)
     for i,chunk in enumerate(chunks):
-        d = load_cal(args[0], "A%sA%s" % (ant.name[3:], ant.name[3:]), chunk)   
+        d = load_cal(args[0], "A%sA%s" % (ant.name[3:], ant.name[3:]), chunk)
         if not d is None:
             d.filename = [args[0]]
             nu = d.freqs  #MHz Centre frequency of observation
@@ -442,15 +442,15 @@ for ant in h5.ants:
             length = len(T_SysTemp.elevation)
             tsys[0:length,i,0] = T_SysTemp.Tsys['HH']
             tsys[0:length,i,1] = T_SysTemp.Tsys['VV']
-            tsys[0:length,i,2] = T_SysTemp.elevation 
+            tsys[0:length,i,2] = T_SysTemp.elevation
             tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']
             tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']
             tant[0:length,i,0] = fit_H['fit']
             tant[0:length,i,1] = fit_V['fit']
             tant[0:length,i,2] = T_SysTemp.elevation
-            
+
             #break
-            
+
             #fig,text = plot_data(T_SysTemp,fit_H,fit_V)
             if first :
                 fig = T_SysTemp.sky_fig()
@@ -464,34 +464,34 @@ for ant in h5.ants:
             lineval = 42
             if freq > 1420 : lineval = 46
             fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval)
-            fig.savefig(pp,format='pdf') 
-    for el in select_el : 
+            fig.savefig(pp,format='pdf')
+    for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
         fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1))))
-        fig.savefig(pp,format='pdf') 
-     
+        fig.savefig(pp,format='pdf')
+
     fig = plt.figure(None,figsize = (8,8))
     text =r"""The 'tipping curve' is calculated according to the expression below,
 with the the parameters of $T_{ant}$ and $\tau_{0}$,
 the Antenna tempreture and the atmospheric opacity respectivly.
 All the varables are also functions of frequency.
-        
+
 $T_{sys}(el) = T_{cmb}(ra,dec) + T_{gal}(ra,dec) + T_{atm}*(1-\exp(\frac{-\tau_{0}}{\sin(el)})) + T_{spill}(el) + T_{ant} + T_{rx}$
-        
+
 $T_{sys}(el)$ is determined from the noise diode calibration
 so it is $\frac{T_{sys}(el)}{\eta_{illum}}$.
-We assume the opacity and $T_{ant}$ is the residual after 
-the tipping curve function is calculated. T_cmb + T_gal is 
+We assume the opacity and $T_{ant}$ is the residual after
+the tipping curve function is calculated. T_cmb + T_gal is
 obtained from the Sky model. $\tau_{0}$, the opacity,
 is set to 0.01078 (Van Zee et al.,1997). $T_{ant}$ is the excess
 tempreture since the other components are known."""
 
     plt.figtext(0.1,0.1,text,fontsize=10)
-    fig.savefig(pp,format='pdf')   
+    fig.savefig(pp,format='pdf')
     pp.close()
     plt.close('all')
-    
+
 
 
 
