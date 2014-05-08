@@ -5,6 +5,8 @@ from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 from mpl_toolkits.axes_grid import Grid
 
 import matplotlib.pyplot as plt; plt.ioff()
+import matplotlib.gridspec as gridspec
+
 import numpy as np
 import optparse
 import scipy.signal as signal
@@ -124,7 +126,7 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
                 
 
-def detect_spikes_sumthreshold(data, blarray=None, spike_width=5, outlier_sigma=11.0, window_size_auto=[1,3], window_size_cross=[2,4,8]):
+def detect_spikes_sumthreshold(data, blarray=None, spike_width=5, outlier_sigma=11.0, window_size_auto=[1,3,5], window_size_cross=[2,4,8]):
     """FUNCTION :  detect_spikes_sumthreshold
     Given an array "data" from a baseline:
     determine if the data is an auto-correlation or a cross-correlation.
@@ -430,39 +432,43 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 # End of RFI detection routines
 ##############################
 
-def get_flag_data(h5data):
+def get_flag_data(h5data, norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
     (ignoring severe spikes) and correct for changes in elevation
     during the observation then obtain an average spectrum of
     all of the scans in the data - rejecting outliers in the DC offset domain.
     Return the average spectrum with dc offset removed and the number of times
-    each channel is flagged.
+    each channel is flagged. Optinally provide a spectrum (norm_spec) to 
+    divide into the calculated bandpass.
     """
 
     sumarray=np.zeros((h5data.shape[1],2))
     offsetarray=np.zeros((h5data.shape[0],2))
     weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
+    flags=np.zeros((h5data.shape[0],h5data.shape[1],2),dtype=np.bool)
     for num,thisdata in enumerate(h5data.vis[:]):
         #Extract pols
         thisdata = np.abs(thisdata[:,:2])
+        # normalise if defined
+        if norm_spec is not None: thisdata /= norm_spec
         #Flag data for severe spikes
-        record_flags = detect_spikes_sumthreshold(thisdata,outlier_sigma=10.0,spike_width=3.0)
+        flags[num] = detect_spikes_sumthreshold(thisdata,outlier_sigma=8.0,spike_width=3.0)
         #Get DC height (median rather than mean is more robust...)
-        offset = np.median(thisdata[np.where(record_flags==0)],axis=0)
+        offset = np.median(thisdata[np.where(flags[num]==0)],axis=0)
         #Make an elevation corrected offset to remove outliers
         offsetarray[num,:] = offset
         #Remove the DC height
-        weights = (~record_flags.astype(np.bool)).astype(np.float)
+        weights = (~flags[num]).astype(np.float)
         thisdata = thisdata/offset
         weightsum += weights
         #Sum the data for this target
         sumarray = sumarray + thisdata*weights
     averagespec = sumarray/(weightsum.astype(np.float)+1.e-10)
     flagfrac = 1. - (weightsum.astype(np.float)/h5data.shape[0].astype(np.float))
-    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
+    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period},flags
 
-def plot_flag_data(label,spectrum,flagfrac,freqs,pdf):
+def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
     """
     Produce a plot of the average spectrum in H and V 
     after flagging and attach it to the pdf output.
@@ -471,45 +477,89 @@ def plot_flag_data(label,spectrum,flagfrac,freqs,pdf):
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
-    fig.subplots_adjust(hspace=0.0)
+    plt.suptitle(label,fontsize=12)
 
-    #Plot the spectrum for each target
-    ax1 = plt.subplot(411)
-    plt.title(label)
-    plt.plot(freqs,spectrum[:,0])
-    plot_RFI_mask(ax1)
-    ticklabels=ax1.get_xticklabels()
-    plt.setp(ticklabels,visible=False)
-    ticklabels=ax1.get_yticklabels()
-    plt.setp(ticklabels,visible=False)
-    plt.ylabel('Mean HH amplitude\n(arbitrary units)')
+    outer_grid= gridspec.GridSpec(2,1)
+       
+    for num,pol in enumerate(['HH','VV']):
+        data=np.abs(vis[:,:,num-1])
+        inner_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
+        #Plot the spectrum for each target
+        ax1 = plt.subplot(inner_grid[0])
+        ax1.set_title(pol +' polarisation')
+        plt.plot(freqs,spectrum[:,num-1])
+        plot_RFI_mask(ax1)
+        ticklabels=ax1.get_xticklabels()
+        plt.setp(ticklabels,visible=False)
+        ticklabels=ax1.get_yticklabels()
+        plt.setp(ticklabels,visible=False)
+        plt.xlim((min(freqs),max(freqs)))
+        plt.ylabel('Mean amplitude\n(arbitrary units)')
+        #Plot the average flags
+        ax = plt.subplot(inner_grid[1],sharex=ax1)
+        plt.plot(freqs,flagfrac[:,num-1],'r-')
+        plt.ylim((0.,1.))
+        plot_RFI_mask(ax)
+        ticklabels=ax.get_xticklabels()
+        plt.setp(ticklabels,visible=False)
+        plt.xlim((min(freqs),max(freqs)))
+        plt.ylabel('Fraction flagged')
+        #Waterfall plot
+        ax = plt.subplot(inner_grid[2],sharex=ax1)
+        kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (freqs[0],freqs[-1], -0.5, data.shape[0] - 0.5)}
+        image=plt.imshow(data,**kwargs)
+        ampsort=np.sort(data,axis=None)
+        arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
+        lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
+        image.norm.vmin = lowcut
+        image.norm.vmax = highcut
+        image.set_cmap('Greys')
+        plotflags = np.zeros(flags.shape[0:2]+(4,))
+        plotflags[:,:,0] = 1.0
+        plotflags[:,:,3] = flags[:,:,num-1]
+        flagimage=plt.imshow(plotflags,**kwargs)
+        plt.xlim((min(freqs),max(freqs)))
+        ticklabels=ax.get_yticklabels()
+        plt.setp(ticklabels,visible=False)
+        plt.xlabel('Frequency (Hz)')
 
-    ax = plt.subplot(412,sharex=ax1)
-    plt.plot(freqs,flagfrac[:,0],'r-')
-    plt.ylim((0.,1.))
-    plot_RFI_mask(ax)
-    ticklabels=ax.get_xticklabels()
-    plt.setp(ticklabels,visible=False)
-    plt.ylabel('HH fraction flagged')
-
-    ax = plt.subplot(413,sharex=ax1)
-    plt.plot(freqs,spectrum[:,1])
-    plot_RFI_mask(ax)
-    ticklabels=ax.get_xticklabels()
-    plt.setp(ticklabels,visible=False)
-    ticklabels=ax.get_yticklabels()
-    plt.setp(ticklabels,visible=False)
-    plt.ylabel('Mean VV amplitude\n(arbitrary units)')
-
-    ax = plt.subplot(414,sharex=ax1)
-    plt.plot(freqs,flagfrac[:,1], 'r-')
-    plt.ylim((0.,1.))
-    plot_RFI_mask(ax)
-    plt.xlim((min(freqs),max(freqs)))
-    plt.ylabel('VV fraction flagged')
-    plt.xlabel('Frequency (Hz)')
     pdf.savefig(fig)
 
+def plot_waterfall(visdata,flags,channel_freqs):
+    fig = plt.figure(figsize=(8.3,11.7))
+    data=np.squeeze(np.abs(visdata[:,:,0]))
+    kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_freqs[0],channel_freqs[1], -0.5, data.shape[0] - 0.5)}
+    image=plt.imshow(data,**kwargs)
+    image.set_cmap('Greys')
+    #flagimage=plt.imshow(flags[:,:,0],**kwargs)
+    #Make an array of RGBA data for the flags (initialize to alpha=0)
+    plotflags = np.zeros(flags.shape[0:2]+(4,))
+    plotflags[:,:,0] = 1.0
+    plotflags[:,:,3] = flags[:,:,0]
+    plt.imshow(plotflags,**kwargs)
+    ampsort=np.sort(data,axis=None)
+    arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
+    lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
+    image.norm.vmin = lowcut
+    image.norm.vmax = highcut
+    pdf.savefig(fig)
+    fig = plt.figure(figsize=(8.3,11.7))
+    data=np.squeeze(np.abs(visdata[:,:,1]))
+    kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_freqs[0],channel_freqs[1], -0.5, data.shape[0] - 0.5)}
+    image=plt.imshow(data,**kwargs)
+    image.set_cmap('Greys')
+    #flagimage=plt.imshow(flags[:,:,0],**kwargs)
+    #Make an array of RGBA data for the flags (initialize to alpha=0)
+    plotflags = np.zeros(flags.shape[0:2]+(4,))
+    plotflags[:,:,0] = 1.0
+    plotflags[:,:,3] = flags[:,:,1]
+    flagimage=plt.imshow(plotflags,**kwargs)
+    ampsort=np.sort(data,axis=None)
+    arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
+    lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
+    image.norm.vmin = lowcut
+    image.norm.vmax = highcut
+    pdf.savefig(fig)
 
 #command-line parameters
 parser = optparse.OptionParser(usage="Please specify the input file\n\
@@ -518,17 +568,30 @@ parser = optparse.OptionParser(usage="Please specify the input file\n\
 
 parser.add_option("-a", "--antenna", type="string", default=None, help="Name of the antenna to produce the report for, default is first antenna in file")
 parser.add_option("-t", "--targets", type="string", default=None, help="List of targets to produce report for, default is all targets in the file")
+parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.")
+
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
 if len(args) < 1:
-    raise RuntimeError("No File passed as argument to script")
+    raise RuntimeError("No file passed as argument to script")
 
 filename = args[0]
 h5 = katdal.open(filename)
 
 #Get the selected antenna or default to first file antenna
 ant=opts.antenna or h5.ants[0].name
+
+#Frequency range
+num_channels = len(h5.channels)
+if opts.freq_chans is None:
+    # Default is drop first and last 20% of the bandpass
+    start_chan = num_channels // 6
+    end_chan   = start_chan * 5
+else:
+    start_chan = int(opts.freq_chans.split(',')[0])
+    end_chan = int(opts.freq_chans.split(',')[1])
+chan_range = range(start_chan,end_chan+1)
 
 # Set up the output file
 basename = os.path.splitext(filename.split('/')[-1])[0]+'_' + ant + '_RFI'
@@ -542,9 +605,6 @@ targets=opts.targets or h5.catalogue.targets
 #Set up the output data dictionary
 data_dict = {}
 
-# Do calculation for all the data and store in the dictionary
-data_dict['all_data']=get_flag_data(h5)
-
 # Loop through targets
 for target in targets:
     #Get the target name if it is a target object
@@ -553,9 +613,15 @@ for target in targets:
     #Extract target from file
     h5.select(targets=target)
 	#get an average over scans for this target
-    data_dict[target]=get_flag_data(h5)
+    data_dict[target],flags=get_flag_data(h5)
     label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
-    plot_flag_data(label,data_dict[target]['spectrum'],data_dict[target]['flagfrac'],h5.channel_freqs,pdf)
+    plot_flag_data(label,data_dict[target]['spectrum'][chan_range],data_dict[target]['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+
+#Reset the selection
+h5.select(scans='~slew',ants=ant)
+
+# Do calculation for all the data and store in the dictionary
+data_dict['all_data'],all_flags=get_flag_data(h5)
 
 #Output pickle file
 outfile=open(basename+'.pickle','w')
@@ -564,7 +630,10 @@ outfile.close()
 
 #Plot the flags for all data in the file
 label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
-plot_flag_data(label,data_dict[target]['spectrum'],data_dict['all_data']['flagfrac'],h5.channel_freqs,pdf)
+plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range],data_dict['all_data']['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],all_flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+
+#Finish with a waterfall plot
+#plot_waterfall(h5.vis[:,chan_range,:],all_flags[:,chan_range,:],h5.channel_freqs[chan_range])
 
 #close the plot
 pdf.close()
