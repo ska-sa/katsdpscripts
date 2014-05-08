@@ -477,7 +477,7 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
-    plt.suptitle(label,fontsize=12)
+    plt.suptitle(label,fontsize=14)
 
     outer_grid= gridspec.GridSpec(2,1)
        
