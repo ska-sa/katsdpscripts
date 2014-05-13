@@ -6,6 +6,7 @@ from mpl_toolkits.axes_grid import Grid
 
 import matplotlib.pyplot as plt; plt.ioff()
 import matplotlib.gridspec as gridspec
+from matplotlib import ticker
 
 import numpy as np
 import optparse
@@ -519,8 +520,12 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
         plotflags[:,:,3] = flags[:,:,num-1]
         flagimage=plt.imshow(plotflags,**kwargs)
         plt.xlim((min(freqs),max(freqs)))
+        #Convert ticks to MHZ
+        ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
+        ax.xaxis.set_major_formatter(ticks)
         ticklabels=ax.get_yticklabels()
         plt.setp(ticklabels,visible=False)
+        plt.ylabel('Time')
         plt.xlabel('Frequency (Hz)')
 
     pdf.savefig(fig)
