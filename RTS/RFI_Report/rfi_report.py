@@ -15,7 +15,7 @@ import scipy.interpolate as interpolate
 import scipy.ndimage as ndimage
 import math
 
-import cPickle as pickle
+import h5py
 import os
 
 #########################
@@ -628,9 +628,13 @@ h5.select(scans='~slew',ants=ant)
 # Do calculation for all the data and store in the dictionary
 data_dict['all_data'],all_flags=get_flag_data(h5)
 
-#Output pickle file
-outfile=open(basename+'.pickle','w')
-pickle.dump(data_dict,outfile)
+#Output to h5 file
+outfile=h5py.File(basename+'.h5','w')
+for targetname, targetdata in data_dict.iteritems():
+    #Create a group in the h5 file corresponding to the target
+    grp=outfile.create_group(targetname)
+    #populate the group with the data
+    for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
 outfile.close()
 
 #Plot the flags for all data in the file
