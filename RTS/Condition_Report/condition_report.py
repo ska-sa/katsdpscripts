@@ -215,7 +215,7 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
     #date format for plots
     fig.subplots_adjust(hspace=0.0)
     #Plot the gain vs elevation for each target
-    ax1 = plt.subplot(311)
+    ax1 = plt.subplot(411)
     plt.xlim(timeoffsets[0], timeoffsets[-1])
     plt.title('Atmospheric Conditions')
     plt.ylabel('Wind Speed (km/s)')
@@ -225,7 +225,7 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
     plt.plot(timeoffsets[np.where(optimal)], wind_speed[np.where(optimal)], 'g.')
     plt.plot(timeoffsets[np.where(ideal)], wind_speed[np.where(ideal)], 'y.')
     # Temperature
-    ax2 = plt.subplot(312)
+    ax2 = plt.subplot(412)
     plt.xlim(timeoffsets[0], timeoffsets[-1])
     plt.ylabel('Temperature (Celcius)')
     plt.plot(timeoffsets[np.where(rejects)], temperature[np.where(rejects)], 'r.')
@@ -235,14 +235,18 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
     # Sun Elevation
     sun = katpoint.Target('Sun, special',antenna=antenna)
     sun_elevation = katpoint.rad2deg(sun.azel(timestamps)[1])
-    ax3 = plt.subplot(313)
+    ax3 = plt.subplot(413)
     plt.xlim(timeoffsets[0], timeoffsets[-1])
     plt.ylabel('Sun elevation (deg.)')
-    plt.xlabel('Time since start (hours)')
     plt.plot(timeoffsets[np.where(rejects)], sun_elevation[np.where(rejects)], 'r.')
     plt.plot(timeoffsets[np.where(normal)], sun_elevation[np.where(normal)], 'b.',label="Normal")
     plt.plot(timeoffsets[np.where(optimal)], sun_elevation[np.where(optimal)], 'g.',label="Optimal")
     plt.plot(timeoffsets[np.where(ideal)], sun_elevation[np.where(ideal)], 'y.',label="Ideal")
+    # Sun distance
+    ax4=plt.subplot(414)
+    plt.xlim(timeoffsets[0], timeoffsets[-1])
+    plt.ylabel('Pointing-Sun angle (deg.)')
+    plt.xlabel('Time since start (hours)')
 
     legend = plt.legend(loc=4)
     plt.setp(legend.get_texts(), fontsize='small')
@@ -252,7 +256,7 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
 
 opts, args = parse_arguments()
 filename = os.path.splitext(os.path.basename(args[0]))[0]
-timestamps, wind_speed, temperature, dump_time, antenna = select_and_average(args[0], 5.0)
+timestamps, wind_speed, temperature, dump_time, antenna, sun_distance = select_and_average(args[0], 5.0)
 
 #Got the data now make the bins
 normalflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='normal')
