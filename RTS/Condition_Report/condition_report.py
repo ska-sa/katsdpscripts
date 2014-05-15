@@ -58,7 +58,14 @@ def select_and_average(file, averagetime):
     raw_temperature = data.sensor.get('Enviro/asc.air.temperature')
     raw_dumptime = data.dump_period
 
-
+    # Get azel of each antenna and separation of each antenna
+    sun = katpoint.Target('Sun, special',antenna=data.ants[0])
+    alltimestamps=data.timestamps[:]
+    solar_seps=np.zeros_like(alltimestamps)
+    for dumpnum,timestamp in enumerate(alltimestamps):
+        azeltarget = katpoint.construct_azel_target(katpoint.deg2rad(data.az[dumpnum,0]),katpoint.deg2rad(data.el[dumpnum,0]))
+        azeltarget.antenna = data.ants[0]
+        solar_seps[dumpnum] = katpoint.rad2deg(azeltarget.separation(sun,timestamp))
     #Determine number of dumps to average
     num_average = max(int(np.round(averagetime/raw_dumptime)),1)
 
@@ -71,7 +78,7 @@ def select_and_average(file, averagetime):
 
     dump_time = raw_dumptime * num_average
 
-    return (timestamps, wind_speed, temperature, dump_time, data.ants[0])
+    return (timestamps,alltimestamps , wind_speed, temperature, dump_time, solar_seps, data.ants[0])
 
 
 def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
@@ -201,7 +208,7 @@ def select_environment(timestamps, wind_speed, temperature, dump_time, antenna, 
     return good
 
                 
-def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,normalflag,optimalflag,idealflag):
+def plot_weather(filename,timestamps,alltimestamps,wind_speed,temperature,dump_time,solar_seps,antenna,normalflag,optimalflag,idealflag):
 
     #Get the flag bins
     rejects = ~normalflag
@@ -210,12 +217,13 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
     ideal = idealflag
 
     timeoffsets = (timestamps - timestamps[0])/3600.0
+    alltimes = (alltimestamps - alltimestamps[0])/3600.0
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
     #date format for plots
     fig.subplots_adjust(hspace=0.0)
     #Plot the gain vs elevation for each target
-    ax1 = plt.subplot(311)
+    ax1 = plt.subplot(411)
     plt.xlim(timeoffsets[0], timeoffsets[-1])
     plt.title('Atmospheric Conditions')
     plt.ylabel('Wind Speed (km/s)')
@@ -225,7 +233,7 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
     plt.plot(timeoffsets[np.where(optimal)], wind_speed[np.where(optimal)], 'g.')
     plt.plot(timeoffsets[np.where(ideal)], wind_speed[np.where(ideal)], 'y.')
     # Temperature
-    ax2 = plt.subplot(312)
+    ax2 = plt.subplot(412)
     plt.xlim(timeoffsets[0], timeoffsets[-1])
     plt.ylabel('Temperature (Celcius)')
     plt.plot(timeoffsets[np.where(rejects)], temperature[np.where(rejects)], 'r.')
@@ -235,24 +243,30 @@ def plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,no
     # Sun Elevation
     sun = katpoint.Target('Sun, special',antenna=antenna)
     sun_elevation = katpoint.rad2deg(sun.azel(timestamps)[1])
-    ax3 = plt.subplot(313)
+    ax3 = plt.subplot(413)
     plt.xlim(timeoffsets[0], timeoffsets[-1])
     plt.ylabel('Sun elevation (deg.)')
-    plt.xlabel('Time since start (hours)')
     plt.plot(timeoffsets[np.where(rejects)], sun_elevation[np.where(rejects)], 'r.')
     plt.plot(timeoffsets[np.where(normal)], sun_elevation[np.where(normal)], 'b.',label="Normal")
     plt.plot(timeoffsets[np.where(optimal)], sun_elevation[np.where(optimal)], 'g.',label="Optimal")
     plt.plot(timeoffsets[np.where(ideal)], sun_elevation[np.where(ideal)], 'y.',label="Ideal")
-
-    legend = plt.legend(loc=4)
+    legend = plt.legend(loc='best')
     plt.setp(legend.get_texts(), fontsize='small')
 
+    # Sun distance
+    ax4=plt.subplot(414)
+    plt.xlim(timeoffsets[0], timeoffsets[-1])
+    plt.ylim(0.,180.)
+    plt.ylabel('Pointing-Sun angle (deg.)')
+    plt.xlabel('Time since start (hours)')
+    plt.plot(alltimes, solar_seps)
+    
     fig.savefig(filename + '_ConditionReport.pdf')
 
 
 opts, args = parse_arguments()
 filename = os.path.splitext(os.path.basename(args[0]))[0]
-timestamps, wind_speed, temperature, dump_time, antenna = select_and_average(args[0], 5.0)
+timestamps, alltimestamps, wind_speed, temperature, dump_time, sun_distance, antenna = select_and_average(args[0], 5.0)
 
 #Got the data now make the bins
 normalflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='normal')
@@ -260,4 +274,4 @@ optimalflag=select_environment(timestamps, wind_speed, temperature, dump_time, a
 idealflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='ideal')
 
 #Plot the data
-plot_weather(filename,timestamps,wind_speed,temperature,dump_time,antenna,normalflag,optimalflag,idealflag)
+plot_weather(filename,timestamps,alltimestamps,wind_speed,temperature,dump_time,sun_distance,antenna,normalflag,optimalflag,idealflag)
