@@ -38,7 +38,7 @@ def parse_arguments():
     parser.add_option("--min_elevation", type="float", default=20, help="Minimum elevation to calculate statistics.")
     parser.add_option("-c", "--correct_atmosphere", action="store_true", default=False, help="Correct for atmospheric effects.")
     parser.add_option("-e", "--elev_min", type="float", default=15, help="Minimum acceptable elevation for median calculations.")
-    parser.add_option("-u", "--units", default="counts", help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: K, Options: counts, K")
+    parser.add_option("-u", "--units", default=None, help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: first units in csv file, Options: counts, K")
     parser.add_option("-n", "--no_normalise_gain", action="store_true", default=False, help="Don't normalise the measured gains to the maximum fit to the data.")
     parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
     (opts, args) = parser.parse_args()
@@ -469,6 +469,9 @@ opts, filename = parse_arguments()
 
 # Get the data from the csv file
 data, antenna = parse_csv(filename, opts.polarisation)
+
+if opts.units == None:
+    opts.units = data['data_unit'][0]
 
 output_filename = opts.outfilebase + '_' + antenna.name + '_' + opts.polarisation + '_' + '%.0f'%data['frequency'][0]
 
