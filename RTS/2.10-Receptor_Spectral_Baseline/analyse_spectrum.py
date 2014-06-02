@@ -92,22 +92,23 @@ def getbackground_spline(data,spike_width):
     arraysize=y.shape[0]
     x=np.arange(arraysize)
 
-    # Iterate 4 times
+    # Iterate 2 times
     for iteration in range(2):
 
         # First iteration fits a linear spline with 3 knots.
         if iteration==0:
             npieces=3
-        # Second iteration fits a quadratic spline with 10 knots.
+            deg=1
+        # Second iteration fits a cubic spline to every second data point with 10 knots.
         elif iteration==1:
-            npieces=10
-        deg=min(iteration+1,3)
-        
+            npieces=int(arraysize/3)
+            deg=3
+
         # Size of each piece of the spline.
         psize = arraysize/npieces
         firstindex = arraysize%psize + int(psize/2)
         indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
-
+        
         # Fit the spline
         thisfit = interpolate.LSQUnivariateSpline(x,y,indices,k=deg)
         
@@ -392,8 +393,12 @@ if correct=='channels':
     corr_vis = correct_by_mean(corr_vis,axis="Time")
 # Correct the background in each time bin by fitting a cubic spline.
 elif correct=='spline':
-    corr_vis = np.array([data - getbackground_spline(data, 2) for data in visdata])
-
+    #Knots will have to satisfy Schoenberg-Whitney conditions for splie else revert to straight mean of channels
+    try:
+        corr_vis = np.array([data - getbackground_spline(data, 2) for data in visdata])
+    except ValueError:
+        corr_vis = correct_by_mean(visdata,axis="Channel")
+        corr_vis = correct_by_mean(corr_vis,axis="Time")
 
 #get weighted standard deviation of corrected visdata
 corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
