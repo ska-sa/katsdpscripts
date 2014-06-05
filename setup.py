@@ -9,7 +9,9 @@ setup (
     author_email = "spt@ska.ac.za",
     packages = find_packages(),
     include_package_data = True,
-#    scripts = [],
+    scripts = [
+        "RTS/Condition_Report/condition_report.py"
+    ],
     url = 'http://ska.ac.za/',
     classifiers = [
         "Development Status :: 3 - Alpha",
