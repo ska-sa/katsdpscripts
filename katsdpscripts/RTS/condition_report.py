@@ -218,13 +218,14 @@ def plot_weather(filename,timestamps,alltimestamps,wind_speed,temperature,dump_t
     plt.xlabel('Time since start (hours)')
     plt.plot(alltimes, solar_seps)
     
-    fig.savefig(filename + '_ConditionReport.pdf')
+    fig.savefig(filename)
 
-def condition_report(filename, average_time=5.0):
+def condition_report(filename, output_dirname = '.', average_time=5.0):
     timestamps, alltimestamps, wind_speed, temperature, dump_time, sun_distance, antenna = select_and_average(filename, average_time)
     #Got the data now make the bins
     normalflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='normal')
     optimalflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='optimal')
     idealflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='ideal')
-    plot_weather(os.path.splitext(os.path.basename(filename))[0],timestamps,alltimestamps,wind_speed,temperature,dump_time,sun_distance,antenna,normalflag,optimalflag,idealflag)
+    output_filename = os.path.join(output_dirname, os.path.splitext(os.path.basename(filename))[0]+'_ConditionReport.pdf')
+    plot_weather(output_filename,timestamps,alltimestamps,wind_speed,temperature,dump_time,sun_distance,antenna,normalflag,optimalflag,idealflag)
 
