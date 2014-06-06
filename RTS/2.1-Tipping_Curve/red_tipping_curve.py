@@ -197,7 +197,7 @@ class Rec_Temp:
 
 class System_Temp:
     """Extract tipping curve data points and surface temperature."""
-    def __init__(self,d,path='TBGAL_CONVL.FITS',freqs=1822):#d, nu, pol
+    def __init__(self,d,path='TBGAL_CONVL.FITS',freqs=1822,freq_index=0):#d, nu, pol
         """ First extract total power in each scan (both mean and standard deviation) """
         T_skytemp = Sky_temp(inputfile=path,nu=freqs)
         T_skytemp.set_freq(freqs)
@@ -225,7 +225,7 @@ class System_Temp:
         self.surface_temperature = np.mean(d.enviro['temperature']['value'])# Extract surface temperature from weather data
         self.freq = d.freqs[0]  #MHz Centre frequency of observation
         for pol in ['HH','VV']:
-            power_stats = [scape.stats.mu_sigma(s.pol(pol)[:, 0]) for s in d.scans]
+            power_stats = [scape.stats.mu_sigma(s.pol(pol)[:,freq_index]) for s in d.scans]
             tipping_mu, tipping_sigma = np.array([s[0] for s in power_stats]), np.array([s[1] for s in power_stats])
             tipping_mu, tipping_sigma = tipping_mu[sort_ind], tipping_sigma[sort_ind]
             self.Tsys[pol] = tipping_mu[valid_el]
@@ -266,16 +266,16 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
 def load_cal(filename, baseline, freq_channel=None,channel_bw=10.0):
     """ Load the dataset into memory """
     d = scape.DataSet(filename, baseline=baseline)#, nd_models=nd_models
-    if not freq_channel is None :
-        d = d.select(freqkeep=freq_channel)
+    #if not freq_channel is None :
+    #    d = d.select(freqkeep=freq_channel)
     print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
     print "Converting to Tempreture"
-    d = d.convert_power_to_temperature()
+    d = d.convert_power_to_temperature(freq_width=0.0)
     if not d is None:
         d = d.select(flagkeep='~nd_on')
         d = d.select(labelkeep='track', copy=False)
-        d.average()
+        d.average(channels_per_band=freq_channel) 
     return d
 
 
@@ -358,7 +358,7 @@ def plot_data_freq(frequency,Tsys,Tant,title=''):
     plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}$ HH','$T_{ant}$ HH', '$T_{sys}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
-    plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),46*1.1)))
+    plt.ylim(np.max((np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),-5)),np.max((np.percentile(Tsys[:,0:2],80),np.percentile(Tant[:,0:2],80),46*1.3)))
     if np.min(frequency) <= 1420 :
         plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
     if np.max(frequency) >=1420 :
@@ -426,17 +426,17 @@ for ant in h5.ants:
     tsys = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     tant = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     print "Selecting channel data to form %f MHz Channels"%(channel_bw)
+    d = load_cal(args[0], "%s" % (ant.name), chunks)
     for i,chunk in enumerate(chunks):
-        d = load_cal(args[0], "A%sA%s" % (ant.name[3:], ant.name[3:]), chunk)
         if not d is None:
             d.filename = [args[0]]
             nu = d.freqs  #MHz Centre frequency of observation
             SpillOver = Spill_Temp(filename=opts.spill_over_models)
             recever = Rec_Temp(filename=opts.receiver_models)
-            T_SysTemp = System_Temp(d,opts.sky_map,d.freqs[0])
+            T_SysTemp = System_Temp(d,opts.sky_map,d.freqs[i],freq_index=i)
             units = T_SysTemp.units+''
-            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs,recever,fixopacity=opts.fix_opacity)
-            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs,recever,fixopacity=opts.fix_opacity)
+            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],recever,fixopacity=opts.fix_opacity)
+            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],recever,fixopacity=opts.fix_opacity)
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
@@ -468,7 +468,7 @@ for ant in h5.ants:
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1))))
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1)))[i])
         fig.savefig(pp,format='pdf')
 
     fig = plt.figure(None,figsize = (8,8))
