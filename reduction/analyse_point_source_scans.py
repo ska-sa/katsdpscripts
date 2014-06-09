@@ -10,8 +10,8 @@ import katpoint
 import numpy as np
 import scape
 
-from katsdpdata.reduction import compscan_key
-from katsdpdata.reduction import reduce_and_plot
+from katsdpscripts.reduction.analyse_point_source_scans import compscan_key
+from katsdpscripts.reduction.analyse_point_source_scans import reduce_and_plot
 
 # These packages are only imported once the script options are checked
 plt = widgets = None
