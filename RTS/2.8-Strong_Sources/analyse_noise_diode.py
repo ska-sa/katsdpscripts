@@ -26,7 +26,7 @@ import os
 import scape
 from scape.stats import robust_mu_sigma
 
-from katsdpscripts.RTS import qt_2_8_strong_sources
+from katsdpscripts.RTS import strong_sources
 
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <file>")
@@ -41,5 +41,5 @@ def parse_arguments():
 # Print out the 'on' and 'off' values of noise diode firings from an on->off transition to a text file.
 opts, args = parse_arguments()
 
-qt_2_8_strong_sources.analyse_noise_diode(args[0],output_dir=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans)
+strong_sources.analyse_noise_diode(args[0],output_dir=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans)
 
