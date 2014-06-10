@@ -10,7 +10,8 @@ setup (
     packages = find_packages(),
     include_package_data = True,
     scripts = [
-        "RTS/Condition_Report/condition_report.py"
+        "RTS/Condition_Report/condition_report.py",
+	"RTS/RFI_Report/rfi_report.py"
     ],
     url = 'http://ska.ac.za/',
     classifiers = [
