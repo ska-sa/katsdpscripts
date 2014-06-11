@@ -55,6 +55,7 @@ for pol in pols:
         nd = scape.gaincal.NoiseDiodeModel(freq = nd_model[:,0]/1e6,temp = nd_model[:,1])
         
         for s_i,s in enumerate(h5.spectral_windows):
+            #this if is a kat-7 throwback and can be removed for RTS after testing
             if s_i == 0 and s.centre_freq != 1264e6:
                 continue
             f_c = s.centre_freq
@@ -78,10 +79,10 @@ for pol in pols:
             n_on = np.roll(on,buff) & np.roll(on,-buff)
             hot_off = n_off
             hot_on = n_on
-            cold_spec = np.median(cold_data[cold_off,:,0].filled(),0)
-            hot_spec = np.median(hot_data[hot_off,:,0].filled(),0)
-            cold_nd_spec = np.median(cold_data[cold_on,:,0].filled(),0)
-            hot_nd_spec = np.median(hot_data[hot_on,:,0].filled(),0)
+            cold_spec = np.median(cold_data[cold_off,:,0].filled(np.nan),0)
+            hot_spec = np.median(hot_data[hot_off,:,0].filled(np.nan),0)
+            cold_nd_spec = np.median(cold_data[cold_on,:,0].filled(np.nan),0)
+            hot_nd_spec = np.median(hot_data[hot_on,:,0].filled(np.nan),0)
             continue
 
         
