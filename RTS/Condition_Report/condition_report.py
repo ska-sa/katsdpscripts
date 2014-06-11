@@ -30,7 +30,7 @@
 #g) No hail, ice or snow
 
 import optparse
-from katsdpscripts.RTS.condition_report import condition_report
+from katsdpscripts.RTS import weather_report
 
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <file>")
@@ -40,6 +40,6 @@ def parse_arguments():
 
 opts, args = parse_arguments()
 
-condition_report(args[0], output_dirname=opts.outputdir, average_time=opts.average)
+weather_report(args[0], output_dirname=opts.outputdir, average_time=opts.average)
 
 

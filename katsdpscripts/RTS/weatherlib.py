@@ -220,7 +220,7 @@ def plot_weather(filename,timestamps,alltimestamps,wind_speed,temperature,dump_t
     
     fig.savefig(filename)
 
-def condition_report(filename, output_dirname = '.', average_time=5.0):
+def weather_report(filename, output_dirname = '.', average_time=5.0):
     timestamps, alltimestamps, wind_speed, temperature, dump_time, sun_distance, antenna = select_and_average(filename, average_time)
     #Got the data now make the bins
     normalflag=select_environment(timestamps, wind_speed, temperature, dump_time, antenna, condition='normal')
