@@ -22,3 +22,4 @@ filename = args[0]
 
 generate_rfi_report(filename,output_root=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans)
 
+
