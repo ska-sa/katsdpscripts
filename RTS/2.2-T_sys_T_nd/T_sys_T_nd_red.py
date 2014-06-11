@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
-# <nbformat>3.0</nbformat>
-
-# <codecell>
-
+#!/usr/bin/python
 import optparse
-from katsdpscripts.RTS import diodelib 
+from katsdpscripts.RTS import diodelib
 
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <file>",

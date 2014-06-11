@@ -91,7 +91,6 @@ def present_results(pdf, temperature, freq, targname, antenna, channelwidth):
         plt.ylabel('System Temperature (K)')
         rfilib.plot_RFI_mask(ax, extra=freq[np.where(thisflags)], channelwidth=channelwidth)
         plt.xlim(freq[-1], freq[0])
-        
     pdf.savefig()
     return temps
 

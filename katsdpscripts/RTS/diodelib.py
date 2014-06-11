@@ -22,7 +22,7 @@ def read_and_plot_data(filename,freq_band = 256e6):
 
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
-    diode= ['coupler']
+    diode= 'coupler'
     fig1 = plt.figure(1,figsize = (10,16))
     fig2 = plt.figure(2,figsize = (10,16))
 
