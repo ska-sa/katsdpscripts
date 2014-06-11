@@ -4,7 +4,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from optparse import OptionParser
 from scipy import integrate
 
-import katfile
+import katdal
 
 import matplotlib
 import numpy
@@ -219,7 +219,7 @@ if __name__ == '__main__':
   if opts.filename is None: raise SystemExit(parser.print_usage())
 
   try:
-    h5 = katfile.open(opts.filename, quicklook=True)
+    h5 = katdal.open(opts.filename, quicklook=True)
   except Exception as err_msg: raise SystemExit('An error as occured:\n%s' % err_msg)
 
   outfile = opts.outfile
