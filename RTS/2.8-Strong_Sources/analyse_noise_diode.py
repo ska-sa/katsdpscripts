@@ -30,7 +30,7 @@ from scape.stats import robust_mu_sigma
 
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <file>")
-    parser.add_option("-a", "--antenna", type="string", default='sd', help="Antenna to load (e.g. 'A1' for antenna 1), default is first single-dish baseline in file.")
+    parser.add_option("-a", "--antenna", type="string", default='sd', help="Antenna to load, default is first single-dish baseline in file.")
     parser.add_option("-f", "--freq-chans", help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.")
     parser.add_option("-t", "--targets", default='all', help="List of targets to select (default is all)")
     (opts, args) = parser.parse_args()
@@ -340,6 +340,8 @@ opts, args = parse_arguments()
 
 #get the targets
 targets=opts.get('targets','all')
+
+print opts.get('antenna')
 
 # Get data from h5 file and use 'select' to obtain a useable subset of it.
 data,compscan_labels = read_and_select_file(args[0], bline=opts.get('antenna',None), channels=opts.get('freq_chans',None))
