@@ -6,7 +6,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
 def read_and_plot_data(filename,output_dir='.',freq_band = 256e6):
-    nice_filename =  filename.split('/')[-1]+ '_T_sys_T_nd'
+    nice_filename =  filename.split('/')[-1].split('.')[0]+ '_T_sys_T_nd'
     pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
 
     h5 = katfile.open(filename)
