@@ -1,20 +1,13 @@
-import katarchive
+#!/usr/bin/python
 import katdal as katfile
 import scape
-
 import numpy as np
-
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
-
-###
-### Make a nice file name
-### And open a pdf file for writing
-###
-def read_and_plot_data(filename,freq_band = 256e6):
+def read_and_plot_data(filename,output_dir='.',freq_band = 256e6):
     nice_filename =  filename.split('/')[-1]+ '_T_sys_T_nd'
-    pp = PdfPages(nice_filename+'.pdf')
+    pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
 
     h5 = katfile.open(filename)
 
@@ -53,7 +46,7 @@ def read_and_plot_data(filename,freq_band = 256e6):
                 cold_off = n_off
                 cold_on = n_on
                 #hot data
-                h5.select(ants=a.name,spw=s_i,pol=pol,freqrange=(f_c - opts.freq_band/2, f_c + opts.freq_band/2),targets = 'Moon',scans='track')
+                h5.select(ants=a.name,spw=s_i,pol=pol,freqrange=(f_c - freq_band/2, f_c + freq_band/2),targets = 'Moon',scans='track')
                 hot_data = np.ma.array(h5.vis[:].real,mask=h5.flags()[:],fill_value=np.nan)
                 on = h5.sensor['Antennas/'+ant+'/nd_coupler']
                 buff = 5
@@ -91,7 +84,7 @@ def read_and_plot_data(filename,freq_band = 256e6):
             plt.ylim(1.5 ,6)
             if p ==ant_num * 2-1: plt.ylabel(ant)
             plt.plot(f,Tdiode,'b')
-            #outfile = file('%s.%s.%s.csv' % (ant, diode, pol.lower()), 'w')
+            #outfile = file('%s/%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower()), 'w')
             #outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
             # Write CSV part of file
             #outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(f[((fs>1.2e9) & (fs < 1.95e9))],d[((fs>1.2e9) & (fs < 1.95e9))])]))
@@ -123,3 +116,11 @@ def read_and_plot_data(filename,freq_band = 256e6):
     plt.close(fig2)
     pp.close() # close the pdf file
 
+# test main method for the library
+if __name__ == "__main__":
+#test the method with a know file
+    filename = '/var/kat/archive/data/comm/2014/02/27/1393504489.h5'
+    out = '.'
+    band = 200e6
+    print 'Performing test run with: ' + filename
+    read_and_plot_data(filename,output_dir = out, freq_band=band)
