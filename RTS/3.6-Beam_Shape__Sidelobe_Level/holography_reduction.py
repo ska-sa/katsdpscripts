@@ -162,7 +162,7 @@ for freq in np.array(opts.freq.split(',')).astype(float).tolist():
     emssdataset=katholog.Dataset(opts.emss_pattern,'kat7emss',freq_MHz=freq,clipextent=40)
     emssbeam=katholog.BeamCube(emssdataset,extent=40)
 
-    fullbeam=katholog.BeamCube(dataset,freqMHz=freq)
+    fullbeam=katholog.BeamCube(dataset,freqMHz=freq,applypointing='center')
     extents=[fullbeam.margin[0],fullbeam.margin[-1],fullbeam.margin[0],fullbeam.margin[-1]]
 
 
@@ -192,7 +192,7 @@ for freq in np.array(opts.freq.split(',')).astype(float).tolist():
 
 
     if True : # R.RC.P.4
-        #innerbeam=katholog.BeamCube(dataset,freqMHz=1800,extent=4) #scanantennaname='ant5'
+        #innerbeam=katholog.BeamCube(dataset,freqMHz=1800,extent=4, applypointing='center') #scanantennaname='ant5'
         mask_3dB=10.0*np.log10(power)>-3
         text.append("R.RC.P.4 Mean varation between model and data within 3 dB area is %f percent"%(((emsspower[mask_3dB]-power[mask_3dB])/emsspower[mask_3dB]).mean()*100))
 
@@ -219,7 +219,7 @@ for freq in np.array(opts.freq.split(',')).astype(float).tolist():
 
 
 
-    innerbeam=katholog.BeamCube(dataset,freqMHz=freq,extent=4) #scanantennaname='ant5'
+    innerbeam=katholog.BeamCube(dataset,freqMHz=freq,extent=4,applypointing='center') #scanantennaname='ant5'
     centralbeam = innerbeam
     mainlobe=np.abs(centralbeam.Gx)**2+np.abs(centralbeam.Gy)**2+np.abs(centralbeam.Dx)**2+np.abs(centralbeam.Dy)**2
     scalefunc = np.max(mainlobe)
