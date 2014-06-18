@@ -300,7 +300,7 @@ for freq in np.array(opts.freq.split(',')).astype(float).tolist():
         text.append('Theorectical gain with uniform illumination: %.2f dB'%(aperturemap.gainuniform_dB))
         text.append('Gain with no panel errors: %.2f dB'%(aperturemap.gainnopanelerr_dB))
         text.append('Gain with only feed offset: %.2f dB'%(aperturemap.gainmodel_dB))
-        text.append('Aperture efficiency: %f'%(aperturemap.eff_aperture))
+        #text.append('Aperture efficiency: %f'%(aperturemap.eff_aperture))
         text.append('Illumination efficiency: %f'%(aperturemap.eff_illumination))
         text.append('Taper efficiency: %.3f'%(aperturemap.eff_taper))
         text.append('Phase efficiency: %.3f'%(aperturemap.eff_phase))
