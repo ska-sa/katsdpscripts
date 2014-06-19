@@ -162,8 +162,6 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              'option) perform a spiral raster scan on the target. Note also some '
                                              '**required** options below.')
 # Add experiment-specific options
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
 parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
@@ -189,9 +187,6 @@ opts, args = parser.parse_args()
 compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx)
 timeperstep=opts.sampletime;
 
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project_id option '
-                     '(yes, this is a non-optional option...)')
 
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "

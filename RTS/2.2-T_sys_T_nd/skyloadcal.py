@@ -23,16 +23,11 @@ parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 parser.add_option('-m', '--max-duration', type='float',default=-1,
                   help='Maximum duration of script, in seconds (the default is to observing all sources once)')
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Hotload and Coldload observation',dump_rate = 1.0/0.512)
 # Parse the command line
 opts, args = parser.parse_args()
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project-id option '
-                     '(yes, this is a non-optional option...)')
 
 if  not opts.description == 'Hotload and Coldload observation' :  opts.description = 'Hotload and Coldload observation:'+ opts.description
 

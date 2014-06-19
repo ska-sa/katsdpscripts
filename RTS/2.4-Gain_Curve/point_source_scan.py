@@ -21,8 +21,6 @@ parser = standard_script_options(
     "catalogue(s) or the default. This script is aimed at fast scans across "
     "a large range of sources. Some options are **required**.")
 # Add experiment-specific options
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
 parser.add_option('-e', '--scan-in-elevation', action="store_true", default=False,
                   help="Scan in elevation rather than in azimuth (default=%default)")
 parser.add_option('-m', '--min-time', type="float", default=-1.0,
@@ -43,9 +41,6 @@ parser.add_option('--no-delays', action="store_true", default=False,
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project_id option '
-                     '(yes, this is a non-optional option...)')
 
 if opts.quick:
     opts.dump_rate = 2.0
