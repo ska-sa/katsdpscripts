@@ -31,7 +31,7 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
         ant1,ant2 = data.ants[0].name,data.ants[0].name
     else:
         ants=bline.split(',')
-        ant1,ant2 = ants[0],ants[1] if len(ants)>1 else ants[0],ants[0] 
+        (ant1,ant2) = (ants[0],ants[1]) if len(ants)>1 else (ants[0],ants[0]) 
     select_data['ants'] = (ant1,ant2)
     if ant1 != ant2: select_data['corrprods']='cross'
 
@@ -62,8 +62,6 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
         end_chan = int(channels.split(',')[1])
     chan_range = range(start_chan,end_chan+1)
     select_data['channels']=chan_range
-
-    print select_data
 
     data.select(strict=False, reset='', **select_data)
     #return the selected data
