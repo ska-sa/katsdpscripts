@@ -219,6 +219,7 @@ def plot_weather(filename,timestamps,alltimestamps,wind_speed,temperature,dump_t
     plt.plot(alltimes, solar_seps)
     
     fig.savefig(filename)
+    plt.close(fig)
 
 def weather_report(filename, output_dirname = '.', average_time=5.0):
     timestamps, alltimestamps, wind_speed, temperature, dump_time, sun_distance, antenna = select_and_average(filename, average_time)

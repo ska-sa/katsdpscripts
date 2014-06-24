@@ -316,6 +316,8 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     ax2.xaxis.set_major_formatter(ticks)
 
     fig.savefig(fileprefix+'_SpecBase_'+baseline+'_'+pol+'.pdf')
+    plt.close(fig)
+
 
 def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,target=None,freqav=None,timeav=None,freq_chans=None,correct='spline'):
     """

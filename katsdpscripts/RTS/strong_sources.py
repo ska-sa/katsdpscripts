@@ -92,6 +92,7 @@ def present_results(pdf, temperature, freq, targname, antenna, channelwidth):
         rfilib.plot_RFI_mask(ax, extra=freq[np.where(thisflags)], channelwidth=channelwidth)
         plt.xlim(freq[-1], freq[0])
     pdf.savefig()
+    plt.close(fig)
     return temps
 
 def plot_temps_time(pdf,alltimes,alltempshh,alltempsvv,antenna):
@@ -112,6 +113,7 @@ def plot_temps_time(pdf,alltimes,alltempshh,alltempsvv,antenna):
     plt.xlim(alltimes[0], alltimes[-1])
 
     pdf.savefig()
+    plt.close(fig)
 
 def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',freq_chans=None):
 

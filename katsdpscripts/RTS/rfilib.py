@@ -530,7 +530,8 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
         plt.xlabel('Frequency (Hz)')
 
     pdf.savefig(fig)
-
+    plt.close(fig)
+    
 def plot_waterfall(visdata,flags,channel_freqs):
     fig = plt.figure(figsize=(8.3,11.7))
     data=np.squeeze(np.abs(visdata[:,:,0]))
@@ -549,6 +550,7 @@ def plot_waterfall(visdata,flags,channel_freqs):
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
     pdf.savefig(fig)
+    plt.close(fig)
     fig = plt.figure(figsize=(8.3,11.7))
     data=np.squeeze(np.abs(visdata[:,:,1]))
     kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_freqs[0],channel_freqs[1], -0.5, data.shape[0] - 0.5)}
@@ -566,6 +568,7 @@ def plot_waterfall(visdata,flags,channel_freqs):
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
     pdf.savefig(fig)
+    plt.close(fig)
 
 def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,freq_chans=None):
 	"""

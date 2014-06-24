@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import optparse
 import katholog
+import os
 
 def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
     """
@@ -151,7 +152,7 @@ plt.show()
 
 for freq in np.array(opts.freq.split(',')).astype(float).tolist():
 
-    nice_filename =  args[0]+'_'+str(freq)+'_holography'
+    nice_filename =  os.path.splitext(os.path.basename(filename))[0]+'_'+str(freq)+'_holography'
     pp = PdfPages(nice_filename+'.pdf')
 
    
