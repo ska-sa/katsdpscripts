@@ -152,7 +152,7 @@ plt.show()
 
 for freq in np.array(opts.freq.split(',')).astype(float).tolist():
 
-    nice_filename =  os.path.splitext(os.path.basename(filename))[0]+'_'+str(freq)+'_holography'
+    nice_filename =  os.path.splitext(os.path.basename(args[0]))[0]+'_'+str(freq)+'_holography'
     pp = PdfPages(nice_filename+'.pdf')
 
    
