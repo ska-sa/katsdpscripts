@@ -18,6 +18,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy import optimize
 import scipy.interpolate as interpolate
 
+from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
 import scape
 import katpoint
 
@@ -27,7 +28,7 @@ STRING_FIELDS = ['dataset', 'target', 'timestamp_ut', 'data_unit']
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
                                description="This fits gain curves to the results of analyse_point_source_scans.py")
-    parser.add_option("-o", "--output", dest="outfilebase", type="string", default='gain_curve',
+    parser.add_option("-o", "--output", dest="outfilebase", type="string", default='./gain_curve',
                   help="Base name of output files (*.png for plots and *.csv for gain curve data)")
     parser.add_option("-p", "--polarisation", type="string", default="HH", 
                   help="Polarisation to analyse, options are HH or VV. Default is HH.")
@@ -41,9 +42,11 @@ def parse_arguments():
     parser.add_option("-u", "--units", default=None, help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: first units in csv file, Options: counts, K")
     parser.add_option("-n", "--no_normalise_gain", action="store_true", default=False, help="Don't normalise the measured gains to the maximum fit to the data.")
     parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
+    parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
+    parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
-        print 'Please specify a csv file output from analyse_point_source_scans.py.'
+        print 'Please specify a file to process.'
         sys.exit(1)
     filename = args[0]
     return opts, filename
@@ -461,14 +464,20 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     output_file.write("# name         ,(deg.), (%s/Jy)\n"%(opts.units))
     for data in zip(data['target'], data['elevation'][good], gain[good]):
         output_file.write("%-15s,%4.1f  ,%7.5f\n"%(data[0], data[1],data[2]))
-    
 
 
 #get the command line arguments
 opts, filename = parse_arguments()
 
-# Get the data from the csv file
-data, antenna = parse_csv(filename, opts.polarisation)
+#Check if we're using an h5 file or a csv file and read appropriately
+if opts.csv:
+    # Get the data from the csv file
+    data, antenna = parse_csv(filename, opts.polarisation)
+else:
+    #Got an h5 file - run analyse point source scans.
+    file_basename = os.path.splitext(os.path.basename(filename))[0]
+    prep_basename = file_basename + '_' + opts.bline + '_point_source_scans'
+    antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline)
 
 if opts.units == None:
     opts.units = data['data_unit'][0]
