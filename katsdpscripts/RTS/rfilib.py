@@ -449,9 +449,10 @@ def get_flag_data(h5data, norm_spec=None):
     offsetarray=np.zeros((h5data.shape[0],2))
     weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
     flags=np.zeros((h5data.shape[0],h5data.shape[1],2),dtype=np.bool)
-    for num,thisdata in enumerate(h5data.vis[:]):
+    for num in range(h5data.vis.shape[0]):
+        thisdata=h5data.vis[num]
         #Extract pols
-        thisdata = np.abs(thisdata[:,:2])
+        thisdata = np.abs(thisdata[0,:,:2])
         # normalise if defined
         if norm_spec is not None: thisdata /= norm_spec
         #Flag data for severe spikes
@@ -530,8 +531,8 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
         plt.xlabel('Frequency (Hz)')
 
     pdf.savefig(fig)
-    plt.close(fig)
-    
+    plt.close('all')
+ 
 def plot_waterfall(visdata,flags,channel_freqs):
     fig = plt.figure(figsize=(8.3,11.7))
     data=np.squeeze(np.abs(visdata[:,:,0]))
