@@ -188,7 +188,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         for field in output_field_names: 
             to_keep.append([data[field] for data in reduced_data if data and data['keep']])
         output_data = np.rec.fromarrays(to_keep, dtype=zip(output_field_names,[np.array(tk).dtype for tk in to_keep]))
-        return output_data
+        return (dataset.antenna, output_data,)
 
     # Reduce current compound scan if results are not cached
     if not reduced_data[current_compscan]:
@@ -331,8 +331,8 @@ def analyse_point_source_scans(filename, opts):
                 if cs_key not in keep_scans:
                     logger.info("==== Skipping compound scan '%s' (based on CSV file) ====" % (cs_key,))
                     continue
-            output_data = reduce_and_plot(dataset, current_compscan, reduced_data, opts, logger=logger)
-        return output_data
+           output = reduce_and_plot(dataset, current_compscan, reduced_data, opts, logger=logger)
+        return output
 
     ### INTERACTIVE MODE ###
     else:
@@ -451,8 +451,10 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
             self.nd_models=nd_models
 
     fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
-        mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans, old_loader=old_loader, nd_models=nd_models)
+    mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans, old_loader=old_loader, nd_models=nd_models)
+    (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
     
-    return analyse_point_source_scans(filename, fake_opts)
+    return dataset_antenna, output_data
+
 
 
