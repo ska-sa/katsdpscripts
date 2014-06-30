@@ -331,7 +331,7 @@ def analyse_point_source_scans(filename, opts):
                 if cs_key not in keep_scans:
                     logger.info("==== Skipping compound scan '%s' (based on CSV file) ====" % (cs_key,))
                     continue
-           output = reduce_and_plot(dataset, current_compscan, reduced_data, opts, logger=logger)
+            output = reduce_and_plot(dataset, current_compscan, reduced_data, opts, logger=logger)
         return output
 
     ### INTERACTIVE MODE ###
