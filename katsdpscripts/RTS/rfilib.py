@@ -449,8 +449,7 @@ def get_flag_data(h5data, norm_spec=None):
     offsetarray=np.zeros((h5data.shape[0],2))
     weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
     flags=np.zeros((h5data.shape[0],h5data.shape[1],2),dtype=np.bool)
-    for num in range(h5data.vis.shape[0]):
-        thisdata=h5data.vis[num]
+    for num,thisdata in enumerate(h5data.vis):
         #Extract pols
         thisdata = np.abs(thisdata[0,:,:2])
         # normalise if defined
