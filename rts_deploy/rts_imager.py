@@ -1,6 +1,4 @@
-from fabric.api import sudo, run, env, task, cd, settings
-from fabric.contrib import files
-import os
+from fabric.api import sudo, task, settings
 import rts_common_deploy
 
 # Deb packages for rts-imager
@@ -38,7 +36,7 @@ def deploy():
     for pkg in PIP_PKGS: rts_common_deploy.install_pip_packages(pkg)
 
         # install private ska-sa git packages
-    for pkg in SKA_GIT_PKGS: install_git_package(pkg,branch=rts_common_deploy.GIT_BRANCH)
+    for pkg in SKA_GIT_PKGS: rts_common_deploy.install_git_package(pkg,branch=rts_common_deploy.GIT_BRANCH)
 
     # oodt setup and install
     rts_common_deploy.oodt_setup()
@@ -50,12 +48,12 @@ def clear():
     rts_common_deploy.remove_pip_packages('katoodt')
 
     # remove ska-sa git packages
-    for pkg in reversed(SKA_GIT): remove_pip_packages(pkg)
+    for pkg in reversed(SKA_GIT_PKGS): rts_common_deploy.remove_pip_packages(pkg)
 
     # pip uninstall python packages
-    for pkg in reversed(PIP_PKGS + SKA_GIT): remove_pip_packages(pkg)
+    for pkg in reversed(PIP_PKGS + SKA_GIT_PKGS): rts_common_deploy.remove_pip_packages(pkg)
     # hack to remove scikits, which is still hanging around
     sudo('rm -rf /usr/local/lib/python2.7/dist-packages/scikits')
 
     # remove ubuntu deb packages
-    for pkg in reversed(DEB_PKGS): remove_deb_packages(pkg)
+    for pkg in reversed(DEB_PKGS): rts_common_deploy.remove_deb_packages(pkg)
