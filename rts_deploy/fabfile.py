@@ -1,3 +1,3 @@
-import rts_dc_deploy
-import rts_imager_deploy
-import rts_timeplot_deploy 
+import rts_dc
+import rts_imager
+import rts_timeplot 

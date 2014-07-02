@@ -310,51 +310,7 @@ def remove_oodt_directories():
     remove_dir(SDP_MC)
 
 @task
-def deploy_for_rts_imager():
-    # update the apt-get database. Warn, rather than abort, if repos are missing
-    with settings(warn_only=True):
-        sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
-
-    #install deb packages: thin plooging
-    # install ubuntu deb packages
-    for pkg_list in IMAGER_DEB_PKGS: install_deb_packages(pkg_list)
-
-    #install pip packages: thin plooging
-    # pip install python packages
-    for name in IMAGER_PIP_PKGS: install_pip_packages(name)
-
-    # create git package directory
-    check_and_make_directory(GIT_DIR)
-    
-    # Make svn directory
-    check_and_make_directory(SVN_DIR)
-
-    # install svn packages
-    for name in IMAGER_SVN_PKGS: install_svn_package(name,SVN_USER,SVN_PASSWORD)
-
-    # install public ska-sa git packages
-    #for name in IMAGER_PUBLIC_SKA_GIT: install_git_package(name)
-
-    # install private ska-sa git packages
-    for name in IMAGER_SKA_GIT: install_git_package(name,user=GIT_USER,password=GIT_PASSWORD)
-
-    # update katconfig files
-    #print ' ---- Update katconfig ---- \n'
-    #update_svn_files(CONFIG_DIR,SVN_USER,SVN_PASSWORD)
-    
-    #Create RTS scripts directory
-    #check_and_make_directory(SCRIPT_SVN_DIR)
-
-    # update RTS scripts from svnScience
-    #print ' ---- Update RTS scripts ---- \n'
-    #checkout_svn_files(SCRIPT_SVN_BASE,SCRIPT_SVN_DIR,SVN_USER,SVN_PASSWORD,False)
-
-    # oodt setup and install
-    oodt_setup()
-
-
-@task
-def deploy_for_rts_ingest():
+def deploy():
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
         sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
@@ -395,22 +351,6 @@ def deploy_for_rts_ingest():
     install_svn_package('katoodt',SVN_USER,SVN_PASSWORD)
 
 @task
-def update_for_rts_imager():
-    # update git/svn packages to current master/trunk versions
-
-    # update public ska-sa git packages
-    for name in IMAGER_SKA_GIT: update_git_package(name)
-
-    # update svn packages
-    for name in IMAGER_SVN_PKGS: update_svn_package(name,SVN_USER,SVN_PASSWORD)
-
-    # update RTS scripts from svnScience
-    #print ' ---- Update RTS scripts ---- \n'
-    #update_svn_files(SCRIPT_SVN_DIR,SVN_USER,SVN_PASSWORD,False)
-
-    # still outstanding - oodt updates
-
-@task
 def update():
     # update git/svn packages to current master/trunk versions
 
@@ -434,32 +374,6 @@ def update():
     # still outstanding - oodt updates
 
 @task
-def clear_for_rts_imager():
-    # remove oodt directories and packages
-    remove_oodt_directories()
-    remove_pip_packages('katoodt')
-
-    # remove git and svn directories
-    remove_dir(GIT_DIR)
-    remove_dir(SVN_DIR)
-    #remove_dir(SCRIPT_SVN_DIR)
-    remove_dir(CONFIG_DIR)
-
-    # remove ska-sa git packages
-    for name in reversed(IMAGER_SKA_GIT): remove_pip_packages(name)
-
-    # pip uninstall python packages
-    for name in reversed(IMAGER_PIP_PKGS): remove_pip_packages(name)
-    # hack to remove scikits, which is still hanging around
-    sudo('rm -rf /usr/local/lib/python2.7/dist-packages/scikits')
-
-    # remove ubuntu deb packages
-    for pkg_list in reversed(IMAGER_DEB_PKGS): remove_deb_packages(pkg_list)
-
-@task
-def clear_for_rts_ingest():
-    clear()
-
 def clear():
     # remove oodt directories and packages
     remove_oodt_directories()
