@@ -2,6 +2,9 @@ from fabric.api import sudo, run, env
 from fabric.contrib import files
 import os
 
+#GIT branch to use for deployment
+GIT_BRANCH = 'master'
+
 # oodt install info
 OODT_HOME = '/usr/local/oodt/'
 STAGING_HOME = '/var/kat/data'
