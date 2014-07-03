@@ -1,4 +1,4 @@
-from fabric.api import sudo, task, hosts, settings, env
+from fabric.api import sudo, task, settings, env
 import rts_common_deploy
 
 #Set environment and hostnames
