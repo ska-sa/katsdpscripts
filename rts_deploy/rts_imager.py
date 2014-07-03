@@ -1,9 +1,13 @@
-from fabric.api import sudo, task, settings, env
+from fabric.api import sudo, task, hosts, settings, env
 import rts_common_deploy
 
 #Set environment and hostnames
 env.hosts = ['kat@192.168.6.185']
 env.password = 'kat'
+
+#rts-imager specific data aread
+STAGING_AREA = '/data/staging_area'
+PROCESS_AREA = '/data/process_area'
 
 # Deb packages for rts-imager
 DEB_PKGS = [ 'python-dev',                                                        #general
@@ -13,19 +17,19 @@ DEB_PKGS = [ 'python-dev',                                                      
                     'libhdf5-dev',                                                       #h5py
                     'libpng12-dev libfreetype6-dev zlib1g-dev',                          #Matplotlib
                     'subversion', 'nfs-kernel-server',
-                    'tree'
+                    'python-celery', 'rabbitmq-server',
+                    'tree pyflakes openjdk-7-jre'                                        #Other things
                     ]
 
 # Pip packages for rts-imager
-PIP_PKGS = ['ipython',
-                   'numpy','scipy',                                                       #numpy/scipy
-                   'h5py', 'scikits.fitting',
-                   'matplotlib', 'pyfits']
+PIP_PKGS = ['ipython', 'numpy', 'scipy', 'pandas', 'pyephem', 'katcp', 
+                   'h5py', 'scikits.fitting', 'matplotlib', 'pyfits']
 
 # git packages for rts imager
-SKA_GIT_PKGS = ['katpoint','katdal','katholog','katsdpscripts','katsdpworkflow','scape']
+SKA_GIT_PKGS = ['katpoint','katdal','katholog','katsdpscripts','katsdpworkflow','katsdpdata','scape']
 
 @task
+@hosts(env.hosts)
 def deploy():
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
@@ -45,8 +49,17 @@ def deploy():
     # oodt setup and install
     rts_common_deploy.oodt_setup()
 
+    # Create staging and processing dirs
+    rts_common_deploy.make_directory(STAGING_AREA)
+    rts_common_deploy.make_directory(PROCESS_AREA)
+
 @task
+@hosts(env.hosts)
 def clear():
+    # remove staging and processing dirs
+    rts_common_deploy.remove_dir(STAGING_AREA)
+    rts_common_deploy.remove_dir(PROCESS_AREA)
+
     # remove oodt directories and packages
     rts_common_deploy.remove_oodt_directories()
     rts_common_deploy.remove_pip_packages('katoodt')
