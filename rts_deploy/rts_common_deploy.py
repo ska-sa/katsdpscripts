@@ -34,12 +34,12 @@ TOMCAT_CONF = os.path.join(OODT_HOME, 'apache-tomcat/conf/server.xml')
 def install_deb_packages(packages):
     """Install debian packages listed in space-separated string"""
     print ' ---- Install debian packages ---- \n', packages, '\n'
-    sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get install %s' % (packages))
+    sudo('apt-get -y install %s' % (packages))
 
 def remove_deb_packages(packages):
     """Remove debian packages listed in space-separated string"""
     print ' ---- Remove debian packages ---- \n', packages, '\n'
-    sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get remove %s' % (packages))
+    sudo('apt-get -y remove %s' % (packages))
 
 def install_pip_packages(packages):
     """Pip install packages listed in space-separated string"""
@@ -59,7 +59,7 @@ def remove_pip_packages(packages):
 def install_git_package(package, repo='ska-sa', user='katpull', password='katpull4git', branch='master',**kwargs):
     """Install git packages directly using pip"""
     print ' ---- Install', package, ' ---- \n'
-    sudo('pip install -U --no-deps git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch)
+    sudo('pip install -I git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch)
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
