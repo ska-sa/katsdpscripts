@@ -57,7 +57,9 @@ def remove_pip_packages(packages):
         print 'Cannot uninstall \n'
 
 def install_git_package(package, repo='ska-sa', user='katpull', password='katpull4git', branch='master',**kwargs):
-    install_pip_packages('git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch)
+    """Install git packages directly using pip"""
+    print ' ---- Install', package, ' ---- \n'
+    sudo('pip install -U --no-deps git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch)
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
