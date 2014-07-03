@@ -205,7 +205,7 @@ if True :
     fig = plt.figure(None,figsize = (10,16))
     plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
     fig.savefig(pp,format='pdf')
-    plt.close('all')
+    plt.close(fig)
     pp.close()
 
 
