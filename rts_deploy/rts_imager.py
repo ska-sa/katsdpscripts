@@ -1,5 +1,9 @@
-from fabric.api import sudo, task, settings
+from fabric.api import sudo, task, hosts, settings, env
 import rts_common_deploy
+
+#Set environment and hostnames
+env.hosts = ['kat@192.168.6.185']
+env.password = 'kat'
 
 # Deb packages for rts-imager
 DEB_PKGS = [ 'python-dev',                                                        #general
@@ -23,6 +27,7 @@ SKA_GIT_PKGS = ['katpoint','katdal','katholog','katsdpscripts','katsdpworkflow',
 
 @task
 def deploy():
+
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
         sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
@@ -42,6 +47,7 @@ def deploy():
     rts_common_deploy.oodt_setup()
 
 @task
+@hosts('kat@rts-imager')
 def clear():
     # remove oodt directories and packages
     rts_common_deploy.remove_oodt_directories()
