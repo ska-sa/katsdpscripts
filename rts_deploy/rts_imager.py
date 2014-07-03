@@ -33,7 +33,7 @@ SKA_GIT_PKGS = ['katpoint','katdal','katholog','katsdpscripts','katsdpworkflow',
 def deploy():
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
-        sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
+        sudo('apt-get -y update')
 
     #install deb packages: thin plooging
     # install ubuntu deb packages
