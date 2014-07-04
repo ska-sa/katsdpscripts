@@ -41,10 +41,10 @@ def remove_deb_packages(packages):
     print ' ---- Remove debian packages ---- \n', packages, '\n'
     sudo('apt-get -y remove %s' % (packages))
 
-def install_pip_packages(packages):
+def install_pip_packages(packages, flags='-U'):
     """Pip install packages listed in space-separated string"""
     print ' ---- Install', packages, ' ---- \n'
-    sudo('pip install -U %s' % (packages,))
+    sudo('pip install '+flags+' %s' % (packages,))
 
 def remove_pip_packages(packages):
     """Pip uninstall packages listed in space-separated string"""
@@ -55,10 +55,13 @@ def remove_pip_packages(packages):
         # we don't get a nice named exception if the package isn't there
         print 'Cannot uninstall \n'
 
-def install_git_package(package, repo='ska-sa', user='katpull', password='katpull4git', branch='master',**kwargs):
+def install_git_package(package, repo='ska-sa', login='katpull:katpull4git', branch='master', flags='-I --no-deps',**kwargs):
     """Install git packages directly using pip"""
     print ' ---- Install', package, ' ---- \n'
-    sudo('pip install -I --no-deps git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch+'#egg='+package)
+    if login:
+        sudo('pip install '+ flags +' git+https://'+login+'@github.com/'+repo+'/'+package+'.git'+'@'+branch+'#egg='+package)
+    else:
+        sudo('pip install '+ flags +' git+https://github.com/'+repo+'/'+package+'.git@'+branch+'#egg='+package)
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
