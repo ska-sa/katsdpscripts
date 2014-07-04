@@ -10,23 +10,24 @@ STAGING_AREA = '/data/staging_area'
 PROCESS_AREA = '/data/process_area'
 
 # Deb packages for rts-imager
-DEB_PKGS = [ 'python-dev',                                                                          #general
-                    'gfortran libatlas-base-dev libblas-dev libexpat1-dev',
-                    'git git-man',                                                                  #git
-                    'python-pip python-setuptools python-pkg-resources',                            #pip
+DEB_PKGS = [ 'python-dev',                                                                           #general
+                    'gfortran', 'libatlas-base-dev', 'libblas-dev', 'libexpat1-dev',
+                    'git', 'git-man',                                                                #git
+                    'python-pip', 'python-setuptools', 'python-pkg-resources',                       #pip
                     'subversion', 'nfs-kernel-server',
                     'python-celery', 'rabbitmq-server',
-                    'tree pyflakes openjdk-7-jre',                                                  #Other things
-                    'ipython python-numpy python-scipy python-h5py', 
-                    'python-matplotlib python-pyfits python-pandas',                                #python stuff
-                    'tomcat7-common tomcat7-admin'
+                    'tree', 'pyflakes', 'openjdk-7-jre', 'htop',                                     #Other things
+                    'ipython', 'python-numpy', 'python-scipy', 'python-h5py', 
+                    'python-matplotlib', 'python-pyfits', 'python-pandas', 'python-nose',            #python stuff
+                    'tomcat7-common', 'tomcat7-admin'
                     ]
 
 # Pip packages for rts-imager
-PIP_PKGS = ['pyephem', 'katcp', 'scikits.fitting']
+PIP_PKGS = ['pyephem', 'scikits.fitting']
 
-# git packages for rts imager
-SKA_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'katsdpworkflow', 'katsdpdata', 'scape']
+# SKA private git packages for rts imager
+SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'katsdpworkflow', 'scape']
+
 
 @task
 @hosts(env.hosts)
@@ -41,10 +42,10 @@ def deploy():
 
     #install pip packages: thin plooging
     # pip install python packages
-    for pkg in PIP_PKGS: rts_common_deploy.install_pip_packages(pkg)
+    for pkg in PIP_PKGS: rts_common_deploy.install_pip_packages(pkg,flags='-U --no-deps')
 
-        # install private ska-sa git packages
-    for pkg in SKA_GIT_PKGS: rts_common_deploy.install_git_package(pkg,branch=rts_common_deploy.GIT_BRANCH)
+    # install private ska-sa git packages
+    for pkg in SKA_PRIVATE_GIT_PKGS: rts_common_deploy.install_git_package(pkg, branch=rts_common_deploy.GIT_BRANCH)
 
     # oodt setup and install
     rts_common_deploy.oodt_setup()
