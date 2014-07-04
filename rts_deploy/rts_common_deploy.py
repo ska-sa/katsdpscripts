@@ -49,7 +49,6 @@ def install_pip_packages(packages):
 def remove_pip_packages(packages):
     """Pip uninstall packages listed in space-separated string"""
     print ' ---- Uninstall', packages, ' ---- \n'
-    # check if the deploy name is different to the package name
     try:
         sudo('yes | pip uninstall %s' % (packages))
     except:
@@ -59,7 +58,7 @@ def remove_pip_packages(packages):
 def install_git_package(package, repo='ska-sa', user='katpull', password='katpull4git', branch='master',**kwargs):
     """Install git packages directly using pip"""
     print ' ---- Install', package, ' ---- \n'
-    sudo('pip install -I git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch)
+    sudo('pip install -I --no-deps git+https://'+user+':'+password+'@github.com/'+repo+'/'+package+'.git'+'@'+branch+'#egg='+package)
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
