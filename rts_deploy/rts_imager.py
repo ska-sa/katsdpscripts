@@ -10,23 +10,23 @@ STAGING_AREA = '/data/staging_area'
 PROCESS_AREA = '/data/process_area'
 
 # Deb packages for rts-imager
-DEB_PKGS = [ 'python-dev',                                                        #general
+DEB_PKGS = [ 'python-dev',                                                                          #general
                     'gfortran libatlas-base-dev libblas-dev libexpat1-dev',
-                    'git git-man',                                                       #git
-                    'python-pip python-setuptools python-pkg-resources',                 #pip
-                    'libhdf5-dev',                                                       #h5py
-                    'libpng12-dev libfreetype6-dev zlib1g-dev',                          #Matplotlib
+                    'git git-man',                                                                  #git
+                    'python-pip python-setuptools python-pkg-resources',                            #pip
                     'subversion', 'nfs-kernel-server',
                     'python-celery', 'rabbitmq-server',
-                    'tree pyflakes openjdk-7-jre'                                        #Other things
+                    'tree pyflakes openjdk-7-jre',                                                  #Other things
+                    'ipython python-numpy python-scipy python-h5py', 
+                    'python-matplotlib python-pyfits python-pandas',                                #python stuff
+                    'tomcat7-common tomcat7-admin'
                     ]
 
 # Pip packages for rts-imager
-PIP_PKGS = ['ipython', 'numpy', 'scipy', 'pandas', 'pyephem', 'katcp', 
-                   'h5py', 'scikits.fitting', 'matplotlib', 'pyfits']
+PIP_PKGS = ['pyephem', 'katcp', 'scikits.fitting']
 
 # git packages for rts imager
-SKA_GIT_PKGS = ['katpoint','katdal','katholog','katsdpscripts','katsdpworkflow','katsdpdata','scape']
+SKA_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'katsdpworkflow', 'katsdpdata', 'scape']
 
 @task
 @hosts(env.hosts)
@@ -74,3 +74,5 @@ def clear():
 
     # remove ubuntu deb packages
     for pkg in reversed(DEB_PKGS): rts_common_deploy.remove_deb_packages(pkg)
+
+    sudo('apt-get -y autoremove')
