@@ -30,17 +30,11 @@ parser.add_option('-m','--max-duration', type='float', default=3600,
                   help='Minimum duration of obsevation (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
-
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project_id option '
-                     '(yes, this is a non-optional option...)')
 
 if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "

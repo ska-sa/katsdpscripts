@@ -13,9 +13,6 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                  description='Track one or more sources for a specified time. At least one '
                                              'target must be specified. Note also some **required** options below.')
 # Add experiment-specific options
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
-
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=None,
@@ -39,9 +36,6 @@ if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project_id option '
-                     '(yes, this is a non-optional option...)')
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:

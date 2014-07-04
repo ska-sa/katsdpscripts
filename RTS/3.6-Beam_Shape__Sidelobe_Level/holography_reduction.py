@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import optparse
 import katholog
+import os
 
 def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
     """
@@ -151,7 +152,7 @@ plt.show()
 
 for freq in np.array(opts.freq.split(',')).astype(float).tolist():
 
-    nice_filename =  args[0]+'_'+str(freq)+'_holography'
+    nice_filename =  os.path.splitext(os.path.basename(args[0]))[0]+'_'+str(freq)+'_holography'
     pp = PdfPages(nice_filename+'.pdf')
 
    
@@ -300,7 +301,7 @@ for freq in np.array(opts.freq.split(',')).astype(float).tolist():
         text.append('Theorectical gain with uniform illumination: %.2f dB'%(aperturemap.gainuniform_dB))
         text.append('Gain with no panel errors: %.2f dB'%(aperturemap.gainnopanelerr_dB))
         text.append('Gain with only feed offset: %.2f dB'%(aperturemap.gainmodel_dB))
-        text.append('Aperture efficiency: %f'%(aperturemap.eff_aperture))
+        #text.append('Aperture efficiency: %f'%(aperturemap.eff_aperture))
         text.append('Illumination efficiency: %f'%(aperturemap.eff_illumination))
         text.append('Taper efficiency: %.3f'%(aperturemap.eff_taper))
         text.append('Phase efficiency: %.3f'%(aperturemap.eff_phase))

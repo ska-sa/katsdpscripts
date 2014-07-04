@@ -35,8 +35,6 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'>  [-
                                              'The script will terminate with an error state if the LNA'
                                              'Tempreture rises by 15 degrees from the start.')
 # Add experiment-specific options
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
 parser.add_option('-t', '--track-duration', type='float', default=7200.0,
                   help='Length of time to track the Main source in seconds (default=%default)')
 parser.add_option('--cold-duration', type='float', default=900.0,
@@ -56,9 +54,6 @@ parser.set_defaults(description='Strong Sources track',dump_rate=0.1,nd_params='
 # Parse the command line
 opts, args = parser.parse_args()
 
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project_id option '
-                     '(yes, this is a non-optional option...)')
 if len(args) == 0:
     raise ValueError("Please specify at target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")

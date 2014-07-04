@@ -1,3 +1,5 @@
+
+
 #!/usr/bin/python
 # Track SCP  for a specified time for hotbox tests.
 
@@ -5,46 +7,49 @@
 from __future__ import with_statement
 
 import time
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
-
+from katcorelib import standard_script_options, verify_and_connect,  start_session, user_logger
+import katpoint
+import numpy as np
+import pyfits
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] hotload or coldload",
                                  description='Perform a mesurement of system tempreture using hot and cold on sky loads'
                                              'Over 6 frequency ranges. Note also some **required** options below.')
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=60.0,
+parser.add_option('-t', '--track-duration', type='float', default=30.0,
                   help='Length of time for each loading, in seconds (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 parser.add_option('-m', '--max-duration', type='float',default=-1,
                   help='Maximum duration of script, in seconds (the default is to observing all sources once)')
-parser.add_option('--project-id',
-                  help='Project ID code the observation (**required**) This is a required option')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Hotload and Coldload observation',dump_rate = 1.0/0.512)
 # Parse the command line
 opts, args = parser.parse_args()
-if not hasattr(opts, 'project_id') or opts.project_id is None:
-    raise ValueError('Please specify the Project id code via the --project_id option '
-                     '(yes, this is a non-optional option...)')
 
 if  not opts.description == 'Hotload and Coldload observation' :  opts.description = 'Hotload and Coldload observation:'+ opts.description
-fLOs=[(1200+64+i*128) for i in range(6)] # the centre frequency needed to get coverage across the band
 
 nd_off     = {'diode' : 'coupler', 'on' : 0., 'off' : 0., 'period' : -1.}
 nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
-#nd_pin     = {'diode' : 'pin'    , 'on' : opts.track_duration, 'off' : 0., 'period' : 0.}
 
-if len(args) == 0:
-    raise ValueError("Please specify the sources to observe as arguments, either as "
-                     "description strings or catalogue filenames")
+#if len(args) == 0:
+#    raise ValueError("Please specify the sources to observe as arguments, either as "
+#                     "description strings or catalogue filenames")
+fl = '/../2.1-Tipping_Curve/TBGAL_CONVL.FITS'
+hdulist = pyfits.open(fl)
+Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
+ra =  lambda x: int(x/0.25) # helper functions
+dec = lambda x: int((-x+90)/0.25)
+
 
 with verify_and_connect(opts) as kat:
-    sources = collect_targets(kat, args)
-    txtlist = ', '.join(  [ "'%s'" % (target.name,)  for target in sources])
-    user_logger.info("Calibration targets are [%s]" %(txtlist))
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
+    moon = kat.sources.lookup['moon']
     with start_session(kat, **vars(opts)) as session:
         if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
@@ -68,6 +73,24 @@ with verify_and_connect(opts) as kat:
         start_time = time.time()
         while once or  time.time() < start_time + opts.max_duration :
             once = False
+            moon =  katpoint.Target('Moon, special')
+            moon.antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')  
+            off1 = katpoint.construct_radec_target(moon.azel()[0] + np.radians(10),moon.azel()[1] )
+            off1.antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22') 
+            off1.name = 'off'
+            off2 = katpoint.construct_azel_target(moon.azel()[0] - np.radians(10),moon.azel()[1] )
+            off2.antenna =  katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')   
+            off2.name = 'off'
+            sources = katpoint.Catalogue(add_specials=False)
+            sources.add(moon)
+            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(off1.radec()[0]))]
+            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(off2.radec()[0]))]
+            if off1_T > off2_T:
+                sources.add(off2)
+            else:
+                sources.add(off1)
+            txtlist = ', '.join(  [ "'%s'" % (target.name,)  for target in sources])
+            user_logger.info("Calibration targets are [%s]" %(txtlist))
             for target in sources:
                 session.nd_params = nd_off
                 for nd in [nd_coupler]:

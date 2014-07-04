@@ -18,6 +18,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy import optimize
 import scipy.interpolate as interpolate
 
+from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
 import scape
 import katpoint
 
@@ -27,10 +28,10 @@ STRING_FIELDS = ['dataset', 'target', 'timestamp_ut', 'data_unit']
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
                                description="This fits gain curves to the results of analyse_point_source_scans.py")
-    parser.add_option("-o", "--output", dest="outfilebase", type="string", default='gain_curve',
+    parser.add_option("-o", "--output", dest="outfilebase", type="string", default='./gain_curve',
                   help="Base name of output files (*.png for plots and *.csv for gain curve data)")
-    parser.add_option("-p", "--polarisation", type="string", default="HH", 
-                  help="Polarisation to analyse, options are HH or VV. Default is HH.")
+    parser.add_option("-p", "--polarisation", type="string", default=None, 
+                  help="Polarisation to analyse, options are HH or VV. Default is all available.")
     parser.add_option("-t", "--targets", default=None, help="Comma separated list of targets to use from the input csv file. Default is all of them.")
     parser.add_option("--tsys_lim", type="float", default=150, help="Limit on calculated Tsys to flag data for atmospheric fits.")
     parser.add_option("--eff_min", type="float", default=35, help="Minimum acceptable calculated aperture efficiency.")
@@ -38,12 +39,14 @@ def parse_arguments():
     parser.add_option("--min_elevation", type="float", default=20, help="Minimum elevation to calculate statistics.")
     parser.add_option("-c", "--correct_atmosphere", action="store_true", default=False, help="Correct for atmospheric effects.")
     parser.add_option("-e", "--elev_min", type="float", default=15, help="Minimum acceptable elevation for median calculations.")
-    parser.add_option("-u", "--units", default="counts", help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: K, Options: counts, K")
+    parser.add_option("-u", "--units", default=None, help="Search for entries in the csv file with particular units. If units=counts, only compute gains. Default: first units in csv file, Options: counts, K")
     parser.add_option("-n", "--no_normalise_gain", action="store_true", default=False, help="Don't normalise the measured gains to the maximum fit to the data.")
     parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
+    parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
+    parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
-        print 'Please specify a csv file output from analyse_point_source_scans.py.'
+        print 'Please specify a file to process.'
         sys.exit(1)
     filename = args[0]
     return opts, filename
@@ -53,7 +56,7 @@ def angle_wrap(angle, period=2.0 * np.pi):
     return (angle + 0.5 * period) % period - 0.5 * period
 
 
-def parse_csv(filename, pol):
+def parse_csv(filename):
     """ Make an antenna object and a data array from the input csv file
     update the data array with the desired flux for the give polarisation
 
@@ -79,16 +82,10 @@ def parse_csv(filename, pol):
     formats[[fieldnames.index(name) for name in STRING_FIELDS if name in fieldnames]] = data.dtype
     #Save the data as a heterogeneous record array  
     data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fieldnames, formats))
-    #Get the antenna temp from the data array for the desired polarisation
-    calc_beam_height = data['beam_height_'+pol]
-    calc_baseline_height = data['baseline_height_'+pol]
-    #Add the calculated beam height and baseline heights to the data array
-    data = nprec.append_fields(data, ['calc_beam_height','calc_baseline_height'], [calc_beam_height,calc_baseline_height], ['float32','float32'])
-
     return data, antenna
 
 
-def compute_gain(data):
+def compute_gain(data,pol):
     """ Compute the gain and apeture efficiency from the data.
 
     Parameters
@@ -99,12 +96,12 @@ def compute_gain(data):
     ------
     gain : The gains
     """
-    gain = data['calc_beam_height'] / data['flux']
+    gain = data['beam_height_' + pol] / data['flux']
     
     return gain
 
 
-def compute_tsys_sefd(data, gain, antenna):
+def compute_tsys_sefd(data, gain, antenna, pol):
     """ Compute Tsys and the SEFD from the gains and the baseline heights.
 
     Parameters
@@ -124,14 +121,14 @@ def compute_tsys_sefd(data, gain, antenna):
     # The apeture efficiency
     e = gain*(2761/ant_area)*100
     # Tsys can be estimated from the baseline height.
-    Tsys = data['calc_baseline_height']
+    Tsys = data['baseline_height_'+pol]
     # SEFD is Tsys/G
     SEFD = Tsys/gain
 
     return e, Tsys, SEFD
 
 
-def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, eff=None, eff_lim=[35,100], units='K', interferometric=False, condition_select="none"):
+def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, eff=None, eff_lim=[35,100], units='K', interferometric=False, condition_select="none", pol='I'):
     """ Apply conditions to the data to choose which can be used for 
     fitting.
     Conditions are:
@@ -168,7 +165,7 @@ def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, ef
         good = good & ((eff>eff_lim[0]) & (eff<eff_lim[1]))
     print "4: Flag for efficiency",np.sum(good)
     #Check for nans
-    good = good & ~(np.isnan(data['calc_beam_height'])) & ~(np.isnan(data['calc_baseline_height']))
+    good = good & ~(np.isnan(data['beam_height_'+pol])) & ~(np.isnan(data['baseline_height_'+pol]))
     print "5: Flag for NaN in data",np.sum(good)
     #Check for units
     good = good & (data['data_unit'] == units)
@@ -417,40 +414,6 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     fig.savefig(pdf,format='pdf')
     plt.close(fig)
 
-    # Plot weather data on next page of pdf.2013-12-10 21:23:43.733
-    # Get the time offsets from the first timestamp in hours
-    timestamps = np.array([time.mktime(time.strptime(thistime[:19], '%Y-%m-%d %H:%M:%S')) for thistime in data['timestamp_ut']])
-    timeoffsets = (timestamps - timestamps[0])/3600.0
-    #Set up the figure
-    fig = plt.figure(figsize=(8.3,11.7))
-    #date format for plots
-    fig.subplots_adjust(hspace=0.0)
-    #Plot the gain vs elevation for each target
-    ax1 = plt.subplot(411)
-    plt.title('Atmospheric Conditions (%s)'%(condition))
-    plt.ylabel('Wind Speed (km/s)')
-    # Wind
-    for targ in targets:
-        plt.plot(timeoffsets[good & targetmask[targ]], data['wind_speed'][good & targetmask[targ]], 'o', label=targ)
-    # Temperature
-    ax2 = plt.subplot(412)
-    plt.ylabel('Temperature (Celcius)')
-    for targ in targets:
-        plt.plot(timeoffsets[good & targetmask[targ]], data['temperature'][good & targetmask[targ]], 'o', label=targ)
-    # Humidity
-    ax3 = plt.subplot(413)
-    plt.ylabel('Relative Humidity (per cent)')
-    for targ in targets:
-        plt.plot(timeoffsets[good & targetmask[targ]], data['humidity'][good & targetmask[targ]], 'o', label=targ)
-    # Pressure
-    ax4 = plt.subplot(414)
-    plt.ylabel('Air Pressure (mbar)')
-    for targ in targets:
-        plt.plot(timeoffsets[good & targetmask[targ]], data['pressure'][good & targetmask[targ]], 'o', label=targ)
-    plt.xlabel('Time since start (hours)')
-    fig.savefig(pdf, format='pdf')
-    plt.close(fig)
-
     pdf.close()
 
     #Write out gain data to file
@@ -461,60 +424,79 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     output_file.write("# name         ,(deg.), (%s/Jy)\n"%(opts.units))
     for data in zip(data['target'], data['elevation'][good], gain[good]):
         output_file.write("%-15s,%4.1f  ,%7.5f\n"%(data[0], data[1],data[2]))
-    
 
 
 #get the command line arguments
 opts, filename = parse_arguments()
 
-# Get the data from the csv file
-data, antenna = parse_csv(filename, opts.polarisation)
-
-output_filename = opts.outfilebase + '_' + antenna.name + '_' + opts.polarisation + '_' + '%.0f'%data['frequency'][0]
-
-# Compute the gains from the data and fill the data recarray with the values
-gain = compute_gain(data)
-
-Tsys, SEFD, e = None, None, None
-# Get TSys, SEFD if we have meaningful units
-if opts.units=="K":
-    e, Tsys, SEFD = compute_tsys_sefd(data, gain, antenna)
-
-# Determine "good" data to use for fitting and plotting
-good = determine_good_data(data, antenna, targets=opts.targets, tsys=Tsys, tsys_lim=opts.tsys_lim, 
-                            eff=e, eff_lim=[opts.eff_min,opts.eff_max], units=opts.units,
-                            condition_select=opts.condition_select)
-
-# Check if we have flagged all the data
-if np.sum(good)==0:
-    raise Exception('All data flagged according to selection criteria.')
-
-# Obtain desired elevations in radians
-az, el = angle_wrap(katpoint.deg2rad(data['azimuth'])), katpoint.deg2rad(data['elevation'])
-
-# Get a fit of an atmospheric absorption model if units are in "K", otherwise use weather data to estimate 
-# opacity for each data point
-if opts.units=="K":
-    g_0, tau = fit_atmospheric_absorption(gain[good],el[good])
+#Check if we're using an h5 file or a csv file and read appropriately
+if opts.csv:
+    # Get the data from the csv file
+    data, antenna = parse_csv(filename)
 else:
-    tau=np.array([])
-    for opacity_info in data:
-        tau=np.append(tau,(calc_atmospheric_opacity(opacity_info['temperature'],opacity_info['humidity']/100, 
-                                            antenna.observer.elevation/1000, opacity_info['frequency']/1000.0)))
-    g_0 = None
+    #Got an h5 file - run analyse point source scans.
+    file_basename = os.path.splitext(os.path.basename(filename))[0]
+    prep_basename = file_basename + '_' + opts.bline.translate(None,',') + '_point_source_scans'
+    antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline)
 
-T_atm, T_rec = None, None
-# Fit T_atm and T_rec using atmospheric emission model for single dish case
-if opts.units=="K":
-    T_atm, T_rec = fit_atmospheric_emission(Tsys[good],el[good],tau)
+if opts.units == None:
+    opts.units = data['data_unit'][0]
 
-#remove the effect of atmospheric attenuation from the data
-if opts.correct_atmosphere:
+#Get available polarisations to loop over or make a list out of options if available
+if opts.polarisation == None:
+    keys = np.array(data.dtype.names)
+    pol = np.unique([key.split('_')[-1] for key in keys if key.split('_')[-1] in ['HH','VV']])
+else:
+    pol = opts.polarisation.split(',')
+
+for opts.polarisation in pol:
+
+    output_filename = opts.outfilebase + '_' + antenna.name + '_' + opts.polarisation + '_' + '%.0f'%data['frequency'][0]
+
+    # Compute the gains from the data and fill the data recarray with the values
+    gain = compute_gain(data,opts.polarisation)
+
+    Tsys, SEFD, e = None, None, None
+    # Get TSys, SEFD if we have meaningful units
     if opts.units=="K":
-        e = (gain -  g_0*np.exp(-tau/np.sin(el)) + g_0)*(2761/(np.pi*(antenna.diameter/2.0)**2))*100
-    gain = gain/(np.exp(-tau/np.sin(el)))
+        e, Tsys, SEFD = compute_tsys_sefd(data, gain, antenna,opts.polarisation)
+
+    # Determine "good" data to use for fitting and plotting
+    good = determine_good_data(data, antenna, targets=opts.targets, tsys=Tsys, tsys_lim=opts.tsys_lim, 
+                            eff=e, eff_lim=[opts.eff_min,opts.eff_max], units=opts.units,
+                            condition_select=opts.condition_select, pol=opts.polarisation)
+
+    # Check if we have flagged all the data
+    if np.sum(good)==0:
+        print('Pol: %s, All data flagged according to selection criteria.'%opts.polarisation)
+        continue
+
+    # Obtain desired elevations in radians
+    az, el = angle_wrap(katpoint.deg2rad(data['azimuth'])), katpoint.deg2rad(data['elevation'])
+
+    # Get a fit of an atmospheric absorption model if units are in "K", otherwise use weather data to estimate 
+    # opacity for each data point
+    if opts.units=="K":
+        g_0, tau = fit_atmospheric_absorption(gain[good],el[good])
+    else:
+        tau=np.array([])
+        for opacity_info in data:
+            tau=np.append(tau,(calc_atmospheric_opacity(opacity_info['temperature'],opacity_info['humidity']/100, 
+                                            antenna.observer.elevation/1000, opacity_info['frequency']/1000.0)))
+        g_0 = None
+
+    T_atm, T_rec = None, None
+    # Fit T_atm and T_rec using atmospheric emission model for single dish case
+    if opts.units=="K":
+        T_atm, T_rec = fit_atmospheric_emission(Tsys[good],el[good],tau)
+
+    #remove the effect of atmospheric attenuation from the data
+    if opts.correct_atmosphere:
+        if opts.units=="K":
+            e = (gain -  g_0*np.exp(-tau/np.sin(el)) + g_0)*(2761/(np.pi*(antenna.diameter/2.0)**2))*100
+        gain = gain/(np.exp(-tau/np.sin(el)))
 
 
-# Make a report describing the results (no Tsys data if interferometric)
-make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, 
+    # Make a report describing the results (no Tsys data if interferometric)
+    make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, 
                     Tsys=Tsys, SEFD=SEFD, T_atm=T_atm, T_rec=T_rec)
