@@ -1,35 +1,33 @@
-from fabric.api import sudo, task, settings, env
+from fabric.api import sudo, task, settings, env, hosts
 import rts_common_deploy
 
 #Set environment and hostnames
-env.hosts = []
+env.hosts = ['kat@192.168.6.174']
 env.password = 'kat'
 
 # Deb packages
-DEB_PKGS = [ 'python-dev',                                                        #general
+DEB_PKGS = [ 'python-dev',                                                               #general
                     'gfortran libatlas-base-dev libblas-dev libexpat1-dev',
                     'git git-man',                                                       #git
                     'python-pip python-setuptools python-pkg-resources',                 #pip
-                    'libhdf5-dev',                                                       #h5py
-                    'libpng12-dev libfreetype6-dev zlib1g-dev',                          #Matplotlib
                     'subversion', 'nfs-kernel-server',
-                    'tree'
+                    'ipython python-numpy python-scipy python-h5py', 
+                    'python-matplotlib python-pyfits python-pandas',                     #python stuff
+                    'tree'                    
                     ]
 
 # Pip packages
-PIP_PKGS = ['ipython',
-                   'numpy','scipy',                                                       #numpy/scipy
-                   'h5py', 'scikits.fitting',
-                   'matplotlib', 'pyfits']
+PIP_PKGS = ['scikits.fitting','pyephem','katcp','mplh5canvas','guppy']
 
-# git packages
-SKA_GIT_PKGS = ['katpoint','katdal','katholog','katsdpscripts','katsdpworkflow','scape']
+# SKA git packages
+SKA_GIT_PKGS = ['katpoint','katdal','PySPEAD','katsdpdisp']
 
 @task
+@hosts(env.hosts)
 def deploy():
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
-        sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
+        sudo('apt-get -y update')
 
     #install deb packages: thin plooging
     # install ubuntu deb packages
@@ -44,11 +42,8 @@ def deploy():
 
 
 @task
+@hosts(env.hosts)
 def clear():
-    # remove oodt directories and packages
-    rts_common_deploy.remove_oodt_directories()
-    rts_common_deploy.remove_pip_packages('katoodt')
-
     # remove ska-sa git packages
     for pkg in reversed(SKA_GIT_PKGS): rts_common_deploy.remove_pip_packages(pkg)
 
@@ -59,3 +54,5 @@ def clear():
 
     # remove ubuntu deb packages
     for pkg in reversed(DEB_PKGS): rts_common_deploy.remove_deb_packages(pkg)
+
+    sudo('apt-get -y autoremove')
