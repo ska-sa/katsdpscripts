@@ -63,6 +63,20 @@ def install_git_package(package, repo='ska-sa', login='katpull:katpull4git', bra
     else:
         sudo('pip install '+ flags +' git+https://github.com/'+repo+'/'+package+'.git@'+branch+'#egg='+package)
 
+def retrieve_git_package(package, output_location=None, repo='ska-sa', login='katpull:katpull4git', branch='master', flags=''):
+    """Copy a github repository to a specific location,
+    overwriting contents of the output directory"""
+    # Default package output location is the package name in the current directory
+    if output_location is None:
+        output_location = os.path.join(os.path.curdir,package)
+    # Remove output location
+    sudo('rm -rf '+output_location)
+    print ' ---- Retrieve', package, 'to', output_dir, ' ---- \n'
+    if login:
+        sudo('git clone '+flags+' --branch '+branch+' https://'+login'+@github.com/'+repo+'/'+package+' '+output_location)
+    else:
+        sudo('git clone '+flags+' --branch '+branch+' https://github.com/'+repo+'/'+package+' '+output_location)
+
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
 
