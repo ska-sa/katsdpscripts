@@ -1,4 +1,6 @@
 from fabric.api import sudo, task, hosts, settings, env
+from fabric.contrib import files
+
 import rts_common_deploy
 
 #Set environment and hostnames
@@ -28,6 +30,17 @@ PIP_PKGS = ['pyephem', 'scikits.fitting']
 # SKA private git packages for rts imager
 SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'katsdpworkflow', 'scape']
 
+def configure_celery():
+    CELERYD_CONF='/etc/default/celeryd'
+
+    files.sed(CELERYD_CONF,
+                'CELERYD_USER="celery"',
+                'CELERYD_USER="kat"',
+                use_sudo=True)
+    files.sed(CELERYD_CONF,
+                'CELERYD_GROUP="celery"'
+                'CELERYD_GROUP="kat"'
+                use_sudo=True)
 
 @task
 @hosts(env.hosts)
