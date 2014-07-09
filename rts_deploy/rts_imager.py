@@ -5,9 +5,12 @@ import rts_common_deploy
 env.hosts = ['kat@192.168.6.185']
 env.password = 'kat'
 
-#rts-imager specific data aread
+#rts-imager specific data areas
 STAGING_AREA = '/data/staging_area'
 PROCESS_AREA = '/data/process_area'
+
+#Output location for the workflow manager
+WORKFLOW_AREA = '/var/kat/katsdpworkflow'
 
 # Deb packages for rts-imager
 DEB_PKGS = [ 'python-dev',                                                                           #general
@@ -26,8 +29,7 @@ DEB_PKGS = [ 'python-dev',                                                      
 PIP_PKGS = ['pyephem', 'scikits.fitting']
 
 # SKA private git packages for rts imager
-SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'katsdpworkflow', 'scape']
-
+SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'scape']
 
 @task
 @hosts(env.hosts)
@@ -46,6 +48,9 @@ def deploy():
 
     # install private ska-sa git packages
     for pkg in SKA_PRIVATE_GIT_PKGS: rts_common_deploy.install_git_package(pkg, branch=rts_common_deploy.GIT_BRANCH)
+
+    # pup katsdpworkflow in its final resting place
+    rts_common_deploy.retrieve_git_package('katsdpworkflow',output_location=WORKFLOW_AREA)
 
     # oodt setup and install
     rts_common_deploy.oodt_setup()
