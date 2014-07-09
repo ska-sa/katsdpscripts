@@ -71,9 +71,9 @@ def retrieve_git_package(package, output_location=None, repo='ska-sa', login='ka
         output_location = os.path.join(os.path.curdir,package)
     # Remove output location
     sudo('rm -rf '+output_location)
-    print ' ---- Retrieve', package, 'to', output_dir, ' ---- \n'
+    print '\n ---- Retrieve', package, 'to', output_location, ' ---- \n'
     if login:
-        sudo('git clone '+flags+' --branch '+branch+' https://'+login'+@github.com/'+repo+'/'+package+' '+output_location)
+        sudo('git clone '+flags+' --branch '+branch+' https://'+login+'@github.com/'+repo+'/'+package+' '+output_location)
     else:
         sudo('git clone '+flags+' --branch '+branch+' https://github.com/'+repo+'/'+package+' '+output_location)
 
