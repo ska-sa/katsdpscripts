@@ -17,8 +17,12 @@ import scape
 import katpoint
 import logging
 
-# These packages are only imported once the script options are checked
-plt = widgets = None
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.widgets as widgets
+except ImportError:
+    plt = widgets = None
+
 
 def interp_sensor(compscan, quantity, default):
     """Interpolate environmental sensor data."""
@@ -278,11 +282,6 @@ def analyse_point_source_scans(filename, opts):
         logger.warn("Using baseline '%s' found in CSV file '%s'" % (csv_baseline, opts.keepfilename))
         opts.baseline = csv_baseline
 
-    # Only import matplotlib if not in batch mode
-    if not opts.batch:
-        import matplotlib.pyplot as plt
-        import matplotlib.widgets as widgets
-
     # Avoid loading the data set if it does not appear in specified CSV file
     if keep_datasets and dataset_name not in keep_datasets:
         raise RuntimeError("Skipping dataset '%s' (based on CSV file)" % (filename,))
@@ -336,6 +335,8 @@ def analyse_point_source_scans(filename, opts):
 
     ### INTERACTIVE MODE ###
     else:
+        if not plt:
+            raise ImportError('Interactive use of this script requires matplotlib - please install it or run in batch mode')
         # Set up figure with buttons
         plt.ion()
         fig = plt.figure(1)
