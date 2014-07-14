@@ -3,7 +3,7 @@ from fabric.contrib import files
 
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package, remove_deb_packages
 from rts_common_deploy import make_directory #, remove_dir
-from rts_common_deploy import deploy_oodt_comp_ver_06, deploy_solr, configure_tomcat, deploy_oodt_conf
+from rts_common_deploy import deploy_oodt_comp_ver_06, deploy_solr, configure_tomcat
 from rts_common_deploy import STAGING_HOME, STAGING_INGEST, STAGING_FAILED, ARCHIVE_DATA, SOLR_COLLECTIONS_HOME, RTS_DATA, OODT_HOME, OODT_CONF, VAR_KAT
 from rts_common_deploy import GIT_BRANCH
 import os
@@ -98,7 +98,6 @@ def make_directory_trees():
 def deploy_oodt():
     deploy_oodt_comp_ver_06("cas-filemgr")
     deploy_oodt_comp_ver_06("cas-crawler")
-    deploy_oodt_conf("branches/oodt_0_6_upgrade")
     deploy_solr()
     configure_tomcat()
 
