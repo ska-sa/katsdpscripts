@@ -283,6 +283,11 @@ def analyse_point_source_scans(filename, opts):
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
 
+    # Produce canonical version of baseline string (remove duplicate antennas)
+    baseline_ants = opts.baseline.split(',')
+    if len(baseline_ants) == 2 and baseline_ants[0] == baseline_ants[1]:
+        opts.baseline = baseline_ants[0]
+
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
     if opts.keepfilename:
@@ -302,8 +307,8 @@ def analyse_point_source_scans(filename, opts):
         opts.batch = True
         logger.debug("Loaded CSV file '%s' containing %d dataset(s) and %d compscan(s) for antenna '%s'" %
                      (opts.keepfilename, len(keep_datasets), len(keep_scans), ant_name))
-        # Ensure we are using antenna found in CSV file (assume ant name = "ant" + number)
-        csv_baseline = 'A%sA%s' % (ant_name[3:], ant_name[3:])
+        # Ensure we are using antenna found in CSV file (this assumes single dish setup for now)
+        csv_baseline = ant_name
         if opts.baseline != 'sd' and opts.baseline != csv_baseline:
             logger.warn("Requested baseline '%s' does not match baseline '%s' in CSV file '%s'" %
                         (opts.baseline, csv_baseline, opts.keepfilename))
