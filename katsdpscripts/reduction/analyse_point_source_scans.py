@@ -166,6 +166,28 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     output_dict.update(var_std)
     return output_dict
 
+
+class SuppressErrors(object):
+    """Don't crash on exceptions but at least report them."""
+    def __init__(self, logger):
+        self.logger = logger
+
+    def __enter__(self):
+        """Enter the error suppression context."""
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the error suppression context, reporting any errors."""
+        if exc_value is not None:
+            exc_msg = str(exc_value)
+            msg = "Reduction interrupted by exception (%s%s)" % \
+                  (exc_value.__class__.__name__,
+                   (": '%s'" % (exc_msg,)) if exc_msg else '')
+            self.logger.error(msg, exc_info=True)
+        # Suppress those exceptions
+        return True
+
+
 def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **kwargs):
     """Reduce compound scan, update the plots in given figure and save reduction output when done."""
     # Save reduction output and return after last compound scan is done
@@ -196,50 +218,56 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
 
     # Reduce current compound scan if results are not cached
     if not reduced_data[current_compscan]:
-        reduced_data[current_compscan] = reduce_compscan_with_uncertainty(dataset, current_compscan,
-                                                                          opts.mc_iterations, opts.batch, **kwargs)
+        with SuppressErrors(kwargs['logger']):
+            reduced_data[current_compscan] = reduce_compscan_with_uncertainty(dataset, current_compscan,
+                                                                              opts.mc_iterations, opts.batch, **kwargs)
 
     # Display compound scan
     if fig:
-        out = reduced_data[current_compscan]
-        # Display uncertainties if we are doing Monte Carlo
-        if opts.mc_iterations > 1:
-            offset_az = u"%.1f\u00B1%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
-            offset_el = u"%.1f\u00B1%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
-            beam_width = u"%.1f\u00B1%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
-            beam_height = u"%.2f\u00B1%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
-            baseline_height = u"%.1f\u00B1%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
-        else:
-            offset_az, offset_el = "%.1f" % (60. * out['delta_azimuth'],), "%.1f" % (60. * out['delta_elevation'],)
-            beam_width, beam_height = "%.1f" % (60. * out['beam_width_I'],), "%.2f" % (out['beam_height_I'],)
-            baseline_height = "%.1f" % (out['baseline_height_I'],)
         ax1, ax2, info, counter = fig.axes[0], fig.axes[1], fig.texts[0], fig.texts[1]
         ax1.clear()
-        scape.plot_compound_scan_in_time(out['compscan'], ax=ax1)
-        ax1.set_title(("%(dataset)s %(antenna)s '%(target)s'\nazel=(%(azimuth).1f, %(elevation).1f) deg, " % out) +
-                      (u"offset=(%s, %s) arcmin" % (offset_az, offset_el)), size='medium')
-        ax1.set_ylabel('Total power (%(data_unit)s)' % out)
         ax2.clear()
-        scape.plot_compound_scan_on_target(out['compscan'], ax=ax2)
         if opts.plot_spectrum:
             ax3 = fig.axes[2]
             ax3.clear()
-            scape.plot_xyz(out['unavg_dataset'], 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
-        if out['compscan'].beam:
-            info.set_text((u"Beamwidth = %s' (expected %.1f')\nBeam height = %s %s\n"
-                           u"HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %s %s") %
-                          (beam_width, 60. * out['beam_expected_width_I'], beam_height, out['data_unit'],
-                           out['flux'] / out['beam_height_HH'], out['flux'] / out['beam_height_VV'], out['data_unit'],
-                           baseline_height, out['data_unit']))
+        out = reduced_data[current_compscan]
+        if 'compscan' in out:
+            # Display uncertainties if we are doing Monte Carlo
+            if opts.mc_iterations > 1:
+                offset_az = u"%.1f\u00B1%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
+                offset_el = u"%.1f\u00B1%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
+                beam_width = u"%.1f\u00B1%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
+                beam_height = u"%.2f\u00B1%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
+                baseline_height = u"%.1f\u00B1%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
+            else:
+                offset_az, offset_el = "%.1f" % (60. * out['delta_azimuth'],), "%.1f" % (60. * out['delta_elevation'],)
+                beam_width, beam_height = "%.1f" % (60. * out['beam_width_I'],), "%.2f" % (out['beam_height_I'],)
+                baseline_height = "%.1f" % (out['baseline_height_I'],)
+            scape.plot_compound_scan_in_time(out['compscan'], ax=ax1)
+            ax1.set_title(("%(dataset)s %(antenna)s '%(target)s'\nazel=(%(azimuth).1f, %(elevation).1f) deg, " % out) +
+                          (u"offset=(%s, %s) arcmin" % (offset_az, offset_el)), size='medium')
+            ax1.set_ylabel('Total power (%(data_unit)s)' % out)
+            scape.plot_compound_scan_on_target(out['compscan'], ax=ax2)
+            if opts.plot_spectrum:
+                scape.plot_xyz(out['unavg_dataset'], 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
+            if out['compscan'].beam:
+                info.set_text((u"Beamwidth = %s' (expected %.1f')\nBeam height = %s %s\n"
+                               u"HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %s %s") %
+                              (beam_width, 60. * out['beam_expected_width_I'], beam_height, out['data_unit'],
+                               out['flux'] / out['beam_height_HH'], out['flux'] / out['beam_height_VV'], out['data_unit'],
+                               baseline_height, out['data_unit']))
+            else:
+                info.set_text(u"No beam\nBaseline height = %s %s" % (baseline_height, out['data_unit']))
         else:
-            info.set_text(u"No beam\nBaseline height = %s %s" % (baseline_height, out['data_unit']))
+            info.set_text(u"Reduction failed")
         counter.set_text("compscan %d of %d" % (current_compscan + 1, len(reduced_data)))
         plt.draw()
 
     # Reduce next compound scan so long, as this will improve interactiveness (i.e. next plot will be immediate)
     if (current_compscan < len(reduced_data) - 1) and not reduced_data[current_compscan + 1]:
-        reduced_data[current_compscan + 1] = reduce_compscan_with_uncertainty(dataset, current_compscan + 1,
-                                                                              opts.mc_iterations, opts.batch, **kwargs)
+        with SuppressErrors(kwargs['logger']):
+            reduced_data[current_compscan + 1] = reduce_compscan_with_uncertainty(dataset, current_compscan + 1,
+                                                                                  opts.mc_iterations, opts.batch, **kwargs)
 
 def analyse_point_source_scans(filename, opts):
     dataset_name = os.path.splitext(os.path.basename(filename))[0]
@@ -316,7 +344,7 @@ def analyse_point_source_scans(filename, opts):
         dataset.antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
 
     # Initialise the output data cache (None indicates the compscan has not been processed yet)
-    reduced_data = [None] * len(scan_dataset.compscans)
+    reduced_data = [{} for n in range(len(scan_dataset.compscans))]
 
     ### BATCH MODE ###
 
