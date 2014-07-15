@@ -42,12 +42,15 @@ PIP_PKGS = ['pyephem', 'scikits.fitting']
 # SKA private git packages for rts imager
 SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'scape']
 
-def mount_datadir():
-    make_directory('/data')
+def auto_mounts():
     files.append('/etc/fstab',
-                 'UUID=88f7342e-177d-4a9d-af18-b7b669335412 /data ext4  defaults 0 0',
+                 'UUID=88f7342e-177d-4a9d-af18-b7b669335412 /data ext4 defaults 0 0',
+                 use_sudo=True)
+    files.append('/etc/fstab',
+                 '192.168.1.7:/export/archive/data /var/kat/archive nfs _netdev,rw,soft,intr,auto,tcp,bg 0 0',
                  use_sudo=True)
     sudo('mount -a')
+    sudo("if [[ ! -L %s ]]; then ln -s %s %s; fi" % ('/var/kat/archive/data', '/export/archive/data', '/var/kat/archive/data'))
 
 def configure_celery():
     sudo('/etc/init.d/celeryd stop')
@@ -75,9 +78,6 @@ def configure_celery():
                 use_sudo=True)
     sudo('/etc/init.d/celeryd start')
 
-def nfs_mount_archive_dir():
-    pass
-    
 def make_directory_trees():
     make_directory(VAR_KAT)
     make_directory(OODT_HOME)
@@ -93,7 +93,8 @@ def make_directory_trees():
     make_directory(PROCESS_AREA)
     make_directory(CELERY_LOG) #change owner
     make_directory(TOMCAT7_LOG) #change owner
-    
+    make_directory('/data')
+    make_directory('/export/archive/data')
 
 def deploy_oodt():
     deploy_oodt_comp_ver_06("cas-filemgr")
@@ -102,31 +103,46 @@ def deploy_oodt():
     deploy_solr()
     configure_tomcat()
 
+# def export_dc_nfs_staging():
+# #NFS names to put into to the /etc/fstab for remote mounting
+#     files.append('/etc/exports',
+#                  '%s kat-archive.kat.ac.za(rw,sync,no_subtree_check)' % (STAGING_NFS_INGEST),
+#                  use_sudo=True)
+#     sudo('exportfs -a')
+
+def mount_ar_nfs_staging_dirs():
+    NFS_SERV_KAT7 = ':'.join(['kat-dc1.karoo.kat.ac.za', STAGING_NFS_INGEST])
+    files.append('/etc/fstab',
+                 '%s %s nfs rsize=8192,wsize=8192,timeo=14,intr' % (NFS_SERV_KAT7, STAGING_KAT7_NFS),
+                 use_sudo=True)
+    sudo('umount %s' %(STAGING_KAT7_NFS))
+    sudo('mount %s' %(STAGING_KAT7_NFS))
+
 @task
 @hosts(env.hosts)
 def deploy():
-    # update the apt-get database. Warn, rather than abort, if repos are missing
-    with settings(warn_only=True):
-        sudo('apt-get -y update')
-    
-    #install deb packages: thin plooging
-    # install ubuntu deb packages
-    for pkg in DEB_PKGS: install_deb_packages(pkg)
-    
-    #install pip packages: thin plooging
-    # pip install python packages
-    for pkg in PIP_PKGS: install_pip_packages(pkg,flags='-U --no-deps')
-    
-    # install private ska-sa git packages
-    for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
-    
-    mount_datadir()
+    # # update the apt-get database. Warn, rather than abort, if repos are missing
+    # with settings(warn_only=True):
+    #     sudo('apt-get -y update')
+    # 
+    # #install deb packages: thin plooging
+    # # install ubuntu deb packages
+    # for pkg in DEB_PKGS: install_deb_packages(pkg)
+    # 
+    # #install pip packages: thin plooging
+    # # pip install python packages
+    # for pkg in PIP_PKGS: install_pip_packages(pkg,flags='-U --no-deps')
+    # 
+    # # install private ska-sa git packages
+    # for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
+    # 
     make_directory_trees()
-    deploy_oodt()
-    # pip katsdpworkflow and oodt configuration in its final resting place
-    retrieve_git_package('oodt_conf',output_location=OODT_CONF)
-    retrieve_git_package('katsdpworkflow',output_location=WORKFLOW_AREA)
-    configure_celery()
+    auto_mounts()
+    # deploy_oodt()
+    # # pip katsdpworkflow and oodt configuration in its final resting place
+    # retrieve_git_package('oodt_conf',output_location=OODT_CONF)
+    # retrieve_git_package('katsdpworkflow',output_location=WORKFLOW_AREA)
+    # configure_celery()
 
 # @task
 # @hosts(env.hosts)
