@@ -55,6 +55,7 @@ def make_directory_trees():
     make_directory(CAS_FILEMGR_LOG)
     make_directory('/data')
     make_directory('/export/archive/data')
+    make_directory('/home/kat/.config/matplotlib')
 
 def auto_mounts():
     files.append('/etc/fstab',
@@ -92,6 +93,9 @@ def configure_celery():
                 use_sudo=True)
     sudo('/etc/init.d/celeryd start')
 
+def configure_matplotlib():
+    files.append('/home/kat/.config/matplotlib/matplotlibrc',
+                   'backend:Agg')
 @task
 @hosts(env.hosts)
 def deploy():
@@ -124,6 +128,7 @@ def deploy():
     check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc0.d/K07cas-filemgr')
     check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc6.d/K07cas-filemgr')
     sudo('/etc/init.d/cas-filemgr start')
+    configure_matplotlib()
     configure_celery()
 
 # @task
