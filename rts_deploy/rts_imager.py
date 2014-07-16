@@ -15,6 +15,9 @@ env.password = 'kat'
 STAGING_AREA = '/data/staging_area'
 PROCESS_AREA = '/data/process_area'
 
+#area to put katsdpscripts
+SCRIPTS_AREA = '/var/kat/katsdpscripts'
+
 #oodt flavoured directories specific to imager machine
 WORKFLOW_AREA = '/var/kat/katsdpworkflow'
 
@@ -39,7 +42,7 @@ DEB_PKGS = [ 'vim', 'python-dev',                                               
 PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr']
 
 # SKA private git packages for rts imager
-SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'katsdpscripts', 'scape', 'katsdpdata']
+SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'scape', 'katsdpdata']
 
 def deploy_oodt():
     deploy_oodt_comp_ver_06("cas-filemgr")
@@ -75,6 +78,13 @@ def configure_celery():
                 'ENABLED="true"',
                 use_sudo=True)
     files.sed(CELERYD_CONF,
+                'CELERYD_NODES="w1"',
+                'CELERYD_NODES="rts-imager"',
+                use_sudo=True)
+    files.append(CELERYD_CONF,
+                'CELERY_APP="katsdpworkflow"',
+                use_sudo=True)
+    files.sed(CELERYD_CONF,
                 'CELERYD_USER="celery"',
                 'CELERYD_USER="kat"',
                 use_sudo=True)
@@ -87,8 +97,8 @@ def configure_celery():
                 'CELERYD_CHDIR="/var/kat/katsdpworkflow/"',
                 use_sudo=True)
     files.sed(CELERYD_CONF,
-                '#CELERYD_OPTS="--time-limit=300 --concurrency=8"',
-                'CELERYD_OPTS="--concurrency=1',
+                'CELERYD_OPTS="--time-limit=300 --concurrency=8"',
+                'CELERYD_OPTS="--concurrency=1"',
                 use_sudo=True)
     sudo('/etc/init.d/celeryd start')
 
@@ -117,6 +127,11 @@ def deploy():
     # pip katsdpworkflow and oodt configuration in its final resting place
     retrieve_git_package('oodt_conf', output_location=OODT_CONF)
     retrieve_git_package('katsdpworkflow', output_location=WORKFLOW_AREA)
+
+  	# retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
+    retrieve_git_package('katsdpscripts', output_location=SCRIPTS_AREA)
+    install_pip_packages(SCRIPTS_AREA, flags='-U --no-deps')
+
     #auto-startup of filemgr
     check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-filemgr/bin/cas-filemgr'), '/etc/init.d/cas-filemgr')
     check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc2.d/S93cas-filemgr')
