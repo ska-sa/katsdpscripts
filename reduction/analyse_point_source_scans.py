@@ -13,7 +13,8 @@ parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                            "from the compound scans in it. It runs interactively by default, "
                                            "which allows the user to inspect results and discard bad scans.")
 parser.add_option("-a", "--baseline", default='sd',
-                  help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
+                  help="Baseline to load (e.g. 'ant1' for antenna 1 or 'ant1,ant2' for 1-2 baseline), "
+                       "default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", action="store_true",
                   help="Flag to do processing in batch mode without user interaction")
 parser.add_option("-f", "--freq-chans",
