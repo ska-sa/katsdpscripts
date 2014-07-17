@@ -2,8 +2,8 @@ from fabric.api import sudo, task, hosts, settings, env
 from fabric.contrib import files
 
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package, remove_deb_packages
-from rts_common_deploy import make_directory, check_and_make_sym_link #, remove_dir
-from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
+from rts_common_deploy import make_directory, check_and_make_sym_link, auto_start_filemgr
+from rts_common_deploy import deploy_oodt_comp_ver_06
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT #, RTS_DATA, ARCHIVE_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
 from rts_common_deploy import GIT_BRANCH
 
@@ -132,17 +132,11 @@ def deploy():
     retrieve_git_package('oodt_conf', output_location=OODT_CONF)
     retrieve_git_package('katsdpworkflow', output_location=WORKFLOW_AREA)
 
-  	# retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
+    # retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
     retrieve_git_package('katsdpscripts', output_location=SCRIPTS_AREA)
     install_pip_packages(SCRIPTS_AREA, flags='-U --no-deps')
 
-    #auto-startup of filemgr
-    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-filemgr/bin/cas-filemgr'), '/etc/init.d/cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc2.d/S93cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc3.d/S93cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc0.d/K07cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc6.d/K07cas-filemgr')
-    sudo('/etc/init.d/cas-filemgr start')
+    auto_start_filemgr()
     configure_matplotlib()
     configure_celery()
 
