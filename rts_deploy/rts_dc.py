@@ -35,7 +35,7 @@ SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'scape', 'PySPEAD', 'k
 
 TOMCAT7_LOG = '/var/log/tomcat7'
 CAS_FILEMGR_LOG = '/var/log/cas_filemgr'
-CAS_CRAWLER_LOG = '/var/log/cas_filemgr'
+CAS_CRAWLER_LOG = '/var/log/cas_crawler'
 
 # oodt install info
 VAR_KAT = '/var/kat'
