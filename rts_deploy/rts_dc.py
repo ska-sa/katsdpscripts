@@ -7,6 +7,7 @@ import os
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
 from rts_common_deploy import deploy_oodt_comp_ver_06, deploy_solr, configure_tomcat, auto_start_filemgr, auto_start_crawler_rts
 from rts_common_deploy import make_directory, check_and_make_sym_link , site_proxy_configuration
+from rts_common_deploy import ntp_configuration
 from rts_common_deploy import OODT_HOME, OODT_CONF
 from rts_common_deploy import GIT_BRANCH
 
@@ -25,7 +26,7 @@ DEB_PKGS = [ 'vim', 'python-dev',                                               
              'tree', 'pyflakes', 'openjdk-7-jre', 'htop',                         #Other things
              'ipython', 'python-numpy', 'python-scipy', 'python-h5py',
              'python-matplotlib', 'python-pyfits', 'python-pandas', 'python-nose',#python stuff
-             'nfs-common', 'tomcat7', 'nfs-common']
+             'nfs-common', 'tomcat7', 'nfs-common', 'ntp']
 
 # Pip packages for rts-dc
 PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr', 'katcp', 'ProxyTypes']
@@ -102,7 +103,11 @@ def auto_mounts():
                  'kat-archive.karoo.kat.ac.za:/mnt/md3000i/sci_proc/RTS /export/RTS/ nfs4  _netdev,rw,soft,intr,auto,tcp,bg 0 0',
                  use_sudo=True)
     sudo('mount -a')
-    check_and_make_sym_link('/export/RTS', '/var/kat/archive/data/RTS'), 
+    check_and_make_sym_link('/export/RTS', '/var/kat/archive/data/RTS')
+    files.append('/etc/exports',
+                    '/var/kat/data/nfs_staging 192.168.1.50(rw,sync,no_subtree_check)',
+                    use_sudo=True)
+    sudo('exportfs -a')
 
 @task
 @hosts(env.hosts)
@@ -110,20 +115,23 @@ def deploy():
     """Example usage: fab rts_dc.deploy"""
     #configure for proxy access
     site_proxy_configuration()
-    
+
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
         sudo('umount /export/RTS')
         sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
-    
-    # # install ubuntu deb packages
-    # for pkg_list in DEB_PKGS: install_deb_packages(pkg_list)
-    # 
-    # # pip install python packages
-    # for name in PIP_PKGS: install_pip_packages(name)
-    # 
-    # # install private ska-sa git packages
-    # for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
+
+    # install ubuntu deb packages
+    for pkg_list in DEB_PKGS: install_deb_packages(pkg_list)
+
+    # pip install python packages
+    for name in PIP_PKGS: install_pip_packages(name)
+
+    # install private ska-sa git packages
+    for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
+
+    # setup ntp
+    ntp_configuration()
 
     # install oodt and related stuff
     make_directory_trees()
@@ -132,7 +140,6 @@ def deploy():
     auto_start_filemgr()
     auto_start_crawler_rts()
 
-# 
 # @task
 # def clear():
 #     # remove oodt directories and packages

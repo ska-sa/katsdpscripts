@@ -180,3 +180,17 @@ def site_proxy_configuration():
                     'Acquire::http::Proxy "http://proxy.kat.ac.za:3128/";'],
                     use_sudo=True)
 
+def ntp_configuration():
+    sudo('/etc/init.d/ntp stop')
+    files.comment('/etc/ntp.conf',
+               r'^server [0123]\.ubuntu\.pool\.ntp\.org$',
+               use_sudo=True)
+    files.comment('/etc/ntp.conf',
+               r'^server ntp\.ubuntu\.com$',
+               use_sudo=True)
+    files.append('/etc/ntp.conf',
+                 ['', '# KAT NTP servers',
+                  'server ff-ntp.karoo.kat.ac.za prefer minpoll 4 maxpoll 6',
+                  'server katfs.kat.ac.za minpoll 4 maxpoll 6'],
+                   use_sudo=True)
+    sudo('/etc/init.d/ntp start')
