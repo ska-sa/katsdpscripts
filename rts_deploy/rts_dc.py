@@ -125,7 +125,7 @@ def deploy():
     for pkg_list in DEB_PKGS: install_deb_packages(pkg_list)
 
     # pip install python packages
-    for name in PIP_PKGS: install_pip_packages(name)
+    for pkg in PIP_PKGS: install_pip_packages(pkg, flags='-U --no-deps')
 
     # install private ska-sa git packages
     for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
