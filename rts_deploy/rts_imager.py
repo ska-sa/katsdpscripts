@@ -2,7 +2,7 @@ from fabric.api import sudo, task, hosts, settings, env
 from fabric.contrib import files
 
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package, remove_deb_packages
-from rts_common_deploy import make_directory, check_and_make_sym_link, auto_start_filemgr
+from rts_common_deploy import make_directory, check_and_make_sym_link, auto_start_filemgr, auto_start_workflow_rts
 from rts_common_deploy import deploy_oodt_comp_ver_06
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT #, RTS_DATA, ARCHIVE_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
 from rts_common_deploy import GIT_BRANCH
@@ -25,6 +25,7 @@ WORKFLOW_AREA = '/var/kat/katsdpworkflow'
 CELERY_LOG = '/var/log/celery'
 TOMCAT7_LOG = '/var/log/tomcat7'
 CAS_FILEMGR_LOG = '/var/log/cas_filemgr'
+CAS_WOKKFLOWMGR_LOG = '/var/log/cas_workflowmgr'
 
 # Deb packages for rts-imager
 DEB_PKGS = [ 'vim', 'python-dev',                                                 #general
@@ -56,6 +57,7 @@ def make_directory_trees():
     make_directory(PROCESS_AREA)
     make_directory(CELERY_LOG) #change owner
     make_directory(CAS_FILEMGR_LOG)
+    make_directory(CAS_WOKKFLOWMGR_LOG)
     make_directory('/data')
     make_directory('/export/archive/data')
     make_directory('/home/kat/.config/matplotlib')
@@ -137,6 +139,7 @@ def deploy():
     install_pip_packages(SCRIPTS_AREA, flags='-U --no-deps')
 
     auto_start_filemgr()
+    auto_start_workflow_rts()
     configure_matplotlib()
     configure_celery()
 

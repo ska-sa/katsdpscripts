@@ -165,7 +165,15 @@ def auto_start_crawler_rts():
     check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc3.d/S94cas-crawler-rts')
     check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc0.d/K08cas-crawler-rts')
     check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc6.d/K08cas-crawler-rts')
-    sudo('/etc/init.d/cas-filemgr start')
+    sudo('/etc/init.d/cas-crawler-rts start')
+
+def auto_start_workflow_rts():
+    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-workflow/bin/cas-workflowmgr'), '/etc/init.d/cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc2.d/S94cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc3.d/S94cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc0.d/K08cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc6.d/K08cas-workflowmgr')
+    sudo('/etc/init.d/cas-workflowmgr start')
 
 def site_proxy_configuration():
     files.append('/etc/profile',
