@@ -2,7 +2,7 @@ from fabric.api import sudo, task, settings, env, hosts
 import rts_common_deploy
 
 #Set environment and hostnames
-env.hosts = ['kat@192.168.6.174']
+env.hosts = ['kat@10.98.2.10']#['kat@192.168.6.174']
 env.password = 'kat'
 
 # Deb packages
