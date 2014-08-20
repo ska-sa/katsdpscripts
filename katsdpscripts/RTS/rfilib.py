@@ -89,6 +89,23 @@ def getbackground_spline(data,spike_width):
 
     return(thisfitted_data)
 
+def getbackground_opening_filter():
+    """ Determine the background in a 1d array of data using an opening filter.
+        This is the process of "erosion" - filtering the array by the minimum
+        of the elements in a small area around a given element
+        followed by the process of "dilation" -filtering the array by the minimum
+        of the elements in a small area around a given element
+        the size of the area chosen should correspond to the expected spike width
+        in the data.
+    """
+
+    
+
+
+
+    return(thisfitted_data)
+
+
 def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
     pltobj.axvspan(1674e6,1677e6, alpha=0.3, color='grey')#Meteosat
     pltobj.axvspan(1667e6,1667e6, alpha=0.3, color='grey')#Fengun
