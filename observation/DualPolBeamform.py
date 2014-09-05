@@ -263,8 +263,12 @@ with verify_and_connect(opts) as kat:
         time.sleep(opts.target_duration)
         user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
         # End all receivers
-        user_logger.info('safely stopping receivers and tearing down')
-        katcp_bfX.rx_stop()
+        for beam in beams.keys():
+            user_logger.info('safely stopping receivers and tearing down beam %s' % beam)
+            if beam == 'bf0': katcp_bfX = katcp_bf0
+            elif beam == 'bf1': katcp_bfX = katcp_bf1
+            katcp_bfX.rx_stop()
+            time.sleep(5)
 
         # Stop all transmit
         fbf_obj.capture_stop('bf1')
