@@ -19,7 +19,7 @@ DEB_PKGS = [ 'python-dev',                                                      
                     ]
 
 # Pip packages
-PIP_PKGS = ['scikits.fitting','pyephem','katcp','mplh5canvas','guppy','ProxyTypes']
+PIP_PKGS = ['scikits.fitting','pyephem','katcp','mplh5canvas','guppy','ProxyTypes','mod_pywebsocket']
 
 # SKA git packages
 SKA_GIT_PKGS = ['katpoint','katdal','PySPEAD','katsdpdisp']
