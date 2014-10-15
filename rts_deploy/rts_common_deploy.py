@@ -53,6 +53,12 @@ def remove_pip_packages(packages):
         # we don't get a nice named exception if the package isn't there
         print 'Cannot uninstall \n'
 
+def install_svn_package(package, user, password, base=KAT_SVN_BASE, branch='trunk', flags='-I --no-deps', **kwargs):
+    """install svn package directly using pip"""
+    print ' ---- Install', package, ' ---- \n'
+        sudo('pip install https://'+base+'/'+package+'/'+branch+'/'+package+' --username='+user+' --password='+password)
+        sudo('pip install '+package+'/')
+
 def install_git_package(package, repo='ska-sa', login='katpull:katpull4git', branch='master', flags='-I --no-deps',**kwargs):
     """Install git packages directly using pip"""
     print ' ---- Install', package, ' ---- \n'
@@ -60,6 +66,24 @@ def install_git_package(package, repo='ska-sa', login='katpull:katpull4git', bra
         sudo('pip install '+ flags +' git+https://'+login+'@github.com/'+repo+'/'+package+'.git'+'@'+branch+'#egg='+package)
     else:
         sudo('pip install '+ flags +' git+https://github.com/'+repo+'/'+package+'.git@'+branch+'#egg='+package)
+
+def retrieve_svn_package(package, user=None, password=None, base=KAT_SVN_BASE, revision=None, output_location=None):
+	"""Copy an svn repository to a specific location,
+	overwriting contents of the output directory"""
+	# Default package output location is the package name in the current directory
+    if output_location is None:
+        output_location = os.path.join(os.path.curdir,package)
+	# Remove output location
+    sudo('rm -rf '+output_location)
+    print '\n ---- Retrieve', package, 'to', output_location, ' ---- \n'
+    svn_command = 'svn co https://'+base+'/'+package+' '+output_location
+    if user is not None:
+    	svn_command += ' --username='+user
+    if password is not None:
+    	svn_command += ' --password='+password
+    if revision is not None:
+    	svn_command += ' --revision='+str(revision)
+    sudo(svn_command)
 
 def retrieve_git_package(package, output_location=None, repo='ska-sa', login='katpull:katpull4git', branch='master', flags=''):
     """Copy a github repository to a specific location,
@@ -74,6 +98,10 @@ def retrieve_git_package(package, output_location=None, repo='ska-sa', login='ka
         run('git clone '+flags+' --branch '+branch+' https://'+login+'@github.com/'+repo+'/'+package+' '+output_location)
     else:
         run('git clone '+flags+' --branch '+branch+' https://github.com/'+repo+'/'+package+' '+output_location)
+
+def configure_and_make(path,):
+	"""Run configure and make in a given path"""
+	
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
