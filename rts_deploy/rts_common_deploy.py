@@ -1,4 +1,4 @@
-from fabric.api import sudo, run, env
+from fabric.api import sudo, run, env, cd
 from fabric.contrib import files
 import os
 
@@ -95,13 +95,21 @@ def retrieve_git_package(package, output_location=None, repo='ska-sa', login='ka
     sudo('rm -rf '+output_location)
     print '\n ---- Retrieve', package, 'to', output_location, ' ---- \n'
     if login:
-        run('git clone '+flags+' --branch '+branch+' https://'+login+'@github.com/'+repo+'/'+package+' '+output_location)
+        sudo('git clone '+flags+' --branch '+branch+' https://'+login+'@github.com/'+repo+'/'+package+' '+output_location)
     else:
-        run('git clone '+flags+' --branch '+branch+' https://github.com/'+repo+'/'+package+' '+output_location)
+        sudo('git clone '+flags+' --branch '+branch+' https://github.com/'+repo+'/'+package+' '+output_location)
 
-def configure_and_make(path,):
+def configure_and_make(path, configure_options=None, make_options=None):
 	"""Run configure and make in a given path"""
-	
+	configure_command='configure'
+	if configure_options is not None:
+		configure_command += ' ' + configure_options
+	if make_options is not None:
+		make_command += ' ' + make_options
+	#run configure and make
+	with cd(path):
+		sudo(configure_command)
+		sudo(make_command)
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
