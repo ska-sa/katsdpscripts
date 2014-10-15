@@ -2,7 +2,7 @@ from fabric.api import sudo, task, hosts, settings, env
 from fabric.contrib import files
 
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
-from rts_common_deploy import remove_deb_packages, retrieve_svn_package, configure_and_make
+from rts_common_deploy import remove_deb_packages, retrieve_svn_package, install_svn_package, configure_and_make
 from rts_common_deploy import make_directory, check_and_make_sym_link #, remove_dir
 from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT #, RTS_DATA, ARCHIVE_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
@@ -52,25 +52,58 @@ PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr']
 # SKA private git packages for rts imager
 SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'scape', 'katsdpdata']
 
+# AIPS Tasks to retrieve using AIPSLite
+AIPS_TASKS = ['FILAIP','FITTP','LWPLA','POSSM','SNPLT','UVFLG','UVPLT']
+AIPS_VERSION = '31DEC14'
+AIPS_DIR = '/usr/local/aips'
+
+def deploy_k7contpipe():
+	"""
+	Install the KAT-7 continuum pipeline and its dependencies.
+	"""
+	#install_svn_package('research/obit_imager')
+	#deploy_obit()
+	#Setup .katimrc
+	#katimrc=['[KATPIPE]','aips_dir = ','aips_version = ','scratch_area = ','metadata_dir = ']
+	#files.append('/home/kat/.katimrc',katimrc)
+	#Get static data
+	#retrieve_svn_package('research/obit_imager/FITS')
+	#sudo('cp ')
+	deploy_aips()
+
 def deploy_obit():
 	"""
-	Checkout a skeletal form of a specific obit revision which is just enough to get the
+	Checkout a skeletal form of a specific Obit revision which is just enough to get the
 	kat-7 continuum pipeline to run.
 	"""
 	#Make a dir for obit
 	sudo('mkdir ' + OBIT_INSTALL)
-
 	#Extract the Obit repo from svn
 	retrieve_svn_package('ObitSystem', base=OBIT_SVN_BASE, revision=OBIT_REVISION, output_location=OBIT_INSTALL)
-
 	#Configure and make the base Obit package
 	configure_and_make(OBIT_INSTALL + '/ObitSystem/Obit')
-	
 	#Copy the data from ObitTalk into Obits python setup
 	sudo('cp -r' + OBIT_INSTALL + '/ObitSystem/ObitTalk/python ' + OBIT_INSTALL + '/ObitSystem/Obit/python')
-
 	#Add Obits python module to sys.paths
-	files.append('/usr/local/lib/python2.7/dist-packages/Obit.pth',OBIT_INSTALL + '/ObitSystem/ObitTalk/python')
+	files.append('/usr/local/lib/python2.7/dist-packages/Obit.pth', OBIT_INSTALL + '/ObitSystem/ObitTalk/python', use_sudo=True)
+
+def deploy_aips():
+	"""
+	Construct a minimal AIPS installation that can run the Obit pipeline.
+	Use AIPSLite, to get package. AIPSLite should have been installed 
+	"""
+	try:
+		from katim import AIPSLite
+	except:
+		raise ImportError('AIPSLite is not installed. Install the KAT-7 Obit pipeline first.')
+	# Set up AIPS
+	sudo('mkdir ' + AIPS_DIR)
+	AIPSLite.get_aips(basedir=AIPS_DIR,version=AIPS_VERSION)
+	# Download Packages
+	AIPSLite.get_task(AIPS_TASKS)
+	# AIPS needs environment variables set up in ~/.katimrc
+	files.append('/home/kat/.katimrc','aips_dir = ' + AIPS_DIR)
+	files.append('/home/kat/.katimrc','aips_version = ' + AIPS_VERSION)
 
 def deploy_oodt():
     deploy_oodt_comp_ver_06("cas-filemgr")
