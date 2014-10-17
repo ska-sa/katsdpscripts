@@ -1,9 +1,13 @@
 from fabric.api import sudo, run, env, cd
 from fabric.contrib import files
+import tempfile, shutil
 import os
 
 #GIT branch to use for deployment
 GIT_BRANCH = 'master'
+
+#Default location of Kat-7 svn repository
+KAT_SVN_BASE = 'katfs.kat.ac.za'
 
 # oodt install info
 VAR_KAT = '/var/kat'
@@ -53,11 +57,14 @@ def remove_pip_packages(packages):
         # we don't get a nice named exception if the package isn't there
         print 'Cannot uninstall \n'
 
-def install_svn_package(package, user, password, base=KAT_SVN_BASE, branch='trunk', flags='-I --no-deps', **kwargs):
-    """install svn package directly using pip"""
+def install_svn_package(package, user=None, password=None, base=KAT_SVN_BASE, flags='-I --no-deps', repo='svnDS', revision=None, **kwargs):
+    """install svn package"""
     print ' ---- Install', package, ' ---- \n'
-        sudo('pip install https://'+base+'/'+package+'/'+branch+'/'+package+' --username='+user+' --password='+password)
-        sudo('pip install '+package+'/')
+    #Make a temporary location to store the svn repo
+    tempdir = tempfile.mkdtemp()
+    retrieve_svn_package(package, user=user, password=password, base=base, repo=repo, revision=revision, output_location=tempdir)
+    sudo('pip install '+tempdir)
+    shutil.rmtree(tempdir)
 
 def install_git_package(package, repo='ska-sa', login='katpull:katpull4git', branch='master', flags='-I --no-deps',**kwargs):
     """Install git packages directly using pip"""
@@ -67,16 +74,16 @@ def install_git_package(package, repo='ska-sa', login='katpull:katpull4git', bra
     else:
         sudo('pip install '+ flags +' git+https://github.com/'+repo+'/'+package+'.git@'+branch+'#egg='+package)
 
-def retrieve_svn_package(package, user=None, password=None, base=KAT_SVN_BASE, revision=None, output_location=None):
-	"""Copy an svn repository to a specific location,
-	overwriting contents of the output directory"""
-	# Default package output location is the package name in the current directory
+def retrieve_svn_package(package, user=None, password=None, base=KAT_SVN_BASE, repo='svnDS', revision=None, output_location=None):
+    """Copy an svn repository to a specific location,
+    overwriting contents of the output directory"""
+    # Default package output location is the package name in the current directory
     if output_location is None:
         output_location = os.path.join(os.path.curdir,package)
-	# Remove output location
+    # Remove output location
     sudo('rm -rf '+output_location)
     print '\n ---- Retrieve', package, 'to', output_location, ' ---- \n'
-    svn_command = 'svn co https://'+base+'/'+package+' '+output_location
+    svn_command = 'svn co https://'+base+'/'+repo+'/'+package+' '+output_location
     if user is not None:
     	svn_command += ' --username='+user
     if password is not None:
@@ -100,16 +107,18 @@ def retrieve_git_package(package, output_location=None, repo='ska-sa', login='ka
         sudo('git clone '+flags+' --branch '+branch+' https://github.com/'+repo+'/'+package+' '+output_location)
 
 def configure_and_make(path, configure_options=None, make_options=None):
-	"""Run configure and make in a given path"""
-	configure_command='configure'
-	if configure_options is not None:
-		configure_command += ' ' + configure_options
-	if make_options is not None:
-		make_command += ' ' + make_options
-	#run configure and make
-	with cd(path):
-		sudo(configure_command)
-		sudo(make_command)
+    """Run configure and make in a given path"""
+    configure_command='./configure'
+    make_command='make'
+    if configure_options is not None:
+        configure_command += ' ' + configure_options
+    if make_options is not None:
+        make_command += ' ' + make_options
+    print configure_command,make_command
+    #run configure and make
+    with cd(path):
+        sudo(configure_command)
+        sudo(make_command)
 
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
@@ -191,4 +200,10 @@ def configure_tomcat():
                  use_sudo=True)
     sudo('/etc/init.d/tomcat7 start')
 
-
+def rsync(server, path_list, output_base='./', args='--compress --relative --no-motd --progress', force=False):
+    """rsync a list of files from path_list from server to remote machine"""
+    if not force:
+        args = args + ' --ignore-existing'
+    args = args + ' ' + server + '::' + ' '.join(path_list)
+    args.append(output_base)    # Download destination
+    sudo('rsync ' + args)
