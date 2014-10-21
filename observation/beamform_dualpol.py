@@ -7,7 +7,6 @@ from __future__ import with_statement
 
 import time
 import StringIO
-import sys
 import logging
 
 import numpy as np
@@ -168,22 +167,16 @@ parser.set_defaults(description='Beamformer observation', nd_params='off',
 opts, args = parser.parse_args()
 
 ## System: Set up all connections and objects
-sys.stdout.write('Connecting to beamformer receiver server %s...\n' % (server,))
-try:
-    # Create KATCP client that interfaces with receivers on server
-    rx = {}
-    for beam in beams:
-        rx[beam] = fbf.FBFClient(host=server, port=beams[beam]['rx_port'],
-                                 timeout=60, logger=logging.getLogger('katcp'))
-    while not all([rx[beam].is_connected() for beam in beams]):
-        sys.stdout.write('Waiting for TCP link between KATCP client and server...\n')
-        sys.stdout.flush()
-        time.sleep(1)
-except Exception as e:
-    sys.stderr.write('ERROR connecting to server %s...\n' % (server,))
-    print e
-    sys.exit(1)
-sys.stdout.write('Connection established to server %s...\n' % (server,))
+user_logger.info('Connecting to beamformer receiver server %r...' % (server,))
+# Create KATCP client that interfaces with receivers on server
+rx = {}
+for beam in beams:
+    rx[beam] = fbf.FBFClient(host=server, port=beams[beam]['rx_port'],
+                             timeout=60, logger=logging.getLogger('katcp'))
+while not all([rx[beam].is_connected() for beam in beams]):
+    user_logger.info('Waiting for TCP link between KATCP client and server...')
+    time.sleep(1)
+user_logger.info('Connection established to server %r' % (server,))
 
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
