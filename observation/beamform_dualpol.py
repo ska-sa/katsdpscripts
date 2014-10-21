@@ -15,7 +15,6 @@ import numpy as np
 
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger, ant_array)
-import katpoint
 import fbf_katcp_wrapper as katcp
 
 
@@ -42,12 +41,14 @@ def select_ant(cbf, ant, bf='bf0'):
 
 
 def get_weights(cbf):
-    weights = {}
+    """Retrieve the latest gain corrections and their corresponding update times."""
+    weights, times = {}, {}
     for sensor_name in vars(cbf.sensor):
         if sensor_name.endswith('_gain_correction_per_channel'):
             sensor = getattr(cbf.sensor, sensor_name)
             weights[sensor_name.split('_')[1]] = sensor.get_value()
-    return weights
+            times[sensor_name.split('_')[1]] = sensor.value_seconds
+    return weights, times
 
 
 def phase_up(cbf, weights, ants=None, bf='bf0', phase_only=True, scramble=False):
@@ -67,20 +68,6 @@ def phase_up(cbf, weights, ants=None, bf='bf0', phase_only=True, scramble=False)
                     status += ' scrambled'
                 weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real, w.imag))
                                         for w in norm_weights])
-        else:
-            weights_str = ' '.join(1024 * ['0'])
-            status += ' zeroed'
-        cbf.req.dbe_k7_beam_weights(bf, inp, weights_str)
-        user_logger.info(status)
-
-
-def natural_weights(cbf, ants=None, bf='bf0'):
-    """Assign a natural weight of 1 to a group of antennas."""
-    for inp in bf_inputs(cbf, bf):
-        status = 'beamformer input ' + inp + ':'
-        if (ants is None or inp in ants):
-            weights_str = ' '.join(1024 * ['1'])
-            status += ' unity'
         else:
             weights_str = ' '.join(1024 * ['0'])
             status += ' zeroed'
@@ -128,8 +115,6 @@ parser.add_option('--half-band', action='store_true', default=False,
                   help='Use only inner 50% of otuput band')
 parser.add_option('--transpose', action='store_true', default=False,
                   help='Transpose time frequency blocks from correlator')
-parser.add_option('--phase-once', action='store_true', default=False,
-                  help='Transpose time frequency blocks from correlator')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off',
                     dump_rate=1.0, mode='bc16n400M1k')
@@ -165,8 +150,6 @@ for beam in beams:
 if len(args) == 0:
     raise ValueError("Please specify the target (and optionally calibrator) "
                      "to observe as arguments")
-cal_targets = []
-done = False
 with verify_and_connect(opts) as kat:
     cbf = kat.dbe7
     for beam in beams:
@@ -175,118 +158,120 @@ with verify_and_connect(opts) as kat:
     ants = ant_array(kat, opts.ants)
     for beam in beams:
         obs_meta[beam]['ants'] = [(ant.name + beams[beam]['pol']) for ant in ants]
-    observation_sources = collect_targets(kat, args[:1])
-    if len(args) > 1:
-        cal_targets = collect_targets(kat, args[1:]).targets
+    # We are only interested in the first target
+    user_logger.info('Looking up main beamformer target...')
+    target = collect_targets(kat, args[:1]).targets[0]
+    # Pick the closest cal target that is up (if provided)
+    user_logger.info('Looking up any calibrator target(s)...')
+    try:
+        cal_targets = collect_targets(kat, args[1:])
+    except ValueError:
+        cal_targets = None
+    if cal_targets:
+        cal_target = cal_targets.filter(el_limit_deg=opts.horizon).closest_to(target)[0]
+        # Ensure that cal target will be recognised as one and has model
+        cal_target.add_tags('gaincal')
+        if not cal_target.flux_model:
+            raise ValueError("Calibrator %r has no flux density model" %
+                             (cal_target.description,))
+    else:
+        cal_target = None
+    # Ensure that the target is up
+    target_elevation = np.degrees(target.azel()[1])
+    if target_elevation < opts.horizon:
+        raise ValueError("The desired target to be observed is below the horizon")
+    for beam in beams:
+        obs_meta[beam]['target'] = target.description
 
-    for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
+    # Refresh beamformer weights if cal and at least 4 antennas are provided
+    if cal_target and len(ants) >= 4:
+        user_logger.info('Obtaining beamformer weights on calibrator source %r' %
+                         (cal_target.name))
         for beam in beams:
-            obs_meta[beam]['target'] = target.description
+            obs_meta[beam]['cal_target'] = cal_target.description
+        with start_session(kat, **vars(opts)) as session:
+            session.standard_setup(**vars(opts))
+            session.capture_start()
+            session.label('track')
+            session.track(cal_target, duration=opts.cal_duration)
 
-        # Phase up for each target
-        if not done:
-            if opts.phase_once: done=True
-            # Determine beamformer weights if calibrator is provided
-            if len(cal_targets) > 0 and len(ants) > 4: # must have at least 5 antennas for phases to be computed
-                if len(cal_targets) > 1: # find closest calibrator source
-                    dist = []
-                    for cal_target in cal_targets:
-                        ra2 = float(katpoint.rad2deg(cal_target.radec()[0])-katpoint.rad2deg(target.radec()[0]))*(katpoint.rad2deg(cal_target.radec()[0])-katpoint.rad2deg(target.radec()[0]))
-                        dec2 = float(katpoint.rad2deg(cal_target.radec()[1])-katpoint.rad2deg(target.radec()[1]))*(katpoint.rad2deg(cal_target.radec()[1])-katpoint.rad2deg(target.radec()[1]))
-                        dist.append(np.sqrt(ra2+dec2))
-                    cal_target = cal_targets[np.argmin(dist)]
-                else: cal_target = cal_targets[0]
-                cal_target = cal_target.add_tags('gaincal')
-                user_logger.info('Obtaining beamformer weights on calibrator source %r' %
-                                 (cal_target.name))
-                if not cal_target.flux_model:
-                    raise ValueError("Calibrator '%s' has no flux density model" %
-                                     (cal_target.description,))
-                for beam in beams:
-                    obs_meta[beam]['cal_target'] = cal_target.description
-                with start_session(kat, **vars(opts)) as session:
-                    session.standard_setup(**vars(opts))
-                    session.capture_start()
-                    session.label('track')
-                    session.track(cal_target, duration=opts.cal_duration)
+    # Phase up beamformer using latest weights (but check age)
+    user_logger.info('Phasing up beamformer based on %d antennas' % (len(ants),))
+    weights, weight_times = get_weights(cbf)
+    if not weights:
+        raise ValueError('No beamformer weights are available')
+    inputs = [ant.name + pol for ant in ants for pol in ('h', 'v')]
+    age = time.time() - min(weight_times[inp] for inp in inputs)
+    if age > 2 * 60 * 60:
+        user_logger.warning('Beamformer weights are %d hours old, using them anyway' % (age / 60 / 60,))
+    for beam in beams:
+        phase_up(cbf, weights, ants=[(ant.name + beams[beam]['pol']) for ant in ants],
+                 bf=beam, phase_only=not opts.fix_amp)
+        time.sleep(1)
 
-                user_logger.info('Phasing up beamformer based on %d antennas' % (len(ants),))
-                weights = get_weights(cbf)
-                time.sleep(5)
-                if not weights:
-                    raise ValueError('No beamformer weights are available')
-                for beam in beams:
-                    phase_up(cbf, weights, ants=[(ant.name + beams[beam]['pol']) for ant in ants],
-                             bf=beam, phase_only=not opts.fix_amp)
-                    time.sleep(1)
+    # Beamformer data capture
+    user_logger.info("Initiating %g-second track on target '%s'" %
+                     (opts.target_duration, target.name))
+    ants.req.target(target)
+    cbf.req.target(target)
+    # We need delay tracking
+    cbf.req.auto_delay()
+    user_logger.info('slewing to target')
+    # Start moving each antenna to the target
+    ants.req.mode('POINT')
+    # Wait until they are all in position (with 5 minute timeout)
+    ants.req.sensor_sampling('lock', 'event')
+    ants.wait('lock', True, 300)
+    user_logger.info('target reached')
 
-            else: # Use natural weighting
-                for beam in beams:
-                    natural_weights(cbf, ants=[(ant.name + beams[beam]['pol']) for ant in ants], bf=beam)
+    # start remote receiver
+    fbf_obj = BeamformerSession(cbf)
+    user_logger.info('Initialising correlator receiver k7')
+    fbf_obj.capture_start('k7')
 
-        # Beamformer data capture
-        user_logger.info("Initiating %g-second track on target '%s'" %
-                         (opts.target_duration, target.name))
-        ants.req.target(target)
-        cbf.req.target(target)
-        # We need delay tracking
-        cbf.req.auto_delay()
-        user_logger.info('slewing to target')
-        # Start moving each antenna to the target
-        ants.req.mode('POINT')
-        # Wait until they are all in position (with 5 minute timeout)
-        ants.req.sensor_sampling('lock', 'event')
-        ants.wait('lock', True, 300)
-        user_logger.info('target reached')
+    # Starting streams will issue metadata for capture
+    # Allow long 10sec intervals to allow enough time to initiate data capture and to capture metadata
+    # Else there will be collisions between the 2 beams
+    for beam in beams:
+        user_logger.info('Initialising beamformer receiver for beam %s' % (beam,))
+        # Initialise receiver and setup kat-dc2.karoo for output
+        if beam == 'bf0':
+            katcp_bfX = katcp_bf0
+        elif beam == 'bf1':
+            katcp_bfX = katcp_bf1
+        else:
+            raise RuntimeError('Unknown katcp client')
+        if not katcp_bfX.rx_init(beams[beam]['data_drive'], opts.half_band, opts.transpose):
+            raise RuntimeError('\nCould not initialise %s beamformer receiver.\n' % (beam,))
+        # Start metadata receiver before starting data transmit
+        katcp_bfX.rx_meta_init(beams[beam]['meta_port']) # port
+        fbf_obj.capture_start(beam)
+        user_logger.info('beamformer metadata')
+        katcp_bfX.rx_meta(obs_meta[beam]) # additional obs related info
+        user_logger.info('waiting 10s for metadata for stream %s to write' % (beam,))
+        time.sleep(10)
+        # Start transmitting data
+        user_logger.info('beamformer data for beam %s' % (beam,))
+        katcp_bfX.rx_beam(pol=beams[beam]['pol'], port=beams[beam]['data_port'])
+        time.sleep(1)
+    # Capture data
+    user_logger.info('track target for %g seconds' % (opts.target_duration,))
+    time.sleep(opts.target_duration)
+    user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
+    # End all receivers
+    for beam in beams:
+        user_logger.info('safely stopping receivers and tearing down beam %s' % (beam,))
+        if beam == 'bf0':
+            katcp_bfX = katcp_bf0
+        elif beam == 'bf1':
+            katcp_bfX = katcp_bf1
+        katcp_bfX.rx_stop()
+        time.sleep(5)
 
-        # start remote receiver
-        fbf_obj = BeamformerSession(cbf)
-        user_logger.info('Initialising correlator receiver k7')
-        fbf_obj.capture_start('k7')
-
-        # Starting streams will issue metadata for capture
-        # Allow long 10sec intervals to allow enough time to initiate data capture and to capture metadata
-        # Else there will be collisions between the 2 beams
-        for beam in beams:
-            user_logger.info('Initialising beamformer receiver for beam %s' % (beam,))
-            # Initialise receiver and setup kat-dc2.karoo for output
-            if beam == 'bf0':
-                katcp_bfX = katcp_bf0
-            elif beam == 'bf1':
-                katcp_bfX = katcp_bf1
-            else:
-                raise RuntimeError('Unknown katcp client')
-            if not katcp_bfX.rx_init(beams[beam]['data_drive'], opts.half_band, opts.transpose):
-                raise RuntimeError('\nCould not initialise %s beamformer receiver.\n' % (beam,))
-            # Start metadata receiver before starting data transmit
-            katcp_bfX.rx_meta_init(beams[beam]['meta_port']) # port
-            fbf_obj.capture_start(beam)
-            user_logger.info('beamformer metadata')
-            katcp_bfX.rx_meta(obs_meta[beam]) # additional obs related info
-            user_logger.info('waiting 10s for metadata for stream %s to write' % (beam,))
-            time.sleep(10)
-            # Start transmitting data
-            user_logger.info('beamformer data for beam %s' % (beam,))
-            katcp_bfX.rx_beam(pol=beams[beam]['pol'], port=beams[beam]['data_port'])
-            time.sleep(1)
-        # Capture data
-        user_logger.info('track target for %g seconds' % (opts.target_duration,))
-        time.sleep(opts.target_duration)
-        user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
-        # End all receivers
-        for beam in beams:
-            user_logger.info('safely stopping receivers and tearing down beam %s' % (beam,))
-            if beam == 'bf0':
-                katcp_bfX = katcp_bf0
-            elif beam == 'bf1':
-                katcp_bfX = katcp_bf1
-            katcp_bfX.rx_stop()
-            time.sleep(5)
-
-        # Stop all transmit
-        fbf_obj.capture_stop('bf1')
-        fbf_obj.capture_stop('bf0')
-        fbf_obj.capture_stop('k7')
+    # Stop all transmit
+    fbf_obj.capture_stop('bf1')
+    fbf_obj.capture_stop('bf0')
+    fbf_obj.capture_stop('k7')
 
     # Closing and tidy up
     user_logger.info('Tidy up output for bf1')
