@@ -112,34 +112,38 @@ def phase_up(cbf, weights, inputs=None, bf='bf0', style='flatten'):
 
     """
     # Iterate over *all* inputs going into the given beam
-    for inp in bf_inputs(cbf, bf):
+    all_inputs = bf_inputs(cbf, bf)
+    num_inputs = len(all_inputs)
+    for inp in all_inputs:
         status = 'beamformer input ' + inp + ':'
         if (inputs is None or inp in inputs) and inp in weights and weights[inp]:
+            # Extract array of complex weights from string representation
             weights_str = weights[inp]
+            f = StringIO.StringIO(weights_str)
+            orig_weights = np.loadtxt(f, dtype=np.complex, delimiter=' ')
+            amp_weights = np.abs(orig_weights)
+            phase_weights = orig_weights / amp_weights
             if style == 'norm':
+                new_weights = orig_weights
                 status += ' normed'
+            elif style == 'phase':
+                new_weights = phase_weights
+                status += ' phased'
+            elif style == 'flatten':
+                # Get the average gain in the KAT-7 passband
+                avg_amp = np.median(amp_weights[256:768])
+                new_weights = orig_weights / avg_amp
+                status += ' flattened'
+            elif style == 'scramble':
+                new_weights = np.exp(2j * np.pi * np.random.rand(1024))
+                status += ' scrambled'
             else:
-                # Extract array of complex weights from string representation
-                f = StringIO.StringIO(weights_str)
-                weights_arr = np.loadtxt(f, dtype=np.complex, delimiter=' ')
-                amp_weights = np.abs(weights_arr)
-                phase_weights = weights_arr / amp_weights
-                if style == 'phase':
-                    new_weights = phase_weights
-                    status += ' phased'
-                elif style == 'flatten':
-                    # Get the average gain in the KAT-7 passband
-                    avg_amp = np.median(amp_weights[256:768])
-                    new_weights = weights_arr / avg_amp
-                    status += ' flattened'
-                elif style == 'scramble':
-                    new_weights = np.exp(2j * np.pi * np.random.rand(1024))
-                    status += ' scrambled'
-                else:
-                    raise ValueError('Unknown phasing-up style %r' % (style,))
-                # Reconstruct string representation of weights from array
-                weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real, w.imag))
-                                        for w in new_weights])
+                raise ValueError('Unknown phasing-up style %r' % (style,))
+            # Normalise weights by number of inputs to avoid overflow
+            new_weights /= num_inputs
+            # Reconstruct string representation of weights from array
+            weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real, w.imag))
+                                    for w in new_weights])
         else:
             # Zero the inputs that are not in use in the beamformer
             weights_str = ' '.join(1024 * ['0'])
