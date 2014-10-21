@@ -35,7 +35,7 @@ class BeamformerReceiver(fbf.FBFClient):
         self.obs_meta = {}
 
     def __repr__(self):
-        return repr(self.name)
+        return "<BeamformerReceiver %r -> %r at 0x%x>" % (self.name, self.pol, id(self))
 
     @property
     def inputs(self):
@@ -201,26 +201,29 @@ class BeamformerSession(object):
 
     def capture_start(self):
         """Enter the data capturing session, starting capture."""
-        user_logger.info('Starting correlator')
+        user_logger.info('Starting correlator (used for signal displays)')
         self.instrument_start('k7')
         # Starting streams will issue metadata for capture
         # Allow long 10sec intervals to allow enough time to initiate data capture and to capture metadata
         # Else there will be collisions between the 2 beams
         for beam in self.beams:
             # Initialise receiver and setup server for data capture
-            user_logger.info('Initialising receiver and stream for beam %r' % (beam,))
+            user_logger.info('Initialising receiver and stream for beam %r' %
+                             (beam.name,))
             if not beam.rx_init(beam.data_drive, beam.obs_meta['half_band'],
                                 beam.obs_meta['transpose']):
-                raise RuntimeError('Could not initialise %r receiver' % (beam,))
+                raise RuntimeError('Could not initialise %r receiver' %
+                                   (beam.name,))
             # Start metadata receiver before starting data transmit
             beam.rx_meta_init(beam.meta_port) # port
             self.instrument_start(beam.name)
             user_logger.info('beamformer metadata')
             beam.rx_meta(beam.obs_meta) # additional obs related info
-            user_logger.info('waiting 10s to write metadata for beam %r' % (beam,))
+            user_logger.info('waiting 10s to write metadata for beam %r' %
+                             (beam.name,))
             time.sleep(10)
             # Start transmitting data
-            user_logger.info('beamformer data for beam %r' % (beam,))
+            user_logger.info('beamformer data for beam %r' % (beam.name,))
             beam.rx_beam(pol=beam.pol, port=beam.data_port)
             time.sleep(1)
 
@@ -228,12 +231,13 @@ class BeamformerSession(object):
         """Exit the data capturing session, stopping the capture."""
         # End all receivers
         for beam in self.beams:
-            user_logger.info('Stopping receiver and stream for beam %r' % (beam,))
+            user_logger.info('Stopping receiver and stream for beam %r' %
+                             (beam.name,))
             beam.rx_stop()
             time.sleep(5)
             self.instrument_stop(beam.name)
             user_logger.info(beam.rx_close())
-        user_logger.info('Stopping correlator')
+        user_logger.info('Stopping correlator (used for signal displays)')
         self.instrument_stop('k7')
 
 
