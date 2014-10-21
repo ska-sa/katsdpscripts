@@ -149,7 +149,7 @@ parser.add_option('-a', '--ants', default='all',
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
-parser.add_option('-c', '--cal-duration', type='float', default=120,
+parser.add_option('-c', '--cal-duration', type='float', default=70,
                   help='Minimum duration to track calibrator, in seconds '
                        '(default=%default)')
 parser.add_option('--style', type='choice', default='flatten',
