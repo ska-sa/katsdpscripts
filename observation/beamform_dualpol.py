@@ -63,8 +63,11 @@ def select_ant(cbf, input, bf='bf0'):
     """Only use one antenna in specified beamformer."""
     # Iterate over *all* inputs going into the given beam
     for inp in bf_inputs(cbf, bf):
+        status = 'beamformer input ' + inp + ':'
         weight = '1' if inp == input else '0'
+        status += ' kept' if inp == input else ' zeroed'
         cbf.req.dbe_k7_beam_weights(bf, inp, *(1024 * [weight]))
+        user_logger.info(status)
 
 
 def get_weights(cbf):
