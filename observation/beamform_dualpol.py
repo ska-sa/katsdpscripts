@@ -57,14 +57,14 @@ def phase_up(cbf, weights, inputs=None, bf='bf0', style='flatten'):
     The *style* parameter determines how the complex gain corrections obtained
     on the latest calibrator source will be turned into beamformer weights:
 
-      - 'full': Apply the complex gain corrections unchanged as weights,
-        thereby correcting both amplitude and phase per channel.
-      - 'norm': Only apply the phase correction, leaving the weight amplitudes
-        equal to 1 (i.e. normalised). This has the advantage of not boosting
-        weaker inputs and increasing noise levels, but does not flatten band.
+      - 'norm': Apply the complex gain corrections unchanged as weights,
+        thereby normalising both amplitude and phase per channel.
+      - 'phase': Only apply the phase correction, leaving the weight amplitudes
+        equal to 1. This has the advantage of not boosting weaker inputs that
+        will increase the noise level, but it also does not flatten the band.
       - 'flatten': Apply both amplitude and phase corrections, but preserve
         mean gain of each input. This flattens the band while also not boosting
-        noise levels on weaker inputs [default].
+        noise levels on weaker inputs.
       - 'scramble': Apply random phase corrections, just for the heck of it.
 
     Parameters
@@ -77,7 +77,7 @@ def phase_up(cbf, weights, inputs=None, bf='bf0', style='flatten'):
         Names of inputs in use in given beamformer (default=all)
     bf : string, optional
         Name of beamformer instrument (one per polarisation)
-    style : {'flatten', 'full', 'norm', 'scramble'}, optional
+    style : {'flatten', 'norm', 'phase', 'scramble'}, optional
         Processing done to gain corrections to turn them into weights
 
     """
@@ -86,15 +86,17 @@ def phase_up(cbf, weights, inputs=None, bf='bf0', style='flatten'):
         status = 'beamformer input ' + inp + ':'
         if (inputs is None or inp in inputs) and inp in weights and weights[inp]:
             weights_str = weights[inp]
-            if style != 'full':
+            if style == 'norm':
+                status += ' normed'
+            else:
                 # Extract array of complex weights from string representation
                 f = StringIO.StringIO(weights_str)
                 weights_arr = np.loadtxt(f, dtype=np.complex, delimiter=' ')
                 amp_weights = np.abs(weights_arr)
                 phase_weights = weights_arr / amp_weights
-                if style == 'norm':
+                if style == 'phase':
                     new_weights = phase_weights
-                    status += ' normed'
+                    status += ' phased'
                 elif style == 'flatten':
                     # Get the average gain in the KAT-7 passband
                     avg_amp = np.median(amp_weights[256:768])
@@ -151,9 +153,9 @@ parser.add_option('-c', '--cal-duration', type='float', default=120,
                   help='Minimum duration to track calibrator, in seconds '
                        '(default=%default)')
 parser.add_option('--style', type='choice', default='flatten',
-                  choices=('full', 'norm', 'flatten', 'scramble'),
+                  choices=('norm', 'phase', 'flatten', 'scramble'),
                   help="Phasing-up style for beamformer weights: "
-                       "'full' corrects amp+phase, 'norm' corrects phase only, "
+                       "'norm' corrects amp+phase, 'phase' corrects phase only, "
                        "'flatten' corrects amp+phase but with average gain of 1, "
                        "'scramble' applies random phases")
 parser.add_option('--half-band', action='store_true', default=False,
