@@ -59,10 +59,11 @@ def bf_inputs(cbf, bf):
            [m.arguments[0] for m in reply.messages[1:] if m.arguments[3] == bf]
 
 
-def select_ant(cbf, ant, bf='bf0'):
+def select_ant(cbf, input, bf='bf0'):
     """Only use one antenna in specified beamformer."""
+    # Iterate over *all* inputs going into the given beam
     for inp in bf_inputs(cbf, bf):
-        weight = '1' if inp == ant else '0'
+        weight = '1' if inp == input else '0'
         cbf.req.dbe_k7_beam_weights(bf, inp, *(1024 * [weight]))
 
 
@@ -316,20 +317,28 @@ with verify_and_connect(opts) as kat:
         if cal_target and len(ants) >= 4:
             beam.obs_meta['cal_target'] = cal_target.description
 
-    # Get the latest gain corrections from system
-    user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
-    weights, weight_times = get_weights(cbf)
-    if not weights:
-        raise ValueError('No beamformer weights are available')
-    # All inputs in use in beamformer (both polarisations) for checking weight age
-    inputs = reduce(lambda inp, beam: inp + beam.inputs, beams, [])
-    age = time.time() - min(weight_times[inp] for inp in inputs)
-    if age > 2 * 60 * 60:
-        user_logger.warning('Beamformer weights are %d hours old, using them anyway' % (age / 60 / 60,))
-    # Phase up beamformer using latest weights
-    for beam in beams:
-        phase_up(cbf, weights, inputs=beam.inputs, bf=beam, style=opts.style)
-        time.sleep(1)
+    if len(ants) > 1:
+        user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
+        # Get the latest gain corrections from system
+        weights, weight_times = get_weights(cbf)
+        if not weights:
+            raise ValueError('No beamformer weights are available')
+        # All inputs in use in beamformer (both pols), for checking weight age
+        inputs = reduce(lambda inp, beam: inp + beam.inputs, beams, [])
+        age = time.time() - min(weight_times[inp] for inp in inputs)
+        if age > 2 * 60 * 60:
+            user_logger.warning('Beamformer weights are %d hours old, using them anyway' %
+                                (age / 60 / 60,))
+        # Phase up beamformer using latest weights
+        for beam in beams:
+            phase_up(cbf, weights, inputs=beam.inputs, bf=beam, style=opts.style)
+            time.sleep(1)
+    else:
+        # The single-dish case does not need beamforming
+        user_logger.info('Set beamformer weights to select single dish')
+        for beam in beams:
+            select_ant(cbf, input=beam.inputs[0], bf=beam)
+            time.sleep(1)
 
     # Beamformer data capture
     with BeamformerSession(cbf, beams) as bf_session:
