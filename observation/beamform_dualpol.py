@@ -27,7 +27,7 @@ beams = {'bf0': {'pol':'h', 'meta_port':'7152', 'data_port':'7150', 'rx_port':12
 
 
 def bf_inputs(cbf, bf):
-    """Input labels associated with specified beamformer."""
+    """Input labels associated with specified beamformer (*all* inputs)."""
     reply = cbf.req.dbe_label_input()
     return [] if not reply.succeeded else \
            [m.arguments[0] for m in reply.messages[1:] if m.arguments[3] == bf]
@@ -51,24 +51,65 @@ def get_weights(cbf):
     return weights, times
 
 
-def phase_up(cbf, weights, ants=None, bf='bf0', phase_only=True, scramble=False):
-    """Phase up a group of antennas using latest gain corrections."""
+def phase_up(cbf, weights, inputs=None, bf='bf0', style='flatten'):
+    """Phase up a group of antennas using latest gain corrections.
+
+    The *style* parameter determines how the complex gain corrections obtained
+    on the latest calibrator source will be turned into beamformer weights:
+
+      - 'full': Apply the complex gain corrections unchanged as weights,
+        thereby correcting both amplitude and phase per channel.
+      - 'norm': Only apply the phase correction, leaving the weight amplitudes
+        equal to 1 (i.e. normalised). This has the advantage of not boosting
+        weaker inputs and increasing noise levels, but does not flatten band.
+      - 'flatten': Apply both amplitude and phase corrections, but preserve
+        mean gain of each input. This flattens the band while also not boosting
+        noise levels on weaker inputs [default].
+      - 'scramble': Apply random phase corrections, just for the heck of it.
+
+    Parameters
+    ----------
+    cbf : client object
+        Object providing access to CBF (typically via proxy)
+    weights : string->string mapping
+        Gain corrections per input as returned by appropriate sensor
+    inputs : None or sequence of strings, optional
+        Names of inputs in use in given beamformer (default=all)
+    bf : string, optional
+        Name of beamformer instrument (one per polarisation)
+    style : {'flatten', 'full', 'norm', 'scramble'}, optional
+        Processing done to gain corrections to turn them into weights
+
+    """
+    # Iterate over *all* inputs going into the given beam
     for inp in bf_inputs(cbf, bf):
         status = 'beamformer input ' + inp + ':'
-        if (ants is None or inp in ants) and inp in weights and weights[inp]:
+        if (inputs is None or inp in inputs) and inp in weights and weights[inp]:
             weights_str = weights[inp]
-            if phase_only:
+            if style != 'full':
+                # Extract array of complex weights from string representation
                 f = StringIO.StringIO(weights_str)
                 weights_arr = np.loadtxt(f, dtype=np.complex, delimiter=' ')
-                norm_weights = weights_arr / np.abs(weights_arr)
-                status += ' normed'
-                if scramble:
-                    norm_weights *= np.exp(2j * np.pi *
-                                           np.random.rand(len(norm_weights)))
+                amp_weights = np.abs(weights_arr)
+                phase_weights = weights_arr / amp_weights
+                if style == 'norm':
+                    new_weights = phase_weights
+                    status += ' normed'
+                elif style == 'flatten':
+                    # Get the average gain in the KAT-7 passband
+                    avg_amp = np.median(amp_weights[256:768])
+                    new_weights = weights_arr / avg_amp
+                    status += ' flattened'
+                elif style == 'scramble':
+                    new_weights = np.exp(2j * np.pi * np.random.rand(1024))
                     status += ' scrambled'
+                else:
+                    raise ValueError('Unknown phasing-up style %r' % (style,))
+                # Reconstruct string representation of weights from array
                 weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real, w.imag))
-                                        for w in norm_weights])
+                                        for w in new_weights])
         else:
+            # Zero the inputs that are not in use in the beamformer
             weights_str = ' '.join(1024 * ['0'])
             status += ' zeroed'
         cbf.req.dbe_k7_beam_weights(bf, inp, weights_str)
@@ -109,10 +150,14 @@ parser.add_option('-t', '--target-duration', type='float', default=20,
 parser.add_option('-c', '--cal-duration', type='float', default=120,
                   help='Minimum duration to track calibrator, in seconds '
                        '(default=%default)')
-parser.add_option('--fix-amp', action='store_true', default=False,
-                  help='Fix amplitude as well as phase in beamformer weights')
+parser.add_option('--style', type='choice', default='flatten',
+                  choices=('full', 'norm', 'flatten', 'scramble'),
+                  help="Phasing-up style for beamformer weights: "
+                       "'full' corrects amp+phase, 'norm' corrects phase only, "
+                       "'flatten' corrects amp+phase but with average gain of 1, "
+                       "'scramble' applies random phases")
 parser.add_option('--half-band', action='store_true', default=False,
-                  help='Use only inner 50% of otuput band')
+                  help='Use only inner 50% of output band')
 parser.add_option('--transpose', action='store_true', default=False,
                   help='Transpose time frequency blocks from correlator')
 # Set default value for any option (both standard and experiment-specific options)
@@ -154,13 +199,20 @@ with verify_and_connect(opts) as kat:
     cbf = kat.dbe7
     for beam in beams:
         obs_meta[beam] = copy.copy(vars(opts))
-    # Antennas and polarisations forming beamformer
+    # Antennas and polarisations (aka inputs) forming beamformer
     ants = ant_array(kat, opts.ants)
     for beam in beams:
         obs_meta[beam]['ants'] = [(ant.name + beams[beam]['pol']) for ant in ants]
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
     target = collect_targets(kat, args[:1]).targets[0]
+    # Ensure that the target is up
+    target_elevation = np.degrees(target.azel()[1])
+    if target_elevation < opts.horizon:
+        raise ValueError("The desired target to be observed is below the horizon")
+    for beam in beams:
+        obs_meta[beam]['target'] = target.description
+
     # Pick the closest cal target that is up (if provided)
     user_logger.info('Looking up any calibrator target(s)...')
     try:
@@ -176,14 +228,8 @@ with verify_and_connect(opts) as kat:
                              (cal_target.description,))
     else:
         cal_target = None
-    # Ensure that the target is up
-    target_elevation = np.degrees(target.azel()[1])
-    if target_elevation < opts.horizon:
-        raise ValueError("The desired target to be observed is below the horizon")
-    for beam in beams:
-        obs_meta[beam]['target'] = target.description
 
-    # Refresh beamformer weights if cal and at least 4 antennas are provided
+    # Refresh beamformer weights if cal target and at least 4 antennas provided
     if cal_target and len(ants) >= 4:
         user_logger.info('Obtaining beamformer weights on calibrator source %r' %
                          (cal_target.name))
@@ -195,18 +241,19 @@ with verify_and_connect(opts) as kat:
             session.label('track')
             session.track(cal_target, duration=opts.cal_duration)
 
-    # Phase up beamformer using latest weights (but check age)
-    user_logger.info('Phasing up beamformer based on %d antennas' % (len(ants),))
+    # Get the latest gain corrections from system
+    user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
     weights, weight_times = get_weights(cbf)
     if not weights:
         raise ValueError('No beamformer weights are available')
-    inputs = [ant.name + pol for ant in ants for pol in ('h', 'v')]
+    # All inputs in use in beamformer (both polarisations) for checking weight age
+    inputs = reduce(lambda inp, beam: inp + obs_meta[beam]['ants'], beams.keys(), [])
     age = time.time() - min(weight_times[inp] for inp in inputs)
     if age > 2 * 60 * 60:
         user_logger.warning('Beamformer weights are %d hours old, using them anyway' % (age / 60 / 60,))
+    # Phase up beamformer using latest weights
     for beam in beams:
-        phase_up(cbf, weights, ants=[(ant.name + beams[beam]['pol']) for ant in ants],
-                 bf=beam, phase_only=not opts.fix_amp)
+        phase_up(cbf, weights, inputs=obs_meta[beam]['ants'], bf=beam, style=opts.style)
         time.sleep(1)
 
     # Beamformer data capture
