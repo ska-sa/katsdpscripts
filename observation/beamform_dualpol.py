@@ -34,8 +34,8 @@ class BeamformerReceiver(fbf.FBFClient):
         self.data_drive = data_drive
         self.obs_meta = {}
 
-    def __str__(self):
-        return self.name
+    def __repr__(self):
+        return repr(self.name)
 
     @property
     def inputs(self):
@@ -144,24 +144,96 @@ def phase_up(cbf, weights, inputs=None, bf='bf0', style='flatten'):
         user_logger.info(status)
 
 
+def report_compact_traceback(tb):
+    """Produce a compact traceback report."""
+    print '--------------------------------------------------------'
+    print 'Session interrupted while doing (most recent call last):'
+    print '--------------------------------------------------------'
+    while tb:
+        f = tb.tb_frame
+        print '%s %s(), line %d' % (f.f_code.co_filename, f.f_code.co_name, f.f_lineno)
+        tb = tb.tb_next
+    print '--------------------------------------------------------'
+
+
 class BeamformerSession(object):
     """Context manager that ensures that beamformer is switched off."""
-    def __init__(self, cbf):
+    def __init__(self, cbf, beams):
         self.cbf = cbf
+        self.beams = beams
 
-    def capture_start(self, instrument):
-        """Enter the data capturing session, starting capture."""
-        user_logger.info('starting beamformer')
+    def __enter__(self):
+        """Enter the data capturing session."""
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the data capturing session, closing all streams."""
+        if exc_value is not None:
+            exc_msg = str(exc_value)
+            msg = "Session interrupted by exception (%s%s)" % \
+                  (exc_value.__class__.__name__,
+                   (": '%s'" % (exc_msg,)) if exc_msg else '')
+            if exc_type is KeyboardInterrupt:
+                user_logger.warning(msg)
+            else:
+                user_logger.error(msg, exc_info=True)
+        self.capture_stop()
+        # Suppress KeyboardInterrupt so as not to scare the lay user,
+        # but allow other exceptions that occurred in the body of with-statement
+        if exc_type is KeyboardInterrupt:
+            report_compact_traceback(traceback)
+            return True
+        else:
+            return False
+
+    def instrument_start(self, instrument):
+        """Start given CBF instrument."""
         self.cbf.req.dbe_capture_start(instrument)
-        user_logger.info('waiting 10s for stream %s to start'%instrument)
+        user_logger.info('waiting 10s for stream %r to start' % (instrument,))
         time.sleep(10)
 
-    def capture_stop(self, instrument):
-        """Exit the data capturing session, stopping the capture."""
+    def instrument_stop(self, instrument):
+        """Stop given CBF instrument."""
         self.cbf.req.dbe_capture_stop(instrument)
-        user_logger.info('waiting 10s for stream %s to stop'%instrument)
+        user_logger.info('waiting 10s for stream %r to stop' % (instrument,))
         time.sleep(10)
-        user_logger.info('beamformer stopped')
+
+    def capture_start(self):
+        """Enter the data capturing session, starting capture."""
+        user_logger.info('Starting correlator')
+        self.instrument_start('k7')
+        # Starting streams will issue metadata for capture
+        # Allow long 10sec intervals to allow enough time to initiate data capture and to capture metadata
+        # Else there will be collisions between the 2 beams
+        for beam in self.beams:
+            # Initialise receiver and setup server for data capture
+            user_logger.info('Initialising receiver and stream for beam %r' % (beam,))
+            if not beam.rx_init(beam.data_drive, beam.obs_meta['half_band'],
+                                beam.obs_meta['transpose']):
+                raise RuntimeError('Could not initialise %r receiver' % (beam,))
+            # Start metadata receiver before starting data transmit
+            beam.rx_meta_init(beam.meta_port) # port
+            self.instrument_start(beam.name)
+            user_logger.info('beamformer metadata')
+            beam.rx_meta(beam.obs_meta) # additional obs related info
+            user_logger.info('waiting 10s to write metadata for beam %r' % (beam,))
+            time.sleep(10)
+            # Start transmitting data
+            user_logger.info('beamformer data for beam %r' % (beam,))
+            beam.rx_beam(pol=beam.pol, port=beam.data_port)
+            time.sleep(1)
+
+    def capture_stop(self):
+        """Exit the data capturing session, stopping the capture."""
+        # End all receivers
+        for beam in self.beams:
+            user_logger.info('Stopping receiver and stream for beam %r' % (beam,))
+            beam.rx_stop()
+            time.sleep(5)
+            self.instrument_stop(beam.name)
+            user_logger.info(beam.rx_close())
+        user_logger.info('Stopping correlator')
+        self.instrument_stop('k7')
 
 
 # Set up standard script options
@@ -230,11 +302,11 @@ with verify_and_connect(opts) as kat:
     if cal_target and len(ants) >= 4:
         user_logger.info('Obtaining beamformer weights on calibrator source %r' %
                          (cal_target.name))
-        with start_session(kat, **vars(opts)) as session:
-            session.standard_setup(**vars(opts))
-            session.capture_start()
-            session.label('track')
-            session.track(cal_target, duration=opts.cal_duration)
+        with start_session(kat, **vars(opts)) as cal_session:
+            cal_session.standard_setup(**vars(opts))
+            cal_session.capture_start()
+            cal_session.label('track')
+            cal_session.track(cal_target, duration=opts.cal_duration)
 
     # Dictionary to hold observation metadata to send over to beamformer receiver
     for beam in beams:
@@ -260,60 +332,22 @@ with verify_and_connect(opts) as kat:
         time.sleep(1)
 
     # Beamformer data capture
-    user_logger.info("Initiating %g-second track on target '%s'" %
-                     (opts.target_duration, target.name))
-    ants.req.target(target)
-    cbf.req.target(target)
-    # We need delay tracking
-    cbf.req.auto_delay()
-    user_logger.info('slewing to target')
-    # Start moving each antenna to the target
-    ants.req.mode('POINT')
-    # Wait until they are all in position (with 5 minute timeout)
-    ants.req.sensor_sampling('lock', 'event')
-    ants.wait('lock', True, 300)
-    user_logger.info('target reached')
-
-    # start remote receiver
-    fbf_obj = BeamformerSession(cbf)
-    user_logger.info('Initialising correlator receiver k7')
-    fbf_obj.capture_start('k7')
-
-    # Starting streams will issue metadata for capture
-    # Allow long 10sec intervals to allow enough time to initiate data capture and to capture metadata
-    # Else there will be collisions between the 2 beams
-    for beam in beams:
-        user_logger.info('Initialising beamformer receiver for beam %s' % (beam,))
-        # Initialise receiver and setup kat-dc2.karoo for output
-        if not beam.rx_init(beam.data_drive, opts.half_band, opts.transpose):
-            raise RuntimeError('Could not initialise %r receiver' % (beam,))
-        # Start metadata receiver before starting data transmit
-        beam.rx_meta_init(beam.meta_port) # port
-        fbf_obj.capture_start(beam)
-        user_logger.info('beamformer metadata')
-        beam.rx_meta(beam.obs_meta) # additional obs related info
-        user_logger.info('waiting 10s to write metadata for beam %r' % (beam,))
-        time.sleep(10)
-        # Start transmitting data
-        user_logger.info('beamformer data for beam %r' % (beam,))
-        beam.rx_beam(pol=beam.pol, port=beam.data_port)
-        time.sleep(1)
-    # Capture data
-    user_logger.info('track target for %g seconds' % (opts.target_duration,))
-    time.sleep(opts.target_duration)
-    user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
-    # End all receivers
-    for beam in beams:
-        user_logger.info('Stopping receivers and tearing down beam %r' % (beam,))
-        beam.rx_stop()
-        time.sleep(5)
-
-    # Stop all transmit
-    for beam in beams:
-        fbf_obj.capture_stop(beam.name)
-    fbf_obj.capture_stop('k7')
-
-    # Closing and tidy up
-    for beam in beams:
-        user_logger.info('Tidy up output for beam %r' % (beam,))
-        print beam.rx_close()
+    with BeamformerSession(cbf, beams) as bf_session:
+        user_logger.info("Initiating %g-second track on target '%s'" %
+                         (opts.target_duration, target.name))
+        ants.req.target(target)
+        cbf.req.target(target)
+        # We need delay tracking
+        cbf.req.auto_delay()
+        user_logger.info('slewing to target')
+        # Start moving each antenna to the target
+        ants.req.mode('POINT')
+        # Wait until they are all in position (with 5 minute timeout)
+        ants.req.sensor_sampling('lock', 'event')
+        ants.wait('lock', True, 300)
+        user_logger.info('target reached')
+        # Only start capturing once we are on target
+        bf_session.capture_start()
+        user_logger.info('track target for %g seconds' % (opts.target_duration,))
+        time.sleep(opts.target_duration)
+        user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
