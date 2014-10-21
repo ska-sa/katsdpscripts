@@ -305,6 +305,7 @@ with verify_and_connect(opts) as kat:
                          (cal_target.name))
         with start_session(kat, **vars(opts)) as cal_session:
             cal_session.standard_setup(**vars(opts))
+            cal_session.dbe.req.auto_delay('on')
             cal_session.capture_start()
             cal_session.label('track')
             cal_session.track(cal_target, duration=opts.cal_duration)
@@ -347,7 +348,7 @@ with verify_and_connect(opts) as kat:
         ants.req.target(target)
         cbf.req.target(target)
         # We need delay tracking
-        cbf.req.auto_delay()
+        cbf.req.auto_delay('on')
         user_logger.info('slewing to target')
         # Start moving each antenna to the target
         ants.req.mode('POINT')
