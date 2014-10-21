@@ -7,7 +7,6 @@ from __future__ import with_statement
 
 import time
 import StringIO
-import copy
 import sys
 import logging
 
@@ -188,10 +187,6 @@ except Exception as e:
     print e
     sys.exit(1)
 sys.stdout.write('Connection established to server %s...\n' % (server,))
-# Dictionary to hold observation metadata to send over the receiver
-obs_meta = {}
-for beam in beams:
-    obs_meta[beam] = {}
 
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
@@ -199,12 +194,7 @@ if len(args) == 0:
                      "to observe as arguments")
 with verify_and_connect(opts) as kat:
     cbf = kat.dbe7
-    for beam in beams:
-        obs_meta[beam] = copy.copy(vars(opts))
-    # Antennas and polarisations (aka inputs) forming beamformer
     ants = ant_array(kat, opts.ants)
-    for beam in beams:
-        obs_meta[beam]['ants'] = [(ant.name + beams[beam]['pol']) for ant in ants]
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
     target = collect_targets(kat, args[:1]).targets[0]
@@ -212,8 +202,6 @@ with verify_and_connect(opts) as kat:
     target_elevation = np.degrees(target.azel()[1])
     if target_elevation < opts.horizon:
         raise ValueError("The desired target to be observed is below the horizon")
-    for beam in beams:
-        obs_meta[beam]['target'] = target.description
 
     # Pick the closest cal target that is up (if provided)
     user_logger.info('Looking up any calibrator target(s)...')
@@ -235,13 +223,20 @@ with verify_and_connect(opts) as kat:
     if cal_target and len(ants) >= 4:
         user_logger.info('Obtaining beamformer weights on calibrator source %r' %
                          (cal_target.name))
-        for beam in beams:
-            obs_meta[beam]['cal_target'] = cal_target.description
         with start_session(kat, **vars(opts)) as session:
             session.standard_setup(**vars(opts))
             session.capture_start()
             session.label('track')
             session.track(cal_target, duration=opts.cal_duration)
+
+    # Dictionary to hold observation metadata to send over to beamformer receiver
+    obs_meta = {}
+    for beam in beams:
+        obs_meta[beam] = dict(vars(opts))
+        obs_meta[beam]['ants'] = [(ant.name + beams[beam]['pol']) for ant in ants]
+        obs_meta[beam]['target'] = target.description
+        if cal_target and len(ants) >= 4:
+            obs_meta[beam]['cal_target'] = cal_target.description
 
     # Get the latest gain corrections from system
     user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
