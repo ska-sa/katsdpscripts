@@ -14,11 +14,11 @@ import numpy as np
 
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger, ant_array)
-import fbf_katcp_wrapper as katcp
+import fbf_katcp_wrapper as fbf
 
 
-DEBUG=False
 ## CONFIG VALUES ##
+# Server where beamformer receivers are run
 server = 'kat-dc2.karoo'
 beams = {'bf0': {'pol':'h', 'meta_port':'7152', 'data_port':'7150', 'rx_port':1235, 'data_drive':'/data1'},
          'bf1': {'pol':'v', 'meta_port':'7153', 'data_port':'7151', 'rx_port':1236, 'data_drive':'/data2'}}
@@ -167,19 +167,16 @@ parser.set_defaults(description='Beamformer observation', nd_params='off',
 # Parse the command line
 opts, args = parser.parse_args()
 
-##System: Set up all connections and objects
-# Connecting to server
-# if the correlator is running on a different server -- the ip of that server is specified as a string in 'host'
-sys.stdout.write('Connecting to server %s...\n' % (server,))
+## System: Set up all connections and objects
+sys.stdout.write('Connecting to beamformer receiver server %s...\n' % (server,))
 try:
-    # Create katcp correlator instance
-    katcp_logger = logging.getLogger('katcp')
-    katcp_bf0 = katcp.FBFClient(host=server, port=beams['bf0']['rx_port'],
-                                timeout=60, logger=katcp_logger)
-    katcp_bf1 = katcp.FBFClient(host=server, port=beams['bf1']['rx_port'],
-                                timeout=60, logger=katcp_logger)
-    while not katcp_bf0.is_connected() or not katcp_bf1.is_connected():
-        sys.stdout.write('Waiting for TCP link to KATCP...\n')
+    # Create KATCP client that interfaces with receivers on server
+    rx = {}
+    for beam in beams:
+        rx[beam] = fbf.FBFClient(host=server, port=beams[beam]['rx_port'],
+                                 timeout=60, logger=logging.getLogger('katcp'))
+    while not all([rx[beam].is_connected() for beam in beams]):
+        sys.stdout.write('Waiting for TCP link between KATCP client and server...\n')
         sys.stdout.flush()
         time.sleep(1)
 except Exception as e:
@@ -209,6 +206,7 @@ with verify_and_connect(opts) as kat:
         cal_targets = collect_targets(kat, args[1:])
     except ValueError:
         cal_targets = None
+        user_logger.info('Found 0 targets')
     if cal_targets:
         cal_target = cal_targets.filter(el_limit_deg=opts.horizon).closest_to(target)[0]
         # Ensure that cal target will be recognised as one and has model
@@ -279,24 +277,18 @@ with verify_and_connect(opts) as kat:
     for beam in beams:
         user_logger.info('Initialising beamformer receiver for beam %s' % (beam,))
         # Initialise receiver and setup kat-dc2.karoo for output
-        if beam == 'bf0':
-            katcp_bfX = katcp_bf0
-        elif beam == 'bf1':
-            katcp_bfX = katcp_bf1
-        else:
-            raise RuntimeError('Unknown katcp client')
-        if not katcp_bfX.rx_init(beams[beam]['data_drive'], opts.half_band, opts.transpose):
+        if not rx[beam].rx_init(beams[beam]['data_drive'], opts.half_band, opts.transpose):
             raise RuntimeError('\nCould not initialise %s beamformer receiver.\n' % (beam,))
         # Start metadata receiver before starting data transmit
-        katcp_bfX.rx_meta_init(beams[beam]['meta_port']) # port
+        rx[beam].rx_meta_init(beams[beam]['meta_port']) # port
         fbf_obj.capture_start(beam)
         user_logger.info('beamformer metadata')
-        katcp_bfX.rx_meta(obs_meta[beam]) # additional obs related info
+        rx[beam].rx_meta(obs_meta[beam]) # additional obs related info
         user_logger.info('waiting 10s for metadata for stream %s to write' % (beam,))
         time.sleep(10)
         # Start transmitting data
         user_logger.info('beamformer data for beam %s' % (beam,))
-        katcp_bfX.rx_beam(pol=beams[beam]['pol'], port=beams[beam]['data_port'])
+        rx[beam].rx_beam(pol=beams[beam]['pol'], port=beams[beam]['data_port'])
         time.sleep(1)
     # Capture data
     user_logger.info('track target for %g seconds' % (opts.target_duration,))
@@ -305,20 +297,15 @@ with verify_and_connect(opts) as kat:
     # End all receivers
     for beam in beams:
         user_logger.info('safely stopping receivers and tearing down beam %s' % (beam,))
-        if beam == 'bf0':
-            katcp_bfX = katcp_bf0
-        elif beam == 'bf1':
-            katcp_bfX = katcp_bf1
-        katcp_bfX.rx_stop()
+        rx[beam].rx_stop()
         time.sleep(5)
 
     # Stop all transmit
-    fbf_obj.capture_stop('bf1')
-    fbf_obj.capture_stop('bf0')
+    for beam in beams:
+        fbf_obj.capture_stop(beam)
     fbf_obj.capture_stop('k7')
 
     # Closing and tidy up
-    user_logger.info('Tidy up output for bf1')
-    print katcp_bf1.rx_close()
-    user_logger.info('Tidy up output for bf0')
-    print katcp_bf0.rx_close()
+    for beam in beams:
+        user_logger.info('Tidy up output for beam %r' % (beam,))
+        print rx[beam].rx_close()
