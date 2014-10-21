@@ -16,12 +16,40 @@ from katcorelib import (standard_script_options, verify_and_connect,
 import fbf_katcp_wrapper as fbf
 
 
-## CONFIG VALUES ##
+class BeamformerReceiver(fbf.FBFClient):
+    """KATCP client to beamformer receiver, with added metadata."""
+    def __init__(self, name, server, rx_port, pol, meta_port, data_port, data_drive):
+        user_logger.info('Connecting to server %r for beam %r...' % (server, name))
+        logger = logging.getLogger('katcp')
+        super(BeamformerReceiver, self).__init__(host=server, port=rx_port,
+                                                 timeout=60, logger=logger)
+        while not self.is_connected():
+            user_logger.info('Waiting for TCP link to receiver server...')
+            time.sleep(1)
+        user_logger.info('Connected to server %r for beam %r' % (server, name))
+        self.name = name
+        self.pol = pol
+        self.meta_port = meta_port
+        self.data_port = data_port
+        self.data_drive = data_drive
+        self.obs_meta = {}
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def inputs(self):
+        return self.obs_meta.get('ants', [])
+
+
 # Server where beamformer receivers are run
 server = 'kat-dc2.karoo'
-beams = {'bf0': {'pol':'h', 'meta_port':'7152', 'data_port':'7150', 'rx_port':1235, 'data_drive':'/data1'},
-         'bf1': {'pol':'v', 'meta_port':'7153', 'data_port':'7151', 'rx_port':1236, 'data_drive':'/data2'}}
-## CONFIG VALUES ##
+# beams = {'bf0': {'pol':'h', 'meta_port':'7152', 'data_port':'7150', 'rx_port':1235, 'data_drive':'/data1'},
+#          'bf1': {'pol':'v', 'meta_port':'7153', 'data_port':'7151', 'rx_port':1236, 'data_drive':'/data2'}}
+beams = [BeamformerReceiver('bf0', server, rx_port=1235, pol='h', meta_port=7152,
+                            data_port=7150, data_drive='/data1'),
+         BeamformerReceiver('bf1', server, rx_port=1236, pol='v', meta_port=7153,
+                            data_port=7151, data_drive='/data2')]
 
 
 def bf_inputs(cbf, bf):
@@ -166,18 +194,6 @@ parser.set_defaults(description='Beamformer observation', nd_params='off',
 # Parse the command line
 opts, args = parser.parse_args()
 
-## System: Set up all connections and objects
-user_logger.info('Connecting to beamformer receiver server %r...' % (server,))
-# Create KATCP client that interfaces with receivers on server
-rx = {}
-for beam in beams:
-    rx[beam] = fbf.FBFClient(host=server, port=beams[beam]['rx_port'],
-                             timeout=60, logger=logging.getLogger('katcp'))
-while not all([rx[beam].is_connected() for beam in beams]):
-    user_logger.info('Waiting for TCP link between KATCP client and server...')
-    time.sleep(1)
-user_logger.info('Connection established to server %r' % (server,))
-
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
     raise ValueError("Please specify the target (and optionally calibrator) "
@@ -221,13 +237,12 @@ with verify_and_connect(opts) as kat:
             session.track(cal_target, duration=opts.cal_duration)
 
     # Dictionary to hold observation metadata to send over to beamformer receiver
-    obs_meta = {}
     for beam in beams:
-        obs_meta[beam] = dict(vars(opts))
-        obs_meta[beam]['ants'] = [(ant.name + beams[beam]['pol']) for ant in ants]
-        obs_meta[beam]['target'] = target.description
+        beam.obs_meta.update(vars(opts))
+        beam.obs_meta['ants'] = [(ant.name + beam.pol) for ant in ants]
+        beam.obs_meta['target'] = target.description
         if cal_target and len(ants) >= 4:
-            obs_meta[beam]['cal_target'] = cal_target.description
+            beam.obs_meta['cal_target'] = cal_target.description
 
     # Get the latest gain corrections from system
     user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
@@ -235,13 +250,13 @@ with verify_and_connect(opts) as kat:
     if not weights:
         raise ValueError('No beamformer weights are available')
     # All inputs in use in beamformer (both polarisations) for checking weight age
-    inputs = reduce(lambda inp, beam: inp + obs_meta[beam]['ants'], beams.keys(), [])
+    inputs = reduce(lambda inp, beam: inp + beam.inputs, beams, [])
     age = time.time() - min(weight_times[inp] for inp in inputs)
     if age > 2 * 60 * 60:
         user_logger.warning('Beamformer weights are %d hours old, using them anyway' % (age / 60 / 60,))
     # Phase up beamformer using latest weights
     for beam in beams:
-        phase_up(cbf, weights, inputs=obs_meta[beam]['ants'], bf=beam, style=opts.style)
+        phase_up(cbf, weights, inputs=beam.inputs, bf=beam, style=opts.style)
         time.sleep(1)
 
     # Beamformer data capture
@@ -270,18 +285,18 @@ with verify_and_connect(opts) as kat:
     for beam in beams:
         user_logger.info('Initialising beamformer receiver for beam %s' % (beam,))
         # Initialise receiver and setup kat-dc2.karoo for output
-        if not rx[beam].rx_init(beams[beam]['data_drive'], opts.half_band, opts.transpose):
-            raise RuntimeError('\nCould not initialise %s beamformer receiver.\n' % (beam,))
+        if not beam.rx_init(beam.data_drive, opts.half_band, opts.transpose):
+            raise RuntimeError('Could not initialise %r receiver' % (beam,))
         # Start metadata receiver before starting data transmit
-        rx[beam].rx_meta_init(beams[beam]['meta_port']) # port
+        beam.rx_meta_init(beam.meta_port) # port
         fbf_obj.capture_start(beam)
         user_logger.info('beamformer metadata')
-        rx[beam].rx_meta(obs_meta[beam]) # additional obs related info
-        user_logger.info('waiting 10s for metadata for stream %s to write' % (beam,))
+        beam.rx_meta(beam.obs_meta) # additional obs related info
+        user_logger.info('waiting 10s to write metadata for beam %r' % (beam,))
         time.sleep(10)
         # Start transmitting data
-        user_logger.info('beamformer data for beam %s' % (beam,))
-        rx[beam].rx_beam(pol=beams[beam]['pol'], port=beams[beam]['data_port'])
+        user_logger.info('beamformer data for beam %r' % (beam,))
+        beam.rx_beam(pol=beam.pol, port=beam.data_port)
         time.sleep(1)
     # Capture data
     user_logger.info('track target for %g seconds' % (opts.target_duration,))
@@ -289,16 +304,16 @@ with verify_and_connect(opts) as kat:
     user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
     # End all receivers
     for beam in beams:
-        user_logger.info('safely stopping receivers and tearing down beam %s' % (beam,))
-        rx[beam].rx_stop()
+        user_logger.info('Stopping receivers and tearing down beam %r' % (beam,))
+        beam.rx_stop()
         time.sleep(5)
 
     # Stop all transmit
     for beam in beams:
-        fbf_obj.capture_stop(beam)
+        fbf_obj.capture_stop(beam.name)
     fbf_obj.capture_stop('k7')
 
     # Closing and tidy up
     for beam in beams:
         user_logger.info('Tidy up output for beam %r' % (beam,))
-        print rx[beam].rx_close()
+        print beam.rx_close()
