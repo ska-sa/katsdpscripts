@@ -332,13 +332,13 @@ with verify_and_connect(opts) as kat:
                                 (age / 60 / 60,))
         # Phase up beamformer using latest weights
         for beam in beams:
-            phase_up(cbf, weights, inputs=beam.inputs, bf=beam, style=opts.style)
+            phase_up(cbf, weights, inputs=beam.inputs, bf=beam.name, style=opts.style)
             time.sleep(1)
     else:
         # The single-dish case does not need beamforming
         user_logger.info('Set beamformer weights to select single dish')
         for beam in beams:
-            select_ant(cbf, input=beam.inputs[0], bf=beam)
+            select_ant(cbf, input=beam.inputs[0], bf=beam.name)
             time.sleep(1)
 
     # Beamformer data capture
