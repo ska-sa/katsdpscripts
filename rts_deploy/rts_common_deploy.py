@@ -92,6 +92,19 @@ def retrieve_svn_package(package, user=None, password=None, base=KAT_SVN_BASE, r
     	svn_command += ' --revision='+str(revision)
     sudo(svn_command)
 
+def update_svn_package(package, user=None, password=None, revision=None):
+    """Copy an svn repository to a specific location,
+    overwriting contents of the output directory"""
+    print '\n ---- Update ' + package + ' ---- \n'
+    svn_command = 'svn up ' + package
+    if user is not None:
+        svn_command += ' --username='+user
+    if password is not None:
+        svn_command += ' --password='+password
+    if revision is not None:
+        svn_command += ' --revision='+str(revision)
+    sudo(svn_command)    
+
 def retrieve_git_package(package, output_location=None, repo='ska-sa', login='katpull:katpull4git', branch='master', flags=''):
     """Copy a github repository to a specific location,
     overwriting contents of the output directory"""
@@ -200,10 +213,13 @@ def configure_tomcat():
                  use_sudo=True)
     sudo('/etc/init.d/tomcat7 start')
 
-def rsync(server, path_list, output_base='./', args='--compress --relative --no-motd --progress', force=False):
+def rsync(server, path_list, output_base='./', args='--compress --relative --no-motd --progress', force=False, use_sudo=False):
     """rsync a list of files from path_list from server to remote machine"""
     if not force:
         args = args + ' --ignore-existing'
-    args = args + ' ' + server + '::' + ' '.join(path_list)
-    args.append(output_base)    # Download destination
-    sudo('rsync ' + args)
+    args = args + ' ' + server + '::"' + ' '.join(path_list) + '"'
+    args = args + ' ' + output_base    # Download destination
+    if use_sudo:
+        sudo('rsync '+args)
+    else:
+        run('rsync ' + args)
