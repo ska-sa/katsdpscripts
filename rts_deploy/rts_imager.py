@@ -1,9 +1,10 @@
-from fabric.api import sudo, task, hosts, settings, env
+from fabric.api import sudo, task, hosts, settings, env, run
 from fabric.contrib import files
+from fabric.context_managers import shell_env
 
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
 from rts_common_deploy import remove_deb_packages, retrieve_svn_package, install_svn_package, configure_and_make
-from rts_common_deploy import make_directory, check_and_make_sym_link #, remove_dir
+from rts_common_deploy import update_svn_package, make_directory, check_and_make_sym_link, rsync, remove_dir
 from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT #, RTS_DATA, ARCHIVE_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
 from rts_common_deploy import GIT_BRANCH
@@ -19,7 +20,7 @@ PROCESS_AREA = '/data/process_area'
 #Obit install location
 OBIT_INSTALL = '/usr/local/Obit'
 OBIT_REVISION = 483
-OBIT_SVN_BASE = 'https://svn.cv.nrao.edu/svn/ObitInstall/'
+OBIT_SVN_BASE = 'svn.cv.nrao.edu/svn/ObitInstall/'
 
 #area to put katsdpscripts
 SCRIPTS_AREA = '/var/kat/katsdpscripts'
@@ -53,57 +54,90 @@ PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr']
 SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'scape', 'katsdpdata']
 
 # AIPS Tasks to retrieve using AIPSLite
-AIPS_TASKS = ['FILAIP','FITTP','LWPLA','POSSM','SNPLT','UVFLG','UVPLT']
+AIPS_TASKS = ['FITTP','LWPLA','POSSM','SNPLT','UVFLG','UVPLT','UVCOP']
 AIPS_VERSION = '31DEC14'
 AIPS_DIR = '/usr/local/aips'
 
 def deploy_k7contpipe():
-	"""
-	Install the KAT-7 continuum pipeline and its dependencies.
-	"""
-	#install_svn_package('research/obit_imager')
-	#deploy_obit()
-	#Setup .katimrc
-	#katimrc=['[KATPIPE]','aips_dir = ','aips_version = ','scratch_area = ','metadata_dir = ']
-	#files.append('/home/kat/.katimrc',katimrc)
-	#Get static data
-	#retrieve_svn_package('research/obit_imager/FITS')
-	#sudo('cp ')
-	deploy_aips()
-
+    """
+    Install the KAT-7 continuum pipeline and its dependencies.
+    """
+    #Install obit_imager
+    install_svn_package('obit_imager',repo='svnDS/research')
+    #Setup .katimrc
+    sudo('rm -f /home/kat/.katimrc')
+    katimrc=['[KATPIPE]','aips_dir =','aips_version =','metadata_dir =','obit_dir =']
+    files.append('/home/kat/.katimrc',katimrc)
+    #Get static data and put it in /var/kat/k7contpipe
+    sudo('mkdir -p /var/kat/k7contpipe')
+    retrieve_svn_package('FITS', repo='svnDS/research/obit_imager',output_location='/var/kat/k7contpipe')
+    files.sed('/home/kat/.katimrc','metadata_dir = *','metadata_dir = /var/kat/k7contpipe')
+    # setup Obit
+    deploy_obit()
+    # setup AIPS
+    deploy_aips()
+	
 def deploy_obit():
-	"""
-	Checkout a skeletal form of a specific Obit revision which is just enough to get the
-	kat-7 continuum pipeline to run.
-	"""
-	#Make a dir for obit
-	sudo('mkdir ' + OBIT_INSTALL)
-	#Extract the Obit repo from svn
-	retrieve_svn_package('ObitSystem', base=OBIT_SVN_BASE, revision=OBIT_REVISION, output_location=OBIT_INSTALL)
-	#Configure and make the base Obit package
-	configure_and_make(OBIT_INSTALL + '/ObitSystem/Obit')
-	#Copy the data from ObitTalk into Obits python setup
-	sudo('cp -r' + OBIT_INSTALL + '/ObitSystem/ObitTalk/python ' + OBIT_INSTALL + '/ObitSystem/Obit/python')
-	#Add Obits python module to sys.paths
-	files.append('/usr/local/lib/python2.7/dist-packages/Obit.pth', OBIT_INSTALL + '/ObitSystem/ObitTalk/python', use_sudo=True)
+    """
+    Checkout a skeletal form of a specific Obit revision which is just enough to get the
+    kat-7 continuum pipeline to run.
+    """
+    #Make a dir for obit
+    make_directory(OBIT_INSTALL)
+    if files.exists(OBIT_INSTALL+'/.svn'):
+        #Update the Obit repo  via svn.
+        update_svn_package(OBIT_INSTALL, revision=OBIT_REVISION)
+    else:
+        #Extract the Obit repo from svn if not already in its final resting place
+        retrieve_svn_package('ObitSystem', base=OBIT_SVN_BASE, repo='', revision=OBIT_REVISION, output_location=OBIT_INSTALL)
+    #Configure and make the base Obit package
+    configure_and_make(OBIT_INSTALL + '/Obit')
+    #Copy the data from ObitTalk into Obits python setup
+    sudo('cp -r ' + OBIT_INSTALL + '/ObitTalk/python ' + OBIT_INSTALL + '/Obit/python')
+    #Add Obits python module to sys.paths
+    files.append('/usr/local/lib/python2.7/dist-packages/Obit.pth', OBIT_INSTALL + '/Obit/python', use_sudo=True)
+    #Set location of Obit install in .katimrc
+    files.sed('/home/kat/.katimrc', 'obit_dir = *', 'obit_dir = '+OBIT_INSTALL+'/Obit')
 
 def deploy_aips():
-	"""
-	Construct a minimal AIPS installation that can run the Obit pipeline.
-	Use AIPSLite, to get package. AIPSLite should have been installed 
-	"""
-	try:
-		from katim import AIPSLite
-	except:
-		raise ImportError('AIPSLite is not installed. Install the KAT-7 Obit pipeline first.')
-	# Set up AIPS
-	sudo('mkdir ' + AIPS_DIR)
-	AIPSLite.get_aips(basedir=AIPS_DIR,version=AIPS_VERSION)
-	# Download Packages
-	AIPSLite.get_task(AIPS_TASKS)
-	# AIPS needs environment variables set up in ~/.katimrc
-	files.append('/home/kat/.katimrc','aips_dir = ' + AIPS_DIR)
-	files.append('/home/kat/.katimrc','aips_version = ' + AIPS_VERSION)
+    """
+    Construct a minimal AIPS installation that can run the Obit pipeline.
+    This code is stolen from AIPSLite- and made to work with fabric 
+    """
+
+    #Delete old aips installation as this seems to conflict when updating
+    remove_dir(AIPS_DIR)
+
+    aips_server = 'ftp.aoc.nrao.edu'
+    # Minimum files required:
+    intel_libs = [AIPS_VERSION+'/LNX64/LIBR/INTELCMP/libimf.so', AIPS_VERSION+'/LNX64/LIBR/INTELCMP/libsvml.so']
+    popsdat_files = [AIPS_VERSION+'/HELP/POPSDAT.HLP']
+    binary_files = [AIPS_VERSION+'/LNX64/LOAD/FILAIP.EXE']
+    
+    make_directory(AIPS_DIR)
+    # rsync the basic AIPS files
+    rsync(aips_server, intel_libs+popsdat_files+binary_files, output_base=AIPS_DIR + '/' + AIPS_VERSION)
+    #Sort out FILAIP
+    data_dir = AIPS_DIR + '/' + AIPS_VERSION + '/DATA'
+    mem_dir = AIPS_DIR + '/' + AIPS_VERSION + '/LNX64/MEMORY'
+    template_dir = AIPS_DIR + '/' + AIPS_VERSION + '/LNX64/TEMPLATE'
+    for temp_dir in [data_dir, mem_dir, template_dir]:
+        make_directory(temp_dir)
+    #Run FILAIP
+    env={'DA00':template_dir, 'NET0':template_dir, 'DA01':data_dir, 'NVOL':'1', 'NEWMEM':mem_dir,
+            'LD_LIBRARY_PATH':AIPS_DIR + '/' + AIPS_VERSION +'/LNX64/LIBR/INTELCMP/',
+            'AIPS_VERSION':AIPS_DIR + '/' + AIPS_VERSION, 'AIPS_ROOT':AIPS_DIR,
+            'VERSION':'NEW', 'NEW':AIPS_DIR + '/' + AIPS_VERSION}
+    with(shell_env(**env)):
+        run('echo 8 2 | ' + AIPS_DIR + '/' + AIPS_VERSION + '/LNX64/LOAD/FILAIP.EXE')
+    # Download Tasks
+    exe_files = [AIPS_VERSION + '/LNX64/LOAD/' + taskname + '.EXE' for taskname in AIPS_TASKS]
+    hlp_files = [AIPS_VERSION + '/HELP/' + taskname + '.HLP' for taskname in AIPS_TASKS]
+    rsync(aips_server, exe_files + hlp_files, output_base=AIPS_DIR + '/' + AIPS_VERSION)
+
+    # AIPS needs environment variables set up in ~/.katimrc
+    files.sed('/home/kat/.katimrc','aips_dir = *', 'aips_dir = ' + AIPS_DIR)
+    files.sed('/home/kat/.katimrc','aips_version = *', 'aips_version = ' + AIPS_VERSION)
 
 def deploy_oodt():
     deploy_oodt_comp_ver_06("cas-filemgr")
@@ -206,6 +240,8 @@ def deploy():
     sudo('/etc/init.d/cas-filemgr start')
     configure_matplotlib()
     configure_celery()
+    deploy_k7contpipe()
+
 
 # @task
 # @hosts(env.hosts)
