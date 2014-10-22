@@ -5,6 +5,7 @@ from fabric.context_managers import shell_env
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
 from rts_common_deploy import remove_deb_packages, retrieve_svn_package, install_svn_package, configure_and_make
 from rts_common_deploy import update_svn_package, make_directory, check_and_make_sym_link, rsync, remove_dir
+from rts_common_deploy import auto_start_filemgr, auto_start_workflow_rts
 from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT #, RTS_DATA, ARCHIVE_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
 from rts_common_deploy import GIT_BRANCH
