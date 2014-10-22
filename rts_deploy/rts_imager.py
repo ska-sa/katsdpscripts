@@ -32,6 +32,7 @@ WORKFLOW_AREA = '/var/kat/katsdpworkflow'
 CELERY_LOG = '/var/log/celery'
 TOMCAT7_LOG = '/var/log/tomcat7'
 CAS_FILEMGR_LOG = '/var/log/cas_filemgr'
+CAS_WOKKFLOWMGR_LOG = '/var/log/cas_workflowmgr'
 
 # Deb packages for rts-imager
 DEB_PKGS = [ 'vim', 'python-dev', 'gawk', 'pkg-config', 'libglib2.0-dev',
@@ -151,6 +152,7 @@ def make_directory_trees():
     make_directory(PROCESS_AREA)
     make_directory(CELERY_LOG) #change owner
     make_directory(CAS_FILEMGR_LOG)
+    make_directory(CAS_WOKKFLOWMGR_LOG)
     make_directory('/data')
     make_directory('/export/archive/data')
     make_directory('/home/kat/.config/matplotlib')
@@ -227,17 +229,12 @@ def deploy():
     retrieve_git_package('oodt_conf', output_location=OODT_CONF)
     retrieve_git_package('katsdpworkflow', output_location=WORKFLOW_AREA)
 
-  	# retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
+    # retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
     retrieve_git_package('katsdpscripts', output_location=SCRIPTS_AREA)
     install_pip_packages(SCRIPTS_AREA, flags='-U --no-deps')
 
-    #auto-startup of filemgr
-    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-filemgr/bin/cas-filemgr'), '/etc/init.d/cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc2.d/S93cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc3.d/S93cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc0.d/K07cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc6.d/K07cas-filemgr')
-    sudo('/etc/init.d/cas-filemgr start')
+    auto_start_filemgr()
+    auto_start_workflow_rts()
     configure_matplotlib()
     configure_celery()
     deploy_k7contpipe()

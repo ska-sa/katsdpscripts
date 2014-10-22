@@ -162,11 +162,6 @@ def deploy_tarball(comp_to_install, comp_ver):
 def deploy_oodt_comp_ver_06(comp_to_install):
     deploy_tarball(comp_to_install, "%s-0.6" % (comp_to_install))
 
-# def deploy_dc_oodt_comps():
-#     deploy_oodt_comp_ver_06("cas-filemgr")
-#     deploy_oodt_comp_ver_06("cas-crawler")
-#     deploy_solr()
-
 def check_and_make_sym_link(L_src, L_dest):
     sudo("if [[ ! -L %s ]]; then ln -s %s %s; fi" % (L_dest, L_src, L_dest))
 
@@ -223,3 +218,56 @@ def rsync(server, path_list, output_base='./', args='--compress --relative --no-
         sudo('rsync '+args)
     else:
         run('rsync ' + args)
+
+#auto-startup of filemgr
+def auto_start_filemgr():
+    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-filemgr/bin/cas-filemgr'), '/etc/init.d/cas-filemgr')
+    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc2.d/S93cas-filemgr')
+    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc3.d/S93cas-filemgr')
+    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc0.d/K07cas-filemgr')
+    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc6.d/K07cas-filemgr')
+    sudo('/etc/init.d/cas-filemgr start')
+
+def auto_start_crawler_rts():
+    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-crawler-rts/bin/cas-crawler-rts'), '/etc/init.d/cas-crawler-rts')
+    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc2.d/S94cas-crawler-rts')
+    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc3.d/S94cas-crawler-rts')
+    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc0.d/K08cas-crawler-rts')
+    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc6.d/K08cas-crawler-rts')
+    sudo('/etc/init.d/cas-crawler-rts start')
+
+def auto_start_workflow_rts():
+    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-workflow/bin/cas-workflowmgr'), '/etc/init.d/cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc2.d/S94cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc3.d/S94cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc0.d/K08cas-workflowmgr')
+    check_and_make_sym_link('/etc/init.d/cas-workflowmgr', '/etc/rc6.d/K08cas-workflowmgr')
+    sudo('/etc/init.d/cas-workflowmgr start')
+
+def site_proxy_configuration():
+    files.append('/etc/profile',
+                    ['','#temporary proxy settings',
+                    'export https_proxy=http://proxy.kat.ac.za:3128',
+                    'export http_proxy=http://proxy.kat.ac.za:3128',
+                    'export HTTPS_PROXY=http://proxy.kat.ac.za:3128',
+                    'export HTTP_PROXY=http://proxy.kat.ac.za:3128'],
+                    use_sudo=True)
+    files.append('/etc/apt/apt.conf',
+                    ['#temporary proxy settings',
+                    'Acquire::http::Proxy "http://proxy.kat.ac.za:3128/";'],
+                    use_sudo=True)
+
+def ntp_configuration():
+    sudo('/etc/init.d/ntp stop')
+    files.comment('/etc/ntp.conf',
+               r'^server [0123]\.ubuntu\.pool\.ntp\.org$',
+               use_sudo=True)
+    files.comment('/etc/ntp.conf',
+               r'^server ntp\.ubuntu\.com$',
+               use_sudo=True)
+    files.append('/etc/ntp.conf',
+                 ['', '# KAT NTP servers',
+                  'server ff-ntp.karoo.kat.ac.za prefer minpoll 4 maxpoll 6',
+                  'server katfs.kat.ac.za minpoll 4 maxpoll 6'],
+                   use_sudo=True)
+    sudo('/etc/init.d/ntp start')
