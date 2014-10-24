@@ -334,7 +334,7 @@ def plot_bpcal_selection(f):
             for n, (indexA, indexB) in enumerate(crosscorr):
                 subplot_index = (len(f.ants) * indexA + indexB + 1) if pol == 'h' else (indexA + len(f.ants) * indexB + 1)
                 ax = fig.add_subplot(len(f.ants), len(f.ants), subplot_index)
-                ax.imshow(fringes[:,:,n],aspect=fringes.shape[1]/fringes.shape[0])
+                ax.imshow(fringes[:,:,n],aspect=float(fringes.shape[1])/fringes.shape[0])
                 ax.set_xticks([])
                 ax.set_yticks([])
                 if pol == 'h':
