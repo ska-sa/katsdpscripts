@@ -241,27 +241,3 @@ def deploy():
     configure_celery()
     deploy_k7contpipe()
 
-
-# @task
-# @hosts(env.hosts)
-# def clear():
-#     # remove staging and processing dirs
-#     rts_common_deploy.remove_dir(STAGING_AREA)
-#     rts_common_deploy.remove_dir(PROCESS_AREA)
-# 
-#     # remove oodt directories and packages
-#     rts_common_deploy.remove_oodt_directories()
-#     rts_common_deploy.remove_pip_packages('katoodt')
-# 
-#     # remove ska-sa git packages
-#     for pkg in reversed(SKA_GIT_PKGS): rts_common_deploy.remove_pip_packages(pkg)
-# 
-#     # pip uninstall python packages
-#     for pkg in reversed(PIP_PKGS + SKA_GIT_PKGS): rts_common_deploy.remove_pip_packages(pkg)
-#     # hack to remove scikits, which is still hanging around
-#     sudo('rm -rf /usr/local/lib/python2.7/dist-packages/scikits')
-# 
-#     # remove ubuntu deb packages
-#     for pkg in reversed(DEB_PKGS): rts_common_deploy.remove_deb_packages(pkg)
-# 
-#     sudo('apt-get -y autoremove')

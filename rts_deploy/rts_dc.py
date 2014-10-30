@@ -56,22 +56,6 @@ STAGING_NFS_INGEST = os.path.join(STAGING_HOME, "nfs_staging")
 # Archive directory where all the data products will be stored
 ARCHIVE_DATA = os.path.join(ARCHIVE_HOME, "data")
 
-# def oodt_setup():
-#     make_oodt_home()
-#     make_dc_directory_trees()
-#     deploy_dc_oodt_comps()
-#     deploy_oodt_conf('branches/oodt_0_6_upgrade')
-#     configure_tomcat()
-#     deploy_solr_in_tomcat()
-#     export_dc_nfs_staging()
-# 
-# def remove_oodt_directories():
-#     remove_dir(OODT_HOME)
-#     remove_dir(ARCHIVE_HOME)
-#     remove_dir(ARCHIVE_APACHE_HOME)
-#     remove_dir(STAGING_HOME)
-#     remove_dir(SDP_MC)
-
 def make_directory_trees():
     make_directory(VAR_KAT)
     make_directory(OODT_HOME)
@@ -139,30 +123,3 @@ def deploy():
     deploy_oodt()
     auto_start_filemgr()
     auto_start_crawler_rts()
-
-# @task
-# def clear():
-#     # remove oodt directories and packages
-#     remove_oodt_directories()
-#     remove_pip_packages('katoodt')
-# 
-#     # remove git and svn directories
-#     remove_dir(GIT_DIR)
-#     remove_dir(SVN_DIR)
-#     #remove_dir(SCRIPT_SVN_DIR)
-#     remove_dir(CONFIG_DIR)
-# 
-#     # remove svn packages
-#     for name in reversed(SVN_PKGS): remove_pip_packages(name)
-# 
-#     # remove ska-sa git packages
-#     for name in reversed(PUBLIC_SKA_GIT): remove_pip_packages(name)
-#     for name in reversed(PRIVATE_SKA_GIT): remove_pip_packages(name)
-# 
-#     # pip uninstall python packages
-#     for name in reversed(PIP_PKGS): remove_pip_packages(name)
-#     # hack to remove scikits, which is still hanging around
-#     sudo('rm -rf /usr/local/lib/python2.7/dist-packages/scikits')
-# 
-#     # remove ubuntu deb packages
-#     for pkg_list in reversed(DEB_PKGS): remove_deb_packages(pkg_list)
