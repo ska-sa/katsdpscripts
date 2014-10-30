@@ -136,20 +136,10 @@ def configure_and_make(path, configure_options=None, make_options=None):
 def remove_dir(rmdir):
     sudo("rm -rf %s" % (rmdir,))
 
-def make_directory(dir_to_make):
+def make_directory(dir_to_make, options='-R'):
     sudo("mkdir -p %s" % (dir_to_make))
-    sudo("chown -R %s %s" % (env.user, dir_to_make))
-    sudo("chgrp -R %s %s" % (env.user, dir_to_make))
-
-def make_dc_directory_trees():
-    #staging directories
-    make_directory(STAGING_INGEST)
-    make_directory(STAGING_NFS_INGEST)
-    make_directory(STAGING_FAILED)
-    make_directory(ARCHIVE_DATA)
-    make_directory(SOLR_COLLECTIONS_HOME)
-    make_directory(RTS_DATA)
-    make_directory(SDP_MC)
+    sudo("chown %s %s %s" % (options, env.user, dir_to_make))
+    sudo("chgrp %s %s %s" % (options, env.user, dir_to_make))
 
 def deploy_tarball(comp_to_install, comp_ver):
     comp_tar = "%s-dist.tar.gz" % (comp_ver)
