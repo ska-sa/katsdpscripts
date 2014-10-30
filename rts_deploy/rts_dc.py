@@ -5,7 +5,7 @@ from fabric.contrib import files
 # from fabric.contrib import files
 import os
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
-from rts_common_deploy import deploy_oodt_comp_ver_06, deploy_solr, configure_tomcat, auto_start_filemgr, auto_start_crawler_rts
+from rts_common_deploy import deploy_oodt_comp_ver_06, deploy_solr, configure_tomcat, auto_start_oodt_daemon
 from rts_common_deploy import make_directory, check_and_make_sym_link , site_proxy_configuration
 from rts_common_deploy import ntp_configuration
 from rts_common_deploy import OODT_HOME, OODT_CONF
@@ -121,5 +121,6 @@ def deploy():
     make_directory_trees()
     auto_mounts()
     deploy_oodt()
-    auto_start_filemgr()
-    auto_start_crawler_rts()
+    auto_start_oodt_daemon('cas-filemgr')
+    auto_start_oodt_daemon('cas-crawler-rts')
+    

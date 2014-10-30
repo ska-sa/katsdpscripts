@@ -211,28 +211,21 @@ def rsync(server, path_list, output_base='./', args='--compress --relative --no-
 
 #auto-startup of filemgr
 def auto_start_filemgr():
-    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-filemgr/bin/cas-filemgr'), '/etc/init.d/cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc2.d/S93cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc3.d/S93cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc0.d/K07cas-filemgr')
-    check_and_make_sym_link('/etc/init.d/cas-filemgr', '/etc/rc6.d/K07cas-filemgr')
-    sudo('/etc/init.d/cas-filemgr start')
+    auto_start_oodt_daemon('cas-filemgr')
 
 def auto_start_crawler_rts():
-    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-crawler-rts/bin/cas-crawler-rts'), '/etc/init.d/cas-crawler-rts')
-    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc2.d/S94cas-crawler-rts')
-    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc3.d/S94cas-crawler-rts')
-    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc0.d/K08cas-crawler-rts')
-    check_and_make_sym_link('/etc/init.d/cas-crawler-rts', '/etc/rc6.d/K08cas-crawler-rts')
-    sudo('/etc/init.d/cas-crawler-rts start')
+    auto_start_oodt_daemon('cas-crawler-rts')
 
 def auto_start_workflow_rts():
-    check_and_make_sym_link('%s/%s' % (OODT_CONF, 'cas-workflow/bin/cas-workflow'), '/etc/init.d/cas-workflow')
-    check_and_make_sym_link('/etc/init.d/cas-workflow', '/etc/rc2.d/S94cas-workflow')
-    check_and_make_sym_link('/etc/init.d/cas-workflow', '/etc/rc3.d/S94cas-workflow')
-    check_and_make_sym_link('/etc/init.d/cas-workflow', '/etc/rc0.d/K08cas-workflow')
-    check_and_make_sym_link('/etc/init.d/cas-workflow', '/etc/rc6.d/K08cas-workflow')
-    sudo('/etc/init.d/cas-workflow start')
+    auto_start_oodt_daemon('cas-workflow')
+
+def auto_start_oodt_daemon(daemon):
+    check_and_make_sym_link(OODT_CONF + '/' + daemon + '/bin/' + daemon, '/etc/init.d/' + daemon)
+    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc2.d/S94' + daemon)
+    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc3.d/S94' + daemon)
+    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc0.d/K08' + daemon)
+    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc6.d/K08' + daemon)
+    sudo('/etc/init.d/' + daemon + ' start')
 
 def site_proxy_configuration():
     files.append('/etc/profile',

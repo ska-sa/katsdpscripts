@@ -5,7 +5,7 @@ from fabric.context_managers import shell_env
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
 from rts_common_deploy import remove_deb_packages, retrieve_svn_package, install_svn_package, configure_and_make
 from rts_common_deploy import update_svn_package, make_directory, check_and_make_sym_link, rsync, remove_dir
-from rts_common_deploy import auto_start_filemgr, auto_start_workflow_rts
+from rts_common_deploy import auto_start_oodt_daemon
 from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT, ARCHIVE_HOME #, RTS_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
 from rts_common_deploy import GIT_BRANCH
@@ -230,13 +230,15 @@ def deploy():
     # pip katsdpworkflow and oodt configuration in its final resting place
     retrieve_git_package('oodt_conf', output_location=OODT_CONF)
     retrieve_git_package('katsdpworkflow', output_location=WORKFLOW_AREA)
+    files.append('/usr/local/lib/python2.7/dist-packages/katsdpworkflow.pth', WORKFLOW_AREA, use_sudo=True)
 
     # retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
     retrieve_git_package('katsdpscripts', output_location=SCRIPTS_AREA)
     install_pip_packages(SCRIPTS_AREA, flags='-U --no-deps')
 
-    auto_start_filemgr()
-    auto_start_workflow_rts()
+    auto_start_oodt_daemon('cas-filemgr')
+    #TODO make this deploy for our python interface XMLRPC interface for celery.
+    #auto_start_workflow_rts()
     configure_matplotlib()
     configure_celery()
     deploy_k7contpipe()
