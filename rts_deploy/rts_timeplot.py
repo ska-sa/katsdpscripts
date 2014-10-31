@@ -2,7 +2,7 @@ from fabric.api import sudo, task, settings, env, hosts
 import rts_common_deploy
 
 #Set environment and hostnames
-env.hosts = ['kat@10.98.2.10']#['kat@192.168.6.174']
+env.hosts = ['kat@10.98.4.2'] #['kat@192.168.6.174']
 env.password = 'kat'
 
 # Deb packages
@@ -12,10 +12,10 @@ DEB_PKGS = [ 'python-dev',                                                      
                     'python-pip python-setuptools python-pkg-resources',                 #pip
                     'python-ply', 'python-twisted', 'python-unittest2', 'python-mock',   #for katcp
                     'subversion', 'nfs-kernel-server',
-                    'ipython python-numpy python-scipy python-h5py', 
+                    'ipython python-numpy python-scipy python-h5py',
                     'python-matplotlib python-pyfits python-pandas',                     #python stuff
                     'tree',
-                    'ntp'        
+                    'ntp'
                     ]
 
 # Pip packages

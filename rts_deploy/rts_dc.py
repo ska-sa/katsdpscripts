@@ -12,7 +12,7 @@ from rts_common_deploy import OODT_HOME, OODT_CONF
 from rts_common_deploy import GIT_BRANCH
 
 #Set environment and hostnames
-env.hosts = ['kat@10.98.2.1']
+env.hosts = ['kat@10.98.4.1']
 env.password = 'kat'
 
 # Deb packages for rts-imager
