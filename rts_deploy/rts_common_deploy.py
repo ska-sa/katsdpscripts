@@ -210,22 +210,13 @@ def rsync(server, path_list, output_base='./', args='--compress --relative --no-
         run('rsync ' + args)
 
 #auto-startup of filemgr
-def auto_start_filemgr():
-    auto_start_oodt_daemon('cas-filemgr')
-
-def auto_start_crawler_rts():
-    auto_start_oodt_daemon('cas-crawler-rts')
-
-def auto_start_workflow_rts():
-    auto_start_oodt_daemon('cas-workflow')
-
-def auto_start_oodt_daemon(daemon):
-    check_and_make_sym_link(OODT_CONF + '/' + daemon + '/bin/' + daemon, '/etc/init.d/' + daemon)
-    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc2.d/S94' + daemon)
-    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc3.d/S94' + daemon)
-    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc0.d/K08' + daemon)
-    check_and_make_sym_link('/etc/init.d/' + daemon, '/etc/rc6.d/K08' + daemon)
-    sudo('/etc/init.d/' + daemon + ' start')
+def install_and_start_daemon(path, daemon):
+    check_and_make_sym_link(os.path.join(path, daemon), os.path.join('/etc/init.d/', daemon))
+    check_and_make_sym_link(os.path.join('/etc/init.d/', daemon), '/etc/rc2.d/S94' + daemon)
+    check_and_make_sym_link(os.path.join('/etc/init.d/', daemon), '/etc/rc3.d/S94' + daemon)
+    check_and_make_sym_link(os.path.join('/etc/init.d/', daemon), '/etc/rc0.d/K08' + daemon)
+    check_and_make_sym_link(os.path.join('/etc/init.d/', daemon), '/etc/rc6.d/K08' + daemon)
+    sudo(os.path.join('/etc/init.d/', daemon) + ' start')
 
 def site_proxy_configuration():
     files.append('/etc/profile',
