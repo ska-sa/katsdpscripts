@@ -33,12 +33,12 @@ WORKFLOW_AREA = '/var/kat/katsdpworkflow'
 CELERY_LOG = '/var/log/celery'
 TOMCAT7_LOG = '/var/log/tomcat7'
 CAS_FILEMGR_LOG = '/var/log/cas_filemgr'
-CAS_WOKKFLOWMGR_LOG = '/var/log/cas_workflowmgr'
+CELERY_WORKFLOWMGR_LOG = '/var/log/celery_workflowmgr'
 
 # Deb packages for rts-imager
 DEB_PKGS = [ 'vim', 'python-dev', 'gawk', 'pkg-config', 'libglib2.0-dev',
-			 'libfftw3-dev', 'libgsl0-dev', 'libxmlrpc-core-c3-dev',            
-			 'libcurl4-openssl-dev', 'libx11-dev', 'libice-dev', 'libcfitsio3-dev',  #general
+             'libfftw3-dev', 'libgsl0-dev', 'libxmlrpc-core-c3-dev',
+             'libcurl4-openssl-dev', 'libx11-dev', 'libice-dev', 'libcfitsio3-dev',  #general
              'gfortran', 'libatlas-base-dev', 'libblas-dev', 'libexpat1-dev',
              'git', 'git-man',                                                       #git
              'python-pip', 'python-setuptools', 'python-pkg-resources',              #pip
@@ -154,7 +154,7 @@ def make_directory_trees():
     make_directory(PROCESS_AREA)
     make_directory(CELERY_LOG) #change owner
     make_directory(CAS_FILEMGR_LOG)
-    make_directory(CAS_WOKKFLOWMGR_LOG)
+    make_directory(CELERY_WORKFLOWMGR_LOG)
     make_directory('/data')
     make_directory('/export/archive/data')
     make_directory('/home/kat/.config/matplotlib')
