@@ -1,3 +1,5 @@
+import os
+
 from fabric.api import sudo, task, hosts, settings, env, run
 from fabric.contrib import files
 from fabric.context_managers import shell_env
@@ -5,7 +7,7 @@ from fabric.context_managers import shell_env
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
 from rts_common_deploy import remove_deb_packages, retrieve_svn_package, install_svn_package, configure_and_make
 from rts_common_deploy import update_svn_package, make_directory, check_and_make_sym_link, rsync, remove_dir
-from rts_common_deploy import auto_start_oodt_daemon
+from rts_common_deploy import install_and_start_daemon
 from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
 from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT, ARCHIVE_HOME #, RTS_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
 from rts_common_deploy import GIT_BRANCH
@@ -55,12 +57,15 @@ PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr']
 # SKA private git packages for rts imager
 SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'scape', 'katsdpdata']
 
+#OODT packags
+OODT_PKGS = ['cas-filemgr']
+
 # AIPS Tasks to retrieve using AIPSLite
 AIPS_TASKS = ['FITTP','LWPLA','POSSM','SNPLT','UVFLG','UVPLT','UVCOP']
 AIPS_VERSION = '31DEC14'
 AIPS_DIR = '/usr/local/aips'
 
-def deploy_k7contpipe():
+def install_k7contpipe():
     """
     Install the KAT-7 continuum pipeline and its dependencies.
     """
@@ -141,25 +146,14 @@ def deploy_aips():
     files.sed('/home/kat/.katimrc','aips_dir = *', 'aips_dir = ' + AIPS_DIR)
     files.sed('/home/kat/.katimrc','aips_version = *', 'aips_version = ' + AIPS_VERSION)
 
-def deploy_oodt():
-    deploy_oodt_comp_ver_06("cas-filemgr")
-
-def make_directory_trees():
-    make_directory(VAR_KAT)
-    make_directory(ARCHIVE_HOME)
-    make_directory(OODT_HOME)
-    make_directory(OODT_CONF)
-    make_directory(WORKFLOW_AREA)
-    make_directory(STAGING_AREA)
-    make_directory(PROCESS_AREA)
-    make_directory(CELERY_LOG) #change owner
-    make_directory(CAS_FILEMGR_LOG)
-    make_directory(CELERY_WORKFLOWMGR_LOG)
-    make_directory('/data')
-    make_directory('/export/archive/data')
-    make_directory('/home/kat/.config/matplotlib')
+def install_oodt_package(pkg):
+    make_directory(OODT_HOME, options='')
+    deploy_oodt_comp_ver_06(pkg)
 
 def auto_mounts():
+    """Mount the archive and data directories"""
+    make_directory('/data')
+    make_directory('/export/archive/data')
     files.append('/etc/fstab',
                  'UUID=88f7342e-177d-4a9d-af18-b7b669335412 /data ext4 defaults 0 0',
                  use_sudo=True)
@@ -203,15 +197,38 @@ def configure_celery():
     sudo('/etc/init.d/celeryd start')
 
 def configure_matplotlib():
+    make_directory('/home/kat/.config/matplotlib') #get the right backend for mpl
     files.append('/home/kat/.config/matplotlib/matplotlibrc',
                    'backend:Agg')
+
+
+def protect_mounts():
+    """Stop know services that access the archive and then unmount the archive NFS mount."""
+    sudo('/etc/init.d/celery-workflowmgr stop')
+    sudo('/etc/init.d/cas-filemgr stop')
+    sudo('umount /export/archive/data')
+    sudo('umount /data')
+
 @task
 @hosts(env.hosts)
 def deploy():
+    """Example usage 'fab rts_imager.deploy'
+
+    Useful Info (maybe)
+    -----------
+    Linux distro expected: Ubuntu 10.04 LTS
+    Disk partitioning /dev/sda1 == root partition.
+    Disk partitioning /dev/sdb1 == /data partition.
+
+    Notes
+    -----
+    [TB - 31/10/14]: IP address for deployment is 192.168.6.185.
+    [TB - 31/10/14]: If you're redeploying you might want to run the protect_mounts() function before you deploy.
+    [TB - 31/10/14]: The testing() task contains a call to protect_archive() before calling deploy().
+    [TM - 31/10/14]: AIPS_VERSION = '31DEC14'. Check that it's the write year.
+    """
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
-        sudo('umount /export/archive/data')
-        sudo('umount /data')
         sudo('apt-get -y update')
     
     # install ubuntu deb packages
@@ -224,22 +241,42 @@ def deploy():
     # install private ska-sa git packages
     for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
     
-    make_directory_trees()
     auto_mounts()
-    deploy_oodt()
+
+    make_directory(VAR_KAT)
+    make_directory(ARCHIVE_HOME)
+    make_directory(STAGING_AREA)
+    make_directory(PROCESS_AREA)
+    make_directory(CELERY_LOG) #change owner
+    make_directory(CAS_FILEMGR_LOG)
+    make_directory(CELERY_WORKFLOWMGR_LOG)
+
+    #install apache oodt packages
+    for pkg in OODT_PKGS: install_oodt_package(pkg)
+
     # pip katsdpworkflow and oodt configuration in its final resting place
     retrieve_git_package('oodt_conf', output_location=OODT_CONF)
+
+    make_directory(WORKFLOW_AREA) #deployment location for workflow
     retrieve_git_package('katsdpworkflow', output_location=WORKFLOW_AREA)
+    #setting up workflowmgr in pythons sys.paths so that we can import it
     files.append('/usr/local/lib/python2.7/dist-packages/katsdpworkflow.pth', WORKFLOW_AREA, use_sudo=True)
 
     # retrieve katsdpscripts and install (need the RTS scripts in a locateable area)
     retrieve_git_package('katsdpscripts', output_location=SCRIPTS_AREA)
     install_pip_packages(SCRIPTS_AREA, flags='-U --no-deps')
 
-    auto_start_oodt_daemon('cas-filemgr')
+    install_and_start_daemon(os.path.join(OODT_CONF,'cas-filemgr/bin'), 'cas-filemgr')
+    install_and_start_daemon('/usr/local/bin', 'celery-workflowmgr')
     #TODO make this deploy for our python interface XMLRPC interface for celery.
-    #auto_start_workflow_rts()
     configure_matplotlib()
     configure_celery()
-    deploy_k7contpipe()
+    install_k7contpipe()
 
+@task
+@hosts(env.hosts)
+# [TB] Left here for future use.
+def testing():
+    """Used for testing when updating deployment."""
+    protect_mounts()
+    deploy()
