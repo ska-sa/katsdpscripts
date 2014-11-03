@@ -37,6 +37,7 @@ TOMCAT7_LOG = '/var/log/tomcat7'
 CAS_FILEMGR_LOG = '/var/log/cas_filemgr'
 CELERY_WORKFLOWMGR_LOG = '/var/log/celery_workflowmgr'
 
+ARCHIVE_MOUNT = '/export/archive/data'
 # Deb packages for rts-imager
 DEB_PKGS = [ 'vim', 'python-dev', 'gawk', 'pkg-config', 'libglib2.0-dev',
              'libfftw3-dev', 'libgsl0-dev', 'libxmlrpc-core-c3-dev',
@@ -153,15 +154,15 @@ def install_oodt_package(pkg):
 def auto_mounts():
     """Mount the archive and data directories"""
     make_directory('/data')
-    make_directory('/export/archive/data')
+    make_directory(ARCHIVE_MOUNT)
     files.append('/etc/fstab',
                  'UUID=88f7342e-177d-4a9d-af18-b7b669335412 /data ext4 defaults 0 0',
                  use_sudo=True)
     files.append('/etc/fstab',
-                 '192.168.1.7:/export/archive/data /export/archive/data nfs _netdev,rw,soft,intr,auto,tcp,bg 0 0',
+                 '192.168.1.7:' + ARCHIVE_MOUNT + ' ' + ARCHIVE_MOUNT + ' nfs _netdev,rw,soft,intr,auto,tcp,bg 0 0',
                  use_sudo=True)
     sudo('mount -a')
-    check_and_make_sym_link('/export/archive/data', '/var/kat/archive/data'), 
+    check_and_make_sym_link(ARCHIVE_MOUNT, '/var/kat/archive/data'), 
 
 def configure_celery():
     sudo('/etc/init.d/celeryd stop')
@@ -206,7 +207,7 @@ def protect_mounts():
     """Stop know services that access the archive and then unmount the archive NFS mount."""
     sudo('/etc/init.d/celery-workflowmgr stop')
     sudo('/etc/init.d/cas-filemgr stop')
-    sudo('umount /export/archive/data')
+    sudo('umount ' + ARCHIVE_MOUNT)
     sudo('umount /data')
 
 @task
