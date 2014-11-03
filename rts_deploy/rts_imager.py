@@ -8,8 +8,8 @@ from rts_common_deploy import install_deb_packages, install_pip_packages, instal
 from rts_common_deploy import remove_deb_packages, retrieve_svn_package, install_svn_package, configure_and_make
 from rts_common_deploy import update_svn_package, make_directory, check_and_make_sym_link, rsync, remove_dir
 from rts_common_deploy import install_and_start_daemon
-from rts_common_deploy import deploy_oodt_comp_ver_06 #, deploy_solr, configure_tomcat
-from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT, ARCHIVE_HOME #, RTS_DATA, STAGING_HOME, STAGING_INGEST, STAGING_FAILED, SOLR_COLLECTIONS_HOME, 
+from rts_common_deploy import deploy_oodt_comp_ver_06
+from rts_common_deploy import OODT_HOME, OODT_CONF, VAR_KAT, ARCHIVE_HOME
 from rts_common_deploy import GIT_BRANCH
 
 #Set environment and hostnames

@@ -6,7 +6,7 @@ from fabric.contrib import files
 # from fabric.api import sudo, run, env, task, cd, settings
 # from fabric.contrib import files
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
-from rts_common_deploy import deploy_oodt_comp_ver_06, deploy_solr, configure_tomcat, install_and_start_daemon
+from rts_common_deploy import deploy_oodt_comp_ver_06, install_solr, configure_tomcat, install_and_start_daemon
 from rts_common_deploy import make_directory, check_and_make_sym_link , site_proxy_configuration
 from rts_common_deploy import ntp_configuration
 from rts_common_deploy import OODT_HOME, OODT_CONF
@@ -34,6 +34,8 @@ PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr', 'katcp', 'ProxyTypes']
 
 # SKA private git packages for rts imager
 SKA_PRIVATE_GIT_PKGS = ['katpoint', 'katdal', 'katholog', 'scape', 'PySPEAD', 'katsdpdata', 'katsdpcontroller', 'katsdpingest']
+
+OODT_PKGS = ['cas-filemgr', 'cas-crawler']
 
 TOMCAT7_LOG = '/var/log/tomcat7'
 CAS_FILEMGR_LOG = '/var/log/cas_filemgr'
@@ -73,15 +75,9 @@ def make_directory_trees():
     make_directory(ARCHIVE_DATA)
     make_directory(OODT_CONF)
 
-def deploy_oodt():
-    deploy_oodt_comp_ver_06("cas-crawler")
-    deploy_oodt_comp_ver_06("cas-filemgr")
-    retrieve_git_package('oodt_conf', output_location=OODT_CONF)
-    files.sed(OODT_CONF+'/cas-filemgr/etc/filemgr.properties',
-                'org.apache.oodt.cas.filemgr.catalog.solr.url=http://192.168.1.50:8983/solr',
-                'org.apache.oodt.cas.filemgr.catalog.solr.url=http://127.0.0.1:8983/solr')
-    deploy_solr()
-    configure_tomcat()
+def install_oodt_package(pkg):
+    make_directory(OODT_HOME, options='')
+    deploy_oodt_comp_ver_06(pkg)
 
 def auto_mounts():
     files.append('/etc/fstab',
@@ -93,6 +89,12 @@ def auto_mounts():
                     '/var/kat/data/nfs_staging 192.168.1.50(rw,sync,no_subtree_check)',
                     use_sudo=True)
     sudo('exportfs -a')
+
+def protect_mounts():
+    """Stop know services that access the archive and then unmount the archive NFS mount."""
+    sudo('/etc/init.d/cas-crawler-rts stop')
+    sudo('/etc/init.d/cas-filemgr stop')
+    sudo('umount /export/RTS')
 
 @task
 @hosts(env.hosts)
@@ -110,9 +112,6 @@ def deploy():
     """
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
-        sudo('/etc/init.d/cas-crawler-rts stop')
-        sudo('/etc/init.d/cas-filemgr stop')
-        sudo('umount /export/RTS')
         sudo('yes | DEBIAN_FRONTEND=noninteractive apt-get update')
 
     # install ubuntu deb packages
@@ -124,6 +123,15 @@ def deploy():
     # install private ska-sa git packages
     for pkg in SKA_PRIVATE_GIT_PKGS: install_git_package(pkg, branch=GIT_BRANCH)
 
+    # install oodt packages
+    for pkg in OODT_PKGS: install_oodt_package(pkg)
+
+    retrieve_git_package('oodt_conf', branch='rts_dc', output_location=OODT_CONF)
+
+    install_solr()
+    configure_tomcat()
+
+
     # setup ntp
     ntp_configuration()
 
@@ -133,4 +141,11 @@ def deploy():
     deploy_oodt()
     install_and_start_daemon(os.path.join(OODT_CONF,'cas-filemgr/bin'), 'cas-filemgr')
     install_and_start_daemon(os.path.join(OODT_CONF,'cas-crawler-rts/bin'), 'cas-crawler-rts')
-    
+
+@task
+@hosts(env.hosts)
+# [TB] Left here for future use.
+def testing():
+    """Used for testing when updating deployment."""
+    protect_mounts()
+    deploy()

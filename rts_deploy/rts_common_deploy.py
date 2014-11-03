@@ -168,7 +168,7 @@ def remove_oodt_directories():
     remove_dir(STAGING_HOME)
     remove_dir(SDP_MC)
 
-def deploy_solr(comp_to_install="solr"):
+def install_solr(comp_to_install="solr"):
     SOLR_VER = "4.4.0"
     deploy_tarball(comp_to_install, "%s-%s" % (comp_to_install, SOLR_VER))
     sudo("cp %s/solr/dist/solr-%s.war /var/lib/tomcat7/webapps/solr.war" % (OODT_HOME, SOLR_VER,))
