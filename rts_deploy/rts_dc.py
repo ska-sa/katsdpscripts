@@ -97,10 +97,17 @@ def auto_mounts():
 @task
 @hosts(env.hosts)
 def deploy():
-    """Example usage: fab rts_dc.deploy"""
-    #configure for proxy access
-    site_proxy_configuration()
+    """Example usage: fab rts_dc.deploy
 
+    Useful Info (maybe)
+    -----------
+    Linux distro expected: Ubuntu 10.04 LTS
+    Disk partitioning /dev/sda1 == root partition
+
+    Notes
+    -----
+    [TB - 3/11/14]: IP address for deployment is 10.98.4.1
+    """
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
         sudo('/etc/init.d/cas-crawler-rts stop')

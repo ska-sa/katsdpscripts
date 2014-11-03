@@ -27,10 +27,17 @@ SKA_GIT_PKGS = ['katpoint','katdal','PySPEAD','katsdpdisp']
 @task
 @hosts(env.hosts)
 def deploy():
-    """Example usage: fab rts_timeplot.deploy"""
-    #configure for proxy access
-    rts_common_deploy.site_proxy_configuration()
+    """Example usage: fab rts_timeplot.deploy
 
+    Useful Info (maybe)
+    -----------
+    Linux distro expected: Ubuntu 10.04 LTS
+    Disk partitioning /dev/sda1 == root partition
+
+    Notes
+    -----
+    [TB - 3/11/14]: IP address for deployment is 10.98.4.2
+    """
     # update the apt-get database. Warn, rather than abort, if repos are missing
     with settings(warn_only=True):
         sudo('apt-get -y update')

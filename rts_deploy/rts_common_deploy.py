@@ -218,19 +218,6 @@ def install_and_start_daemon(path, daemon):
     check_and_make_sym_link(os.path.join('/etc/init.d/', daemon), '/etc/rc6.d/K08' + daemon)
     sudo(os.path.join('/etc/init.d/', daemon) + ' start')
 
-def site_proxy_configuration():
-    files.append('/etc/profile',
-                    ['','#temporary proxy settings',
-                    'export https_proxy=http://proxy.kat.ac.za:3128',
-                    'export http_proxy=http://proxy.kat.ac.za:3128',
-                    'export HTTPS_PROXY=http://proxy.kat.ac.za:3128',
-                    'export HTTP_PROXY=http://proxy.kat.ac.za:3128'],
-                    use_sudo=True)
-    files.append('/etc/apt/apt.conf',
-                    ['#temporary proxy settings',
-                    'Acquire::http::Proxy "http://proxy.kat.ac.za:3128/";'],
-                    use_sudo=True)
-
 def ntp_configuration():
     sudo('/etc/init.d/ntp stop')
     files.comment('/etc/ntp.conf',
