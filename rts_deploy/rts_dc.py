@@ -1,13 +1,13 @@
 import os
 
-from fabric.api import sudo, task, hosts, settings, env
+from fabric.api import sudo, task, hosts, settings, env, run
 from fabric.contrib import files
 
 # from fabric.api import sudo, run, env, task, cd, settings
 # from fabric.contrib import files
 from rts_common_deploy import install_deb_packages, install_pip_packages, install_git_package, retrieve_git_package
-from rts_common_deploy import deploy_oodt_comp_ver_06, install_solr, configure_tomcat, install_and_start_daemon
-from rts_common_deploy import make_directory, check_and_make_sym_link , site_proxy_configuration
+from rts_common_deploy import deploy_oodt_comp_ver_06, install_and_start_daemon, deploy_tarball
+from rts_common_deploy import make_directory, check_and_make_sym_link
 from rts_common_deploy import ntp_configuration
 from rts_common_deploy import OODT_HOME, OODT_CONF
 from rts_common_deploy import GIT_BRANCH
@@ -27,7 +27,7 @@ DEB_PKGS = [ 'vim', 'python-dev',                                               
              'tree', 'pyflakes', 'openjdk-7-jre', 'htop',                         #Other things
              'ipython', 'python-numpy', 'python-scipy', 'python-h5py',
              'python-matplotlib', 'python-pyfits', 'python-pandas', 'python-nose',#python stuff
-             'nfs-common', 'tomcat7', 'nfs-common', 'ntp']
+             'nfs-common', 'tomcat7', 'ntp']
 
 # Pip packages for rts-dc
 PIP_PKGS = ['pyephem', 'scikits.fitting', 'pysolr', 'katcp', 'ProxyTypes']
@@ -58,35 +58,53 @@ STAGING_FAILED = os.path.join(STAGING_HOME, "failed")
 STAGING_NFS_INGEST = os.path.join(STAGING_HOME, "nfs_staging")
 # Archive directory where all the data products will be stored
 ARCHIVE_DATA = os.path.join(ARCHIVE_HOME, "data")
+ARCHIVE_MOUNT = '/export/RTS'
 
-def make_directory_trees():
-    make_directory(VAR_KAT)
-    make_directory(OODT_HOME)
-    make_directory(CAS_FILEMGR_LOG)
-    make_directory(CAS_CRAWLER_LOG)
-    make_directory('/export/RTS/')
-    make_directory(STAGING_HOME)
-    make_directory(ARCHIVE_HOME)
-    make_directory(SDP_MC)
-    make_directory(SOLR_COLLECTIONS_HOME)
-    make_directory(STAGING_INGEST)
-    make_directory(STAGING_FAILED)
-    make_directory(STAGING_NFS_INGEST)
-    make_directory(ARCHIVE_DATA)
-    make_directory(OODT_CONF)
+def install_solr(comp_to_install="solr"):
+    SOLR_VER = "4.4.0"
+    deploy_tarball(comp_to_install, "%s-%s" % (comp_to_install, SOLR_VER))
+    sudo("cp %s/solr/dist/solr-%s.war /var/lib/tomcat7/webapps/solr.war" % (OODT_HOME, SOLR_VER,))
+    sudo("cp %s/solr/example/lib/ext/* /usr/share/tomcat7/lib" % (OODT_HOME,))
+    run("rsync -rv --progress %s/solr/ %s" % (OODT_CONF, SOLR_COLLECTIONS_HOME))
+    run("rm -rf %s/solr " % (OODT_HOME))
+
+def configure_tomcat():
+    sudo('/etc/init.d/tomcat7 stop')
+    files.sed('/etc/tomcat7/server.xml',
+              '<Connector port="8080" protocol="HTTP/1.1"',
+              '<Connector port="8983" protocol="HTTP/1.1"',
+              use_sudo=True)
+    files.append('/etc/tomcat7/tomcat-users.xml',
+                 '<role rolename="manager-gui"/><user username="kat" password="kat" roles="manager-gui"/>',
+                 use_sudo=True)
+    files.sed('/etc/default/tomcat7',
+              'TOMCAT7_USER=tomcat7',
+              'TOMCAT7_USER=kat',
+              use_sudo=True)
+    files.sed('/etc/default/tomcat7',
+              'TOMCAT7_GROUP=tomcat7',
+              'TOMCAT7_GROUP=kat',
+              use_sudo=True)
+    files.append('/etc/default/tomcat7',
+                 'CATALINA_OPTS="-Dsolr.solr.home=/var/kat/archive/catalogs/solr"', 
+                 use_sudo=True)
+    sudo('/etc/init.d/tomcat7 start')
 
 def install_oodt_package(pkg):
     make_directory(OODT_HOME, options='')
     deploy_oodt_comp_ver_06(pkg)
 
 def auto_mounts():
+    make_directory(ARCHIVE_MOUNT, options='')
+    make_directory(STAGING_NFS_INGEST)
+
     files.append('/etc/fstab',
-                 'kat-archive.karoo.kat.ac.za:/mnt/md3000i/sci_proc/RTS /export/RTS/ nfs4  _netdev,rw,soft,intr,auto,tcp,bg 0 0',
+                 'kat-archive.karoo.kat.ac.za:/mnt/md3000i/sci_proc/RTS ' + ARCHIVE_MOUNT + ' nfs  _netdev,rw,soft,intr,auto,tcp,bg 0 0',
                  use_sudo=True)
     sudo('mount -a')
-    check_and_make_sym_link('/export/RTS', '/var/kat/archive/data/RTS')
+    check_and_make_sym_link(ARCHIVE_MOUNT, '/var/kat/archive/data/RTS')
     files.append('/etc/exports',
-                    '/var/kat/data/nfs_staging 192.168.1.50(rw,sync,no_subtree_check)',
+                    STAGING_NFS_INGEST + ' 192.168.1.50(rw,sync,no_subtree_check)',
                     use_sudo=True)
     sudo('exportfs -a')
 
@@ -94,7 +112,7 @@ def protect_mounts():
     """Stop know services that access the archive and then unmount the archive NFS mount."""
     sudo('/etc/init.d/cas-crawler-rts stop')
     sudo('/etc/init.d/cas-filemgr stop')
-    sudo('umount /export/RTS')
+    sudo('umount ' + ARCHIVE_MOUNT)
 
 @task
 @hosts(env.hosts)
@@ -136,9 +154,18 @@ def deploy():
     ntp_configuration()
 
     # install oodt and related stuff
-    make_directory_trees()
+    make_directory(VAR_KAT)
+    make_directory(ARCHIVE_HOME)
+    make_directory(SDP_MC)
+    make_directory(SOLR_COLLECTIONS_HOME)
+    make_directory(STAGING_INGEST)
+    make_directory(STAGING_FAILED)
+    make_directory(ARCHIVE_DATA)
+    make_directory(CAS_FILEMGR_LOG)
+    make_directory(CAS_CRAWLER_LOG)
+
     auto_mounts()
-    deploy_oodt()
+
     install_and_start_daemon(os.path.join(OODT_CONF,'cas-filemgr/bin'), 'cas-filemgr')
     install_and_start_daemon(os.path.join(OODT_CONF,'cas-crawler-rts/bin'), 'cas-crawler-rts')
 

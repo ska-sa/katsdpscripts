@@ -168,36 +168,6 @@ def remove_oodt_directories():
     remove_dir(STAGING_HOME)
     remove_dir(SDP_MC)
 
-def install_solr(comp_to_install="solr"):
-    SOLR_VER = "4.4.0"
-    deploy_tarball(comp_to_install, "%s-%s" % (comp_to_install, SOLR_VER))
-    sudo("cp %s/solr/dist/solr-%s.war /var/lib/tomcat7/webapps/solr.war" % (OODT_HOME, SOLR_VER,))
-    sudo("cp %s/solr/example/lib/ext/* /usr/share/tomcat7/lib" % (OODT_HOME,))
-    run("rsync -rv --progress %s/solr/ %s" % (OODT_CONF, SOLR_COLLECTIONS_HOME))
-    run("rm -rf %s/solr " % (OODT_HOME))
-
-def configure_tomcat():
-    sudo('/etc/init.d/tomcat7 stop')
-    files.sed('/etc/tomcat7/server.xml',
-              '<Connector port="8080" protocol="HTTP/1.1"',
-              '<Connector port="8983" protocol="HTTP/1.1"',
-              use_sudo=True)
-    files.append('/etc/tomcat7/tomcat-users.xml',
-                 '<role rolename="manager-gui"/><user username="kat" password="kat" roles="manager-gui"/>',
-                 use_sudo=True)
-    files.sed('/etc/default/tomcat7',
-              'TOMCAT7_USER=tomcat7',
-              'TOMCAT7_USER=kat',
-              use_sudo=True)
-    files.sed('/etc/default/tomcat7',
-              'TOMCAT7_GROUP=tomcat7',
-              'TOMCAT7_GROUP=kat',
-              use_sudo=True)
-    files.append('/etc/default/tomcat7',
-                 'CATALINA_OPTS="-Dsolr.solr.home=/var/kat/archive/catalogs/solr"', 
-                 use_sudo=True)
-    sudo('/etc/init.d/tomcat7 start')
-
 def rsync(server, path_list, output_base='./', args='--compress --relative --no-motd --progress', force=False, use_sudo=False):
     """rsync a list of files from path_list from server to remote machine"""
     if not force:
