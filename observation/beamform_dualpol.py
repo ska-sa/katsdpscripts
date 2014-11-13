@@ -209,7 +209,6 @@ class BeamformerSession(object):
     def capture_start(self):
         """Enter the data capturing session, starting capture."""
         user_logger.info('Starting correlator (used for signal displays)')
-        self.instrument_start('k7')
         # Starting streams will issue metadata for capture
         # Allow long 10sec intervals to allow enough time to initiate data capture and to capture metadata
         # Else there will be collisions between the 2 beams
@@ -245,7 +244,6 @@ class BeamformerSession(object):
             self.instrument_stop(beam.name)
             user_logger.info(beam.rx_close())
         user_logger.info('Stopping correlator (used for signal displays)')
-        self.instrument_stop('k7')
 
 
 # Set up standard script options
@@ -310,65 +308,55 @@ with verify_and_connect(opts) as kat:
     else:
         cal_target = None
 
-    # Refresh beamformer weights if cal target and at least 4 antennas provided
-    if cal_target and len(ants) >= 4:
-        user_logger.info('Obtaining beamformer weights on calibrator source %r' %
-                         (cal_target.name))
-        with start_session(kat, **vars(opts)) as cal_session:
-            cal_session.standard_setup(**vars(opts))
-            cal_session.dbe.req.auto_delay('on')
-            cal_session.capture_start()
-            cal_session.label('track')
-            cal_session.track(cal_target, duration=opts.cal_duration)
+    # Start correlator capture session
+    with start_session(kat, **vars(opts)) as corr_session:
+        corr_session.standard_setup(**vars(opts))
+        corr_session.dbe.req.auto_delay('on')
+        corr_session.capture_start()
 
-    # Dictionary to hold observation metadata to send over to beamformer receiver
-    for beam in beams:
-        beam.obs_meta.update(vars(opts))
-        beam.obs_meta['ants'] = [(ant.name + beam.pol) for ant in ants]
-        beam.obs_meta['target'] = target.description
+        # Refresh beamformer weights if cal target and at least 4 antennas provided
         if cal_target and len(ants) >= 4:
-            beam.obs_meta['cal_target'] = cal_target.description
+            user_logger.info('Obtaining beamformer weights on calibrator source %r' %
+                             (cal_target.name))
+            corr_session.label('track')
+            corr_session.track(cal_target, duration=opts.cal_duration)
 
-    if len(ants) > 1:
-        user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
-        # Get the latest gain corrections from system
-        weights, weight_times = get_weights(cbf)
-        if not weights:
-            raise ValueError('No beamformer weights are available')
-        # All inputs in use in beamformer (both pols), for checking weight age
-        inputs = reduce(lambda inp, beam: inp + beam.inputs, beams, [])
-        age = time.time() - min(weight_times[inp] for inp in inputs)
-        if age > 2 * 60 * 60:
-            user_logger.warning('Beamformer weights are %d hours old, using them anyway' %
-                                (age / 60 / 60,))
-        # Phase up beamformer using latest weights
+        # Dictionary to hold observation metadata to send over to beamformer receiver
         for beam in beams:
-            phase_up(cbf, weights, inputs=beam.inputs, bf=beam.name, style=opts.style)
-            time.sleep(1)
-    else:
-        # The single-dish case does not need beamforming
-        user_logger.info('Set beamformer weights to select single dish')
-        for beam in beams:
-            select_ant(cbf, input=beam.inputs[0], bf=beam.name)
-            time.sleep(1)
+            beam.obs_meta.update(vars(opts))
+            beam.obs_meta['ants'] = [(ant.name + beam.pol) for ant in ants]
+            beam.obs_meta['target'] = target.description
+            if cal_target and len(ants) >= 4:
+                beam.obs_meta['cal_target'] = cal_target.description
 
-    # Beamformer data capture
-    with BeamformerSession(cbf, beams) as bf_session:
-        user_logger.info("Initiating %g-second track on target '%s'" %
-                         (opts.target_duration, target.name))
-        ants.req.target(target)
-        cbf.req.target(target)
-        # We need delay tracking
-        cbf.req.auto_delay('on')
-        user_logger.info('slewing to target')
-        # Start moving each antenna to the target
-        ants.req.mode('POINT')
-        # Wait until they are all in position (with 5 minute timeout)
-        ants.req.sensor_sampling('lock', 'event')
-        ants.wait('lock', True, 300)
-        user_logger.info('target reached')
-        # Only start capturing once we are on target
-        bf_session.capture_start()
-        user_logger.info('track target for %g seconds' % (opts.target_duration,))
-        time.sleep(opts.target_duration)
-        user_logger.info('target tracked for %g seconds' % (opts.target_duration,))
+        if len(ants) > 1:
+            user_logger.info('Phasing up beamformer combining %d antennas' % (len(ants),))
+            # Get the latest gain corrections from system
+            weights, weight_times = get_weights(cbf)
+            if not weights:
+                raise ValueError('No beamformer weights are available')
+            # All inputs in use in beamformer (both pols), for checking weight age
+            inputs = reduce(lambda inp, beam: inp + beam.inputs, beams, [])
+            age = time.time() - min(weight_times[inp] for inp in inputs)
+            if age > 2 * 60 * 60:
+                user_logger.warning('Beamformer weights are %d hours old, using them anyway' %
+                                    (age / 60 / 60,))
+            # Phase up beamformer using latest weights
+            for beam in beams:
+                phase_up(cbf, weights, inputs=beam.inputs, bf=beam.name, style=opts.style)
+                time.sleep(1)
+        else:
+            # The single-dish case does not need beamforming
+            user_logger.info('Set beamformer weights to select single dish')
+            for beam in beams:
+                select_ant(cbf, input=beam.inputs[0], bf=beam.name)
+                time.sleep(1)
+
+        # Start beamformer session
+        with BeamformerSession(cbf, beams) as bf_session:
+            # Get onto beamformer target
+            corr_session.label('track')
+            corr_session.track(target, duration=0)
+            # Only start capturing with beamformer once we are on target
+            bf_session.capture_start()
+            corr_session.track(target, duration=opts.target_duration)
