@@ -1,6 +1,6 @@
 import os
 
-from fabric.api import sudo, task, hosts, settings, env, run
+from fabric.api import sudo, task, hosts, settings, env, run, cd
 from fabric.contrib import files
 from fabric.context_managers import shell_env
 
@@ -202,6 +202,17 @@ def configure_matplotlib():
     files.append('/home/kat/.config/matplotlib/matplotlibrc',
                    'backend:Agg')
 
+def install_elog():
+    """Download a specific revision of elog and install it."""
+    elog_hash='d14433f21895b69725cb577929de08000d6c1ab5' #version 2.7.8
+    sudo('rm -rf /tmp/elog_mk')
+    make_directory('/tmp/elog_mk')
+    sudo('git clone https://bitbucket.org/ritt/elog.git /tmp/elog_mk')
+    with cd('/tmp/elog_mk'):
+        sudo('git checkout '+elog_hash)
+        sudo('make elog')
+        sudo('mv -f elog /usr/local/bin')
+    sudo('rm -rf /tmp/elog_mk')
 
 def protect_mounts():
     """Stop know services that access the archive and then unmount the archive NFS mount."""
@@ -274,10 +285,12 @@ def deploy():
     configure_celery()
     install_k7contpipe()
 
+    install_elog()
+
 @task
 @hosts(env.hosts)
 # [TB] Left here for future use.
 def testing():
     """Used for testing when updating deployment."""
-    protect_mounts()
-    deploy()
+    #protect_mounts()
+    #deploy()
