@@ -20,6 +20,9 @@ env.password = 'kat'
 STAGING_AREA = '/data/staging_area'
 PROCESS_AREA = '/data/process_area'
 
+#KAT7 pipeline processing area
+PIPELINE_SCRATCH = '/data/AutoArchContPipe'
+
 #Obit install location
 OBIT_INSTALL = '/usr/local/Obit'
 OBIT_REVISION = 483
@@ -84,7 +87,9 @@ def install_k7contpipe():
     deploy_obit()
     # setup AIPS
     deploy_aips()
-	
+	# Set up staging area for reductions
+    make_directory(PIPELINE_SCRATCH)
+
 def deploy_obit():
     """
     Checkout a skeletal form of a specific Obit revision which is just enough to get the
