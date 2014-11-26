@@ -25,7 +25,7 @@ PIPELINE_SCRATCH = '/data/AutoArchContPipe'
 
 #Obit install location
 OBIT_INSTALL = '/usr/local/Obit'
-OBIT_REVISION = 499
+OBIT_REVISION = 483
 OBIT_SVN_BASE = 'svn.cv.nrao.edu/svn/ObitInstall/'
 
 #area to put katsdpscripts
