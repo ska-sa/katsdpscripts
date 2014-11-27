@@ -6,6 +6,7 @@ import numpy as np
 import os
 import textwrap
 import time
+import socket
 import datetime as dt
 import matplotlib.dates as mdates
 
@@ -71,8 +72,10 @@ def make_frontpage(file_ptr):
     return '\n'.join(frontpage)
 
 def make_last_page():
-    FName="/home/kat/svn/auto_imager/new_obs_report.py"
-    rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","***\nThis report was generated using "+FName+", svn revesion: ")
+	#
+    FName=__file__
+    HName=socket.gethostname()
+    rev="This report was generated using "+FName+" on "+HName
     lastpage=[]
 
     lastpage.append("Description of the plots In the report\n==================================\n")
