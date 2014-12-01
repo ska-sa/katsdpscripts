@@ -13,7 +13,7 @@ import matplotlib.dates as mdates
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import AutoMinorLocator
 from optparse import OptionParser
-from pylab import axes, figure, legend, mean, plot, plt, savefig, sys, text, title, xlabel, xticks, ylabel, ylim, yticks
+from pylab import axes, figure, legend, mean, plot, plt, savefig, sys, text, title, xlabel, xticks, ylabel, ylim, yticks, xlim
 
 def get_options():
     parser = OptionParser(description='Reduction script to produce metrics on an observation katfile.')
@@ -228,96 +228,106 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
     fig=plt.figure(figsize=(13,10))
     plt.suptitle("Weather Data",fontsize=16, fontweight="bold")
     ax1 = fig.add_subplot(211)
-    
     #Plot Air Temperature
-    ax1.plot(loc_datetime,f.sensor['Enviro/asc.air.temperature'],'g-')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-
     airtemp=f.sensor['Enviro/asc.air.temperature']
-    ylim(ymin=-1,ymax=35)
-    mintemp=min(airtemp)
-    maxtemp=max(airtemp)
-    if maxtemp>=35:
-	    ylim(ymax=(maxtemp+1))
-    if mintemp<=(-1.0):
-	    ylim(ymin=(mintemp-1))
-    
-    ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax1.set_xlabel("LST on "+starttime, fontweight="bold")
-    ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
-    for tl in ax1.get_yticklabels():
-        tl.set_color('g')
-    #Create the twin Y to plot LST on the top axis
-    ay1=ax1.twiny()
-    ay1.set_xlabel("LST "+starttime,fontweight="bold")
-    dummy=[min(ax1.get_yticks()) for i in range(len(f.lst))]
-    ay1.plot(lst_time,dummy,'k')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    for tl in ay1.get_xticklabels():
-	    tl.set_color('DarkViolet')
-
-    #Convert Relative to Absolute
     rh=f.sensor['Enviro/asc.air.relative-humidity']
-    t=f.sensor['Enviro/asc.air.temperature']
-    Pws=[]
-    Pw=[]
-    ah=[]
-    for m in range(len(rh)):
-        Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
-    for m in range(len(rh)):
-        Pw.append(Pws[m]*(rh[m]/100))
-    for m in range(len(rh)):
-        ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
+    if np.all(np.isnan(airtemp)):
+        plt.setp(ax1, visible=False)
+        plt.figtext(0.2,0.9,"No temperature data available.", ha='left', va='center', transform=ax1.transAxes)
+    else:
+        ax1.plot(loc_datetime,airtemp,'g-')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
-    ax2=ax1.twinx()
-    ax2.plot(loc_datetime,ah,'c-')
-    ylim(ymin=1,ymax=8)
-    minah=min(ah)
-    maxah=max(ah)
-    if maxah>=8:
-	    ylim(ymax=(maxah+1))
-    if minah<=(1.0):
-	    ylim(ymin=(minah-1))
-    locs,labels=xticks()
-    ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
-    for tl in ax2.get_yticklabels():
-        tl.set_color('c')
+        ylim(ymin=-1,ymax=35)
+        mintemp=min(airtemp)
+        maxtemp=max(airtemp)
+        if maxtemp>=35:
+            ylim(ymax=(maxtemp+1))
+        if mintemp<=(-1.0):
+            ylim(ymin=(mintemp-1))
+
+        ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+        ax1.set_xlabel("LST on "+starttime, fontweight="bold")
+        ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
+        for tl in ax1.get_yticklabels():
+            tl.set_color('g')
+        #Create the twin Y to plot LST on the top axis
+        ay1=ax1.twiny()
+        ay1.set_xlabel("LST "+starttime,fontweight="bold")
+        dummy=[min(ax1.get_yticks()) for i in range(len(f.lst))]
+        ay1.plot(lst_time,dummy,'k')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        for tl in ay1.get_xticklabels():
+            tl.set_color('DarkViolet')
+
+        t=airtemp
+        Pws=[]
+        Pw=[]
+        ah=[]
+        for m in range(len(rh)):
+            Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
+        for m in range(len(rh)):
+            Pw.append(Pws[m]*(rh[m]/100))
+        for m in range(len(rh)):
+            ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
+        ax2=ax1.twinx()
+        ax2.plot(loc_datetime,ah,'c-')
+        ylim(ymin=1,ymax=8)
+        minah=min(ah)
+        maxah=max(ah)
+        if maxah>=8:
+            ylim(ymax=(maxah+1))
+        if minah<=(1.0):
+            ylim(ymin=(minah-1))
+        locs,labels=xticks()
+        ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+        ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
+        for tl in ax2.get_yticklabels():
+            tl.set_color('c')
 
     ax3=fig.add_subplot(212)
-    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax3.plot(loc_datetime,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-
-
-    airpress=f.sensor['Enviro/asc.air.pressure']/10
-    ylim(ymin=87,ymax=92)
-    minairpress=min(airpress)
-    maxairpress=max(airpress)
-    if maxairpress>=92:
-	    ylim(ymax=(maxairpress+1))
-    if minairpress<=87:
-	    ylim(ymin=(minairpress-1))
+    ax3.set_xlabel("SAST on "+starttime,fontweight="bold")
+    ap=f.sensor['Enviro/asc.air.pressure']
+    if np.all(np.isnan(ap)):
+        plt.setp(ax3, visible=False)
+        plt.figtext(0.2,0.4,"No air pressure data available.", ha='left', va='center', transform=ax1.transAxes)
+    else:
+        ax3.plot(loc_datetime,ap/10.,'r-')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        xlim(xmin=loc_datetime[0],xmax=loc_datetime[-1])
+        airpress=ap/10.
+        ylim(ymin=87,ymax=92)
+        minairpress=min(airpress)
+        maxairpress=max(airpress)
+        if maxairpress>=92:
+	       ylim(ymax=(maxairpress+1))
+        if minairpress<=87:
+	       ylim(ymin=(minairpress-1))
     
-    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
-    for tl in ax3.get_yticklabels():
-	    tl.set_color('r')
-	
-    ax4=ax3.twinx()
-    ax4.plot(loc_datetime,f.sensor['Enviro/asc.wind.speed'],'b-')
+        ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+        ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
+        for tl in ax3.get_yticklabels():
+	       tl.set_color('r')
     wspeed=f.sensor['Enviro/asc.wind.speed']
-    ylim(ymin=-0.5,ymax=16)
-    minwind=min(wspeed)
-    maxwind=max(wspeed)
-    if maxwind>=16:
-	    ylim(ymax=(maxwind+1))
-    if minwind<=-0.5:
-	    ylim(ymin=(minwind-1))
-    ax4.set_xlabel("SAST on "+starttime,fontweight="bold")
-    ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
-    for tl in ax4.get_yticklabels():
-	    tl.set_color('b')
+    ax4=ax3.twinx()
+    if np.all(np.isnan(wspeed)):
+        plt.setp(ax4, visible=False)
+        plt.figtext(0.2,0.35,"No wind speed data available.", ha='left', va='center', transform=ax1.transAxes)
+    else:
+        plt.setp(ax3, visible=True)
+        ax4.plot(loc_datetime,wspeed,'b-')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        xlim(xmin=loc_datetime[0],xmax=loc_datetime[-1])
+        ylim(ymin=-0.5,ymax=16)
+        minwind=min(wspeed)
+        maxwind=max(wspeed)
+        if maxwind>=16:
+	       ylim(ymax=(maxwind+1))
+        if minwind<=-0.5:
+	       ylim(ymin=(minwind-1))
+        ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+        for tl in ax4.get_yticklabels():
+	       tl.set_color('b')
     savefig(pp,format='pdf')
 
 def plot_bpcal_selection(f):
