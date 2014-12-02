@@ -6,13 +6,14 @@ import numpy as np
 import os
 import textwrap
 import time
+import socket
 import datetime as dt
 import matplotlib.dates as mdates
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import AutoMinorLocator
 from optparse import OptionParser
-from pylab import axes, figure, legend, mean, plot, plt, savefig, sys, text, title, xlabel, xticks, ylabel, ylim, yticks
+from pylab import axes, figure, legend, mean, plot, plt, savefig, sys, text, title, xlabel, xticks, ylabel, ylim, yticks, xlim
 
 def get_options():
     parser = OptionParser(description='Reduction script to produce metrics on an observation katfile.')
@@ -71,8 +72,10 @@ def make_frontpage(file_ptr):
     return '\n'.join(frontpage)
 
 def make_last_page():
-    FName="/home/kat/svn/auto_imager/new_obs_report.py"
-    rev=os.popen('svn info %s | grep "Last Changed Rev" ' % FName, "r").readline().replace("Last Changed Rev:","***\nThis report was generated using "+FName+", svn revesion: ")
+	#
+    FName=__file__
+    HName=socket.gethostname()
+    rev="This report was generated using "+FName+" on "+HName
     lastpage=[]
 
     lastpage.append("Description of the plots In the report\n==================================\n")
@@ -225,103 +228,121 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
     fig=plt.figure(figsize=(13,10))
     plt.suptitle("Weather Data",fontsize=16, fontweight="bold")
     ax1 = fig.add_subplot(211)
-    
     #Plot Air Temperature
-    ax1.plot(loc_datetime,f.sensor['Enviro/asc.air.temperature'],'g-')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-
     airtemp=f.sensor['Enviro/asc.air.temperature']
-    ylim(ymin=-1,ymax=35)
-    mintemp=min(airtemp)
-    maxtemp=max(airtemp)
-    if maxtemp>=35:
-	    ylim(ymax=(maxtemp+1))
-    if mintemp<=(-1.0):
-	    ylim(ymin=(mintemp-1))
-    
-    ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax1.set_xlabel("LST on "+starttime, fontweight="bold")
-    ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
-    for tl in ax1.get_yticklabels():
-        tl.set_color('g')
-    #Create the twin Y to plot LST on the top axis
-    ay1=ax1.twiny()
-    ay1.set_xlabel("LST "+starttime,fontweight="bold")
-    dummy=[min(ax1.get_yticks()) for i in range(len(f.lst))]
-    ay1.plot(lst_time,dummy,'k')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    for tl in ay1.get_xticklabels():
-	    tl.set_color('DarkViolet')
-
-    #Convert Relative to Absolute
     rh=f.sensor['Enviro/asc.air.relative-humidity']
-    t=f.sensor['Enviro/asc.air.temperature']
-    Pws=[]
-    Pw=[]
-    ah=[]
-    for m in range(len(rh)):
-        Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
-    for m in range(len(rh)):
-        Pw.append(Pws[m]*(rh[m]/100))
-    for m in range(len(rh)):
-        ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
+    if np.all(np.isnan(airtemp)):
+        plt.setp(ax1, visible=False)
+        plt.figtext(0.2,0.9,"No temperature data available.", ha='left', va='center', transform=ax1.transAxes)
+    else:
+        ax1.plot(loc_datetime,airtemp,'g-')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
-    ax2=ax1.twinx()
-    ax2.plot(loc_datetime,ah,'c-')
-    ylim(ymin=1,ymax=8)
-    minah=min(ah)
-    maxah=max(ah)
-    if maxah>=8:
-	    ylim(ymax=(maxah+1))
-    if minah<=(1.0):
-	    ylim(ymin=(minah-1))
-    locs,labels=xticks()
-    ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
-    for tl in ax2.get_yticklabels():
-        tl.set_color('c')
+        ylim(ymin=-1,ymax=35)
+        mintemp=min(airtemp)
+        maxtemp=max(airtemp)
+        if maxtemp>=35:
+            ylim(ymax=(maxtemp+1))
+        if mintemp<=(-1.0):
+            ylim(ymin=(mintemp-1))
+
+        ax1.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+        ax1.set_xlabel("LST on "+starttime, fontweight="bold")
+        ax1.set_ylabel('Temperature (Deg C)', color='g',fontweight="bold")
+        for tl in ax1.get_yticklabels():
+            tl.set_color('g')
+        #Create the twin Y to plot LST on the top axis
+        ay1=ax1.twiny()
+        ay1.set_xlabel("LST "+starttime,fontweight="bold")
+        dummy=[min(ax1.get_yticks()) for i in range(len(f.lst))]
+        ay1.plot(lst_time,dummy,'k')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        for tl in ay1.get_xticklabels():
+            tl.set_color('DarkViolet')
+
+        t=airtemp
+        Pws=[]
+        Pw=[]
+        ah=[]
+        for m in range(len(rh)):
+            Pws.append(6.1162*(10**((7.5892*t[m])/(t[m]+240.71))))
+        for m in range(len(rh)):
+            Pw.append(Pws[m]*(rh[m]/100))
+        for m in range(len(rh)):
+            ah.append(2.11679*((Pw[m]*100)/(273.16+t[m])))
+        ax2=ax1.twinx()
+        ax2.plot(loc_datetime,ah,'c-')
+        ylim(ymin=1,ymax=8)
+        minah=min(ah)
+        maxah=max(ah)
+        if maxah>=8:
+            ylim(ymax=(maxah+1))
+        if minah<=(1.0):
+            ylim(ymin=(minah-1))
+        locs,labels=xticks()
+        ax2.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+        ax2.set_ylabel('Absolute Humidity g/m^3', fontweight="bold",color='c')
+        for tl in ax2.get_yticklabels():
+            tl.set_color('c')
 
     ax3=fig.add_subplot(212)
-    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax3.plot(loc_datetime,((f.sensor['Enviro/asc.air.pressure'])/10),'r-')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-
-
-    airpress=f.sensor['Enviro/asc.air.pressure']/10
-    ylim(ymin=87,ymax=92)
-    minairpress=min(airpress)
-    maxairpress=max(airpress)
-    if maxairpress>=92:
-	    ylim(ymax=(maxairpress+1))
-    if minairpress<=87:
-	    ylim(ymin=(minairpress-1))
+    ax3.set_xlabel("SAST on "+starttime,fontweight="bold")
+    ap=f.sensor['Enviro/asc.air.pressure']
+    if np.all(np.isnan(ap)):
+        plt.setp(ax3, visible=False)
+        plt.figtext(0.2,0.4,"No air pressure data available.", ha='left', va='center', transform=ax1.transAxes)
+    else:
+        ax3.plot(loc_datetime,ap/10.,'r-')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        xlim(xmin=loc_datetime[0],xmax=loc_datetime[-1])
+        airpress=ap/10.
+        ylim(ymin=87,ymax=92)
+        minairpress=min(airpress)
+        maxairpress=max(airpress)
+        if maxairpress>=92:
+	       ylim(ymax=(maxairpress+1))
+        if minairpress<=87:
+	       ylim(ymin=(minairpress-1))
     
-    ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
-    ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
-    for tl in ax3.get_yticklabels():
-	    tl.set_color('r')
-	
-    ax4=ax3.twinx()
-    ax4.plot(loc_datetime,f.sensor['Enviro/asc.wind.speed'],'b-')
+        ax3.grid(axis='y', linewidth=0.15, linestyle='-', color='k')
+        ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
+        for tl in ax3.get_yticklabels():
+	       tl.set_color('r')
     wspeed=f.sensor['Enviro/asc.wind.speed']
-    ylim(ymin=-0.5,ymax=16)
-    minwind=min(wspeed)
-    maxwind=max(wspeed)
-    if maxwind>=16:
-	    ylim(ymax=(maxwind+1))
-    if minwind<=-0.5:
-	    ylim(ymin=(minwind-1))
-    ax4.set_xlabel("SAST on "+starttime,fontweight="bold")
-    ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
-    for tl in ax4.get_yticklabels():
-	    tl.set_color('b')
+    ax4=ax3.twinx()
+    if np.all(np.isnan(wspeed)):
+        plt.setp(ax4, visible=False)
+        plt.figtext(0.2,0.35,"No wind speed data available.", ha='left', va='center', transform=ax1.transAxes)
+    else:
+        plt.setp(ax3, visible=True)
+        ax4.plot(loc_datetime,wspeed,'b-')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        xlim(xmin=loc_datetime[0],xmax=loc_datetime[-1])
+        ylim(ymin=-0.5,ymax=16)
+        minwind=min(wspeed)
+        maxwind=max(wspeed)
+        if maxwind>=16:
+	       ylim(ymax=(maxwind+1))
+        if minwind<=-0.5:
+	       ylim(ymin=(minwind-1))
+        ax4.set_ylabel('Wind Speed (m/s)',fontweight="bold", color='b')
+        for tl in ax4.get_yticklabels():
+	       tl.set_color('b')
     savefig(pp,format='pdf')
 
 def plot_bpcal_selection(f):
-    bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
-    bp = np.arange(len(bp))[bp][0]
+    corrmode=f.spectral_windows[0].product
+    if corrmode=='bc16n400M1k':
+        #Do all targets if beamformer mode
+        bp=f.target_indices
+        type_tag='Target '
+    else:
+        #else only select bandpass calibrators
+        bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
+        bp = np.arange(len(bp))[bp][0]
+        type_tag='BP Cal '
     fig = plt.figure(figsize=(21,15))
-    plt.suptitle("Bp cal Fringes",fontsize=16, fontweight="bold")
+    plt.suptitle(type_tag+"Fringes",fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=bp, corrprods='cross', pol=pol, scans='track')
@@ -358,21 +379,44 @@ def plot_bpcal_selection(f):
 
 def plot_target_selection(f):
     fig = plt.figure(figsize=(21,15))
-    plt.suptitle("Correlation Spectra",fontsize=16, fontweight="bold")
+    #Find a target to plot
+    #Any bpcals?
+    if f.catalogue.filter(tags='bpcal'):
+        check_targets=f.catalogue.filter(tags='bpcal')
+    #Otherwise gaincal?
+    elif f.catalogue.filter(tags='gaincal'):
+        check_targets=f.catalogue.filter(tags='gaincal')
+    #Else just check all targets
+    else:
+        check_targets=f.catalogue
+    select_target=0
+    max_integration=0
+    for target in check_targets.targets:
+        f.select(targets=target, scans='track')
+        if f.vis.shape[0]>max_integration:
+            select_target=target
+            max_integration=f.vis.shape[0]
+    plt.suptitle("Correlation Spectra on "+select_target.name,fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
-            f.select(targets=f.catalogue.filter(tags='target'), corrprods='cross', pol=pol, scans='track')
+            f.select(targets=select_target, corrprods='cross', pol=pol, scans='track')
             
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
-            #extract the fringes
-            power = 10 * np.log10(np.abs((f.vis[:,:,:])))
-            #For plotting the fringes
+            #For plotting the power
             fig.subplots_adjust(wspace=0., hspace=0.)
             #debug_here()
             for n, (indexA, indexB) in enumerate(crosscorr):
                 subplot_index = (len(f.ants) * indexA + indexB + 1) if pol == 'h' else (indexA + len(f.ants) * indexB + 1)
                 ax = fig.add_subplot(len(f.ants), len(f.ants), subplot_index)
-                ax.plot(f.channel_freqs,np.mean(power[:,:,n],0))
+                #loop through scans and average individually to remove changes in power over time
+                sum_power=np.zeros(f.vis.shape[1]) #initialise sum
+                for tmp in f.scans():
+                    power = np.abs(f.vis[:,:,n])[:,:,0]
+                    #get average power for this scan (omit first channel)
+                    dc_offset=np.mean(power[:,1:])
+                    sum_power+=np.sum(power[:,:]/dc_offset,axis=0)
+                av_power=10.*np.log10(sum_power/max_integration)
+                ax.plot(f.channel_freqs,av_power)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 if pol == 'h':
@@ -450,18 +494,14 @@ for ant in ants:
 plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime)
 f.select()
 
-if f.catalogue.filter(tags='bpcal'):
-    print "Plotting bpcal fringes."
+if f.catalogue.filter(tags='bpcal') or f.spectral_windows[0].product=='bc16n400M1k':
+    print "Plotting fringes."
     plot_bpcal_selection(f)
 else:
-    print "No bpcal tags found in catalog, we wont plot bpcal fringes."
+    print "No bpcal tags found in catalog and observation not in beamformer mode, we wont plot fringes."
 
-if f.catalogue.filter(tags='target'):
-    print "Plotting target correlation spectra."
-    plot_target_selection(f)
-else:
-    print "No target tags found in catalog, we wont plot the target cross correlation spectra."
-
+#Plot target cross correlation spectra
+plot_target_selection(f)
 
 #creating the last page
 figure(figsize = (13.5,7))
