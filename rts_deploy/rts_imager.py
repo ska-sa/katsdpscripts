@@ -198,7 +198,7 @@ def configure_celery():
                 use_sudo=True)
     files.sed(CELERYD_CONF,
                 'CELERYD_OPTS="--time-limit=300 --concurrency=8"',
-                'CELERYD_OPTS="--concurrency=1"',
+                'CELERYD_OPTS="--concurrency=8"',
                 use_sudo=True)
     sudo('/etc/init.d/celeryd start')
 
