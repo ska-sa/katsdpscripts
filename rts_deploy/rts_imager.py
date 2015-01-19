@@ -76,13 +76,13 @@ def install_k7contpipe():
     #Install obit_imager
     install_svn_package('obit_imager',repo='svnDS/research')
     #Setup .katimrc
-    sudo('rm -f /var/kat/.katimrc')
-    katimrc=['[KATPIPE]','aips_dir =','aips_version =','metadata_dir =','obit_dir =']
-    files.append('/var/kat/.katimrc',katimrc)
     #Get static data and put it in /var/kat/k7contpipe
     sudo('mkdir -p /var/kat/k7contpipe')
     retrieve_svn_package('FITS', repo='svnDS/research/obit_imager',output_location='/var/kat/k7contpipe')
-    files.sed('/var/kat/katimrc','metadata_dir = *','metadata_dir = /var/kat/k7contpipe')
+    sudo('rm -f /var/kat/k7contpipe/katimrc')
+    katimrc=['[KATPIPE]','aips_dir =','aips_version =','metadata_dir =','obit_dir =']
+    files.append('/var/kat/k7contpipe/katimrc',katimrc,use_sudo=True)
+    files.sed('/var/kat/k7contpipe/katimrc','metadata_dir = *','metadata_dir = /var/kat/k7contpipe',use_sudo=True)
     # setup Obit
     deploy_obit()
     # setup AIPS
@@ -110,7 +110,7 @@ def deploy_obit():
     #Add Obits python module to sys.paths
     files.append('/usr/local/lib/python2.7/dist-packages/Obit.pth', OBIT_INSTALL + '/Obit/python', use_sudo=True)
     #Set location of Obit install in .katimrc
-    files.sed('/var/kat/katimrc', 'obit_dir = *', 'obit_dir = '+OBIT_INSTALL+'/Obit')
+    files.sed('/var/kat/k7contpipe/katimrc', 'obit_dir = *', 'obit_dir = '+OBIT_INSTALL+'/Obit',use_sudo=True)
 
 def deploy_aips():
     """
@@ -149,8 +149,8 @@ def deploy_aips():
     rsync(aips_server, exe_files + hlp_files, output_base=AIPS_DIR + '/' + AIPS_VERSION)
 
     # AIPS needs environment variables set up in ~/.katimrc
-    files.sed('/var/kat/katimrc','aips_dir = *', 'aips_dir = ' + AIPS_DIR)
-    files.sed('/var/kat/katimrc','aips_version = *', 'aips_version = ' + AIPS_VERSION)
+    files.sed('/var/kat/k7contpipe/katimrc','aips_dir = *', 'aips_dir = ' + AIPS_DIR,use_sudo=True)
+    files.sed('/var/kat/k7contpipe/katimrc','aips_version = *', 'aips_version = ' + AIPS_VERSION,use_sudo=True)
 
 def install_oodt_package(pkg):
     make_directory(OODT_HOME, options='')
