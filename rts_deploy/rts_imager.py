@@ -74,7 +74,7 @@ def install_k7contpipe():
     Install the KAT-7 continuum pipeline and its dependencies.
     """
     #Install obit_imager
-    install_svn_package('obit_imager',repo='svnDS/research')
+    install_svn_package('obit_imager', user='kat', password='kat', repo='svnDS/research')
     #Setup .katimrc
     #Get static data and put it in /var/kat/k7contpipe
     sudo('mkdir -p /var/kat/k7contpipe')
