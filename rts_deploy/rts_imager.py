@@ -75,10 +75,10 @@ def install_k7contpipe():
     """
     #Install obit_imager
     install_svn_package('obit_imager', user='kat', password='kat', repo='svnDS/research')
-    #Setup .katimrc
     #Get static data and put it in /var/kat/k7contpipe
     sudo('mkdir -p /var/kat/k7contpipe')
-    retrieve_svn_package('FITS', repo='svnDS/research/obit_imager',output_location='/var/kat/k7contpipe')
+    retrieve_svn_package('FITS', user='kat', password='kat', repo='svnDS/research/obit_imager',output_location='/var/kat/k7contpipe')
+    #Setup katimrc
     sudo('rm -f /var/kat/k7contpipe/katimrc')
     katimrc=['[KATPIPE]','aips_dir =','aips_version =','metadata_dir =','obit_dir =']
     files.append('/var/kat/k7contpipe/katimrc',katimrc,use_sudo=True)
@@ -109,7 +109,7 @@ def deploy_obit():
     sudo('cp -r ' + OBIT_INSTALL + '/ObitTalk/python ' + OBIT_INSTALL + '/Obit/python')
     #Add Obits python module to sys.paths
     files.append('/usr/local/lib/python2.7/dist-packages/Obit.pth', OBIT_INSTALL + '/Obit/python', use_sudo=True)
-    #Set location of Obit install in .katimrc
+    #Set location of Obit install in katimrc
     files.sed('/var/kat/k7contpipe/katimrc', 'obit_dir = *', 'obit_dir = '+OBIT_INSTALL+'/Obit',use_sudo=True)
 
 def deploy_aips():
@@ -148,7 +148,7 @@ def deploy_aips():
     hlp_files = [AIPS_VERSION + '/HELP/' + taskname + '.HLP' for taskname in AIPS_TASKS]
     rsync(aips_server, exe_files + hlp_files, output_base=AIPS_DIR + '/' + AIPS_VERSION)
 
-    # AIPS needs environment variables set up in ~/.katimrc
+    # AIPS needs environment variables set up in katimrc
     files.sed('/var/kat/k7contpipe/katimrc','aips_dir = *', 'aips_dir = ' + AIPS_DIR,use_sudo=True)
     files.sed('/var/kat/k7contpipe/katimrc','aips_version = *', 'aips_version = ' + AIPS_VERSION,use_sudo=True)
 
