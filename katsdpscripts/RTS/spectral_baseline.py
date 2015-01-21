@@ -339,7 +339,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     data, bline, polarisation = read_and_select_file(input_file, bline=baseline, target=target, channels=freq_chans, polarisation=polarisation)
 
     # Average the data to the required time a frequency bins
-    visdata, freqdata, flagdata, weightdata, freqav, timeav = extract_and_average(data, timeav=freqav, freqav=timeav)
+    visdata, freqdata, flagdata, weightdata, freqav, timeav = extract_and_average(data, timeav=timeav, freqav=freqav)
 
     # Make a masked array out of visdata, get amplitudes and average to stokes I if required
     visdata, flagdata, weightdata = condition_data(visdata, flagdata, weightdata, polarisation)
