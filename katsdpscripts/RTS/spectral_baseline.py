@@ -164,7 +164,7 @@ def extract_and_average(data, timeav=None, freqav=None, stokesI=False):
     else:
         dumpav = int(short_scan/2)
         timeav = dumpav*(data.dump_period/60.0)
-    print "Averaging %d dumps to %4.1fmin intervals."%(dumpav,timeav)
+    print "Averaging %d dumps to %3d x %4.1fmin intervals."%(dumpav,int(scan_length*(data.dump_period/60.0)/timeav),timeav)
 
     #Get the number of channels to average
     freq_width_spec = data.channel_width * len(data.channels)
@@ -291,8 +291,8 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
         tstring += ', %s pol'%pol
 
     # Add some pertinent information.
-    pstring = 'Time average: %4.1f min.\n'%timeav
-    pstring += 'Frequency average: %4.1f MHz.\n'%freqav
+    pstring = 'Time average: %4.1f min.\n'%(timeav)
+    pstring += 'Frequency average: %4.1f MHz.\n'%(freqav)
     pstring += 'Median standard deviation: %5.3f%%'%np.median(corr_visdata_std/mean_visdata*100.0)
     plt.figtext(0.5,0.83,pstring)
 
@@ -360,7 +360,6 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
         except ValueError:
             corr_vis = correct_by_mean(visdata,axis="Channel")
             corr_vis = correct_by_mean(corr_vis,axis="Time")
-
     #get weighted standard deviation of corrected visdata
     corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
 
