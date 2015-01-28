@@ -9,11 +9,15 @@ import time
 import socket
 import datetime as dt
 import matplotlib.dates as mdates
+import katpoint
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import AutoMinorLocator
 from optparse import OptionParser
 from pylab import axes, figure, legend, mean, plot, plt, savefig, sys, text, title, xlabel, xticks, ylabel, ylim, yticks, xlim
+
+class ObsReporterError(Exception):
+    pass
 
 def get_options():
     parser = OptionParser(description='Reduction script to produce metrics on an observation katfile.')
@@ -346,6 +350,8 @@ def plot_bpcal_selection(f):
     try:
         for pol in ('h','v'):
             f.select(targets=bp, corrprods='cross', pol=pol, scans='track')
+            if f.shape[0] == 0:
+                raise ObsReporterError('The selection criteria resulted in an empty data set.')
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
             fringes = np.angle(f.vis[:,:,:])
@@ -370,7 +376,8 @@ def plot_bpcal_selection(f):
                         ax.set_ylabel(f.inputs[indexB][3:], rotation='horizontal',size='xx-large')
                     if indexB == len(f.ants) - 1:
                         ax.set_xlabel(f.inputs[indexA][3:],size='xx-large')
-
+    except ObsReporterError, error:
+           print 'Failed with selection: f.shape=%s. Error: %s' % (str(f.shape), error)
     except KeyError, error:
             print 'Failed to read scans from File: %s with Key Error: %s' % (f, error)
     except ValueError, error:
@@ -380,19 +387,18 @@ def plot_bpcal_selection(f):
 def plot_target_selection(f):
     fig = plt.figure(figsize=(21,15))
     #Find a target to plot
+    f.select(scans='track')
+    check_targets = katpoint.Catalogue([f.catalogue.targets[t] for t in f.target_indices]) #Copy the catalogue safely so that we can remove targets in local copy
     #Any bpcals?
-    if f.catalogue.filter(tags='bpcal'):
-        check_targets=f.catalogue.filter(tags='bpcal')
+    if check_targets.filter(tags='bpcal'):
+        check_targets=check_targets.filter(tags='bpcal')
     #Otherwise gaincal?
-    elif f.catalogue.filter(tags='gaincal'):
-        check_targets=f.catalogue.filter(tags='gaincal')
+    elif check_targets.filter(tags='gaincal'):
+        check_targets=check_targets.filter(tags='gaincal')
     #Else just check all targets
-    else:
-        check_targets=f.catalogue
-    select_target=0
     max_integration=0
     for target in check_targets.targets:
-        f.select(targets=target, scans='track')
+        f.select(targets=target)
         if f.vis.shape[0]>max_integration:
             select_target=target
             max_integration=f.vis.shape[0]
