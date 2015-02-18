@@ -48,7 +48,8 @@ def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
     mm=np.cos(targetel)*np.sin(scanel)*np.cos(targetaz-scanaz)-np.cos(scanel)*np.sin(targetel)
     return ll,mm
 
-#repeats start coordinate of pattern by tracktime for stability of scan
+##repeats start coordinate of pattern by tracktime for stability of scan
+#repeats origin by tracktime
 def generatebox(totextent,tottime,tracktime=0,sampletime=1):
     totextent=np.float(totextent)
     tottime=np.float(tottime)
@@ -56,11 +57,14 @@ def generatebox(totextent,tottime,tracktime=0,sampletime=1):
     sampletime=np.float(sampletime)
     nperside=np.int((tottime-tracktime)/sampletime/4)
     t=np.linspace(-1,1,nperside,endpoint=False)
-    x=totextent/2.0*np.r_[np.tile(t[0],np.int(tracktime/sampletime)),t,np.ones(nperside),-t,-np.ones(nperside)]
-    y=totextent/2.0*np.r_[np.tile(1.0,np.int(tracktime/sampletime)),np.ones(nperside),-t,-np.ones(nperside),t]    
+    # x=totextent/2.0*np.r_[np.tile(t[0],np.int(tracktime/sampletime)),t,np.ones(nperside),-t,-np.ones(nperside)]
+    # y=totextent/2.0*np.r_[np.tile(1.0,np.int(tracktime/sampletime)),np.ones(nperside),-t,-np.ones(nperside),t]
+    x=totextent/2.0*np.r_[np.tile(0.0,np.int(tracktime/sampletime)),t,np.ones(nperside),-t,-np.ones(nperside)]
+    y=totextent/2.0*np.r_[np.tile(0.0,np.int(tracktime/sampletime)),np.ones(nperside),-t,-np.ones(nperside),t]    
     return x,y
 
-#repeats start coordinate of pattern by tracktime for stability of scan
+##repeats start coordinate of pattern by tracktime for stability of scan
+#repeats origin by tracktime
 def generateellipse(xextent,yextent,tottime,tracktime=0,sampletime=1):
     xextent=np.float(xextent)
     yextent=np.float(yextent)
@@ -72,8 +76,10 @@ def generateellipse(xextent,yextent,tottime,tracktime=0,sampletime=1):
     t=np.linspace(-np.pi,np.pi,nsamples)
     x=xextent/2.0*np.cos(t)
     y=yextent/2.0*np.sin(t)
-    x=np.r_[np.tile(x[0],np.int(tracktime/sampletime)),x]
-    y=np.r_[np.tile(y[0],np.int(tracktime/sampletime)),y]
+    # x=np.r_[np.tile(x[0],np.int(tracktime/sampletime)),x]
+    # y=np.r_[np.tile(y[0],np.int(tracktime/sampletime)),y]
+    x=np.r_[np.tile(0.0,np.int(tracktime/sampletime)),x]
+    y=np.r_[np.tile(0.0,np.int(tracktime/sampletime)),y]
     return x,y
 
 # Set up standard script options
