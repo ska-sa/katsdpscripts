@@ -50,36 +50,40 @@ def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
 
 ##repeats start coordinate of pattern by tracktime for stability of scan
 #repeats origin by tracktime
-def generatebox(totextent,tottime,tracktime=0,sampletime=1):
+#adds extra slewtime at starting point of pattern
+def generatebox(totextent,tottime,tracktime=0,slewtime=0,sampletime=1):
     totextent=np.float(totextent)
     tottime=np.float(tottime)
     tracktime=np.float(tracktime)
+    slewtime=np.float(slewtime)
     sampletime=np.float(sampletime)
-    nperside=np.int((tottime-tracktime)/sampletime/4)
+    nperside=np.int((tottime-tracktime-2.0*slewtime)/sampletime/4)
     t=np.linspace(-1,1,nperside,endpoint=False)
     # x=totextent/2.0*np.r_[np.tile(t[0],np.int(tracktime/sampletime)),t,np.ones(nperside),-t,-np.ones(nperside)]
     # y=totextent/2.0*np.r_[np.tile(1.0,np.int(tracktime/sampletime)),np.ones(nperside),-t,-np.ones(nperside),t]
-    x=totextent/2.0*np.r_[np.tile(0.0,np.int(tracktime/sampletime)),t,np.ones(nperside),-t,-np.ones(nperside)]
-    y=totextent/2.0*np.r_[np.tile(0.0,np.int(tracktime/sampletime)),np.ones(nperside),-t,-np.ones(nperside),t]    
+    x=totextent/2.0*np.r_[np.tile(0.0,np.int((tracktime+slewtime)/sampletime)),np.tile(t[0],np.int((slewtime)/sampletime)),t,np.ones(nperside),-t,-np.ones(nperside)]
+    y=totextent/2.0*np.r_[np.tile(0.0,np.int((tracktime+slewtime)/sampletime)),np.tile(1.0,np.int((slewtime)/sampletime)),np.ones(nperside),-t,-np.ones(nperside),t]    
     return x,y
 
 ##repeats start coordinate of pattern by tracktime for stability of scan
 #repeats origin by tracktime
-def generateellipse(xextent,yextent,tottime,tracktime=0,sampletime=1):
+#adds extra slewtime at starting point of pattern
+def generateellipse(xextent,yextent,tottime,tracktime=0,slewtime=0,sampletime=1):
     xextent=np.float(xextent)
     yextent=np.float(yextent)
     tottime=np.float(tottime)
     tracktime=np.float(tracktime)
+    slewtime=np.float(slewtime)
     sampletime=np.float(sampletime)
-    nsamples=np.int((tottime-tracktime)/sampletime)
+    nsamples=np.int((tottime-tracktime-2.0*slewtime)/sampletime)
     
     t=np.linspace(-np.pi,np.pi,nsamples)
     x=xextent/2.0*np.cos(t)
     y=yextent/2.0*np.sin(t)
     # x=np.r_[np.tile(x[0],np.int(tracktime/sampletime)),x]
     # y=np.r_[np.tile(y[0],np.int(tracktime/sampletime)),y]
-    x=np.r_[np.tile(0.0,np.int(tracktime/sampletime)),x]
-    y=np.r_[np.tile(0.0,np.int(tracktime/sampletime)),y]
+    x=np.r_[np.tile(0.0,np.int((tracktime+slewtime)/sampletime)),np.tile(x[0],np.int(slewtime/sampletime)),x]
+    y=np.r_[np.tile(0.0,np.int((tracktime+slewtime)/sampletime)),np.tile(y[0],np.int(slewtime/sampletime)),y]
     return x,y
 
 # Set up standard script options
@@ -91,6 +95,9 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              '**required** options below.')
 # Add experiment-specific options
 parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
+parser.add_option('--off-ants', help='Subset of tracking antennas to apply extra offset to')
+parser.add_option('--off-x', default='0', help='List of floats for x direction offsets in arc minutes (default=%default). One x any y offset is used per cycle.')
+parser.add_option('--off-y', default='0', help='List of floats for y direction offsets in arc minutes (default=%default). One x any y offset is used per cycle.')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
 parser.add_option('--cycle-duration', type='float', default=60.0,
@@ -103,6 +110,8 @@ parser.add_option('--kind', type='string', default='circle',
                   help='Kind of scan, could be "box" or "ellipse" (default=%default)')
 parser.add_option('--tracktime', type='float', default=0.0,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
+parser.add_option('--slewtime', type='float', default=0.0,
+                  help='Extra time in seconds allowed for scanning antennas to slew between target and perimeter (default=%default)')
 parser.add_option('--sampletime', type='float', default=1.0,
                   help='time in seconds to spend on pointing (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
@@ -113,18 +122,20 @@ parser.set_defaults(description='Circular pointing scan', nd_params='off')
 opts, args = parser.parse_args()
 
 if (opts.kind=='box'):
-    cx,cy=generatebox(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,sampletime=opts.sampletime)
+    cx,cy=generatebox(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,sampletime=opts.sampletime)
 else:
     if (opts.y_extent!=None):
-        cx,cy=generateellipse(xextent=opts.scan_extent,yextent=opts.y_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,sampletime=opts.sampletime)
+        cx,cy=generateellipse(xextent=opts.scan_extent,yextent=opts.y_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,sampletime=opts.sampletime)
     else:
-        cx,cy=generateellipse(xextent=opts.scan_extent,yextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,sampletime=opts.sampletime)
+        cx,cy=generateellipse(xextent=opts.scan_extent,yextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,sampletime=opts.sampletime)
 timeperstep=opts.sampletime;
 
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
+offsetxlist=[np.float(off) for off in opts.off_x.split(',')]
+offsetylist=[np.float(off) for off in opts.off_y.split(',')]
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
@@ -153,6 +164,11 @@ with verify_and_connect(opts) as kat:
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray
         track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
+        # Assign offset tracking antennas
+        if (opts.off_ants):
+            off_ants = ant_array(kat, opts.off_ants, 'track_ants')
+        else:
+            off_ants = track_ants
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
@@ -168,7 +184,10 @@ with verify_and_connect(opts) as kat:
                 session.ants = all_ants
                 user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                 session.track(target, duration=0, announce=False)#note this actually does nothing useful, doesnt even go to target (keeps existing offset if any exists)
-                session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
+                session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode                
+                if (opts.off_ants):#introduce pointing offsets in offset tracking antennas
+                    session.ants = off_ants
+                    session.ants.req.offset_fixed(offsetxlist[cycle%len(offsetxlist)]/60.0,-offsetylist[cycle%len(offsetylist)]/60.0,opts.projection)
                 session.ants = scan_ants
                 user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
 #                session.set_target(target)
