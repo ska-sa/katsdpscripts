@@ -109,7 +109,7 @@ with verify_and_connect(opts) as kat:
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
                     session.label('raster')
                     # Do different raster scan on strong and weak targets
-                    if not opts.quick or not opts.fine:
+                    if not opts.quick and not opts.fine:
                         if opts.source_strength == 'strong' or \
                            (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
                             session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
