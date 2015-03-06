@@ -37,7 +37,7 @@ nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'peri
 #if len(args) == 0:
 #    raise ValueError("Please specify the sources to observe as arguments, either as "
 #                     "description strings or catalogue filenames")
-fl = '/../2.1-Tipping_Curve/TBGAL_CONVL.FITS'
+fl = './../2.1-Tipping_Curve/TBGAL_CONVL.FITS'
 hdulist = pyfits.open(fl)
 Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
 ra =  lambda x: int(x/0.25) # helper functions
