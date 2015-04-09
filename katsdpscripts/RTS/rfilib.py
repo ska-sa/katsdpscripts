@@ -449,13 +449,16 @@ def get_flag_data(h5data, norm_spec=None):
     offsetarray=np.zeros((h5data.shape[0],2))
     weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
     flags=np.zeros((h5data.shape[0],h5data.shape[1],2),dtype=np.bool)
+    #specify the desired spike width in khz and convert to channels
+    spike_width_khz=2400000
+    spike_width_chan=int(spike_width_khz/h5data.channel_width) + 1
     for num,thisdata in enumerate(h5data.vis):
         #Extract pols
         thisdata = np.abs(thisdata[0,:,:2])
         # normalise if defined
         if norm_spec is not None: thisdata /= norm_spec
         #Flag data for severe spikes
-        flags[num] = detect_spikes_sumthreshold(thisdata,outlier_sigma=8.0,spike_width=3.0)
+        flags[num] = detect_spikes_sumthreshold(thisdata,outlier_sigma=8.0,spike_width=13.0)
         #Get DC height (median rather than mean is more robust...)
         offset = np.median(thisdata[np.where(flags[num]==0)],axis=0)
         #Make an elevation corrected offset to remove outliers
