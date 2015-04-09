@@ -54,9 +54,9 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     # Select frequency channels and setup defaults if not specified
     num_channels = len(data.channels)
     if channels is None:
-        # Default is drop first and last 20% of the bandpass
-        start_chan = num_channels // 4
-        end_chan   = start_chan * 3
+        # Default is drop first and last 10% of the bandpass
+        start_chan = num_channels // 10
+        end_chan   = start_chan * 9
     else:
         start_chan = int(channels.split(',')[0])
         end_chan = int(channels.split(',')[1])
@@ -64,8 +64,12 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     select_data['channels']=chan_range
 
     data.select(strict=False, reset='', **select_data)
-    #return the selected data
 
+    #Check there is some data left over
+    if data.shape[0] == 0:
+        raise ValueError('Selection has resulted in no data to process.')
+
+    #return the selected data
     return data, ant1 + ant2, polarisation
 
 
@@ -309,8 +313,10 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     #Overlay rfi
     rfilib.plot_RFI_mask(ax1,flag_freqs,channel_width)
     rfilib.plot_RFI_mask(ax2,flag_freqs,channel_width)
-    plt.xlim((end_freq,start_freq))
-    
+    if end_freq<start_freq:
+        plt.xlim((end_freq,start_freq))
+    else:
+        plt.xlim((start_freq,end_freq))
     #Convert ticks to MHZ
     ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
     ax2.xaxis.set_major_formatter(ticks)
@@ -330,7 +336,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     target: Target to plot spectrum of, default is the first target in the file.
     freqav: Frequency averaging interval in MHz. Default is a bin size that will produce 100 frequency channels.
     timeav: Time averageing interval in minutes. Default is the shortest scan length on the selected target.
-    freq_chans: Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.
+    freq_chans: Range of frequency channels to keep (zero-based, specified as 'start,end', default is 80% of the bandpass.
     correct: Method to use to correct the spectrum in each average timestamp. Options are 'spline' - fit a cubic spline,'channels' - use the average at each channel Default: 'spline'
     output_dir: Output directory for pdfs. Default is cwd.
     """
