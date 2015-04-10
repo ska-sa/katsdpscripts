@@ -610,8 +610,8 @@ def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,fre
 	# Select the desired antenna and remove slews from the file
 	h5.select(scans='~slew',ants=ant)
 
-    if h5.shape[0]==0:
-        raise ValueError('Selection has resulted in no data to process.')
+	if h5.shape[0]==0:
+		raise ValueError('Selection has resulted in no data to process.')
 
 	if targets is None: targets = h5.catalogue.targets 
 
