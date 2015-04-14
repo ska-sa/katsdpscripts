@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
+# test edit for comparison
 
 setup (
     name = "katsdpscripts",
