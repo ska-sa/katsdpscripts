@@ -449,13 +449,16 @@ def get_flag_data(h5data, norm_spec=None):
     offsetarray=np.zeros((h5data.shape[0],2))
     weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
     flags=np.zeros((h5data.shape[0],h5data.shape[1],2),dtype=np.bool)
+    #specify the desired spike width in khz and convert to channels
+    spike_width_khz=2400000
+    spike_width_chan=int(spike_width_khz/h5data.channel_width) + 1
     for num,thisdata in enumerate(h5data.vis):
         #Extract pols
         thisdata = np.abs(thisdata[0,:,:2])
         # normalise if defined
         if norm_spec is not None: thisdata /= norm_spec
         #Flag data for severe spikes
-        flags[num] = detect_spikes_sumthreshold(thisdata,outlier_sigma=8.0,spike_width=3.0)
+        flags[num] = detect_spikes_sumthreshold(thisdata,outlier_sigma=8.0,spike_width=13.0)
         #Get DC height (median rather than mean is more robust...)
         offset = np.median(thisdata[np.where(flags[num]==0)],axis=0)
         #Make an elevation corrected offset to remove outliers
@@ -581,7 +584,7 @@ def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,fre
 	output_root - directory where output is to be placed - defailt cwd
 	antenna - which antenna to produce report on - default first in file
 	targets - which target to produce report on - default all
-	freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - inner 60% of bandpass
+	freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - inner 80% of bandpass
 	"""
 
 	h5 = katdal.open(input_file)
@@ -592,9 +595,9 @@ def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,fre
 	#Frequency range
 	num_channels = len(h5.channels)
 	if freq_chans is None:
-		# Default is drop first and last 20% of the bandpass
-		start_chan = num_channels // 6
-		end_chan   = start_chan * 5
+		# Default is drop first and last 10% of the bandpass
+		start_chan = num_channels // 10
+		end_chan   = start_chan * 9
 	else:
 		start_chan = int(freq_chans.split(',')[0])
 		end_chan = int(freq_chans.split(',')[1])
@@ -606,6 +609,9 @@ def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,fre
 
 	# Select the desired antenna and remove slews from the file
 	h5.select(scans='~slew',ants=ant)
+
+	if h5.shape[0]==0:
+		raise ValueError('Selection has resulted in no data to process.')
 
 	if targets is None: targets = h5.catalogue.targets 
 
