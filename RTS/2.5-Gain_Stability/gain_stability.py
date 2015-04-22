@@ -109,7 +109,7 @@ def rolling_window(a, window):
 def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
     """ calculate the Stats needed to evaluate the obsevation"""
     returntext = []
-    gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s')).asfreq(freq='1s')
+    gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))#.asfreq(freq='1s')
     mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
     std = pandas.rolling_std(gain_ts,windowtime,minsamples)
     windowgainchange = std/mean*100
