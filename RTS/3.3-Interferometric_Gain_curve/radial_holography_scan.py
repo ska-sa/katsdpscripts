@@ -43,9 +43,10 @@ if len(args) == 0:
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
-            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(3)
     else:
-            user_logger.error("Unable to set Antenna mode to 'STOP'.")
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     targets = collect_targets(kat, args)
 
     # Initialise a capturing session (which typically opens an HDF5 file)
@@ -62,10 +63,10 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Turning off delay tracking.")
             else:
                 user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
+            #if session.dbe.req.zero_delay():
+            #    user_logger.info("Zeroed the delay values.")
+            #else:
+            #    user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
