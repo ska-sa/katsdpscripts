@@ -64,7 +64,7 @@ parser.add_option( "--bins", default=40,
 parser.add_option( "--ant", default='',
                   help="The antenna to do the reduction for', default = '%default'")
 parser.add_option( "-f","--freq", default='2200,2800',
-                  help="The antenna to do the reduction for', default = '%default'")
+                  help="This is the frequency range of the channels to use in the reduction. this is passed as a comma delimatated pair of integer values', default = '%default'")
 
 (opts, args) = parser.parse_args()
 
