@@ -79,7 +79,7 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         session.capture_start()
         # Iterate through elevation angles
-        spacings = list(np.arange(20.0,90.1,opts.spacing))
+        spacings = list(np.arange(15.0,90.1,opts.spacing))
         if opts.tip_both_directions :
             spacings += list(np.arange(90.0,19.9,-opts.spacing))
         for el in spacings:

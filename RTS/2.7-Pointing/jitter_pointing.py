@@ -1,5 +1,8 @@
 """
-    
+This is the Jitter pointing reduction script
+This takes in an obsevation where there are
+several mesurements with different offsets
+from the source 
 """
 
 import numpy as np
@@ -58,8 +61,10 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a Jitter plot in a pdf file.')
 parser.add_option( "--bins", default=40,
                   help="The nuber of bins to use when evaluation the different seperations', default = '%default'")
-parser.add_option( "--ant", default='ant4',
+parser.add_option( "--ant", default='',
                   help="The antenna to do the reduction for', default = '%default'")
+parser.add_option( "-f","--freq", default='2200,2800',
+                  help="This is the frequency range of the channels to use in the reduction. this is passed as a comma delimatated pair of integer values', default = '%default'")
 
 (opts, args) = parser.parse_args()
 
@@ -77,12 +82,14 @@ h5 = katdal.open(args[0])
 nice_filename =  args[0].split('/')[-1]+ '_' +opts.ant+'_jitter_test'
 pp = PdfPages(nice_filename+'.pdf')
 
-h5.select(scans='track',ants=opts.ant,channels=slice((h5.channels.shape[0])//4,(h5.channels.shape[0]*3)//4))
-pos1,pos2 = np.radians((h5.az[:,0],h5.el[:,0])),np.array(h5.catalogue.targets[1].azel(h5.timestamps[:]))
+freqst,freqend = opts.freq.split(',')
 
+h5.select(scans='track',ants=opts.ant,channels=slice(np.int(freqst),np.int(freqend)  ) )
+pos1,pos2 = np.radians((h5.az[:,0],h5.el[:,0])),np.array(h5.catalogue.targets[0].azel(h5.timestamps[:]))
 
-hpbw = fwhm = np.degrees(1.02*(c/h5.channel_freqs)/h5.ants[0].diameter)
-pos1,pos2 = np.radians((h5.az[:,0],h5.el[:,0])),np.array(h5.catalogue.targets[1].azel(h5.timestamps[:]))
+dish_factor = 1.02 #Kat-7  uniformaly ilimanated circular apiture 
+hpbw = fwhm = np.degrees(dish_factor*(c/h5.channel_freqs)/h5.ants[0].diameter)
+pos1,pos2 = np.radians((h5.az[:,0],h5.el[:,0])),np.array(h5.catalogue.targets[0].azel(h5.timestamps[:]))
 sep = np.degrees(Ang_Separation(pos1,pos2))
 hist,binvals = np.histogram(sep,bins=bins)
 binvals[-1] = binvals[-1] + 0.1
