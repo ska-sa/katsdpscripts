@@ -7,13 +7,9 @@ from __future__ import with_statement
 import time
 from katcorelib import standard_script_options, verify_and_connect,  start_session, user_logger
 import katpoint
+from katpoint import angle_wrap
 import numpy as np
 import pyfits
-
-def angle_wrap(angle, period=2.0 * np.pi):
-    """Wrap the *angle* into the interval -*period* / 2 ... *period* / 2."""
-    return (angle + 0.5 * period) % period - 0.5 * period
-
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] hotload or coldload",
