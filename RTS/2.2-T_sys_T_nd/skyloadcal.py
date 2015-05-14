@@ -89,8 +89,8 @@ with verify_and_connect(opts) as kat:
             off2.name = 'off'
             sources = katpoint.Catalogue(add_specials=False)
             sources.add(moon)
-            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(off1.radec()[0]))]
-            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(off2.radec()[0]))]
+            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(angle_wrap(off1.radec()[0])))]
+            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(angle_wrap(off2.radec()[0])))]
             if off1_T > off2_T:
                 sources.add(off2)
             else:
