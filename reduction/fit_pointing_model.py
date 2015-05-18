@@ -371,7 +371,8 @@ save_button = mpl.widgets.Button(fig.add_axes([0.51, 0.81, 0.05, 0.04]), 'SAVE',
 def save_callback(event):
     # Save pointing model to file
     outfile = file(opts.outfilebase + '.csv', 'w')
-    outfile.write(new_model.description)
+    # The original pointing model description string was comma-separated
+    outfile.write(new_model.description.replace(" ", ", "))
     outfile.close()
     logger.debug("Saved %d-parameter pointing model to '%s'" % (len(new_model.params), opts.outfilebase + '.csv'))
     # Turn data recarray into list of dicts and add residuals to the mix
