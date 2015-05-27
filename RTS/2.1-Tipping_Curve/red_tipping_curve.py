@@ -399,7 +399,7 @@ parser.add_option( "--receiver-models-H",default='',
 parser.add_option( "--receiver-models-V",default='',
                   help="Name of File containing receiver  H-pol models")
                   
-parser.add_option( "--nd-models ",default='',
+parser.add_option( "--nd-models",default='',
                   help="Name of Dir containing noise diode models models")
 
 parser.add_option( "--fix-opacity",default=True,
