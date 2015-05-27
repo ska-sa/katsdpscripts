@@ -453,7 +453,7 @@ for ant in h5.ants:
     sort_ind  = elevation.argsort()
     elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
     surface_temperature = np.mean(d.enviro['temperature']['value'])
-
+    length = 0
 
     for i,chunk in enumerate(chunks):
         if not d is None:
