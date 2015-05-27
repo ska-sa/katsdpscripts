@@ -7,13 +7,9 @@ from __future__ import with_statement
 import time
 from katcorelib import standard_script_options, verify_and_connect,  start_session, user_logger
 import katpoint
+from katpoint import wrap_angle
 import numpy as np
 import pyfits
-
-def angle_wrap(angle, period=2.0 * np.pi):
-    """Wrap the *angle* into the interval -*period* / 2 ... *period* / 2."""
-    return (angle + 0.5 * period) % period - 0.5 * period
-
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] hotload or coldload",
@@ -81,16 +77,16 @@ with verify_and_connect(opts) as kat:
             antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')  # find some way of getting this from session
             moon.antenna = antenna
             off1 = katpoint.construct_radec_target(moon.azel()[0] + np.radians(10),moon.azel()[1] )
-            katpoint.construct_radec_target(angle_wrap(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
+            katpoint.construct_radec_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
             off1.antenna = antenna
             off1.name = 'off'
-            off2 = katpoint.construct_azel_target(angle_wrap(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
+            off2 = katpoint.construct_azel_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
             off2.antenna =  antenna 
             off2.name = 'off'
             sources = katpoint.Catalogue(add_specials=False)
             sources.add(moon)
-            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(off1.radec()[0]))]
-            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(off2.radec()[0]))]
+            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(wrap_angle(off1.radec()[0])))]
+            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(wrap_angle(off2.radec()[0])))]
             if off1_T > off2_T:
                 sources.add(off2)
             else:
