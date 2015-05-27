@@ -242,13 +242,13 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
 
-
-def load_cal(filename, baseline, freq_channel=None,channel_bw=10.0):
+def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0):
     """ Load the dataset into memory """
-    d = scape.DataSet(filename, baseline=baseline)#, nd_models=nd_models
+    print('Loading noise diode models')
+    d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
     #if not freq_channel is None :
     #    d = d.select(freqkeep=freq_channel)
-    print "Flagging RFI"
+    #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
     print "Converting to Tempreture"
     d = d.convert_power_to_temperature(freq_width=0.0)
