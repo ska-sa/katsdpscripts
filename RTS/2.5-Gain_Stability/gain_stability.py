@@ -8,6 +8,7 @@ import scape
 import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas
+import pickle
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -62,31 +63,6 @@ def plot_figures(d_uncal, d_cal, time, gain,pol):
     #plt.savefig(plot_filename, dpi=600,bbox_inches='tight')
     return fig
 
-
-
-# Parse command-line opts and arguments
-parser = optparse.OptionParser(usage="%prog [opts] <file>",
-                               description=" This produces a pdf file with graphs decribing the gain sability for each antenna in the file")
-parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='200,800',
-                  help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
-parser.add_option("-m", "--min_nd", dest="min_nd", type="float", default=10,
-                  help="minimum samples of noise diode to use for calibration")
-parser.add_option("-t", "--time_width", dest="time_width", type ="float", default=240,
-                  help="time-width over which to smooth the gains")
-parser.add_option("-a", "--ant", dest="ant", type ="str", default='',
-                  help="The antenna to examine the gain stability on")
-
-(opts, args) = parser.parse_args()
-
-if len(args) ==0:
-    raise RuntimeError('Please specify an h5 file to load.')
-
-
-
-# frequency channels to keep
-start_freq_channel = int(opts.freq_keep.split(',')[0])
-end_freq_channel = int(opts.freq_keep.split(',')[1])
-
 def rolling_window(a, window):
     """ From http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html
      This function produces a rowling window shaped data
@@ -133,7 +109,7 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
 
     pltobj = plt.figure()
     plt.title('Percentage Variation of %s pol, %i Second sliding Window'%(pol,windowtime,))
-    windowgainchange.plot(label='Orignal')
+    windowgainchange.plot(label='Original')
     detrended_windowgainchange.plot(label='Detrended')
     window_occ.plot(label='Window Occupancy')
     plt.hlines(2, timestamps.min(), timestamps.max(), colors='k')
@@ -150,23 +126,58 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
     for i in range(len(d.scans)):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
+    
+# Parse command-line opts and arguments
+parser = optparse.OptionParser(usage="%prog [opts] <file>",
+                               description=" This produces a pdf file with graphs decribing the gain sability for each antenna in the file")
+parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='211,3896',
+                  help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
+parser.add_option("-m", "--min_nd", dest="min_nd", type="float", default=10,
+                  help="minimum samples of noise diode to use for calibration")
+parser.add_option("-t", "--time_width", dest="time_width", type ="float", default=240,
+                  help="time-width over which to smooth the gains")
+parser.add_option("-a", "--ant", dest="ant", type ="str", default='',
+                  help="The antenna to examine the gain stability on")
+parser.add_option("--pickle", dest="pickle_filename", type="str", default = "",
+                   help="Name of file containing static flags")
+
+(opts, args) = parser.parse_args()
+
+if len(args) ==0:
+    raise RuntimeError('Please specify an h5 file to load.')
+    
+h5 = katdal.open(args[0])
+if opts.ant=='' :
+    ant= h5.ants[0].name
+else:
+    ant = opts.ant
+n_chan = len(h5.channels)
+    
+# frequency channels to keep - usually set to exclude edges
+start_freq_channel = int(opts.freq_keep.split(',')[0])
+end_freq_channel = int(opts.freq_keep.split(',')[1])
+edge = np.tile(True, n_chan)
+edge[slice(start_freq_channel, end_freq_channel)] = False
+#load static flags if pickle file is given
+if len(opts.pickle_filename)>0:
+    pickle_file = open(opts.pickle_filename) 
+    rfi_static_flags = pickle.load(pickle_file)
+    pickle_file.close()
+else:
+    rfi_static_flags = np.tile(False, n_chan)
+static_flags = np.logical_or(edge,rfi_static_flags)
 
 gain_hh = np.array(())
 gain_vv = np.array(())
 timestamps = np.array(())
 filename = args[0]
-nice_filename =  filename.split('/')[-1]+ '_' +opts.ant+'_gain_stability'
+nice_filename =  filename.split('/')[-1]+ '_' +opts.ant+'gain_stability'
 pp = PdfPages(nice_filename+'.pdf')
 
 for filename in args:
-    h5 = katdal.open(filename)
-    if opts.ant=='' :
-        ant= h5.ants[0].name
-    else:
-        ant = opts.ant
     #h5.select(ants=ant)
-    d = scape.DataSet(filename, baseline="%s,%s" % (ant,ant))
-    d = d.select(freqkeep=range(start_freq_channel, end_freq_channel+1))
+    d = scape.DataSet(filename, baseline="%s,%s" % (ant,ant)) 
+    d = d.select(freqkeep=~static_flags)
     d = remove_rfi(d,width=21,sigma=5)  # rfi flaging
     #Leave the d dataset unchanged after this so that it can be examined interactively if necessary
     antenna = d.antenna
