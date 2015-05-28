@@ -10,7 +10,7 @@ parser = optparse.OptionParser(usage="Please specify the input file\n\
 
 parser.add_option("-a", "--antenna", type="string", default=None, help="Name of the antenna to produce the report for, default is first antenna in file")
 parser.add_option("-t", "--targets", type="string", default=None, help="List of targets to produce report for, default is all targets in the file")
-parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.")
+parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 90% of the bandpass.")
 parser.add_option("-o", "--output_dir", default='.', help="Directory to place output .pdf report. Default is cwd")
 opts, args = parser.parse_args()
 
