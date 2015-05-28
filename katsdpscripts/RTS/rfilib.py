@@ -584,7 +584,7 @@ def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,fre
 	output_root - directory where output is to be placed - defailt cwd
 	antenna - which antenna to produce report on - default first in file
 	targets - which target to produce report on - default all
-	freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - inner 80% of bandpass
+	freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
 	"""
 
 	h5 = katdal.open(input_file)
@@ -595,9 +595,9 @@ def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,fre
 	#Frequency range
 	num_channels = len(h5.channels)
 	if freq_chans is None:
-		# Default is drop first and last 10% of the bandpass
-		start_chan = num_channels // 10
-		end_chan   = start_chan * 9
+		# Default is drop first and last 5% of the bandpass
+		start_chan = num_channels//20
+		end_chan   = num_channels - start_chan
 	else:
 		start_chan = int(freq_chans.split(',')[0])
 		end_chan = int(freq_chans.split(',')[1])
