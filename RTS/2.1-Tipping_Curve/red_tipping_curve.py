@@ -9,91 +9,69 @@
 # To run type the following: %run fit_tipping_curve_nad.py -a 'A7A7' -t  /Users/nadeem/Dev/svnScience/KAT-7/comm/scripts/K7_tip_predictions
 # /mrt2/KAT/DATA/Tipping/Ant7/1300572919.h5
 #
-import sys
+#import sys
 import optparse
-import re
-import os.path
+#import re
+#import os.path
 import numpy as np
 import matplotlib.pyplot as plt
-import pyfits
+#import pyfits
 
 import warnings
 from matplotlib.backends.backend_pdf import PdfPages
 import katdal
 import scape
 import scikits.fitting as fit
-from katpoint import rad2deg, deg2rad,  construct_azel_target
-
-
+import gsm
+import healpy as hp
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 class Sky_temp:
+    import gsm
+    import healpy as hp
+    from astropy import units as u
+    from astropy.coordinates import SkyCoord
     """
-       T_sky = T_cont + T_casA + T_HI + T_cmb
-       Read in the convolved file, and provide a method of passing back the Tsky temp a at a position
+       T_sky = T_cont + T_cmb  from the global sky model
+       Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
-    def __init__(self,inputfile='TBGAL_CONVL.FITS',nu=1828.0):
+    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm"):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
-        This takes in 2 optional parameters:
-        inputfile (filename) a fits file at 1420 MHz
+        This takes in 1 parameter:
         nu (MHz) center frequency
-        the data is scaled by the alpha=-0.727
-        This needs to be checked
-        This initilises the sky temp object.
-
         """
-        self.ra =  lambda x: int(x/0.25) # helper functions
-        self.dec = lambda x: int((-x+90)/0.25)
-        self.nu = nu
-        self.alpha = -0.727
-        def Tsky_approx(ra,dec):
-            T_cmb = 2.7
-            T_gal = 10.0 * (self.nu/408) ** (-(2-self.alpha))
-            return T_cmb + T_gal
-        self.Tsky_approx = Tsky_approx
-        try:
-            hdulist = pyfits.open(inputfile)
-            self.Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
-            self.Data_imshow = np.flipud(hdulist[0].data) # data is in the first element of the fits file
-            def Tsky(ra,dec):
-                return self.Data[self.dec(dec),self.ra(ra)]*(self.nu/1420.0)**(-(2-self.alpha))
-            self.data_freq = 1420.0
-            self.Tsky =  Tsky
-        except IOError:
-            warnings.warn('Warning: Failed to load sky tempreture map using approximations')
-            self.Tsky =  self.Tsky_approx
-            Data = np.zeros([360,180])
-            for ra in range(360):
-                for dec in range(-90,90):
-                    Data[ra,dec+90] =  self.Tsky(ra,dec)
-            self.Data = Data
-            self.data_freq = self.nu
-
-    def set_freq(self,nu):
-        """ Set the frequency. This is only needed for approximations """
+        self.freq_map = gsm.get_freq(nu,path)
         self.nu = nu
 
-    def plot_sky(self,ra=None,dec=None,figure_no=None):
+    def Tsky(self,ra,dec):
+        """given RA/Dec in Degrees  return the value of the spot
+        assuming the healpix map is in Galatic coords
+        """
+        c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+        l = c.galactic.l.radian
+        b = c.galactic.b.radian
+        nside = hp.npix2nside(self.freq_map.shape[0])
+        ipix = hp.ang2pix(nside, np.pi/2.0 - b , -l % (np.pi*2))
+        return self.freq_map[ipix]
+
+    
+    def plot_sky(self,ra=None,dec=None,norm = 'log',unit='Kelvin',heapix_array=None):
         """ plot_sky plots the sky tempreture and overlays pointing centers as red dots
         The sky tempreture is the data that was loaded when the class was iniitated.
         plot_sky takes in 3 optional parameters:
                 ra,dec  are list/1D-array like values of right assension and declanation
-                figure_no is the figure number, None just makes a new figure.
         returns matplotlib figure object that the plot is assosated with.
         """
-        if figure_no is None:
-             fig = plt.figure()
-        else:
-            fig =plt.figure(figure_no)
-            fig.clf()
-        if not ra is None and not dec is None :
-            if len(dec) == len(ra) :
-                plt.plot(ra,dec,'ro')
-        else:
-            raise RuntimeError('Number of Declanation values (%s) is not equal to the number of Right assension values (%s) in plot_sky'%(len(dec),len(ra)))
-        plt.xlabel("RA(J2000) [degrees]")
-        plt.ylabel("Dec(J2000) [degrees]")
-        plt.imshow(np.fliplr(self.Data), extent=[360,0,-90,90],vmax=50) #*(self.nu/self.data_freq)**(-(2-self.alpha))
+        #self.freq_map
+        fig = plt.figure()
+        hp.cartview(self.freq_map,norm = norm,unit=unit,fig=fig.number)
+        c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+        l = np.degrees(-c.galactic.l.radian % (np.pi*2))
+        b = np.degrees(c.galactic.b.radian)
+        plt.plot(l,b,'ro')
+        #hp.graticule()
         return fig
-
+        
 class Spill_Temp:
     """Load spillover models and interpolate to centre observing frequency."""
     def __init__(self,filename=None):
@@ -112,48 +90,65 @@ class Spill_Temp:
         """
 #TODO Need to sort out better frequency interpolation & example
         try:
-            spillover_H,spillover_V = np.loadtxt(filename).reshape(2,3,-1)
+            datafile =np.loadtxt(filename)
+            elevation = datafile[1:,0]
+            numfreqs = (datafile.shape[1]-1)//2
+            freqs= datafile[0,1::2]
+            elevation_list = np.array(())
+            freq_list = np.array(())
+            data_list = np.array(())
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0] ## Hard code the lower limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+0*2]]
+            for x in range(numfreqs):
+                elevation_list = np.r_[elevation_list,elevation]
+                freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
+                data_list = np.r_[data_list,datafile[1:,1+x*2]]
+
+            T_H = fit.Delaunay2DScatterFit() 
+            T_H.fit((90.-elevation_list,freq_list),data_list)
+
+            elevation_list = np.array(())
+            freq_list = np.array(())
+            data_list = np.array(())
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0]  ## Hard code the lower limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+0*2+1]]
+            for x in range(numfreqs):
+                elevation_list = np.r_[elevation_list,elevation]
+                freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
+                data_list = np.r_[data_list,datafile[1:,1+x*2+1]]
+            T_V = fit.Delaunay2DScatterFit()
+            T_V.fit((90.-elevation_list,freq_list),data_list)
+            self.spill = {}
+            self.spill['HH'] = T_H # The HH and VV is a scape thing
+            self.spill['VV'] = T_V
+            #print self.spill['HH']((90.-elevation_list,freq_list))
+   
         except IOError:
-            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])
-            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])
+            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
+            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
+            spillover_H[0]= 90-spillover_H[0]
+            spillover_V[0]= 90-spillover_V[0]
+            T_H = fit.Delaunay2DScatterFit() 
+            T_V = fit.Delaunay2DScatterFit()
+            T_H.fit(spillover_H[[0,2],:],spillover_H[1,:])
+            T_V.fit(spillover_V[[0,2],:],spillover_V[1,:])
+            self.spill = {}
+            self.spill['HH'] = T_H # The HH and VV is a scape thing
+            self.spill['VV'] = T_V
             warnings.warn('Warning: Failed to load Spillover models, setting models to zeros')
+            print "error"
         # the models are in a format of theta=0  == el=90
-        spillover_H[0]= 90-spillover_H[0]
-        spillover_V[0]= 90-spillover_V[0]
 
-        #np.array([[33.0,],[1200.]])
-        #Assume  Provided models are a function of zenith angle & frequency
-        T_H = fit.Spline2DScatterFit(degree=(1,1))
-        T_V = fit.Spline2DScatterFit(degree=(1,1))
-        T_H.fit(spillover_H[[0,2],:],spillover_H[1,:])
-        T_V.fit(spillover_V[[0,2],:],spillover_V[1,:])
-        self.spill = {}
-        self.spill['HH'] = T_H # The HH and VV is a scape thing
-        self.spill['VV'] = T_V
-
-    def save(filename=None,HH=np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]]),VV=np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])):
-        """ Save a Spillover model in the correct format
-        filename : String filename
-        HH,VV    : ndarray with shape (3,N )
-                 : HH[0,:] is elevation degrees from zenith
-                 : HH[1,:] is tempreture
-                 : HH[2,:] is frequency
-         the file is read using the command HH,VV = np.loadtxt('SpilloverModel.dat').reshape(2,3,-1)
-        """
-        if filename is None :
-            print(help(self.save))
-        else :
-            with file(filename, 'w') as outfile:
-                np.savetxt(outfile,HH)
-                np.savetxt(outfile,VV)
 
 class Rec_Temp:
     """Load Receiver models and interpolate to centre observing frequency."""
-    def __init__(self,filename=''):
+    def __init__(self,filenameH='',filenameV=''):
         """ The class Rec_temp reads the receiver model from file and
         produces fitted functions for a frequency
         The class/__init__function takes in one parameter:
-        filename : (default='') This is the filename
+        filenameH : (default='') This is the filename
                of the recever model
                these files have 2 cols:
                 Frequency (MHz),tempreture (MHz),
@@ -164,47 +159,37 @@ class Rec_Temp:
                and return tempreture in Kelven.
         """
         try:
-             receiver_h,receiver_v = np.loadtxt(filename, unpack=True)
+            receiver_h = (np.loadtxt(filenameH,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz # discard the gain col
+            a800 = np.zeros((2,np.shape(receiver_h)[-1]+1))
+            a800[:,0] = [800,receiver_h[1,0]]
+            a800[:,1:] = receiver_h
+            receiver_h = a800
+            receiver_v = (np.loadtxt(filenameV,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz  # discard the gain col
+            a800 = np.zeros((2,np.shape(receiver_v)[-1]+1))
+            a800[:,0] = [800,receiver_v[1,0]]
+            a800[:,1:] = receiver_v
+            receiver_v = a800
         except IOError:
-            receiver_h = np.array([[900.,2000],[15.,15.]])
-            receiver_v = np.array([[900.,2000],[15.,15.]])
+            receiver_h = np.array([[800.,2000],[15.,15.]])
+            receiver_v = np.array([[800.,2000],[15.,15.]])
             warnings.warn('Warning: Failed to load Receiver models, setting models to 15 K ')
         #Assume  Provided models are a function of zenith angle & frequency
-        T_H = fit.Spline1DFit(degree=1)
-        T_V = fit.Spline1DFit(degree=1)
+        T_H = fit.PiecewisePolynomial1DFit()
+        T_V = fit.PiecewisePolynomial1DFit()
         T_H.fit(receiver_h[0],receiver_h[1])
         T_V.fit(receiver_v[0],receiver_v[1])
         self.rec = {}
         self.rec['HH'] = T_H # The HH and VV is a scape thing
         self.rec['VV'] = T_V
 
-    def save(filename=None,HH=np.array([[900.,2000],[15.,15.]]),VV=np.array([[900.,2000],[15.,15.]])):
-        """ Save a Recever model in the correct format
-        filename : String filename
-        HH,VV    : ndarray with shape (3,N )
-                 : HH[0,:] is frequency
-                 : HH[1,:] is tempreture
-                 :
-         the file is read using the command HH,VV = np.loadtxt('ReceverModel.dat').reshape(2,2,-1)
-        """
-        if filename is None :
-            print(help(self.save))
-        else :
-            with file(filename, 'w') as outfile:
-                np.savetxt(outfile,HH)
-                np.savetxt(outfile,VV)
-
-
 class System_Temp:
     """Extract tipping curve data points and surface temperature."""
-    def __init__(self,d,path='TBGAL_CONVL.FITS',freqs=1822,freq_index=0):#d, nu, pol
+    def __init__(self,d,freqs=1822,freq_index=0,elevation=None,ra=None,dec=None ,surface_temperature=23.0):#d, nu, pol
         """ First extract total power in each scan (both mean and standard deviation) """
-        T_skytemp = Sky_temp(inputfile=path,nu=freqs)
-        T_skytemp.set_freq(freqs)
-        #print freqs
+        T_skytemp = Sky_temp(nu=freqs)
         T_sky =  T_skytemp.Tsky
         self.units = d.data_unit
-        self.inputpath = path
+        
         self.name = d.antenna.name
         self.filename = d.filename
         self.elevation =  {}
@@ -213,16 +198,11 @@ class System_Temp:
         self.Tsys_sky = {}
         self.T_sky = []
         # Sort data in the order of ascending elevation
-        elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
-        ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
-        dec       = np.array([np.average(scan_dec) for scan_dec in scape.extract_scan_data(d.scans,'dec').data])
-        sort_ind  = elevation.argsort()
-        elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
         valid_el = (elevation >= 10)
         self.elevation =  elevation[valid_el]
         self.ra = ra[valid_el]
         self.dec = dec[valid_el]
-        self.surface_temperature = np.mean(d.enviro['temperature']['value'])# Extract surface temperature from weather data
+        self.surface_temperature = surface_temperature# Extract surface temperature from weather data
         self.freq = d.freqs[0]  #MHz Centre frequency of observation
         for pol in ['HH','VV']:
             power_stats = [scape.stats.mu_sigma(s.pol(pol)[:,freq_index]) for s in d.scans]
@@ -239,9 +219,8 @@ class System_Temp:
         TmpSky.fit(self.elevation, self.T_sky)
         self.Tsky = TmpSky
 
-    def sky_fig(self):
-        T_skytemp = Sky_temp(inputfile=self.inputpath,nu=self.freq)
-        T_skytemp.set_freq(self.freq)
+    def sky_fig(self,freq=1328):
+        T_skytemp = Sky_temp(freq)
         return T_skytemp.plot_sky(self.ra,self.dec)
 
 
@@ -257,18 +236,19 @@ class System_Temp:
 
 
 ###########################End Classes
+
 def remove_rfi(d,width=3,sigma=5,axis=1):
     for i in range(len(d.scans)):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
 
-
-def load_cal(filename, baseline, freq_channel=None,channel_bw=10.0):
+def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0):
     """ Load the dataset into memory """
-    d = scape.DataSet(filename, baseline=baseline)#, nd_models=nd_models
+    print('Loading noise diode models')
+    d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
     #if not freq_channel is None :
     #    d = d.select(freqkeep=freq_channel)
-    print "Flagging RFI"
+    #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
     print "Converting to Tempreture"
     d = d.convert_power_to_temperature(freq_width=0.0)
@@ -278,6 +258,9 @@ def load_cal(filename, baseline, freq_channel=None,channel_bw=10.0):
         d.average(channels_per_band=freq_channel) 
     return d
 
+def chisq_pear(fit,Tsys):
+    fit = np.array(fit)
+    return np.sum((Tsys-fit)**2/fit)
 
 
 def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
@@ -318,12 +301,23 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     else:
         tau = 0.01078
         tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
-        func = lambda x, tsys: tsys - (T_rx.rec[pol](freqs)+  T_sys.Tsky(x) + SpillOver.spill[pol](np.array([[x,],[freqs]])) + T_atm * (1 - np.exp(-tau / np.sin(np.radians(x)))))
+        def know_quant(x):
+            rx = T_rx.rec[pol](freqs)
+            sky = T_sys.Tsky(x)
+            spill = SpillOver.spill[pol](np.array([[x,],[freqs]]))
+            atm = T_atm * (1 - np.exp(-tau / np.sin(np.radians(x))))
+            #print "Rec %3.1f + Sky %3.1f + Spill %3.1f + Atm %3.1f = %3.1f" % (rx ,sky , spill , atm,rx+sky+spill+atm)
+            return rx + sky + spill + atm     
+
+        func = know_quant
         fit_func = []
         returntext.append('Not fitting Opacity assuming a value if %f , $T_{ant}$ is the residual of of model data. ' % (tau,))
-        for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): fit_func.append(func(el,t_sys))
+        for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): 
+            fit_func.append(t_sys - func(el))
+            #print "T_sys %3.1f - T_other %3.1f " %(t_sys,func(el))
         chisq =0.0# nonsense Vars
     return {'params': tip.params,'fit':fit_func,'scatter': (T_sys.Tsys[pol]-fit_func),'chisq':chisq,'text':returntext}
+    
 
 def plot_data_el(Tsys,Tant,title='',units='K',line=42):
     fig = plt.figure()
@@ -341,11 +335,17 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42):
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     plt.grid()
     if units == 'K':
-        plt.ylabel('Tempreture (K)')
+        plt.ylabel('Temperature (K)')
     else:
         plt.ylabel('Raw power (counts)')
         plt.legend()
     return fig
+
+def r_lim(dataf,func=np.min):
+    """ Returns the func of the data , not used on nans"""
+    index = np.any(~np.isnan(dataf),axis=-1)
+    return func(dataf[index,...])
+           
 
 def plot_data_freq(frequency,Tsys,Tant,title=''):
     fig = plt.figure()
@@ -358,22 +358,27 @@ def plot_data_freq(frequency,Tsys,Tant,title=''):
     plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}$ HH','$T_{ant}$ HH', '$T_{sys}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
-    plt.ylim(np.max((np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),-5)),np.max((np.percentile(Tsys[:,0:2],80),np.percentile(Tant[:,0:2],80),46*1.3)))
+    low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
+    low_lim = np.min(low_lim)
+    low_lim = np.max((low_lim , -5.))
+    def tmp(x):
+        return np.percentile(x,80)
+    high_lim = (r_lim(Tsys[:,0:2],tmp),r_lim(Tant[:,0:2],tmp))
+    high_lim = np.max(high_lim)
+    high_lim = np.max((high_lim , 46*1.3))
+    plt.ylim(low_lim,high_lim)
     if np.min(frequency) <= 1420 :
         plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
     if np.max(frequency) >=1420 :
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
     if units == 'K':
-        plt.ylabel('Tempreture (K)')
+        plt.ylabel('Temperature (K)')
     else:
         plt.ylabel('Raw power (counts)')
+    #print low_lim,high_lim
     return fig
 
-
-def chisq_pear(fit,Tsys):
-    fit = np.array(fit)
-    return np.sum((Tsys-fit)**2/fit)
 
 
 # Parse command-line options and arguments
@@ -388,13 +393,17 @@ parser.add_option("-e", "--select-el", default='90,15,45',
 parser.add_option("-b", "--freq-bw", default=10.0,
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
 parser.add_option("-s", "--spill-over-models",default='',
-                  help="Name of file containing spillover models")
-parser.add_option( "--receiver-models",default='',
-                  help="Name of file containing receiver models")
+                  help="Name of Directory containing spillover models")
+parser.add_option( "--receiver-models-H",default='',
+                  help="Name of File containing receiver  H-pol models")
+parser.add_option( "--receiver-models-V",default='',
+                  help="Name of File containing receiver  H-pol models")
+                  
+parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-models/mkat/',
+                  help="Name of Dir containing noise diode models models")
+
 parser.add_option( "--fix-opacity",default=True,
                   help="This option has not been completed, Do not let opacity be a free parameter in the fit , this changes the fitting in to just a model subtraction and T_ant is the error")
-parser.add_option( "--sky-map", default='TBGAL_CONVL.FITS',
-                  help="Name of map of sky tempreture in fits format', default = '%default'")
 
 (opts, args) = parser.parse_args()
 
@@ -409,6 +418,14 @@ select_freq= np.array(opts.select_freq.split(','),dtype=float)
 select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
 h5.select(scans='track')
+nd_models = opts.nd_models
+spill_over_models =  opts.spill_over_models
+filename = args[0]
+channel_bw = opts.freq_bw
+freq_bw = opts.freq_bw
+receiver_model_H = opts.receiver_models_H
+receiver_model_V = opts.receiver_models_V
+fix_opacity = opts.fix_opacity
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
     #Load the data file
@@ -418,25 +435,39 @@ for ant in h5.ants:
     pp =PdfPages(nice_filename+'.pdf')
     #T_SysTemp = System_Temp(d,opts.sky_map,h5.channel_freqs.mean()/1e6)
     #T_SysTemp.sky_fig.savefig(pp,format='pdf')
-    channel_bw = opts.freq_bw
+    
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
+    
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     tsys = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     tant = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     print "Selecting channel data to form %f MHz Channels"%(channel_bw)
-    d = load_cal(args[0], "%s" % (ant.name), chunks)
+    d = load_cal(filename, "%s" % (ant.name), nd_models, chunks)
+    SpillOver = Spill_Temp(filename=spill_over_models)
+    receiver = Rec_Temp(receiver_model_H, receiver_model_V)
+    elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
+    ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
+    dec       = np.array([np.average(scan_dec) for scan_dec in scape.extract_scan_data(d.scans,'dec').data])
+    sort_ind  = elevation.argsort()
+    elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
+    surface_temperature = np.mean(d.enviro['temperature']['value'])
+    length = 0
+
     for i,chunk in enumerate(chunks):
         if not d is None:
-            d.filename = [args[0]]
+        
+            d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
-            SpillOver = Spill_Temp(filename=opts.spill_over_models)
-            recever = Rec_Temp(filename=opts.receiver_models)
-            T_SysTemp = System_Temp(d,opts.sky_map,d.freqs[i],freq_index=i)
+            #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
+            T_SysTemp = System_Temp(d,d.freqs[i],freq_index=i,elevation=elevation,ra=ra,dec=dec,surface_temperature = surface_temperature)
+            #print("Load T_sysTemp = %.2f Seconds"%(time.time()-time_start))
             units = T_SysTemp.units+''
-            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],recever,fixopacity=opts.fix_opacity)
-            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],recever,fixopacity=opts.fix_opacity)
+            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],receiver,fixopacity=fix_opacity)
+            #print("Fit tipping H = %.2f Seconds"%(time.time()-time_start))
+            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],receiver,fixopacity=fix_opacity)
+            #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
@@ -448,18 +479,17 @@ for ant in h5.ants:
             tant[0:length,i,0] = fit_H['fit']
             tant[0:length,i,1] = fit_V['fit']
             tant[0:length,i,2] = T_SysTemp.elevation
+            #print("Store Values = %.2f Seconds"%(time.time()-time_start))
+    
 
-            #break
+    fig = T_SysTemp.sky_fig()
+    fig.savefig(pp,format='pdf')
+    first = False
+    plt.close(fig)
 
-            #fig,text = plot_data(T_SysTemp,fit_H,fit_V)
-            if first :
-                fig = T_SysTemp.sky_fig()
-                fig.savefig(pp,format='pdf')
-                first = False
-                plt.close()
     for freq in select_freq :
         title = ""
-        if np.abs(freq_list-freq).min() < opts.freq_bw*1.1 :
+        if np.abs(freq_list-freq).min() < freq_bw*1.1 :
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
@@ -470,6 +500,7 @@ for ant in h5.ants:
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
         fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1)))[i])
         fig.savefig(pp,format='pdf')
+                #break
 
     fig = plt.figure(None,figsize = (8,8))
     text =r"""The 'tipping curve' is calculated according to the expression below,
@@ -489,7 +520,7 @@ tempreture since the other components are known."""
 
     plt.figtext(0.1,0.1,text,fontsize=10)
     fig.savefig(pp,format='pdf')
-    pp.close()
+    pp.close(fig)
     plt.close('all')
 
 
