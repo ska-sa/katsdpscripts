@@ -47,6 +47,29 @@ Cf2py   intent(in) path
  777    call usage
         end
 	end
+
+	integer function ntokens(line)
+	character,intent(in):: line*(*)
+	integer i, n, toks
+
+	i = 1;
+	n = len_trim(line)
+	toks = 0
+	ntokens = 0
+	do while(i <= n)
+	   do while(line(i:i) == ' ') 
+	     i = i + 1
+	     if (n < i) return
+	   enddo
+	   toks = toks + 1
+	   ntokens = toks
+	   do
+	     i = i + 1
+	     if (n < i) return
+	     if (line(i:i) == ' ') exit
+	   enddo
+	enddo
+	end function ntokens 
 	
 	subroutine LoadComponents(ncomp,path) ! ncomp = Number of components to load
 	! Load the principal components from file and spline them for later use.
@@ -59,17 +82,21 @@ Cf2py   intent(in) path
 	integer  i, lnblnk
 	real*8   xn, scaling, tmp(nmax), yp0, yp1
 	character*180 infile, comline
-	character*180 path
+	character*180 path, s
+	integer,external :: ntokens
 	!
 	infile = TRIM(path)//'/components.dat'
 	! Count number of columns in the infile:'
-	comline = 'head -1 '//infile(1:lnblnk(infile))//' | wc | cut -c9-16 >qaz_cols.dat'
+	!comline = 'head -1 '//infile(1:lnblnk(infile))//' | wc | cut -c9-16 >qaz_cols.dat'
 	!print *,'###'//comline(1:lnblnk(comline))//'###'
-	if (system(comline).ne.0) stop 'DEATH ERROR COUNTING COLUMNS'
-	open (2,file='qaz_cols.dat',status='old',err=777)
-	read (2,*,end=777,err=777) n
+	!if (system(comline).ne.0) stop 'DEATH ERROR COUNTING COLUMNS'
+	open (2,file=infile,status='old',err=777)
+	read (2,'(a)',end=778,err=778) comline
 	close(2)
+	n = ntokens(comline)
 	ncomp = n - 2
+	!s = comline
+	!n = count([len_trim(s) > 0,(s(i:i)/=' '.and.s(i:i)/=','.and.s(i+1:i+1)==' '.or.s(i+1:i+1)==',', i=1,len_trim(s)-1)])
 	if (ncomp.lt.0       ) stop 'DEATH ERROR: TOO FEW  COMPONENTS.'
 	if (ncomp.gt.ncompmax) stop 'DEATH ERROR: TOO MANY COMPONENTS.'
 	n = 0
@@ -92,6 +119,7 @@ Cf2py   intent(in) path
 	end do 
 	return
 777	stop 'DEATH ERROR 2 COUNTING COLUMNS'	
+778	stop 'DEATH ERROR 3 COUNTING COLUMNS'	
 	end 
 	   
 	subroutine ComputeComponents(nu,ncomp,a) ! Computes the principal components at frequency nu
