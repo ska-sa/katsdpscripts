@@ -1,26 +1,29 @@
 ! Angelica de Oliveira-Costa & Max Tegmark 2007
 ! f2py fixup Sean Passmoor 2015
 
-	subroutine get_freq(nu,output)
+	subroutine get_freq(nu,output,path)
 	implicit  none
 	integer ncomp, nside, npix
    	parameter(ncomp=3,nside=512,npix=12*512**2)
 	integer ncomploaded, i, j, lnblnk
 	real*8 nu, f(ncomp+1), norm, A(npix,ncomp), t,output(npix)
+	character*180 infile!, outfile
+	character*180 path
 Cf2py   intent(out) output
 Cf2py   intent(in) nu
-	character*60 infile!, outfile
+Cf2py   intent(in) path
 	!print *,'Frequency at which to make a map (in MHz)?'
 	!read *,nu
 	!print *,'Name of file in which to save the map?'
 	!read *,outfile
 	!print *,'Making sky map at frequeny__________',nu
 	!print *,'Outfile_____________________________',outfile(1:lnblnk(outfile))
-	call LoadComponents(ncomploaded)
+	
+	call LoadComponents(ncomploaded,path)
 	if (ncomploaded.ne.ncomp) stop 'DEATH ERROR: WRONG NUMBER OF COMPONENTS LOADED'
 	call ComputeComponents(nu,ncomp,f)
 	norm = f(ncomp+1)
-	infile = 'component_maps_408locked.dat'
+	infile = TRIM(path)//'/component_maps_408locked.dat'
 	!print *,'Loading ',infile(1:lnblnk(infile))
 	open(2,file=infile,status='old')
 	do i=1,npix
@@ -44,8 +47,31 @@ Cf2py   intent(in) nu
  777    call usage
         end
 	end
+
+	integer function ntokens(line)
+	character,intent(in):: line*(*)
+	integer i, n, toks
+
+	i = 1;
+	n = len_trim(line)
+	toks = 0
+	ntokens = 0
+	do while(i <= n)
+	   do while(line(i:i) == ' ') 
+	     i = i + 1
+	     if (n < i) return
+	   enddo
+	   toks = toks + 1
+	   ntokens = toks
+	   do
+	     i = i + 1
+	     if (n < i) return
+	     if (line(i:i) == ' ') exit
+	   enddo
+	enddo
+	end function ntokens 
 	
-	subroutine LoadComponents(ncomp) ! ncomp = Number of components to load
+	subroutine LoadComponents(ncomp,path) ! ncomp = Number of components to load
 	! Load the principal components from file and spline them for later use.
 	! The "extra" component (ncomp+1) is the overall scaling - we spline its logarithm.
 	implicit none
@@ -55,17 +81,22 @@ Cf2py   intent(in) nu
 	common/PCA/x, y, ypp, n
 	integer  i, lnblnk
 	real*8   xn, scaling, tmp(nmax), yp0, yp1
-	character*80 infile, comline
+	character*180 infile, comline
+	character*180 path, s
+	integer,external :: ntokens
 	!
-	infile = 'components.dat'
+	infile = TRIM(path)//'/components.dat'
 	! Count number of columns in the infile:'
-	comline = 'head -1 '//infile(1:lnblnk(infile))//' | wc | cut -c9-16 >qaz_cols.dat'
+	!comline = 'head -1 '//infile(1:lnblnk(infile))//' | wc | cut -c9-16 >qaz_cols.dat'
 	!print *,'###'//comline(1:lnblnk(comline))//'###'
-	if (system(comline).ne.0) stop 'DEATH ERROR COUNTING COLUMNS'
-	open (2,file='qaz_cols.dat',status='old',err=777)
-	read (2,*,end=777,err=777) n
+	!if (system(comline).ne.0) stop 'DEATH ERROR COUNTING COLUMNS'
+	open (2,file=infile,status='old',err=777)
+	read (2,'(a)',end=778,err=778) comline
 	close(2)
+	n = ntokens(comline)
 	ncomp = n - 2
+	!s = comline
+	!n = count([len_trim(s) > 0,(s(i:i)/=' '.and.s(i:i)/=','.and.s(i+1:i+1)==' '.or.s(i+1:i+1)==',', i=1,len_trim(s)-1)])
 	if (ncomp.lt.0       ) stop 'DEATH ERROR: TOO FEW  COMPONENTS.'
 	if (ncomp.gt.ncompmax) stop 'DEATH ERROR: TOO MANY COMPONENTS.'
 	n = 0
@@ -88,6 +119,7 @@ Cf2py   intent(in) nu
 	end do 
 	return
 777	stop 'DEATH ERROR 2 COUNTING COLUMNS'	
+778	stop 'DEATH ERROR 3 COUNTING COLUMNS'	
 	end 
 	   
 	subroutine ComputeComponents(nu,ncomp,a) ! Computes the principal components at frequency nu

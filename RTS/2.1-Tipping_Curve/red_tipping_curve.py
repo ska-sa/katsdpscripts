@@ -35,12 +35,12 @@ class Sky_temp:
        T_sky = T_cont + T_cmb  from the global sky model
        Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
-    def __init__(self,nu=1828.0):
+    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm"):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
         This takes in 1 parameter:
         nu (MHz) center frequency
         """
-        self.freq_map = gsm.get_freq(nu)
+        self.freq_map = gsm.get_freq(nu,path)
         self.nu = nu
 
     def Tsky(self,ra,dec):
