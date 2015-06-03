@@ -643,7 +643,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None):
 
     return
 
-def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None,targets=None,freq_chans=None,static_flags=None):
+def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None,targets=None,freq_chans=None):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -656,7 +656,6 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
     antenna - which antenna to produce report on - default first in file
     targets - which target to produce report on - default all
     freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
-    static_flags - the full path name of a pickle file containing static flags
     """
 
     h5 = katdal.open(input_file)
