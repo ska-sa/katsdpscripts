@@ -34,7 +34,6 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     diode= 'coupler'
     if not(Ku): 
         fig1 = plt.figure(1,figsize = (20,5))
-        fig3 = plt.figure(3,figsize = (20,5))
     fig2 = plt.figure(2,figsize = (20,5))
     rx_serial = str(4)
     rx_band = 'l'
@@ -161,8 +160,9 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     plt.title('Tsys/eta_A: V pol: '+file_base)
 
     if pdf:
-        fig1.savefig(pp,format='pdf')
-        plt.close(fig1)
+        if not(Ku):
+            fig1.savefig(pp,format='pdf')
+            plt.close(fig1)
         fig2.savefig(pp,format='pdf')
         plt.close(fig2)
         pp.close() # close the pdf file
