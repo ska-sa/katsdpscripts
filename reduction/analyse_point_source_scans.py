@@ -32,6 +32,7 @@ parser.add_option("-p", "--pointing-model",
 parser.add_option("-s", "--plot-spectrum", action="store_true", help="Flag to include spectral plot")
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
+parser.add_option("-u", "--ku-band", action="store_true", help="Force center frequency to be 12500.5 MHz")
 parser.add_option("--old-loader", action="store_true", help="Use old SCAPE loader to open HDF5 file instead of katfile")
 (opts, args) = parser.parse_args()
 

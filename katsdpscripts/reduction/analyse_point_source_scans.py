@@ -283,6 +283,10 @@ def analyse_point_source_scans(filename, opts):
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
 
+    #Force centre freqency if ku-band option is set
+    if opts.ku_band:
+        kwargs['centre_freq'] = 12.5005e9
+
     # Produce canonical version of baseline string (remove duplicate antennas)
     baseline_ants = opts.baseline.split(',')
     if len(baseline_ants) == 2 and baseline_ants[0] == baseline_ants[1]:
@@ -322,7 +326,7 @@ def analyse_point_source_scans(filename, opts):
     # Load data set
     logger.info("Loading dataset '%s'" % (filename,))
     dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
-                            time_offset=opts.time_offset, katfile=not opts.old_loader)
+                            time_offset=opts.time_offset, katfile=not opts.old_loader, **kwargs)
 
     # Select frequency channels and setup defaults if not specified
     num_channels = len(dataset.channel_select)
@@ -467,25 +471,27 @@ def analyse_point_source_scans(filename, opts):
 
 
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd', 
-        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None):
+        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, ku_band=False):
 
     class FakeOptsForBatch(object):
         batch = True #always batch
         plot_spectrum = False #never plot
         def __init__(self, outfilebase, keepfilename, baseline, 
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models):
+                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band):
             self.outfilebase=outfilebase
             self.keepfilename=keepfilename
-            self.baseline=baseline 
+            self.baseline=baseline
             self.mc_iterations=mc_iterations
             self.time_offset=time_offset
             self.pointing_model=pointing_model
             self.freq_chans=freq_chans
             self.old_loader=old_loader
             self.nd_models=nd_models
+            self.ku_band=ku_band
 
     fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
-    mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans, old_loader=old_loader, nd_models=nd_models)
+    mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
+    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
     
     return dataset_antenna, output_data
