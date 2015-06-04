@@ -93,6 +93,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             Os = np.pi * R**2 # disk source solid angle 
             _f_MHz, _eff_pct = np.loadtxt("/var/kat/katconfig/user/aperture-efficiency/mkat/ant_eff_L_%s_AsBuilt.csv"%pol.upper(), skiprows=2, delimiter="\t", unpack=True)
             eta_A = np.interp(freq,_f_MHz,_eff_pct)/100 # EMSS aperture efficiency
+            if Ku: eta_A = 0.7
             Ag = np.pi* (D/2)**2 # Antenna geometric area
             Ae = eta_A * Ag  # Effective aperture
             x = 2*R/HPBW # ratio of source to beam
@@ -135,13 +136,13 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if p == ant_num * 2 -1: plt.ylabel(ant)
             if error_bars: plt.errorbar(freq/1e6,Tsys,Tsys_std,color = 'b',linestyle = '.',label='Measurement')
             plt.plot(freq/1e6,Tsys/eta_A,'b.',label='Measurement: Y-method')
-            plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
+            if not(Ku): plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
             plt.axhline(np.mean(Tsys/eta_A),linewidth=2,color='k',label='Mean: Y-method')
             spec_Tsys_eta = 0*freq
             spec_Tsys_eta[freq<1420e6] =  42 # [R.T.P095] == 220
             spec_Tsys_eta[freq>=1420e6] =  46 # [R.T.P.096] == 200
-            plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
-            plt.plot(freq/1e6,np.interp(freq/1e6,[900,1670],[(64*Ag)/275.0,(64*Ag)/410.0]),'g',linewidth=2,label="275-410 m^2/K at Receivers CDR")
+            if not(Ku): plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
+            if not(Ku): plt.plot(freq/1e6,np.interp(freq/1e6,[900,1670],[(64*Ag)/275.0,(64*Ag)/410.0]),'g',linewidth=2,label="275-410 m^2/K at Receivers CDR")
 
             plt.grid()
             plt.legend(loc=2,fontsize=12)
@@ -165,6 +166,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         fig2.savefig(pp,format='pdf')
         plt.close(fig2)
         pp.close() # close the pdf file
+
 
 # test main method for the library
 if __name__ == "__main__":
