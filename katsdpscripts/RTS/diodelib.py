@@ -45,8 +45,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_band+'.'+rx_serial+'.'+pol+'.csv'
-                diode_file = np.recfromcsv(diode_filename,names=['f','t_e_cal'])
-                nd = scape.gaincal.NoiseDiodeModel(freq = diode_file['f']/1e6,temp = diode_file['t_e_cal'])
+                nd = scape.gaincal.NoiseDiodeModel(diode_filename)
             
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
@@ -91,22 +90,22 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             HPBW = 1.18 *(lam/D)
             Om = 1.133 * HPBW**2  # main beam solid angle for a gaussian beam
             R = np.radians(0.25) # radius of the moon
-            Od = np.pi * R**2 # disk source solid angle 
-            _f_MHz, _eff_pct = np.loadtxt("/var/kat/katconfig/user/aperture_efficiency/mkat/ant_eff_L_%s_AsBuilt.csv"%pol.upper(), skiprows=2, delimiter="\t", unpack=True)
+            Os = np.pi * R**2 # disk source solid angle 
+            _f_MHz, _eff_pct = np.loadtxt("/var/kat/katconfig/user/aperture-efficiency/mkat/ant_eff_L_%s_AsBuilt.csv"%pol.upper(), skiprows=2, delimiter="\t", unpack=True)
             eta_A = np.interp(freq,_f_MHz,_eff_pct)/100 # EMSS aperture efficiency
             Ag = np.pi* (D/2)**2 # Antenna geometric area
             Ae = eta_A * Ag  # Effective aperture
             x = 2*R/HPBW # ratio of source to beam
             K = ((x/1.2)**2) / (1-np.exp(-((x/1.2)**2))) # correction factor for disk source from Baars 1973
-            Thot = 225 * (Od*Ae/(lam**2)) * (1/K) # contribution from the moon (disk of constant brightness temp)
+            TA_moon = 225 * (Os*Ae/(lam**2)) * (1/K) # contribution from the moon (disk of constant brightness temp)
             if error_bars: Thot_std = 2.25
             gamma = 1.0
             if error_bars: gamma_std = 0.01
-            Tsys = gamma * (Thot)/(Y-gamma) # Tsys from y-method ... compare with diode TAc
+            Tsys = gamma * (TA_moon)/(Y-gamma) # Tsys from y-method ... compare with diode TAc
             if error_bars: Tsys_std = Tsys * np.sqrt((Thot_std/Thot)**2 + (Y_std/Y)**2 + (gamma_std/gamma)**2)
             if not(Ku):
-                Ydiode = hot_nd_spec / cold_nd_spec
-                Tdiode = (Thot + Tsys*(1-Ydiode))/(Ydiode-1)
+                Ydiode = hot_nd_spec / hot_spec
+                Tdiode = (TA_moon + Tsys)*(Ydiode/gamma-1)
             
             p = 1 if pol == 'v' else 2
             if not(Ku):
