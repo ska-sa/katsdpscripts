@@ -16,6 +16,8 @@ import scipy.interpolate as interpolate
 import scipy.ndimage as ndimage
 import math
 
+import pickle
+
 import h5py
 import os
 
@@ -30,12 +32,11 @@ import os
 # up to "spike_width", and residual peaks more than 5sigma are removed.
 #----------------------------------------------------------------------------------
 def getbackground_spline(data,spike_width):
-
     """ From a 1-d data array determine a background iteratively by fitting a spline
     and removing data more than a few sigma from the spline """
 
     # Remove the first and last element in data from the fit.
-    y=np.copy(data[1:-1])
+    y=np.ma.copy(data[1:-1])
     arraysize=y.shape[0]
     x=np.arange(arraysize)
 
@@ -45,21 +46,26 @@ def getbackground_spline(data,spike_width):
         # First iteration fits a linear spline with 3 knots.
         if iteration==0:
             npieces=3
+            nsigma=3.0
         # Second iteration fits a quadratic spline with 10 knots.
         elif iteration==1:
             npieces=10
+            nsigma=3.0
         # Third and fourth iterations fit a cubic spline with 50 and 75 knots respectively.
         elif iteration>1:
             npieces=iteration*25
+            nsigma=4.0
         deg=min(iteration+1,3)
         
         # Size of each piece of the spline.
         psize = arraysize/npieces
         firstindex = arraysize%psize + int(psize/2)
         indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
+        #remove masked indices
+        indices = [index for index in indices if ~y.mask[index]]
 
-        # Fit the spline
-        thisfit = interpolate.LSQUnivariateSpline(x,y,indices,k=deg)
+        # Fit the spline with 0 weights at the mask.
+        thisfit = interpolate.LSQUnivariateSpline(x,y,indices,k=deg,w=(~y.mask).astype(np.float))
         
         thisfitted_data=np.asarray(thisfit(x),y.dtype)
 
@@ -67,20 +73,24 @@ def getbackground_spline(data,spike_width):
         residual = y-thisfitted_data
         this_std = np.std(residual)
 
-        # Reject data more than 5sigma from the residual. 
-        flags = residual > 5*this_std
+        # Reject data more than nsigma from the residual. 
+        flags = residual > nsigma*this_std
 
-        # Set rejected data value to the fitted value + 1sigma.
-        y[flags] = thisfitted_data[flags] + this_std
+        # Mask the rejected data
+        y[flags] = np.ma.masked
+        #y[flags] = thisfitted_data[flags] + this_std
 
     # Final iteration has knots separated by "spike_width".
     npieces = int(y.shape[0]/spike_width)
     psize = (x[-1]+1)/npieces
     firstindex = int((y.shape[0]%psize))
     indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
+    #remove the masked indices
+    indices = [index for index in indices if ~y.mask[index]]
+    #fitting_data=interp_edges(y)
 
     # Get the final background.
-    finalfit = interpolate.LSQUnivariateSpline(x,y,indices,k=3)
+    finalfit = interpolate.LSQUnivariateSpline(x,y,indices,k=3,w=(~y.mask).astype(np.float))
     thisfitted_data = np.asarray(finalfit(x),y.dtype)
     
     # Insert the original data at the beginning and ends of the data array.
@@ -159,12 +169,11 @@ def detect_spikes_sumthreshold(data, blarray=None, spike_width=5, outlier_sigma=
     # Kernel size for the median filter.
     kernel_size = 2 * max(int(spike_width), 0) + 1
     #Init Flags
-    flags = np.zeros(list(data.shape), dtype=np.uint8)
+    flags = np.zeros(data.shape, dtype=np.bool)
 
     for bl_index in range(data.shape[-1]):
         # Extract this baseline from the data
         this_data_buffer = data[:,bl_index]
-        
         #Separate the auto-correlations and the cross-correlations
         #auto-correlations use a median filter and cross correlations
         #use a fitted spline.
@@ -434,33 +443,29 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 # End of RFI detection routines
 ##############################
 
-def get_flag_data(h5data, norm_spec=None):
+def get_flag_stats(h5, flags=None, norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
-    (ignoring severe spikes) and correct for changes in elevation
-    during the observation then obtain an average spectrum of
-    all of the scans in the data - rejecting outliers in the DC offset domain.
+    (ignoring severe spikes) then obtain an average spectrum of
+    all of the scans in the data.
     Return the average spectrum with dc offset removed and the number of times
-    each channel is flagged. Optinally provide a spectrum (norm_spec) to 
-    divide into the calculated bandpass.
+    each channel is flagged (flags come optionally from 'flags' else from the 
+    flages in the input katdal object). Optinally provide a 
+    spectrum (norm_spec) to divide into the calculated bandpass.
     """
 
-    sumarray=np.zeros((h5data.shape[1],2))
-    offsetarray=np.zeros((h5data.shape[0],2))
-    weightsum=np.zeros((h5data.shape[1],2),dtype=np.int)
-    flags=np.zeros((h5data.shape[0],h5data.shape[1],2),dtype=np.bool)
-    #specify the desired spike width in khz and convert to channels
-    spike_width_khz=2400000
-    spike_width_chan=int(spike_width_khz/h5data.channel_width) + 1
-    for num,thisdata in enumerate(h5data.vis):
+    sumarray=np.zeros((h5.shape[1],4))
+    offsetarray=np.zeros((h5.shape[0],4))
+    weightsum=np.zeros((h5.shape[1],4),dtype=np.int)
+    if flags is None:
+        flags = h5.flags()
+    for num,thisdata in enumerate(h5.vis):
         #Extract pols
-        thisdata = np.abs(thisdata[0,:,:2])
+        thisdata = np.abs(thisdata[0,:])
         # normalise if defined
         if norm_spec is not None: thisdata /= norm_spec
-        #Flag data for severe spikes
-        flags[num] = detect_spikes_sumthreshold(thisdata,outlier_sigma=8.0,spike_width=13.0)
         #Get DC height (median rather than mean is more robust...)
-        offset = np.median(thisdata[np.where(flags[num]==0)],axis=0)
+        offset = np.median(thisdata[np.where(~flags[num])],axis=0)
         #Make an elevation corrected offset to remove outliers
         offsetarray[num,:] = offset
         #Remove the DC height
@@ -470,8 +475,8 @@ def get_flag_data(h5data, norm_spec=None):
         #Sum the data for this target
         sumarray = sumarray + thisdata*weights
     averagespec = sumarray/(weightsum.astype(np.float)+1.e-10)
-    flagfrac = 1. - (weightsum.astype(np.float)/h5data.shape[0].astype(np.float))
-    return {'spectrum': averagespec, 'numrecords_tot': h5data.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5data.channel_freqs, 'dump_period': h5data.dump_period},flags
+    flagfrac = 1. - (weightsum.astype(np.float)/h5.shape[0].astype(np.float))
+    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
 
 def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
     """
@@ -485,7 +490,7 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
     plt.suptitle(label,fontsize=14)
 
     outer_grid= gridspec.GridSpec(2,1)
-       
+    
     for num,pol in enumerate(['HH','VV']):
         data=np.abs(vis[:,:,num-1])
         inner_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
@@ -573,85 +578,176 @@ def plot_waterfall(visdata,flags,channel_freqs):
     pdf.savefig(fig)
     plt.close(fig)
 
-def generate_rfi_report(input_file,output_root='.',antenna=None,targets=None,freq_chans=None):
-	"""
-	Create an RFI report- store flagged spectrum and number of flags in an output h5 file
-	and produce a pdf report.
+def generate_flag_table(input_file,output_root='.',static_flags=None):
+    """
+    Flag the visibility data in the h5 file ignoring the channels specified in static_flags.
 
-	Inputs
-	======
-	input_file - input h5 filename
-	output_root - directory where output is to be placed - defailt cwd
-	antenna - which antenna to produce report on - default first in file
-	targets - which target to produce report on - default all
-	freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
-	"""
+    This will write a list of flags per scan to the output h5 file.
+    """
 
-	h5 = katdal.open(input_file)
+    basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
+    outfile=h5py.File(basename+'.h5','w')
 
-	#Get the selected antenna or default to first file antenna
-	ant=antenna or h5.ants[0].name
+    h5 = katdal.open(input_file)
 
-	#Frequency range
-	num_channels = len(h5.channels)
-	if freq_chans is None:
-		# Default is drop first and last 5% of the bandpass
-		start_chan = num_channels//20
-		end_chan   = num_channels - start_chan
-	else:
-		start_chan = int(freq_chans.split(',')[0])
-		end_chan = int(freq_chans.split(',')[1])
-	chan_range = range(start_chan,end_chan+1)
+    #Read static flags from pickle
+    if static_flags:
+        sff = open(static_flags)
+        static_flags = pickle.load(sff)
+        sff.close()
+    else:
+        #Create dummy static flag array if no static flags are specified. 
+        static_flags=np.zeros(num_channels,dtype=np.bool)
 
-	# Set up the output file
-	basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ant + '_RFI')
-	pdf = PdfPages(basename+'.pdf')
+    #Set up the mask for broadcasting
+    if static_flags is not None:
+        mask_array = static_flags[np.newaxis,:,np.newaxis]
+    else:
+        mask_array = np.zeros((1,h5.vis.shape[1],1),dtype=np.bool)
 
-	# Select the desired antenna and remove slews from the file
-	h5.select(scans='~slew',ants=ant)
+    #loop through scans
+    for scan, state, target in h5.scans():
+        this_data = h5.vis[:]
+        this_flags = h5.flags()[:]
 
-	if h5.shape[0]==0:
-		raise ValueError('Selection has resulted in no data to process.')
+        #Construct a masked array with flags removed
+        mask_flags = np.zeros(this_flags.shape,dtype=np.bool)
+        #Broadcast the channel mask to the same shape as this_flags
+        mask_flags[:] = mask_array
 
-	if targets is None: targets = h5.catalogue.targets 
+        #OR the mask flags with the flags already in the h5 file
+        this_flags = this_flags | mask_flags
 
+        this_data = np.ma.MaskedArray(np.abs(this_data),mask=this_flags,fill_value=np.nan)
 
-	#Set up the output data dictionary
-	data_dict = {}
+        detected_flags = np.array([detect_spikes_sumthreshold(this_dump,outlier_sigma=8.0,spike_width=13.0) for this_dump in this_data])
+        #Flags are 8 bit:
+        #1: 'reserved0' 
+        #2: 'static' 
+        #3: 'cam' 
+        #4: 'reserved3' 
+        #5: 'detected_rfi' 
+        #6: 'predicted_rfi' 
+        #7: 'reserved6' 
+        #8: 'reserved7'
+        all_flags = np.zeros(h5.vis.shape+(8,),dtype=np.uint8)
+        all_flags[...,2] = mask_flags
+        all_flags[...,5] = detected_flags
 
-	# Loop through targets
-	for target in targets:
-		#Get the target name if it is a target object
-		if isinstance(target, katpoint.Target):
-			target = target.name
-		#Extract target from file
-		h5.select(targets=target)
-		#get an average over scans for this target
-		data_dict[target],flags=get_flag_data(h5)
-		label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
-		plot_flag_data(label,data_dict[target]['spectrum'][chan_range],data_dict[target]['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+        all_flags=np.packbits(all_flags,axis=3).squeeze()
 
-	#Reset the selection
-	h5.select(scans='~slew',ants=ant)
+        grp=outfile.create_group(str(scan))
+        grp.create_dataset('flags',data=all_flags)
 
-	# Do calculation for all the data and store in the dictionary
-	data_dict['all_data'],all_flags=get_flag_data(h5)
+    outfile.close()
 
-	#Plot the flags for all data in the file
-	label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
-	plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range],data_dict['all_data']['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],all_flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+    return
 
-	#Output to h5 file
-	outfile=h5py.File(basename+'.h5','w')
-	for targetname, targetdata in data_dict.iteritems():
-		#Create a group in the h5 file corresponding to the target
-		grp=outfile.create_group(targetname)
-		#populate the group with the data
-		for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
-	outfile.close()
+def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None,targets=None,freq_chans=None):
+    """
+    Create an RFI report- store flagged spectrum and number of flags in an output h5 file
+    and produce a pdf report.
 
-	#Finish with a waterfall plot
-	#plot_waterfall(h5.vis[:,chan_range,:],all_flags[:,chan_range,:],h5.channel_freqs[chan_range])
+    Inputs
+    ======
+    input_file - input h5 filename
+    input_flags - input h5 flags; will overwrite flags in h5 file- h5 file in format returnd from generate_flag_table
+    output_root - directory where output is to be placed - defailt cwd
+    antenna - which antenna to produce report on - default first in file
+    targets - which target to produce report on - default all
+    freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
+    """
 
-	#close the plot
-	pdf.close()
+    h5 = katdal.open(input_file)
+
+    #Get the selected antenna or default to first file antenna
+    ant=antenna or h5.ants[0].name
+
+    #Frequency range
+    num_channels = len(h5.channels)
+
+    if input_flags is not None:
+        input_flags = h5py.File(input_flags)
+
+    if freq_chans is None:
+        # Default is drop first and last 5% of the bandpass
+        start_chan = num_channels//20
+        end_chan   = num_channels - start_chan
+    else:
+        start_chan = int(freq_chans.split(',')[0])
+        end_chan = int(freq_chans.split(',')[1])
+    chan_range = range(start_chan,end_chan+1)
+
+    # Set up the output file
+    basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ant + '_RFI')
+    pdf = PdfPages(basename+'.pdf')
+
+    # Select the desired antenna and remove slews from the file
+    h5.select(ants=ant)
+
+    if h5.shape[0]==0:
+        raise ValueError('Selection has resulted in no data to process.')
+
+    if targets is None: targets = h5.catalogue.targets 
+
+    #Set up the output data dictionary
+    data_dict = {}
+
+    # Loop through targets
+    for target in targets:
+        #Get the target name if it is a target object
+        if isinstance(target, katpoint.Target):
+            target = target.name
+        #Extract target from file
+        h5.select(targets=target,scans='~slew')
+        #Construct flag, visibility arrays for this target
+        if input_flags is not None:
+            flags=np.zeros(h5.shape,dtype=np.bool)
+            offset=0
+            for scan_no in h5.scan_indices:
+                scan_flags = input_flags[str(scan_no)+'/flags'].value
+                flags[offset:offset+scan_flags.shape[0]]=scan_flags.astype(np.bool)
+                offset+=scan_flags.shape[0]
+        else:
+            #Just use flags from the file
+            flags = h5.flags()
+        data_dict[target]=get_flag_stats(h5,flags)
+        label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
+        plot_flag_data(label,data_dict[target]['spectrum'][chan_range],data_dict[target]['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+
+    #Reset the selection
+    h5.select(scans='~slew',ants=ant)
+
+    #Construct flag, visibility arrays for this target
+    if input_flags is not None:
+        flags=np.zeros(h5.shape,dtype=np.bool)
+        offset=0
+        for scan_no in h5.scan_indices:
+            scan_flags = input_flags[str(scan_no)+'/flags'].value
+            flags[offset:offset+scan_flags.shape[0]]=scan_flags.astype(np.bool)
+            offset+=scan_flags.shape[0]
+    else:
+        #Just use flags from the file
+        flags = h5.flags()
+
+    # Do calculation for all the data and store in the dictionary
+    data_dict['all_data']=get_flag_stats(h5,flags)
+
+    #Plot the flags for all data in the file
+    label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
+    plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range],data_dict['all_data']['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+
+    #Output to h5 file
+    outfile=h5py.File(basename+'.h5','w')
+    for targetname, targetdata in data_dict.iteritems():
+        #Create a group in the h5 file corresponding to the target
+        grp=outfile.create_group(targetname)
+        #populate the group with the data
+        for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
+    outfile.close()
+
+    #Finish with a waterfall plot
+    #plot_waterfall(h5.vis[:,chan_range,:],all_flags[:,chan_range,:],h5.channel_freqs[chan_range])
+
+    #close the plot
+    pdf.close()
