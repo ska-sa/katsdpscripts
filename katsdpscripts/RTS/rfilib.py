@@ -135,7 +135,7 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
     pltobj.axvspan(1616e6,1630e6, alpha=0.3, color='grey')#IRIDIUM
     if not extra is None:
         for i in xrange(extra.shape[0]):
-            pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
+            pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.1, color='Maroon')
                 
 
 def detect_spikes_sumthreshold(data, blarray=None, spike_width=5, outlier_sigma=11.0, window_size_auto=[1,3,5], window_size_cross=[2,4,8]):

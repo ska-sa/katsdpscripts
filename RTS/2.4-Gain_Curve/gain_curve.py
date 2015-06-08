@@ -44,7 +44,7 @@ def parse_arguments():
     parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
     parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
     parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
-    parser.add_option("--channel-mask", type="string", default=None, help="Location of rfi mask pickle file specifying channels to flag")
+    parser.add_option("--channel-mask", type="string", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of rfi mask pickle file specifying channels to flag")
     parser.add_option("--ku-band", action="store_true", help="Force the center frequency of the input file to be Ku band")
     parser.add_option("--chan-range", default='211,3896', help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 211,3896)")
     (opts, args) = parser.parse_args()
@@ -431,6 +431,10 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
 
 #get the command line arguments
 opts, filename = parse_arguments()
+
+#No Channel mask in Ku band.
+if opts.ku_band:
+    opts.channel_mask=None
 
 #Check if we're using an h5 file or a csv file and read appropriately
 if opts.csv:
