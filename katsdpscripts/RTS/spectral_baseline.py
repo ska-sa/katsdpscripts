@@ -344,7 +344,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     # Get data from h5 file and use 'select' to obtain a useable subset of it.
     data, bline, polarisation = read_and_select_file(input_file, bline=baseline, target=target, channels=freq_chans, polarisation=polarisation)
 
-    # Average the data to the required time a frequency bins
+    # Average the data to the required time and frequency bins
     visdata, freqdata, flagdata, weightdata, freqav, timeav = extract_and_average(data, timeav=timeav, freqav=freqav)
 
     # Make a masked array out of visdata, get amplitudes and average to stokes I if required
@@ -360,7 +360,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
         corr_vis = correct_by_mean(corr_vis,axis="Time")
     # Correct the background in each time bin by fitting a cubic spline.
     elif correct=='spline':
-        #Knots will have to satisfy Schoenberg-Whitney conditions for splie else revert to straight mean of channels
+        #Knots will have to satisfy Schoenberg-Whitney conditions for spline else revert to straight mean of channels
         try:
             corr_vis = np.array([data - getbackground_spline(data, 2) for data in visdata])
         except ValueError:

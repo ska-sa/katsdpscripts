@@ -597,7 +597,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None):
         sff.close()
     else:
         #Create dummy static flag array if no static flags are specified. 
-        static_flags=np.zeros(num_channels,dtype=np.bool)
+        static_flags=np.zeros(h5.shape[1],dtype=np.bool)
 
     #Set up the mask for broadcasting
     if static_flags is not None:

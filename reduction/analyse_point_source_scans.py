@@ -17,6 +17,7 @@ parser.add_option("-a", "--baseline", default='sd',
                        "default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", action="store_true",
                   help="Flag to do processing in batch mode without user interaction")
+parser.add_option("-c", "--channel-mask", default=None, help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-f", "--freq-chans",
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass)")
 parser.add_option("-k", "--keep", dest="keepfilename",

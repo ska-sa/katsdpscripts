@@ -16,6 +16,7 @@ import numpy as np
 import scape
 import katpoint
 import logging
+import pickle
 
 try:
     import matplotlib.pyplot as plt
@@ -283,6 +284,8 @@ def analyse_point_source_scans(filename, opts):
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
 
+    kwargs={}
+
     #Force centre freqency if ku-band option is set
     if opts.ku_band:
         kwargs['centre_freq'] = 12.5005e9
@@ -337,8 +340,17 @@ def analyse_point_source_scans(filename, opts):
     else:
         start_chan = int(opts.freq_chans.split(',')[0])
         end_chan = int(opts.freq_chans.split(',')[1])
-    chan_range = range(start_chan,end_chan+1)
-    dataset = dataset.select(freqkeep=chan_range)
+    chan_select = range(start_chan,end_chan+1)
+    # Check if a channel mask is specified and apply
+    if opts.channel_mask:
+        mask_file = open(opts.channel_mask)
+        chan_select = ~(pickle.load(mask_file))
+        mask_file.close()
+        if len(chan_select) != num_channels:
+            raise ValueError('Number of channels in provided mask does not match number of channels in data')
+        chan_select[:start_chan] = False
+        chan_select[end_chan:] = False
+    dataset = dataset.select(freqkeep=chan_select)
 
     # Check scan count
     if len(dataset.compscans) == 0 or len(dataset.scans) == 0:
@@ -351,6 +363,13 @@ def analyse_point_source_scans(filename, opts):
         pm = file(opts.pointing_model).readline().strip()
         logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pointing_model))
         dataset.antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
+
+    # Remove any noise diode models if the ku band option is set and flag for spikes
+    if opts.ku_band:
+        dataset.nd_h_model=None
+        dataset.nd_v_model=None
+        for i in range(len(dataset.scans)):
+            dataset.scans[i].data = scape.stats.remove_spikes(dataset.scans[i].data,axis=1,spike_width=3,outlier_sigma=5.)
 
     # Initialise the output data cache (None indicates the compscan has not been processed yet)
     reduced_data = [{} for n in range(len(scan_dataset.compscans))]
@@ -471,13 +490,14 @@ def analyse_point_source_scans(filename, opts):
 
 
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd', 
-        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, ku_band=False):
+        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, 
+        ku_band=False, channel_mask=None):
 
     class FakeOptsForBatch(object):
         batch = True #always batch
         plot_spectrum = False #never plot
         def __init__(self, outfilebase, keepfilename, baseline, 
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band):
+                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask):
             self.outfilebase=outfilebase
             self.keepfilename=keepfilename
             self.baseline=baseline
@@ -488,10 +508,11 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
             self.old_loader=old_loader
             self.nd_models=nd_models
             self.ku_band=ku_band
+            self.channel_mask=channel_mask
 
     fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
     mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
-    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band)
+    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
     
     return dataset_antenna, output_data

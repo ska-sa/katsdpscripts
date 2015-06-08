@@ -12,7 +12,7 @@ parser.add_option("-a", "--antenna", type="string", default=None, help="Name of 
 parser.add_option("-t", "--targets", type="string", default=None, help="List of targets to produce report for, default is all targets in the file")
 parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 90% of the bandpass.")
 parser.add_option("-o", "--output_dir", default='.', help="Directory to place output .pdf report. Default is cwd")
-parser.add_option("-s", "--static_flags", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of static flags pickle file.")
+parser.add_option("-s", "--static_flags", default=None, help="Location of static flags pickle file.")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
