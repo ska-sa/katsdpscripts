@@ -520,7 +520,7 @@ tempreture since the other components are known."""
 
     plt.figtext(0.1,0.1,text,fontsize=10)
     fig.savefig(pp,format='pdf')
-    pp.close(fig)
+    pp.close()
     plt.close('all')
 
 
