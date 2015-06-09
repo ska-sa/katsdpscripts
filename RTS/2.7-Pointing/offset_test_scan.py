@@ -44,6 +44,9 @@ parser.add_option( '--quick', action="store_true" , default=False,
                        'spaced 0.5 degrees apart with 2 Hz dump rate.')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
+parser.add_option( '--fine', action="store_true" , default=False,
+                  help='Do a fine grained pointscan with an extent of 1 degree and a duration of 60 seconds.'
+                  'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
 
 parser.set_defaults(description='Point source scan')
 # Parse the command line
@@ -129,10 +132,19 @@ with verify_and_connect(opts) as kat:
                                                     projection=opts.projection)
                                 scantime = 5*60*1.5
                         else:
-                            session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
-                                                scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
-                            scantime = 3*15*1.5
+                            if opts.quick:
+                                user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                                session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                                            scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                                scantime = 3*15*1.5
+                            else: # if opts.fine:
+                                user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                                session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
+                                            scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                                scantime = 5*60*1.5
+
                         #session.label('slew')
                         angle = np.arange(0., np.pi, np.pi /float(1200//scantime) )
                         anglekey += 1

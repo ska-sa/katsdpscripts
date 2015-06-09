@@ -44,6 +44,9 @@ def parse_arguments():
     parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
     parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
     parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
+    parser.add_option("--channel-mask", type="string", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of rfi mask pickle file specifying channels to flag")
+    parser.add_option("--ku-band", action="store_true", help="Force the center frequency of the input file to be Ku band")
+    parser.add_option("--chan-range", default='211,3896', help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 211,3896)")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
         print 'Please specify a file to process.'
@@ -429,6 +432,10 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
 #get the command line arguments
 opts, filename = parse_arguments()
 
+#No Channel mask in Ku band.
+if opts.ku_band:
+    opts.channel_mask=None
+
 #Check if we're using an h5 file or a csv file and read appropriately
 if opts.csv:
     # Get the data from the csv file
@@ -437,7 +444,8 @@ else:
     #Got an h5 file - run analyse point source scans.
     file_basename = os.path.splitext(os.path.basename(filename))[0]
     prep_basename = file_basename + '_' + opts.bline.translate(None,',') + '_point_source_scans'
-    antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline)
+    antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline,
+                                                            ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
 
 if opts.units == None:
     opts.units = data['data_unit'][0]
