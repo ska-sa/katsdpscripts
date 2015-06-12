@@ -126,7 +126,7 @@ for ant in ant_list :
                 var[n,:,:] = (np.std(data,axis=0))**2 - var_inf #  digitize has a [1..bins] index
                 var_amp = var[n,:,blcount]
                 theta = sep[digibins == i+1].mean()
-                if theta > 0.01 and theta < fwhm.max() :
+                if theta > 0.01 and theta < 2*fwhm.max() :
                     #var_0 = 1./(2.*np.pi*beamwidth(fwhm)**2*(-np.log(var_amp*beamwidth(fwhm)**6)))
                     var_theta = var_amp*2.*np.pi*beamwidth(fwhm)**6*(1./theta**2)*np.exp(theta**2/beamwidth(fwhm)**2)   
                     thetav.append(theta)
