@@ -130,7 +130,7 @@ def compute_tsys_sefd(data, gain, antenna, pol):
 
     return e, Tsys, SEFD
 
-def select_outliers(data,pol,n_sigma=5.0):
+def select_outliers(data,pol,n_sigma=4.0):
     """ Flag data points with data['beam_height'] more than n_sigma from the median.
     Parameters
     ----------
@@ -213,7 +213,7 @@ def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, ef
         good = good & select_environment(data, antenna, condition_select)
     print "7: Flag for environmental condition", np.sum(good)
     #Flag discrepant gain values
-    good = good & select_outliers(data,pol,5.0)
+    good = good & select_outliers(data,pol,4.0)
     print "8: Flag for gain outliers", np.sum(good)
 
     return good
@@ -401,7 +401,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     title += ' ' + '%.0f MHz'%(data['frequency'][0])
     title += ' ' + '%s conditions'%(condition)
     plt.title(title)
-    legend = plt.legend(loc=4)
+    legend = plt.legend(loc='best')
     plt.setp(legend.get_texts(), fontsize='small')
 
     # Only do derived plots if units were in Kelvin
@@ -465,6 +465,7 @@ if opts.ku_band:
 if opts.csv:
     # Get the data from the csv file
     data, antenna = parse_csv(filename)
+    file_basename = data['dataset'][0]
 else:
     #Got an h5 file - run analyse point source scans.
     file_basename = os.path.splitext(os.path.basename(filename))[0]
@@ -484,7 +485,7 @@ else:
 
 #Set up plots
 # Multipage Pdf
-output_filename = opts.outfilebase + '_' + antenna.name + '_' + '%.0f'%data['frequency'][0]
+output_filename = opts.outfilebase + '_' + file_basename + '_' + antenna.name + '_' + '%.0f'%data['frequency'][0]
 pdf = PdfPages(output_filename+'.pdf')
 
 for opts.polarisation in pol:
