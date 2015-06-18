@@ -269,10 +269,6 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan + 1] = reduce_compscan_with_uncertainty(dataset, current_compscan + 1,
                                                                                   opts.mc_iterations, opts.batch, **kwargs)
-def remove_rfi(d,width=3,sigma=5,axis=1):
-    for i in range(len(d.scans)):
-        d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
-    return d
 
 def analyse_point_source_scans(filename, opts):
     dataset_name = os.path.splitext(os.path.basename(filename))[0]
@@ -346,7 +342,6 @@ def analyse_point_source_scans(filename, opts):
         end_chan = int(opts.freq_chans.split(',')[1])
     chan_select = range(start_chan,end_chan+1)
     # Check if a channel mask is specified and apply
-    if opts.ku_band : dataset = remove_rfi(dataset,width=3,sigma=5,axis=1)
     if opts.channel_mask:
         mask_file = open(opts.channel_mask)
         chan_select = ~(pickle.load(mask_file))
