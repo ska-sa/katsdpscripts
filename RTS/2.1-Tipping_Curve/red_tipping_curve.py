@@ -142,6 +142,50 @@ class Spill_Temp:
         # the models are in a format of theta=0  == el=90
 
 
+class aperture_efficiency_models:
+    """Load aperture_efficiency_models and interpolate to centre observing frequency."""
+    def __init__(self,filenameH='',filenameV='',):
+        """ The class aperture_efficiency reads the aperture_efficiency
+        model from file and
+        produces fitted functions for a frequency
+        The class/__init__function takes in one parameter:
+        filename : (default='') This is the filename
+               of the recever model
+               these files have 2 cols:
+                Frequency (MHz),aperture_efficiency  (fraction),
+               if there are no file 15k recever  is assumed.
+        returns :
+               dict  spill with two elements 'HH' 'VV' that
+               are intepolation functions that take in Frequency(MHz)
+               and return fraction.
+        """
+        try:
+            aperture_eff_h = np.loadtxt(filenameH,comments='#')# Change units to fraction
+            a800 = np.zeros((aperture_eff_h.shape[0]+2,2))
+            a800[0,:] = [800,aperture_eff_h[0,1]]
+            a800[1:-1,:] = aperture_eff_h
+            a800[-1,:] = [2000,aperture_eff_h[-1,1]]
+            aperture_eff_h = a800
+
+            aperture_eff_v = np.loadtxt(filenameV,comments='#')# Change units to fraction
+            a800 = np.zeros((aperture_eff_v.shape[0]+2,2))
+            a800[0,:] = [800,aperture_eff_v[0,1]]
+            a800[1:-1,:] = aperture_eff_v
+            a800[-1,:] = [2000,aperture_eff_v[-1,1]]
+            aperture_eff_v = a800
+            
+        except IOError:
+            receiver_h = np.array([[800.,2000],[75.,75.]])
+            warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
+        #Assume  Provided models are a function of zenith angle & frequency
+        T_H = fit.PiecewisePolynomial1DFit()
+        T_V = fit.PiecewisePolynomial1DFit()
+        T_H.fit(aperture_eff_h[:,0],aperture_eff_h[:,1]/100.)
+        T_V.fit(aperture_eff_v[:,0],aperture_eff_v[:,1]/100.)
+        self.eff = {}
+        self.eff['HH'] = T_H # The HH and VV is a scape thing
+        self.eff['VV'] = T_V
+
 class Rec_Temp:
     """Load Receiver models and interpolate to centre observing frequency."""
     def __init__(self,filenameH='',filenameV=''):
@@ -355,7 +399,7 @@ def plot_data_freq(frequency,Tsys,Tant,title=''):
     line3,=plt.plot(frequency, Tsys[:,1], marker='^', color='r',  linewidth=0)
     plt.errorbar(frequency, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
     line4,=plt.plot(frequency, Tant[:,1], color='r')
-    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}$ HH','$T_{ant}$ HH', '$T_{sys}$ VV','$T_{ant}$ VV'), loc='best')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/App_{eff}$ HH','$T_{ant}/App_{eff}$ HH', '$T_{sys}/App_{eff}$ VV','$T_{ant}/App_{eff}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
@@ -373,7 +417,7 @@ def plot_data_freq(frequency,Tsys,Tant,title=''):
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
     if units == 'K':
-        plt.ylabel('Temperature (K)')
+        plt.ylabel('$T_{sys}/App_{eff} (K)$')
     else:
         plt.ylabel('Raw power (counts)')
     #print low_lim,high_lim
@@ -386,26 +430,27 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='900,1420,1790,1840',
+parser.add_option("-r", "--select-freq", default='900,1420,1700,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
-parser.add_option("-b", "--freq-bw", default=10.0, type=float,
+parser.add_option("-b", "--freq-bw", default=10.0,
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
 parser.add_option("-s", "--spill-over-models",default='',
-                  help="Name of Directory containing spillover models")
-parser.add_option( "--receiver-models-H",default='',
-                  help="Name of File containing receiver  H-pol models")
-parser.add_option( "--receiver-models-V",default='',
-                  help="Name of File containing receiver  H-pol models")
-                  
+                  help="Name of FIle containing spillover models default= %default")
+parser.add_option( "--receiver-models",default='/var/kat/katconfig/user/receiver-models/mkat/',
+                  help="Name of Directory containing receiver models default= %default")
 parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-models/mkat/',
-                  help="Name of Dir containing noise diode models models")
+                  help="Name of Dir containing noise diode models models default= %default")
+
+parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
+                  help="Name of Directory containing aperture-efficiencyr models default= %default")
 
 parser.add_option( "--fix-opacity",default=True,
                   help="This option has not been completed, Do not let opacity be a free parameter in the fit , this changes the fitting in to just a model subtraction and T_ant is the error")
 
 (opts, args) = parser.parse_args()
+
 
 if len(args) < 1:
     raise RuntimeError('Please specify the data file to reduce')
@@ -422,18 +467,24 @@ spill_over_models =  opts.spill_over_models
 filename = args[0]
 channel_bw = opts.freq_bw
 freq_bw = opts.freq_bw
-receiver_model_H = opts.receiver_models_H
-receiver_model_V = opts.receiver_models_V
+
 fix_opacity = opts.fix_opacity
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
     #Load the data file
-    first = True
-    #freq loop
+    
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-    #T_SysTemp = System_Temp(d,opts.sky_map,h5.channel_freqs.mean()/1e6)
-    #T_SysTemp.sky_fig.savefig(pp,format='pdf')
+    
+    SN = '0004'  # This is read from the file
+    Band = 'L'
+    Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.')
+    #"{:0>4d}".format(int(sn))
+    receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
+    receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
+    aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
+    aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
+    aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
     
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
@@ -453,7 +504,7 @@ for ant in h5.ants:
     elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
     surface_temperature = np.mean(d.enviro['temperature']['value'])
     length = 0
-
+    #freq loop
     for i,chunk in enumerate(chunks):
         if not d is None:
         
@@ -469,21 +520,20 @@ for ant in h5.ants:
             #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
-            length = len(T_SysTemp.elevation)
-            tsys[0:length,i,0] = T_SysTemp.Tsys['HH']
-            tsys[0:length,i,1] = T_SysTemp.Tsys['VV']
+            length = len(T_SysTemp.elevation)   
+            tsys[0:length,i,0] = T_SysTemp.Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = T_SysTemp.Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
-            tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']
-            tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']
-            tant[0:length,i,0] = fit_H['fit']
-            tant[0:length,i,1] = fit_V['fit']
+            tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
+            tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]/aperture_efficiency.eff['HH'](d.freqs[i])
+            tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]/aperture_efficiency.eff['VV'](d.freqs[i])
             tant[0:length,i,2] = T_SysTemp.elevation
-            #print("Store Values = %.2f Seconds"%(time.time()-time_start))
+            print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
     
 
     fig = T_SysTemp.sky_fig()
     fig.savefig(pp,format='pdf')
-    first = False
     plt.close(fig)
 
     for freq in select_freq :
@@ -520,6 +570,7 @@ tempreture since the other components are known."""
     plt.figtext(0.1,0.1,text,fontsize=10)
     fig.savefig(pp,format='pdf')
     pp.close()
+    plt.close(fig)
     plt.close('all')
 
 
@@ -542,3 +593,4 @@ tempreture since the other components are known."""
 #plt.title(r"\TeX\ is Number "
 #          r"$\displaystyle\sum_{n=1}^\infty\frac{-e^{i\pi}}{2^n}$!",
 #          fontsize=16, color='gray')
+
