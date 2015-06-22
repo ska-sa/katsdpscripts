@@ -228,7 +228,7 @@ class Rec_Temp:
 
 class System_Temp:
     """Extract tipping curve data points and surface temperature."""
-    def __init__(self,d,freqs=1822,freq_index=0,elevation=None,ra=None,dec=None ,surface_temperature=23.0):#d, nu, pol
+    def __init__(self,d,freqs=1822,freq_index=0,elevation=None,ra=None,dec=None ,surface_temperature=23.0,air_relative_humidity=0.23):#d, nu, pol
         """ First extract total power in each scan (both mean and standard deviation) """
         T_skytemp = Sky_temp(nu=freqs)
         T_sky =  T_skytemp.Tsky
@@ -241,6 +241,9 @@ class System_Temp:
         self.sigma_Tsys = {}
         self.Tsys_sky = {}
         self.T_sky = []
+        self.height = d.antenna.position_wgs84[2]
+        self.pressure =  np.mean([line[1] for line in d.enviro['pressure'] ])
+        self.air_relative_humidity = air_relative_humidity
         # Sort data in the order of ascending elevation
         valid_el = (elevation >= 10)
         self.elevation =  elevation[valid_el]
@@ -306,6 +309,60 @@ def chisq_pear(fit,Tsys):
     fit = np.array(fit)
     return np.sum((Tsys-fit)**2/fit)
 
+def calc_atmospheric_opacity(T, RH, P, h, f):
+    """ 
+        Calculates zenith opacity according to ITU-R P.676-9. For elevations > 10 deg.
+        Use as "Tsky*(1-exp(-opacity/sin(el)))" for elevation dependence.
+        T: temperature in deg C
+        RH: relative humidity, 0 < RH < 1
+        P: dry air pressure in hPa (equiv. mbar)
+        h: height above sea level in km
+        f: frequency in GHz (must be < 55 GHz)
+        This function returns the return: approximate atmospheric opacity at zenith [Nepers]
+    """
+    es = 6.1121*np.exp((18.678-T/234.5)*T/(257.14+T)) # [hPa] from A. L. Buck research manual 1996
+    rho = RH*es*216.7/(T+273.15) # [g/m^3] from A. L. Buck research manual 1996 (ITU-R ommited the factor "RH" - a mistake)
+    
+    # The following is taken directly from ITU-R P.676-9
+    p_tot = P + es # from eq 3
+    
+    rho = rho*np.exp(h/2) # Adjust to sea level as per eq 32
+    
+    # eq 22
+    r_t = 288./(273.+T)
+    r_p = p_tot/1013.
+    phi = lambda a, b, c, d: r_p**a*r_t**b*np.exp(c*(1-r_p)+d*(1-r_t))
+    E_1 = phi(0.0717,-1.8132,0.0156,-1.6515)
+    E_2 = phi(0.5146,-4.6368,-0.1921,-5.7416)
+    E_3 = phi(0.3414,-6.5851,0.2130,-8.5854)
+    # Following is valid only for f <= 54 GHz
+    yo = ( 7.2*r_t**2.8 / (f**2+0.34*r_p**2*r_t**1.6) + 0.62*E_3 / ((54-f)**(1.16*E_1)+0.83*E_2) ) * f**2 * r_p**2 *1e-3
+    # eq 23
+    n_1 = 0.955*r_p*r_t**0.68 + 0.006*rho
+    n_2 = 0.735*r_p*r_t**0.5 + 0.0353*r_t**4*rho
+    g = lambda f, f_i: 1+(f-f_i)**2/(f+f_i)**2
+    yw = (  3.98*n_1*np.exp(2.23*(1-r_t))/((f-22.235)**2+9.42*n_1**2)*g(f,22) + 11.96*n_1*np.exp(0.7*(1-r_t))/((f-183.31)**2+11.14*n_1**2)
+          + 0.081*n_1*np.exp(6.44*(1-r_t))/((f-321.226)**2+6.29*n_1**2) + 3.66*n_1*np.exp(1.6*(1-r_t))/((f-325.153)**2+9.22*n_1**2)
+          + 25.37*n_1*np.exp(1.09*(1-r_t))/(f-380)**2 + 17.4*n_1*np.exp(1.46*(1-r_t))/(f-448)**2
+          + 844.6*n_1*np.exp(0.17*(1-r_t))/(f-557)**2*g(f,557) + 290*n_1*np.exp(0.41*(1-r_t))/(f-752)**2*g(f,752)
+          + 8.3328e4*n_2*np.exp(0.99*(1-r_t))/(f-1780)**2*g(f,1780)
+          ) * f**2*r_t**2.5*rho*1e-4
+    
+    # eq 25
+    t_1 = 4.64/(1+0.066*r_p**-2.3) * np.exp(-((f-59.7)/(2.87+12.4*np.exp(-7.9*r_p)))**2)
+    t_2 = 0.14*np.exp(2.12*r_p) / ((f-118.75)**2+0.031*np.exp(2.2*r_p))
+    t_3 = 0.0114/(1+0.14*r_p**-2.6) * f * (-0.0247+0.0001*f+1.61e-6*f**2) / (1-0.0169*f+4.1e-5*f**2+3.2e-7*f**3)
+    ho = 6.1/(1+0.17*r_p**-1.1)*(1+t_1+t_2+t_3)
+    
+    # eq 26
+    sigma_w = 1.013/(1+np.exp(-8.6*(r_p-0.57)))
+    hw = 1.66*( 1 + 1.39*sigma_w/((f-22.235)**2+2.56*sigma_w) + 3.37*sigma_w/((f-183.31)**2+4.69*sigma_w) + 1.58*sigma_w/((f-325.1)**2+2.89*sigma_w) )
+    
+    # Attenuation from dry & wet atmosphere relative to a point outside of the atmosphere
+    A = yo*ho*np.exp(-h/ho) + yw*hw*np.exp(-h/hw) # [dB] from equations 27, 30 & 31
+    
+    return A*np.log(10)/10.0 # Convert dB to Nepers
+
 
 def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     """The 'tipping curve' is fitted using the expression below, with the free parameters of $T_{ant}$ and $\tau_{0}$
@@ -321,49 +378,32 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     T_atm = 1.12 * (273.15 + T_sys.surface_temperature) - 50.0 # This is some equation
     returntext = []
     if not fixopacity:
-        # a list of Text to print to pdf
-        # Create a function to give the spillover at any elevation at the observing frequency
-        # Set up full tipping equation y = f(p, x):
-        #   function input x = elevation in degrees
-        #   parameter vector p = [T_rx, zenith opacity tau_0]
-        #   function output y = T_sys in kelvin
-        #   func = lambda p, x: p[0] + T_cmb + T_gal  + T_spill_func(x) + T_atm * (1 - np.exp(-p[1] / np.sin(deg2rad(x))))
-        #T_sky = np.average(T_sys.T_sky)# T_sys.Tsky(x)
-        func = lambda p, x: p[0] + T_rx.rec[pol](freqs)+  T_sys.Tsky(x) + SpillOver.spill[pol](np.array([[x,],[freqs]])) + T_atm * (1 - np.exp(-p[1] / np.sin(np.radians(x))))
-        # Initialise the fitter with the function and an initial guess of the parameter values
-        tip = scape.fitting.NonLinearLeastSquaresFit(func, [30, 0.01])
-        tip.fit(T_sys.elevation, T_sys.Tsys[pol])
-        returntext.append('Fit results for %s polarisation at %.1f Mhz:' % (pol,np.mean(freqs)))
-        returntext.append('$T_{ant}$ %s = %.2f %s  at %.1f Mhz' % (pol,tip.params[0],T_sys.units,np.mean(freqs)))
-        returntext.append('Zenith opacity $tau_{0}$ %s= %.5f  at %.1f Mhz' % (pol,tip.params[1],np.mean(freqs)))
-        fit_func = []
-        for el in T_sys.elevation: fit_func.append(func(tip.params,el))
-        chisq =chisq_pear(fit_func,T_sys.Tsys[pol])
-        returntext.append('$\chi^2$ for %s is: %6f ' % (pol,chisq,))
-        # Calculate atmosphesric noise contribution at 10 degrees elevation for comparison with requirements
-        #T_atm_10 = T_atm * (1 - np.exp(-tip.params[1] / np.sin(deg2rad(10))))#Atmospheric noise contribution at 10 degrees
-    else:
+        #print T_sys.surface_temperature,T_sys.air_relative_humidity, T_sys.pressure, T_sys.height, freqs
+        tau = calc_atmospheric_opacity(T_sys.surface_temperature,T_sys.air_relative_humidity, T_sys.pressure, T_sys.height/1000., freqs/1000.)
+        # Height in meters above sea level, frequency in GHz.
+    else:   
         tau = 0.01078
-        tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
-        def know_quant(x):
-            rx = T_rx.rec[pol](freqs)
-            sky = T_sys.Tsky(x)
-            spill = SpillOver.spill[pol](np.array([[x,],[freqs]]))
-            atm = T_atm * (1 - np.exp(-tau / np.sin(np.radians(x))))
-            #print "Rec %3.1f + Sky %3.1f + Spill %3.1f + Atm %3.1f = %3.1f" % (rx ,sky , spill , atm,rx+sky+spill+atm)
-            return rx + sky + spill + atm     
+    print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
+    tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
+    def know_quant(x):
+        rx = T_rx.rec[pol](freqs)
+        sky = T_sys.Tsky(x)
+        spill = SpillOver.spill[pol](np.array([[x,],[freqs]]))
+        atm = T_atm * (1 - np.exp(-tau / np.sin(np.radians(x))))
+        #print "Rec %3.1f + Sky %3.1f + Spill %3.1f + Atm %3.1f = %3.1f" % (rx ,sky , spill , atm,rx+sky+spill+atm)
+        return rx + sky + spill + atm     
 
-        func = know_quant
-        fit_func = []
-        returntext.append('Not fitting Opacity assuming a value if %f , $T_{ant}$ is the residual of of model data. ' % (tau,))
-        for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): 
-            fit_func.append(t_sys - func(el))
-            #print "T_sys %3.1f - T_other %3.1f " %(t_sys,func(el))
-        chisq =0.0# nonsense Vars
+    func = know_quant
+    fit_func = []
+    returntext.append('Not fitting Opacity assuming a value if %f , $T_{ant}$ is the residual of of model data. ' % (tau,))
+    for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): 
+        fit_func.append(t_sys - func(el))
+        #print "T_sys %3.1f - T_other %3.1f " %(t_sys,func(el))
+    chisq =0.0# nonsense Vars
     return {'params': tip.params,'fit':fit_func,'scatter': (T_sys.Tsys[pol]-fit_func),'chisq':chisq,'text':returntext}
     
 
-def plot_data_el(Tsys,Tant,title='',units='K',line=42):
+def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None):
     fig = plt.figure()
     elevation = Tsys[:,2]
     line1,=plt.plot(elevation, Tsys[:,0], marker='o', color='b', linewidth=0)
@@ -372,17 +412,16 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42):
     line3,=plt.plot(elevation, Tsys[:,1], marker='^', color='r', linewidth=0)
     plt.errorbar(elevation, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
     line4,=plt.plot(elevation, Tant[:,1], color='r')
-    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}$ HH','$T_{ant}$ HH', '$T_{sys}$ VV','$T_{ant}$ VV'), loc='best')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/App_{eff}$ HH','$T_{ant}/App_{eff}$ HH', '$T_{sys}/App_{eff}$ VV','$T_{ant}/App_{eff}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
     plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1)))
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
+    if aperture_efficiency is not None:
+        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='c--')
+        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='m--')
     plt.grid()
-    if units == 'K':
-        plt.ylabel('Temperature (K)')
-    else:
-        plt.ylabel('Raw power (counts)')
-        plt.legend()
+    plt.ylabel('$T/App_{eff} (K)')
     return fig
 
 def r_lim(dataf,func=np.min):
@@ -391,7 +430,21 @@ def r_lim(dataf,func=np.min):
     return func(dataf[index,...])
            
 
-def plot_data_freq(frequency,Tsys,Tant,title=''):
+#plot_data(freqs/1e6, np.linspace(275,410,len(freqs)), newfig=False, label="275-410 m^2/K at Receivers CDR")
+def receptor_Lband_limit(frequency):
+    """275-410 m^2/K at Receivers CDR"""
+    return_array = np.zeros_like(frequency,dtype=np.float)
+    return_array[np.array(frequency < 1280)] = np.array(12 + 6+(5.5-6)/(1280-900)*(frequency-900))[np.array(frequency < 1280)]
+    return_array[np.array(~(frequency < 1280))] = np.array(12 + 5.5+(4-5.5)/(1670-1280)*(frequency-1280))[np.array(~(frequency < 1280))]
+    return return_array
+
+def receptor_UHFband_limit(frequency):
+    return_array = np.zeros_like(frequency,dtype=np.float)
+    return_array[np.array(frequency < 900)] = np.array(8 + (12-8)/(1015-580)*(frequency-580) + 8+(7-8)/(900-580)*(frequency-580))[np.array(frequency < 900)]
+    return_array[np.array(~(frequency < 900))] = np.array (8 + (12-8)/(1015-580)*(frequency-580) + 7+(4-7)/(1015-900)*(frequency-900))[np.array(~(frequency < 900))]
+    return return_array
+
+def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     fig = plt.figure()
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
@@ -402,6 +455,9 @@ def plot_data_freq(frequency,Tsys,Tant,title=''):
     plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/App_{eff}$ HH','$T_{ant}/App_{eff}$ HH', '$T_{sys}/App_{eff}$ VV','$T_{ant}/App_{eff}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
+    if aperture_efficiency is not None:
+        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency), colors='c--')
+        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency), colors='m--')
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
     low_lim = np.max((low_lim , -5.))
@@ -416,11 +472,7 @@ def plot_data_freq(frequency,Tsys,Tant,title=''):
     if np.max(frequency) >=1420 :
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
-    if units == 'K':
-        plt.ylabel('$T_{sys}/App_{eff} (K)$')
-    else:
-        plt.ylabel('Raw power (counts)')
-    #print low_lim,high_lim
+    plt.ylabel('$T/App_{eff} (K)$')
     return fig
 
 
@@ -436,7 +488,7 @@ parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
 parser.add_option("-b", "--freq-bw", default=10.0,
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
-parser.add_option("-s", "--spill-over-models",default='',
+parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat',
                   help="Name of FIle containing spillover models default= %default")
 parser.add_option( "--receiver-models",default='/var/kat/katconfig/user/receiver-models/mkat/',
                   help="Name of Directory containing receiver models default= %default")
@@ -446,8 +498,8 @@ parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-mo
 parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
                   help="Name of Directory containing aperture-efficiencyr models default= %default")
 
-parser.add_option( "--fix-opacity",default=True,
-                  help="This option has not been completed, Do not let opacity be a free parameter in the fit , this changes the fitting in to just a model subtraction and T_ant is the error")
+parser.add_option( "--fix-opacity",action="store_true", default=False,
+                  help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
 
 (opts, args) = parser.parse_args()
 
@@ -463,7 +515,7 @@ select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
 h5.select(scans='track')
 nd_models = opts.nd_models
-spill_over_models =  opts.spill_over_models
+spill_over_models =  opts.spill_over_models 
 filename = args[0]
 channel_bw = opts.freq_bw
 freq_bw = opts.freq_bw
@@ -478,7 +530,7 @@ for ant in h5.ants:
     
     SN = '0004'  # This is read from the file
     Band = 'L'
-    Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.')
+    Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default 
     #"{:0>4d}".format(int(sn))
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
@@ -503,6 +555,7 @@ for ant in h5.ants:
     sort_ind  = elevation.argsort()
     elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
     surface_temperature = np.mean(d.enviro['temperature']['value'])
+    air_relative_humidity = h5.sensor['Enviro/air_relative_humidity'].mean()/100. # Fractional
     length = 0
     #freq loop
     for i,chunk in enumerate(chunks):
@@ -511,7 +564,7 @@ for ant in h5.ants:
             d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
             #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
-            T_SysTemp = System_Temp(d,d.freqs[i],freq_index=i,elevation=elevation,ra=ra,dec=dec,surface_temperature = surface_temperature)
+            T_SysTemp = System_Temp(d,d.freqs[i],freq_index=i,elevation=elevation,ra=ra,dec=dec,surface_temperature = surface_temperature,air_relative_humidity=air_relative_humidity)
             #print("Load T_sysTemp = %.2f Seconds"%(time.time()-time_start))
             units = T_SysTemp.units+''
             fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],receiver,fixopacity=fix_opacity)
@@ -529,7 +582,7 @@ for ant in h5.ants:
             tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]/aperture_efficiency.eff['HH'](d.freqs[i])
             tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]/aperture_efficiency.eff['VV'](d.freqs[i])
             tant[0:length,i,2] = T_SysTemp.elevation
-            print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
+            #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
     
 
     fig = T_SysTemp.sky_fig()
@@ -542,12 +595,12 @@ for ant in h5.ants:
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval)
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency)
             fig.savefig(pp,format='pdf')
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1)))[i])
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1)))[i],aperture_efficiency=aperture_efficiency)
         fig.savefig(pp,format='pdf')
                 #break
 
@@ -563,8 +616,14 @@ $T_{sys}(el)$ is determined from the noise diode calibration
 so it is $\frac{T_{sys}(el)}{\eta_{illum}}$.
 We assume the opacity and $T_{ant}$ is the residual after
 the tipping curve function is calculated. T_cmb + T_gal is
-obtained from the Sky model. $\tau_{0}$, the opacity,
+obtained from the Sky model. """
+    if fix_opacity : 
+        text += """$\tau_{0}$, the zenith opacity,
 is set to 0.01078 (Van Zee et al.,1997). $T_{ant}$ is the excess
+tempreture since the other components are known."""
+    else:
+        text += """$\tau_{0}$, the zenith opacity,
+ is calculated opacity according to ITU-R P.676-9. $T_{ant}$ is the excess
 tempreture since the other components are known."""
 
     plt.figtext(0.1,0.1,text,fontsize=10)
