@@ -403,7 +403,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     return {'params': tip.params,'fit':fit_func,'scatter': (T_sys.Tsys[pol]-fit_func),'chisq':chisq,'text':returntext}
     
 
-def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None):
+def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,frequency=1420):
     fig = plt.figure()
     elevation = Tsys[:,2]
     line1,=plt.plot(elevation, Tsys[:,0], marker='o', color='b', linewidth=0)
@@ -418,8 +418,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None):
     plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1)))
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
-        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='c--')
-        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='m--')
+        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='_')
+        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='_')
     plt.grid()
     plt.ylabel('$T/App_{eff} (K)')
     return fig
@@ -456,8 +456,8 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
     if aperture_efficiency is not None:
-        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency), colors='c--')
-        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency), colors='m--')
+        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency), color='b',linestyle='_')
+        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency), color='b',linestyle='_')
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
     low_lim = np.max((low_lim , -5.))
@@ -595,7 +595,7 @@ for ant in h5.ants:
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency)
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
             fig.savefig(pp,format='pdf')
     for el in select_el :
         title = ""
