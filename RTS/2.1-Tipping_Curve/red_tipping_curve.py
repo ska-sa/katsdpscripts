@@ -528,10 +528,10 @@ fix_opacity = opts.fix_opacity
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
     #Load the data file
-    
+
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-    
+
     SN = '0004'  # This is read from the file
     Band = 'L'
     Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default 
@@ -541,10 +541,10 @@ for ant in h5.ants:
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
-    
+
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
-    
+
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     tsys = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
@@ -564,7 +564,7 @@ for ant in h5.ants:
     #freq loop
     for i,chunk in enumerate(chunks):
         if not d is None:
-        
+
             d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
             #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
@@ -577,9 +577,9 @@ for ant in h5.ants:
             #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
-            length = len(T_SysTemp.elevation)   
-            tsys[0:length,i,0] = T_SysTemp.Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,1] = T_SysTemp.Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
+            length = len(T_SysTemp.elevation)
+            tsys[0:length,i,0] = T_SysTemp.Tsys_sky['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = T_SysTemp.Tsys_sky['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
             tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
             tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
@@ -587,7 +587,7 @@ for ant in h5.ants:
             tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]/aperture_efficiency.eff['VV'](d.freqs[i])
             tant[0:length,i,2] = T_SysTemp.elevation
             #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
-    
+
 
     fig = T_SysTemp.sky_fig()
     fig.savefig(pp,format='pdf')
