@@ -654,6 +654,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_
         h5.file.close()
     else:
         outfile.create_dataset('flags',data=final_flags)
+        outfile.create_dataset('corr_products',data=h5.corr_products)
         outfile.close()
 
     return
