@@ -647,7 +647,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_
 
         all_flags=np.packbits(all_flags,axis=3).squeeze()
 
-        final_flags[h5.dumps]=all_flags
+        final_flags[h5.dumps,...,0:h5.vis.shape[-1]]=all_flags
 
     if write_into_input:
         h5._flags[:] = final_flags[:]
