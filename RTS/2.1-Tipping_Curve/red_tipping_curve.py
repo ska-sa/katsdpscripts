@@ -63,7 +63,7 @@ class Sky_temp:
         returns matplotlib figure object that the plot is assosated with.
         """
         #self.freq_map
-        fig = plt.figure()
+        fig = plt.figure(figsize=(16,9))
         hp.cartview(self.freq_map,norm = norm,unit=unit,fig=fig.number)
         c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
         l = np.degrees(-c.galactic.l.radian % (np.pi*2))
@@ -404,7 +404,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     
 
 def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,frequency=1420):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(16,9))
     elevation = Tsys[:,2]
     line1,=plt.plot(elevation, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(elevation, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
@@ -421,7 +421,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
     plt.grid()
-    plt.ylabel('$T/App_{eff} (K)')
+    plt.ylabel('$T_{sys}/App_{eff}$ (K)')
     return fig
 
 def r_lim(dataf,func=np.min):
@@ -445,7 +445,7 @@ def receptor_UHFband_limit(frequency):
     return return_array
 
 def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(16,9))
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
     line2,=plt.plot(frequency, Tant[:,0], color='b'  )
@@ -472,7 +472,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     if np.max(frequency) >=1420 :
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
-    plt.ylabel('$T/App_{eff} (K)$')
+    plt.ylabel('$T_{sys}/App_{eff}$ (K)')
     return fig
 
 
