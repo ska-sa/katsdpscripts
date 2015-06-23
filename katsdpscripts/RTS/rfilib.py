@@ -586,10 +586,12 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_
     """
 
     if write_into_input:
-        output_file = os.path.join(output_root,input_file)
-        if not os.path.samefile(input_file,output_file):
+        output_file = os.path.join(output_root,input_file.split('/')[-1])
+        if not os.path.exists(output_file):
             shutil.copy(input_file,output_root)
-        h5 = katdal.open(os.path.join(output_root,input_file),mode='r+')
+        elif not os.path.samefile(input_file,output_file):
+            shutil.copy(input_file,output_root)
+        h5 = katdal.open(os.path.join(output_file),mode='r+')
     else:
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
         outfile=h5py.File(basename+'.h5','w')
