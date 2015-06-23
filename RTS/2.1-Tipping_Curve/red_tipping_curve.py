@@ -35,13 +35,17 @@ class Sky_temp:
        T_sky = T_cont + T_cmb  from the global sky model
        Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
-    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm"):
+    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm",diameter=13.5,smooth=True):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
         This takes in 1 parameter:
         nu (MHz) center frequency
         """
-        self.freq_map = gsm.get_freq(nu,path)
+        if smooth :
+            self.freq_map = hp.sphtfunc.smoothing(gsm.get_freq(nu,path),fwhm=(1.17*(3e8/(nu*1e6))/diameter ) )
+        else :
+            self.freq_map = gsm.get_freq(nu,path)
         self.nu = nu
+        self.smooth=smooth
 
     def Tsky(self,ra,dec):
         """given RA/Dec in Degrees  return the value of the spot
@@ -51,10 +55,10 @@ class Sky_temp:
         l = c.galactic.l.radian
         b = c.galactic.b.radian
         nside = hp.npix2nside(self.freq_map.shape[0])
-        ipix = hp.ang2pix(nside, np.pi/2.0 - b , -l % (np.pi*2))
+        ipix = hp.ang2pix(nside, np.pi/2.0 - b , l % (np.pi*2),nest=False)
         return self.freq_map[ipix]
 
-    
+
     def plot_sky(self,ra=None,dec=None,norm = 'log',unit='Kelvin',heapix_array=None):
         """ plot_sky plots the sky tempreture and overlays pointing centers as red dots
         The sky tempreture is the data that was loaded when the class was iniitated.
