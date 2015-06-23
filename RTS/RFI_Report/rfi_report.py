@@ -14,6 +14,7 @@ parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency c
 parser.add_option("-o", "--output_dir", default='.', help="Directory to place output .pdf report. Default is cwd")
 parser.add_option("-s", "--static_flags", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of static flags pickle file.")
 parser.add_option("--ku-band", action='store_true', help="Force ku-band observation")
+parser.add_option("--write-input", action='store_true', help="Make a copy of the input h5 file and insert flags into it.")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
@@ -22,12 +23,20 @@ if len(args) < 1:
 
 filename = args[0]
 
-flags_basename=os.path.join(opts.output_dir,os.path.splitext(filename.split('/')[-1])[0]+'_flags')
+basename = filename.split('/')[-1]
+flags_basename=os.path.join(opts.output_dir,os.path.splitext(basename)[0]+'_flags')
 
 if opts.ku_band:
 	opts.static_flags=None
 
-generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags)
-generate_rfi_report(filename,input_flags=flags_basename+'.h5',output_root=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans)
+if opts.write_input:
+	input_flags=None
+	report_input = os.path.join(opts.output_dir,basename)
+else:
+	input_flags = flags_basename+'.h5'
+	report_input=filename
+
+generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input)
+generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans)
 
 

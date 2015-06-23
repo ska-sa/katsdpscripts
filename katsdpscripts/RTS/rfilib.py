@@ -20,7 +20,7 @@ import pickle
 
 import h5py
 import os
-
+import shutil
 #########################
 # RFI Detection routines
 #########################
@@ -578,18 +578,23 @@ def plot_waterfall(visdata,flags,channel_freqs):
     pdf.savefig(fig)
     plt.close(fig)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None):
+def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_input=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in static_flags.
 
     This will write a list of flags per scan to the output h5 file.
     """
 
-    basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
-    outfile=h5py.File(basename+'.h5','w')
-
-    h5 = katdal.open(input_file)
-
+    if write_into_input:
+        output_file = os.path.join(output_root,input_file)
+        if not os.path.samefile(input_file,output_file):
+            shutil.copy(input_file,output_root)
+        h5 = katdal.open(os.path.join(output_root,input_file),mode='r+')
+    else:
+        basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
+        outfile=h5py.File(basename+'.h5','w')
+        h5 = katdal.open(input_file)
+    
     #Read static flags from pickle
     if static_flags:
         sff = open(static_flags)
@@ -605,18 +610,21 @@ def generate_flag_table(input_file,output_root='.',static_flags=None):
     else:
         mask_array = np.zeros((1,h5.vis.shape[1],1),dtype=np.bool)
 
+    #Set up empty flag table
+    final_flags = np.zeros(h5._flags.shape,dtype=np.uint8)
+
     #loop through scans
     for scan, state, target in h5.scans():
         this_data = h5.vis[:]
-        this_flags = h5.flags()[:]
+        file_flags = h5.flags('detected_rfi')[:]
 
         #Construct a masked array with flags removed
-        mask_flags = np.zeros(this_flags.shape,dtype=np.bool)
+        mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
         #Broadcast the channel mask to the same shape as this_flags
         mask_flags[:] = mask_array
 
         #OR the mask flags with the flags already in the h5 file
-        this_flags = this_flags | mask_flags
+        this_flags = file_flags | mask_flags
 
         this_data = np.ma.MaskedArray(np.abs(this_data),mask=this_flags,fill_value=np.nan)
 
@@ -628,18 +636,23 @@ def generate_flag_table(input_file,output_root='.',static_flags=None):
         #4: 'reserved3' 
         #5: 'detected_rfi' 
         #6: 'predicted_rfi' 
-        #7: 'reserved6' 
+        #7: 'cal_rfi' 
         #8: 'reserved7'
         all_flags = np.zeros(h5.vis.shape+(8,),dtype=np.uint8)
-        all_flags[...,2] = mask_flags
-        all_flags[...,5] = detected_flags
+        all_flags[...,1] = mask_flags
+        all_flags[...,6] = detected_flags
+        all_flags[...,4] = file_flags
 
         all_flags=np.packbits(all_flags,axis=3).squeeze()
 
-        grp=outfile.create_group(str(scan))
-        grp.create_dataset('flags',data=all_flags)
+        final_flags[h5.dumps]=all_flags
 
-    outfile.close()
+    if write_into_input:
+        h5._flags[:] = final_flags[:]
+        h5.file.close()
+    else:
+        outfile.create_dataset('flags',data=final_flags)
+        outfile.close()
 
     return
 
@@ -693,6 +706,11 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
     #Set up the output data dictionary
     data_dict = {}
 
+    if input_flags is not None:
+        all_flags = input_flags['flags'].value.astype(np.bool)
+    else:
+        all_flags=h5.flags()
+
     # Loop through targets
     for target in targets:
         #Get the target name if it is a target object
@@ -700,17 +718,8 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
             target = target.name
         #Extract target from file
         h5.select(targets=target,scans='~slew')
-        #Construct flag, visibility arrays for this target
-        if input_flags is not None:
-            flags=np.zeros(h5.shape,dtype=np.bool)
-            offset=0
-            for scan_no in h5.scan_indices:
-                scan_flags = input_flags[str(scan_no)+'/flags'].value
-                flags[offset:offset+scan_flags.shape[0]]=scan_flags.astype(np.bool)
-                offset+=scan_flags.shape[0]
-        else:
-            #Just use flags from the file
-            flags = h5.flags()
+        #Extract desired flags
+        flags=all_flags[h5.dumps]
         data_dict[target]=get_flag_stats(h5,flags)
         label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
         plot_flag_data(label,data_dict[target]['spectrum'][chan_range],data_dict[target]['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
@@ -718,17 +727,7 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
     #Reset the selection
     h5.select(scans='~slew',ants=ant)
 
-    #Construct flag, visibility arrays for this target
-    if input_flags is not None:
-        flags=np.zeros(h5.shape,dtype=np.bool)
-        offset=0
-        for scan_no in h5.scan_indices:
-            scan_flags = input_flags[str(scan_no)+'/flags'].value
-            flags[offset:offset+scan_flags.shape[0]]=scan_flags.astype(np.bool)
-            offset+=scan_flags.shape[0]
-    else:
-        #Just use flags from the file
-        flags = h5.flags()
+    flags=all_flags[h5.dumps]
 
     # Do calculation for all the data and store in the dictionary
     data_dict['all_data']=get_flag_stats(h5,flags)
