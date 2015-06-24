@@ -35,13 +35,17 @@ class Sky_temp:
        T_sky = T_cont + T_cmb  from the global sky model
        Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
-    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm"):
+    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm",diameter=13.5,smooth=True):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
         This takes in 1 parameter:
         nu (MHz) center frequency
         """
-        self.freq_map = gsm.get_freq(nu,path)
+        if smooth :
+            self.freq_map = hp.sphtfunc.smoothing(gsm.get_freq(nu,path),fwhm=(1.17*(3e8/(nu*1e6))/diameter ) )
+        else :
+            self.freq_map = gsm.get_freq(nu,path)
         self.nu = nu
+        self.smooth=smooth
 
     def Tsky(self,ra,dec):
         """given RA/Dec in Degrees  return the value of the spot
@@ -51,10 +55,10 @@ class Sky_temp:
         l = c.galactic.l.radian
         b = c.galactic.b.radian
         nside = hp.npix2nside(self.freq_map.shape[0])
-        ipix = hp.ang2pix(nside, np.pi/2.0 - b , -l % (np.pi*2))
+        ipix = hp.ang2pix(nside, np.pi/2.0 - b , l % (np.pi*2),nest=False)
         return self.freq_map[ipix]
 
-    
+
     def plot_sky(self,ra=None,dec=None,norm = 'log',unit='Kelvin',heapix_array=None):
         """ plot_sky plots the sky tempreture and overlays pointing centers as red dots
         The sky tempreture is the data that was loaded when the class was iniitated.
@@ -63,7 +67,7 @@ class Sky_temp:
         returns matplotlib figure object that the plot is assosated with.
         """
         #self.freq_map
-        fig = plt.figure()
+        fig = plt.figure(figsize=(16,9))
         hp.cartview(self.freq_map,norm = norm,unit=unit,fig=fig.number)
         c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
         l = np.degrees(-c.galactic.l.radian % (np.pi*2))
@@ -404,7 +408,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     
 
 def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,frequency=1420):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(16,9))
     elevation = Tsys[:,2]
     line1,=plt.plot(elevation, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(elevation, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
@@ -421,7 +425,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
     plt.grid()
-    plt.ylabel('$T/App_{eff} (K)')
+    plt.ylabel('$T_{sys}/App_{eff}$ (K)')
     return fig
 
 def r_lim(dataf,func=np.min):
@@ -445,7 +449,7 @@ def receptor_UHFband_limit(frequency):
     return return_array
 
 def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(16,9))
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
     line2,=plt.plot(frequency, Tant[:,0], color='b'  )
@@ -472,7 +476,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     if np.max(frequency) >=1420 :
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
-    plt.ylabel('$T/App_{eff} (K)$')
+    plt.ylabel('$T_{sys}/App_{eff}$ (K)')
     return fig
 
 
@@ -524,10 +528,10 @@ fix_opacity = opts.fix_opacity
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
     #Load the data file
-    
+
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-    
+
     SN = '0004'  # This is read from the file
     Band = 'L'
     Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default 
@@ -537,10 +541,10 @@ for ant in h5.ants:
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
-    
+
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
-    
+
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     tsys = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
@@ -560,7 +564,7 @@ for ant in h5.ants:
     #freq loop
     for i,chunk in enumerate(chunks):
         if not d is None:
-        
+
             d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
             #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
@@ -573,9 +577,9 @@ for ant in h5.ants:
             #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
-            length = len(T_SysTemp.elevation)   
-            tsys[0:length,i,0] = T_SysTemp.Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,1] = T_SysTemp.Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
+            length = len(T_SysTemp.elevation)
+            tsys[0:length,i,0] = T_SysTemp.Tsys_sky['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = T_SysTemp.Tsys_sky['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
             tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
             tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
@@ -583,7 +587,7 @@ for ant in h5.ants:
             tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]/aperture_efficiency.eff['VV'](d.freqs[i])
             tant[0:length,i,2] = T_SysTemp.elevation
             #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
-    
+
 
     fig = T_SysTemp.sky_fig()
     fig.savefig(pp,format='pdf')
