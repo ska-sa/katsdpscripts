@@ -15,14 +15,14 @@ from katsdpscripts.RTS import rfilib
 import h5py
 
 
-def read_and_select_file(file, bline=None, target=None, channels=None, polarisation=None, **kwargs):
+def read_and_select_file(file, bline=None, target=None, channels=None, polarisation=None, flags_file=None, **kwargs):
     """
-    Read in the input h5 file and make a selection based on kwargs and average the data.
+    Read in the input h5 file and make a selection based on kwargs.
 
     file:   {string} filename of h5 file to open in katdal
 
     Returns:
-        the visibility data to plot, the frequency array to plot, the flags to plot
+        A masked array with the visibility data to plot and the frequency array to plot.
     """
 
     data = katdal.open(file)
@@ -71,8 +71,25 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     if data.shape[0] == 0:
         raise ValueError('Selection has resulted in no data to process.')
 
+    #Get the selected visibilities and flags (average to stokes I if required and extend flags across corr products)
+    vis = np.abs(np.sum(data.vis[:],axis=-1))
+    if flags_file is None:
+        flags = np.sum(data.flags()[:],axis=-1)
+    else:
+        #Open the flags file
+        ff = h5py.File(flags_file)
+        #Select file flages based on h5 file selection
+        file_flags=ff['flags'].value
+        file_flags = file_flags[data._time_keep]
+        file_flags = file_flags[:,data._freq_keep]
+        file_flags = file_flags[:,:,data._corrprod_keep]
+        #Extend flags
+        flags = np.sum(file_flags,axis=-1)
+    weights = np.sum(data.weights()[:], axis=-1)
+    outputvis = np.ma.masked_array(vis, mask=flags)
+
     #return the selected data
-    return data, ant1 + ant2, polarisation
+    return outputvis, weights, data , ant1 + ant2, polarisation
 
 
 def getbackground_spline(data,spike_width):
@@ -132,84 +149,6 @@ def getbackground_spline(data,spike_width):
 
     return(thisfitted_data)
 
-
-def extract_and_average(data, timeav=5.0, freqav=1.0, stokesI=False, flags_file=None):
-    """
-    Extract the visibility data from data for plotting. Data are averaged in timeav and chanav chunks
-    if no timeav or chanav is given then the shortest track is used as the timeav and chanav is set to produce
-    100 channels in the bandpass. The katdal data object is assumed to have had a selection down to 1 spectral axis
-    applied elsewhere. If stokesI is True then the data is assumed to to have two spectral axes which 
-    are used to form stokes I.
-
-    Parameters
-    ==========
-    data:     A :class:katdal object selected to have 1 baseline axis
-    timeav:   The desired time averaging interval in minutes.
-    chanav:   The desired frequency averaging interval in MHz
-    stokesI:  If True then form stokes I from the (assumed) HH and VV polarisation axes in the visibility data
-    flags_file: Filename of .h5 file containing flags determined from rfi_report.py (these will be ORed with flags in h5 file)
-
-    Returns
-    =======
-    vis_data: An [avtime,avfreq,1] array of averaged visibility data for input to plotting routines
-    freq_data: An array of averaged frequencies (the x axis for specturm plots)
-    flag_data: A boolean array of remaining flags after averaging- these can also be plotted.
-    """
-
-    #Get the shortest and longest scans in dumps
-    short_scan = -1
-    long_scan = -1
-    for scan,state,target in data.scans():
-        scan_length = data.timestamps.shape[0]
-        if short_scan > -1: short_scan = min((scan_length,short_scan))
-        else: short_scan = scan_length
-        long_scan = max((long_scan,scan_length))
-    #Get the number of dumps to average
-    dumpav = max(1,int(np.round(timeav*60.0 / data.dump_period)))
-    if dumpav > long_scan:
-        dumpav = short_scan
-        print "Time averaging interval of %4.1fmin is longer than the longest scan. Scaling back to %4.1fmin to include all scans."%(timeav,dumpav*(data.dump_period/60.0))
-        timeav = dumpav*(data.dump_period/60.0)
-    print "Averaging %d dumps to %3d x %4.1fmin intervals."%(dumpav,int(scan_length*(data.dump_period/60.0)/timeav),timeav)
-
-    #Get the number of channels to average
-    freq_width_spec = data.channel_width * len(data.channels)
-    chanav = max(1,int(np.round(freqav*1e6 / data.channel_width)))
-    if chanav > len(data.channels):
-        chanav = len(data.channels)
-    print "Averaging frequency to %d x %4.1fMHz intervals."%(len(data.channels)//chanav,freqav)
-    
-    #Prepare arrays for extracted and averaged data
-    vis_data = np.empty((0,data.shape[1]//chanav,data.shape[2]))
-    flag_data = np.empty((0,data.shape[1]//chanav,data.shape[2]),dtype=np.bool)
-    weight_data = np.empty((0,data.shape[1]//chanav,data.shape[2]))
-
-    #Open the h5 file containg flags if its available
-    if flags_file:
-        flags=h5py.File(flags_file)
-
-    #Extract the required arrays from the data object for the averager on a scan by scan basis
-    for scan, state, target in data.scans():
-        scan_vis_data = data.vis[:]
-        scan_weight_data = data.weights()[:]
-        scan_flag_data = data.flags()[:]
-        scan_timestamps = data.timestamps[:]
-        scan_channel_freqs = data.channel_freqs[:]
-        if flags_file:
-            scan_flags = flags[str(scan)+'/flags'].value
-            scan_flag_data = scan_flag_data | scan_flags[:,data.channels,0:data.shape[2]].astype(np.bool)
-
-        # Average
-        scan_vis_data, scan_weight_data, scan_flag_data, scan_timestamps, scan_channel_freqs = averager.average_visibilities(scan_vis_data, scan_weight_data, scan_flag_data, scan_timestamps, 
-                                                                                                    scan_channel_freqs, timeav=dumpav, chanav=chanav, flagav=False)        
-        vis_data = np.append(vis_data,scan_vis_data,axis=0)
-        flag_data = np.append(flag_data,scan_flag_data,axis=0)
-        weight_data = np.append(weight_data, scan_weight_data, axis=0)
-        channel_freqs = scan_channel_freqs
-
-    return np.array(vis_data), np.array(channel_freqs), np.array(flag_data), np.array(weight_data), freqav, timeav
-
-
 def condition_data(vis,flags,weight,polarisation):
     """
     Make the data ameniable for plotting.
@@ -255,7 +194,6 @@ def correct_by_mean(vis, axis="Time"):
         medianvis = np.ma.mean(vis, axis=1)
         corrected_vis = vis - medianvis[:,np.newaxis]
     return corrected_vis
-
 
 def weighted_avg_and_std(values, weights, axis=None):
     """
@@ -330,7 +268,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     plt.close(fig)
 
 
-def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,target=None,freqav=None,timeav=None,freq_chans=None,correct='spline',flags_file=None):
+def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,target=None,freqav=None,timeav=None,freq_chans=None,correct='spline',flags_file=None,debug=False):
     """
     Plot the mean and standard deviation of the bandpass amplitude for a given target in a file
 
@@ -345,22 +283,17 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     correct: Method to use to correct the spectrum in each average timestamp. Options are 'spline' - fit a cubic spline,'channels' - use the average at each channel Default: 'spline'
     output_dir: Output directory for pdfs. Default is cwd.
     flags_file: Name of .h5 file containg flags calculated from 'rfi_report.py'.
+    debug: make a debug file containing all of the background fits to the dumps
     """
 
     # Get data from h5 file and use 'select' to obtain a useable subset of it.
-    data, bline, polarisation = read_and_select_file(input_file, bline=baseline, target=target, channels=freq_chans, polarisation=polarisation)
+    visdata, weightdata, h5data, bline, polarisation = \
+        read_and_select_file(input_file, bline=baseline, target=target, channels=freq_chans, polarisation=polarisation, flags_file=flags_file)
 
-    # Average the data to the required time and frequency bins
-    visdata, freqdata, flagdata, weightdata, freqav, timeav = extract_and_average(data, timeav=timeav, freqav=freqav, flags_file=flags_file)
-
-    # Make a masked array out of visdata, get amplitudes and average to stokes I if required
-    visdata, flagdata, weightdata = condition_data(visdata, flagdata, weightdata, polarisation)
-
-    # Get the mean visibility spectrum
-    vis_mean, vis_std = weighted_avg_and_std(visdata, weightdata, axis=0)
-
-    #Correct the visibilities by subtracting the average of the channels at each timestamp
-    #and the average of the timestamps at each channel.
+    # Extract visibility data as a masked array containing flags
+    # visdata = extract_visibiities(data)
+    # Correct the visibilities by subtracting the average of the channels at each timestamp
+    #and the a verage of the timestamps at each channel.
     if correct=='channels':
         corr_vis = correct_by_mean(visdata,axis="Channel")
         corr_vis = correct_by_mean(corr_vis,axis="Time")
@@ -368,12 +301,45 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     elif correct=='spline':
         #Knots will have to satisfy Schoenberg-Whitney conditions for spline else revert to straight mean of channels
         try:
-            corr_vis = [data - getbackground_spline(data, 2) for data in visdata]
+            corr_vis = np.ma.masked_array([data - getbackground_spline(data, 3) for data in visdata],mask=visdata.mask)
         except ValueError:
             corr_vis = correct_by_mean(visdata,axis="Channel")
             corr_vis = correct_by_mean(corr_vis,axis="Time")
-    #get weighted standard deviation of corrected visdata
-    corr_vis_mean, corr_vis_std = weighted_avg_and_std(corr_vis, weightdata, axis=0)
+
+    #Get the number of dumps to average
+    dumpav = max(1,int(np.round(timeav*60.0 / h5data.dump_period)))
+    if dumpav > len(h5data.timestamps):
+        dumpav = 1
+        print "Time averaging interval of %4.1fmin is longer than the observation length. No time averaging will be applied."%(timeav)
+        timeav = dumpav*(h5data.dump_period/60.0)
+    print "Averaging time to %3d x %4.1fmin (%d dump) intervals."%(len(h5data.timestamps)//dumpav,timeav,dumpav)
+
+    #Get the number of channels to average
+    chanav = max(1,int(np.round(freqav*1e6 / h5data.channel_width)))
+    if chanav > len(h5data.channel_freqs):
+        chanav = 1
+        print "Frequency averaging interval of %4.1fMHz is wider than available bandwidth. No frequency averaging will be applied."%(freqav)
+        freqav = h5data.channel_width/1e6
+    print "Averaging frequency to %d x %4.1fMHz intervals."%(len(h5data.channel_freqs)//chanav,freqav)
+
+    #Average the data over all time in chanav channels
+    av_visdata = averager.average_visibilities(visdata.data, weightdata, visdata.mask, h5data.timestamps, h5data.channel_freqs, timeav=len(h5data.timestamps), chanav=chanav)
+
+    #Average the background subtracted data in dumpav times and chanav channels
+    av_corr_vis = averager.average_visibilities(corr_vis.data, weightdata, corr_vis.mask, h5data.timestamps, h5data.channel_freqs, timeav=dumpav, chanav=chanav)
+
+    #Get the averaged weights and channel frequencies
+    av_weightdata = av_corr_vis[1]
+    av_channel_freqs = av_corr_vis[4]
+    
+    #Make a masked array out of the averaged visdata
+    av_visdata = np.ma.masked_array(np.squeeze(av_visdata[0]),mask=np.squeeze(av_visdata[2]))
+
+    #Make a masked array out of the averaged background subtracted data
+    av_corr_vis = np.ma.masked_array(av_corr_vis[0],mask=av_corr_vis[2])
+
+    #get weighted standard deviation of background subtracted data
+    corr_vis_mean, corr_vis_std = weighted_avg_and_std(av_corr_vis, av_weightdata, axis=0)
 
     fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
-    plot_std_results(corr_vis_std,vis_mean,freqdata,flagdata,bline, polarisation, freqav, timeav,fileprefix)
+    plot_std_results(corr_vis_std,np.squeeze(av_visdata),av_channel_freqs,av_corr_vis.mask,bline, polarisation, freqav, timeav,fileprefix)
