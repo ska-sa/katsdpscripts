@@ -99,40 +99,41 @@ def getbackground_spline(data,spike_width):
 
     return(thisfitted_data)
 
-def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
-    pltobj.axvspan(1674e6,1677e6, alpha=0.3, color='grey')#Meteosat
-    pltobj.axvspan(1667e6,1667e6, alpha=0.3, color='grey')#Fengun
-    pltobj.axvspan(1682e6,1682e6, alpha=0.3, color='grey')#Meteosat
-    pltobj.axvspan(1685e6,1687e6, alpha=0.3, color='grey')#Meteosat
-    pltobj.axvspan(1687e6,1687e6, alpha=0.3, color='grey')#Fengun
-    pltobj.axvspan(1690e6,1690e6, alpha=0.3, color='grey')#Meteosat
-    pltobj.axvspan(1699e6,1699e6, alpha=0.3, color='grey')#Meteosat
-    pltobj.axvspan(1702e6,1702e6, alpha=0.3, color='grey')#Fengyun
-    pltobj.axvspan(1705e6,1706e6, alpha=0.3, color='grey')#Meteosat
-    pltobj.axvspan(1709e6,1709e6, alpha=0.3, color='grey')#Fengun
-    pltobj.axvspan(1501e6,1570e6, alpha=0.3, color='blue')#Inmarsat
-    pltobj.axvspan(1496e6,1585e6, alpha=0.3, color='blue')#Inmarsat
-    pltobj.axvspan(1574e6,1576e6, alpha=0.3, color='blue')#Inmarsat
-    pltobj.axvspan(1509e6,1572e6, alpha=0.3, color='blue')#Inmarsat
-    pltobj.axvspan(1574e6,1575e6, alpha=0.3, color='blue')#Inmarsat
-    pltobj.axvspan(1512e6,1570e6, alpha=0.3, color='blue')#Thuraya
-    pltobj.axvspan(1450e6,1498e6, alpha=0.3, color='red')#Afristar
-    pltobj.axvspan(1652e6,1694e6, alpha=0.2, color='red')#Afristar
-    pltobj.axvspan(1542e6,1543e6, alpha=0.3, color='cyan')#Express AM1
-    pltobj.axvspan(1554e6,1554e6, alpha=0.3, color='cyan')#Express AM 44
-    pltobj.axvspan(1190e6,1215e6, alpha=0.3, color='green')#Galileo
-    pltobj.axvspan(1260e6,1300e6, alpha=0.3, color='green')#Galileo
-    pltobj.axvspan(1559e6,1591e6, alpha=0.3, color='green')#Galileo
-    pltobj.axvspan(1544e6,1545e6, alpha=0.3, color='green')#Galileo
-    pltobj.axvspan(1190e6,1217e6, alpha=0.3, color='green')#Beidou
-    pltobj.axvspan(1258e6,1278e6, alpha=0.3, color='green')#Beidou
-    pltobj.axvspan(1559e6,1563e6, alpha=0.3, color='green')#Beidou  
-    pltobj.axvspan(1555e6,1596e6, alpha=0.3, color='green')#GPS L1  1555 -> 1596 
-    pltobj.axvspan(1207e6,1238e6, alpha=0.3, color='green')#GPS L2  1207 -> 1248 
-    pltobj.axvspan(1378e6,1384e6, alpha=0.3, color='green')#GPS L3  
-    pltobj.axvspan(1588e6,1615e6, alpha=0.3, color='green')#GLONASS  1588 -> 1615 L1
-    pltobj.axvspan(1232e6,1259e6, alpha=0.3, color='green')#GLONASS  1232 -> 1259 L2
-    pltobj.axvspan(1616e6,1630e6, alpha=0.3, color='grey')#IRIDIUM
+def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
+    if main:
+        pltobj.axvspan(1674e6,1677e6, alpha=0.3, color='grey')#Meteosat
+        pltobj.axvspan(1667e6,1667e6, alpha=0.3, color='grey')#Fengun
+        pltobj.axvspan(1682e6,1682e6, alpha=0.3, color='grey')#Meteosat
+        pltobj.axvspan(1685e6,1687e6, alpha=0.3, color='grey')#Meteosat
+        pltobj.axvspan(1687e6,1687e6, alpha=0.3, color='grey')#Fengun
+        pltobj.axvspan(1690e6,1690e6, alpha=0.3, color='grey')#Meteosat
+        pltobj.axvspan(1699e6,1699e6, alpha=0.3, color='grey')#Meteosat
+        pltobj.axvspan(1702e6,1702e6, alpha=0.3, color='grey')#Fengyun
+        pltobj.axvspan(1705e6,1706e6, alpha=0.3, color='grey')#Meteosat
+        pltobj.axvspan(1709e6,1709e6, alpha=0.3, color='grey')#Fengun
+        pltobj.axvspan(1501e6,1570e6, alpha=0.3, color='blue')#Inmarsat
+        pltobj.axvspan(1496e6,1585e6, alpha=0.3, color='blue')#Inmarsat
+        pltobj.axvspan(1574e6,1576e6, alpha=0.3, color='blue')#Inmarsat
+        pltobj.axvspan(1509e6,1572e6, alpha=0.3, color='blue')#Inmarsat
+        pltobj.axvspan(1574e6,1575e6, alpha=0.3, color='blue')#Inmarsat
+        pltobj.axvspan(1512e6,1570e6, alpha=0.3, color='blue')#Thuraya
+        pltobj.axvspan(1450e6,1498e6, alpha=0.3, color='red')#Afristar
+        pltobj.axvspan(1652e6,1694e6, alpha=0.2, color='red')#Afristar
+        pltobj.axvspan(1542e6,1543e6, alpha=0.3, color='cyan')#Express AM1
+        pltobj.axvspan(1554e6,1554e6, alpha=0.3, color='cyan')#Express AM 44
+        pltobj.axvspan(1190e6,1215e6, alpha=0.3, color='green')#Galileo
+        pltobj.axvspan(1260e6,1300e6, alpha=0.3, color='green')#Galileo
+        pltobj.axvspan(1559e6,1591e6, alpha=0.3, color='green')#Galileo
+        pltobj.axvspan(1544e6,1545e6, alpha=0.3, color='green')#Galileo
+        pltobj.axvspan(1190e6,1217e6, alpha=0.3, color='green')#Beidou
+        pltobj.axvspan(1258e6,1278e6, alpha=0.3, color='green')#Beidou
+        pltobj.axvspan(1559e6,1563e6, alpha=0.3, color='green')#Beidou  
+        pltobj.axvspan(1555e6,1596e6, alpha=0.3, color='green')#GPS L1  1555 -> 1596 
+        pltobj.axvspan(1207e6,1238e6, alpha=0.3, color='green')#GPS L2  1207 -> 1248 
+        pltobj.axvspan(1378e6,1384e6, alpha=0.3, color='green')#GPS L3  
+        pltobj.axvspan(1588e6,1615e6, alpha=0.3, color='green')#GLONASS  1588 -> 1615 L1
+        pltobj.axvspan(1232e6,1259e6, alpha=0.3, color='green')#GLONASS  1232 -> 1259 L2
+        pltobj.axvspan(1616e6,1630e6, alpha=0.3, color='grey')#IRIDIUM
     if not extra is None:
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.1, color='Maroon')

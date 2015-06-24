@@ -230,7 +230,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     ax1.axhline(0.005,ls='--', color='red')
     ax1.plot(freqdata,corr_visdata_std/mean_visdata*100.0)
     ax1.set_yscale('log')
-    plt.ylabel('log10 Standard Deviation (% of mean)')
+    plt.ylabel('log10 [Standard Deviation (% of mean)]')
     tstring = 'Spectral Baseline, %s'%baseline
     if pol=='I':
         tstring += ', Stokes I'
@@ -254,8 +254,8 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     plt.xlabel('Frequency (MHz)')
 
     #Overlay rfi
-    rfilib.plot_RFI_mask(ax1,flag_freqs,channel_width)
-    rfilib.plot_RFI_mask(ax2,flag_freqs,channel_width)
+    rfilib.plot_RFI_mask(ax1,main=False,extra=flag_freqs,channelwidth=channel_width)
+    rfilib.plot_RFI_mask(ax2,main=False,extra=flag_freqs,channelwidth=channel_width)
     if end_freq<start_freq:
         plt.xlim((end_freq,start_freq))
     else:
