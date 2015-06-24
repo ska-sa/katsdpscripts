@@ -432,7 +432,7 @@ def r_lim(dataf,func=np.min):
     """ Returns the func of the data , not used on nans"""
     index = np.any(~np.isnan(dataf),axis=-1)
     return func(dataf[index,...])
-           
+
 
 #plot_data(freqs/1e6, np.linspace(275,410,len(freqs)), newfig=False, label="275-410 m^2/K at Receivers CDR")
 def receptor_Lband_limit(frequency):
@@ -578,8 +578,8 @@ for ant in h5.ants:
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
-            tsys[0:length,i,0] = T_SysTemp.Tsys_sky['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,1] = T_SysTemp.Tsys_sky['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
+            tsys[0:length,i,0] = (T_SysTemp.Tsys_sky['HH'])+2.725/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = (T_SysTemp.Tsys_sky['VV'])+2.725/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
             tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
             tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
@@ -611,7 +611,7 @@ for ant in h5.ants:
     fig = plt.figure(None,figsize = (8,8))
     text =r"""The 'tipping curve' is calculated according to the expression below,
 with the the parameters of $T_{ant}$ and $\tau_{0}$,
-the Antenna tempreture and the atmospheric opacity respectivly.
+the Antenna temperature and the atmospheric opacity respectivly.
 All the varables are also functions of frequency.
 
 $T_{sys}(el) = T_{cmb}(ra,dec) + T_{gal}(ra,dec) + T_{atm}*(1-\exp(\frac{-\tau_{0}}{\sin(el)})) + T_{spill}(el) + T_{ant} + T_{rx}$
