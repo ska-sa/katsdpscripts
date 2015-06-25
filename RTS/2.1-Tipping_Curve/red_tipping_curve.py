@@ -405,7 +405,6 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
         #print "T_sys %3.1f - T_other %3.1f " %(t_sys,func(el))
     chisq =0.0# nonsense Vars
     return {'params': tip.params,'fit':fit_func,'scatter': (T_sys.Tsys[pol]-fit_func),'chisq':chisq,'text':returntext}
-    
 
 def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,frequency=1420):
     fig = plt.figure(figsize=(16,9))
@@ -416,7 +415,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     line3,=plt.plot(elevation, Tsys[:,1], marker='^', color='r', linewidth=0)
     plt.errorbar(elevation, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
     line4,=plt.plot(elevation, Tant[:,1], color='r')
-    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/App_{eff}$ HH','$T_{ant}/App_{eff}$ HH', '$T_{sys}/App_{eff}$ VV','$T_{ant}/App_{eff}$ VV'), loc='best')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
     plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1)))
@@ -425,7 +424,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
     plt.grid()
-    plt.ylabel('$T_{sys}/App_{eff}$ (K)')
+    plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
 
 def r_lim(dataf,func=np.min):
@@ -456,7 +455,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     line3,=plt.plot(frequency, Tsys[:,1], marker='^', color='r',  linewidth=0)
     plt.errorbar(frequency, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
     line4,=plt.plot(frequency, Tant[:,1], color='r')
-    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/App_{eff}$ HH','$T_{ant}/App_{eff}$ HH', '$T_{sys}/App_{eff}$ VV','$T_{ant}/App_{eff}$ VV'), loc='best')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
     if aperture_efficiency is not None:
@@ -476,8 +475,9 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     if np.max(frequency) >=1420 :
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
-    plt.ylabel('$T_{sys}/App_{eff}$ (K)')
+    plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
+
 
 
 
@@ -531,13 +531,13 @@ for ant in h5.ants:
 
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-
+    nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
     SN = '0004'  # This is read from the file
     Band = 'L'
     Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default 
     #"{:0>4d}".format(int(sn))
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
-    receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
+    receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
@@ -578,13 +578,13 @@ for ant in h5.ants:
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
-            tsys[0:length,i,0] = (T_SysTemp.Tsys_sky['HH'])+2.725/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,1] = (T_SysTemp.Tsys_sky['VV'])+2.725/aperture_efficiency.eff['VV'](d.freqs[i])
+            tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+2.725)/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+2.725)/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
             tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
             tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
-            tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]/aperture_efficiency.eff['HH'](d.freqs[i])
-            tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]/aperture_efficiency.eff['VV'](d.freqs[i])
+            tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]
+            tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]
             tant[0:length,i,2] = T_SysTemp.elevation
             #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
 
@@ -599,12 +599,12 @@ for ant in h5.ants:
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
             fig.savefig(pp,format='pdf')
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1)))[i],aperture_efficiency=aperture_efficiency)
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1)))[i],aperture_efficiency=aperture_efficiency)
         fig.savefig(pp,format='pdf')
                 #break
 
