@@ -712,6 +712,8 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
 
     if input_flags is not None:
         all_flags = input_flags['flags'].value.astype(np.bool)
+        #Only keep the desired flags from corrprod
+        all_flags = all_flags[:,:,h5._corrprod_keep]
     else:
         all_flags=h5.flags()
 
