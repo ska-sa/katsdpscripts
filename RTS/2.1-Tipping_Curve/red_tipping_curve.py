@@ -490,7 +490,7 @@ parser.add_option("-r", "--select-freq", default='900,1420,1700,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
-parser.add_option("-b", "--freq-bw", default=10.0,
+parser.add_option("-b", "--freq-bw", default=10.0,type="float",
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
 parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat',
                   help="Name of FIle containing spillover models default= %default")
