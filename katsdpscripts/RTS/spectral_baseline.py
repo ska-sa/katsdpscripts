@@ -240,7 +240,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     # Add some pertinent information.
     pstring = 'Time average: %4.1f min.\n'%(timeav)
     pstring += 'Frequency average: %4.1f MHz.\n'%(freqav)
-    pstring += 'Median standard deviation: %5.3f%%'%np.ma.median(corr_visdata_std/mean_visdata*100.0)
+    pstring += 'Median standard deviation: %6.4f%%'%np.ma.median(corr_visdata_std/mean_visdata*100.0)
     plt.figtext(0.5,0.83,pstring)
 
     #plot title
