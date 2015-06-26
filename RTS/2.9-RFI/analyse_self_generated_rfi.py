@@ -551,23 +551,23 @@ h5 = katdal.open(filename)
 print("Please wait while analysis is in progress...")
 pdf = PdfPages(filename.split('/')[-1]+'_RFI.pdf')
 
-
+page_length = 70
 #antennas = [ant.name for ant in fileopened.ants]
 #targets = [('%s' % (i.name)) for i in fileopened.catalogue.targets]
 chan_range = slice(1,-1) # remove dc spike
 #freqs = fileopened.channel_freqs*1.0e-6
 detection_function = detect_spikes_sumthreshold
 #plot_horizontal_selection_per_antenna
-for pol in ['H','V']: 
+for pol in ['H','V']:
     (all_text, figlist) = plot_selection_per_antenna(h5, pol, chan_range, detection_function)
     line = 0
-    for page in xrange(int(np.ceil(len(all_text)/70.))):
-        fig = plt.figure(None,figsize = (10,16)) 
+    for page in xrange(int(np.ceil(len(all_text)/page_length))):
+        fig = plt.figure(None,figsize = (10,16))
         #fig, ax = plt.subplots(figsize = (10,16))
-        lineend = line+np.min((70,len(all_text[line:])))
-        factadj = 0.8*(1-(lineend-line)/70.)
+        lineend = line+int(np.min((page_length,len(all_text[line:]))))
+        factadj = 0.8*(1-(lineend-line)/page_length)
         plt.figtext(0.1 ,0.15+factadj,'\n'.join(all_text[line:lineend]),fontsize=10)
-        line = line + lineend
+        line = lineend
         fig.savefig(pdf,format='pdf')
         plt.close(fig)
 
@@ -575,7 +575,7 @@ for pol in ['H','V']:
         pdf.savefig(fig)
         plt.close(fig)
 
-#for pol in ['H','V']: 
+#for pol in ['H','V']
 #    (all_text, fig) = plot_all_antenas_selection_per_pointing(fileopened, pol, antennas, chan_range, targets,detection_function)
 #    pdf.savefig(fig)
 #    plt.close(fig)
