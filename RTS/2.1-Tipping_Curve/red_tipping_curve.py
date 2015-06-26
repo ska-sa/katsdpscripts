@@ -75,7 +75,7 @@ class Sky_temp:
         plt.plot(l,b,'ro')
         #hp.graticule()
         return fig
-        
+
 class Spill_Temp:
     """Load spillover models and interpolate to centre observing frequency."""
     def __init__(self,filename=None):
@@ -326,12 +326,12 @@ def calc_atmospheric_opacity(T, RH, P, h, f):
     """
     es = 6.1121*np.exp((18.678-T/234.5)*T/(257.14+T)) # [hPa] from A. L. Buck research manual 1996
     rho = RH*es*216.7/(T+273.15) # [g/m^3] from A. L. Buck research manual 1996 (ITU-R ommited the factor "RH" - a mistake)
-    
+
     # The following is taken directly from ITU-R P.676-9
     p_tot = P + es # from eq 3
-    
+
     rho = rho*np.exp(h/2) # Adjust to sea level as per eq 32
-    
+
     # eq 22
     r_t = 288./(273.+T)
     r_p = p_tot/1013.
@@ -351,20 +351,20 @@ def calc_atmospheric_opacity(T, RH, P, h, f):
           + 844.6*n_1*np.exp(0.17*(1-r_t))/(f-557)**2*g(f,557) + 290*n_1*np.exp(0.41*(1-r_t))/(f-752)**2*g(f,752)
           + 8.3328e4*n_2*np.exp(0.99*(1-r_t))/(f-1780)**2*g(f,1780)
           ) * f**2*r_t**2.5*rho*1e-4
-    
+
     # eq 25
     t_1 = 4.64/(1+0.066*r_p**-2.3) * np.exp(-((f-59.7)/(2.87+12.4*np.exp(-7.9*r_p)))**2)
     t_2 = 0.14*np.exp(2.12*r_p) / ((f-118.75)**2+0.031*np.exp(2.2*r_p))
     t_3 = 0.0114/(1+0.14*r_p**-2.6) * f * (-0.0247+0.0001*f+1.61e-6*f**2) / (1-0.0169*f+4.1e-5*f**2+3.2e-7*f**3)
     ho = 6.1/(1+0.17*r_p**-1.1)*(1+t_1+t_2+t_3)
-    
+
     # eq 26
     sigma_w = 1.013/(1+np.exp(-8.6*(r_p-0.57)))
     hw = 1.66*( 1 + 1.39*sigma_w/((f-22.235)**2+2.56*sigma_w) + 3.37*sigma_w/((f-183.31)**2+4.69*sigma_w) + 1.58*sigma_w/((f-325.1)**2+2.89*sigma_w) )
-    
+
     # Attenuation from dry & wet atmosphere relative to a point outside of the atmosphere
     A = yo*ho*np.exp(-h/ho) + yw*hw*np.exp(-h/hw) # [dB] from equations 27, 30 & 31
-    
+
     return A*np.log(10)/10.0 # Convert dB to Nepers
 
 
@@ -385,7 +385,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
         #print T_sys.surface_temperature,T_sys.air_relative_humidity, T_sys.pressure, T_sys.height, freqs
         tau = calc_atmospheric_opacity(T_sys.surface_temperature,T_sys.air_relative_humidity, T_sys.pressure, T_sys.height/1000., freqs/1000.)
         # Height in meters above sea level, frequency in GHz.
-    else:   
+    else:
         tau = 0.01078
     print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
     tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
@@ -395,7 +395,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
         spill = SpillOver.spill[pol](np.array([[x,],[freqs]]))
         atm = T_atm * (1 - np.exp(-tau / np.sin(np.radians(x))))
         #print "Rec %3.1f + Sky %3.1f + Spill %3.1f + Atm %3.1f = %3.1f" % (rx ,sky , spill , atm,rx+sky+spill+atm)
-        return rx + sky + spill + atm     
+        return rx + sky + spill + atm
 
     func = know_quant
     fit_func = []
@@ -486,7 +486,7 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='900,1420,1700,1840',
+parser.add_option("-r", "--select-freq", default='900,1420,1670,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
@@ -599,12 +599,12 @@ for ant in h5.ants:
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
             fig.savefig(pp,format='pdf')
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
         fig.savefig(pp,format='pdf')
                 #break
 
@@ -621,7 +621,7 @@ so it is $\frac{T_{sys}(el)}{\eta_{illum}}$.
 We assume the opacity and $T_{ant}$ is the residual after
 the tipping curve function is calculated. T_cmb + T_gal is
 obtained from the Sky model. """
-    if fix_opacity : 
+    if fix_opacity :
         text += """$\tau_{0}$, the zenith opacity,
 is set to 0.01078 (Van Zee et al.,1997). $T_{ant}$ is the excess
 tempreture since the other components are known."""
