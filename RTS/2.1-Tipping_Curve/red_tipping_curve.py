@@ -519,7 +519,7 @@ select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
 h5.select(scans='track')
 nd_models = opts.nd_models
-spill_over_models =  opts.spill_over_models 
+spill_over_models =  opts.spill_over_models
 filename = args[0]
 channel_bw = opts.freq_bw
 freq_bw = opts.freq_bw
