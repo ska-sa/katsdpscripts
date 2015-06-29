@@ -317,7 +317,7 @@ def detect_spikes_median(data,blarray=None,spike_width=10,outlier_sigma=11.0):
         # The deviation is measured relative to the local median in the signal
         abs_dev = spectral_data - filtered_data
         outliers = (abs_dev > np.std(abs_dev)*2.3)# TODO outlier_sigma pram
-        flags[:,bl_index] = outliers
+        flags[...,bl_index] = outliers
     return flags
 
 def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
