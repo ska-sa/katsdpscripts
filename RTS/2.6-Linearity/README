@@ -9,19 +9,19 @@ The script requires the following options:
 The full path filename to a single observation file is taken as argument
 
 Usage:
-python linearity.py --ant <m0nr> --pol <H/V>  --offset <deg> --nsteps <#> --nsf RxL_<serial>_calculated_noise_<pol>_chan.dat <full/path/to/filename.h5>
+python linearity.py --ant <m0nr> --pol <H/V>  --offset <deg> --nsteps <#> --nsf rx.l.4.<pol>.csv <full/path/to/filename.h5>
 
 For full help message: python linearity.py --help
 
 Working example:
 0)
-python linearity.py --ant m063 --pol H --nsf ../models/RxL_SN0003_calculated_noise_H_chan.dat --offset 7 --nsteps 50 /var/kat/archive/data/RTS/telescope_products/2015/05/25/1432552011.h5
+python linearity.py --ant m063 --pol H --nsf rx.l.4.h.csv --offset 7 --nsteps 50 /var/kat/archive/data/RTS/telescope_products/2015/05/25/1432552011.h5 -v
 
 Output report: Test report 1432552011_m063_H_linearity.pdf generated
 View report: xdg-open 1432552011_m063_H_linearity.pdf
 
 1)
-python linearity.py --ant m063 --pol V --nsf ../models/RxL_SN0003_calculated_noise_V_chan.dat --offset 7 --nsteps 50 /var/kat/archive/data/RTS/telescope_products/2015/05/25/1432552011.h5
+python linearity.py --ant m063 --pol V --nsf rx.l.4.v.csv --offset 7 --nsteps 50 /var/kat/archive/data/RTS/telescope_products/2015/05/25/1432552011.h5 -v
 
 Output report: Test report 1432552011_m063_V_linearity.pdf generated
 View report: xdg-open 1432552011_m063_V_linearity.pdf

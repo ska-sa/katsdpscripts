@@ -28,8 +28,11 @@ f_stop  = 1670e6       # Hz
 
 # Channel indices over target
 dft=20e6               # Hz
-# channel indices for null
+# Channel indices for null
 dfn=10e6               # Hz
+
+# Default noise diode model files
+default_path='/home/kat/svn/katconfig/user/noise-diode-models/mkat'
 ## GLOBAL SCRIPT CONSTANTS ##
 
 ##Read input H5 file
@@ -71,9 +74,9 @@ def readOBS(filename, ant, pol, fc, fnull):
 ##Noise diode profile over passband frequency range
 def noiseDIODE(passband, noisemodel=None, tsys=-1.):
     if noisemodel is not None:
-        # Read model data [freq Hz, G dB, Te K]
+        # Read model data [freq Hz, Te K]
         nd_freqs = numpy.array(noisemodel)[:,0]
-        nd_temps = numpy.array(noisemodel)[:,2]
+        nd_temps = numpy.array(noisemodel)[:,1]
     else:
         nd_freqs = passband
         nd_temps = tsys*numpy.ones(numpy.shape(passband))
@@ -205,19 +208,19 @@ if __name__ == '__main__':
         parser.print_usage()
         raise SystemExit('Antenna polarisation channel is a required parameter.')
 
-    if opts.noisefile is None and opts.tsys < 0:
-      parser.print_usage()
-      raise SystemExit('Provide noise model file or Tsys temperature.')
     if opts.offset < 0 or opts.nsteps < 0:
-      parser.print_usage()
-      raise SystemExit('Observational parameters unknown, provide offset angle and number steps.')
+        parser.print_usage()
+        raise SystemExit('Observational parameters unknown, provide offset angle and number steps.')
 
     # Function takes in a single file -- specified as input argument -- for processing
     if len(args) > 1:
         parser.print_usage()
         raise SystemExit('Multiple input filenames given, only single input file expected')
     filename = args[0]
-
+    if opts.noisefile is None and opts.tsys < 0:
+        # use default name (bad choice)
+        import string
+        opts.noisefile = os.path.join(default_path,'rx.l.4.%s.csv'%string.lower(opts.pol))
 
 ##Observation test parameters
     fc     = opts.gps             # Hz
@@ -237,6 +240,8 @@ if __name__ == '__main__':
         fin = open(opts.noisefile, 'r')
         # Read and ignore header line
         fin.readline()
+        fin.readline()
+        # Read noise model data
         noisemodel=[]
         for line in fin.readlines():
             try:
