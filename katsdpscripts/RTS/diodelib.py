@@ -5,6 +5,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import pickle
+from katsdpscripts.RTS import git_info 
 
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False):
     file_base = filename.split('/')[-1].split('.')[0]
@@ -149,16 +150,23 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     if not(Ku):
         plt.figure(1)
         plt.subplot(n_ants,2,1)
+        ax = plt.gca()
+        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
         plt.title('Coupler Diode: H pol: '+file_base)
         plt.subplot(n_ants,2,2)
+        ax = plt.gca()
+        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
         plt.title('Coupler Diode: V pol: '+file_base)
 
     plt.figure(2)
     plt.subplot(n_ants,2,1)
+    ax = plt.gca()
+    ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
     plt.title('Tsys/eta_A: H pol: '+file_base)
     plt.subplot(n_ants,2,2)
+    ax = plt.gca()
+    ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
     plt.title('Tsys/eta_A: V pol: '+file_base)
-
     if pdf:
         if not(Ku):
             fig1.savefig(pp,format='pdf')
