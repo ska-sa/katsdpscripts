@@ -83,7 +83,7 @@ def rolling_window(a, window):
 
 
 def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
-    """ calculate the Stats needed to evaluate the obsevation"""
+    """ calculate the Stats needed to evaluate the observation"""
     returntext = []
     gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))#.asfreq(freq='1s')
     mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
@@ -94,9 +94,10 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     detrended_windowgainchange = dtrend_std/mean*100
     timeval = timestamps.max()-timestamps.min()
     window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
+    full = np.where(window_occ==1)
 
     #rms = np.sqrt((gain**2).mean())
-    returntext.append("Total time of obsevation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
+    returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
     #returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
@@ -109,17 +110,21 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
 
     pltobj = plt.figure()
     plt.title('Percentage Variation of %s pol, %i Second sliding Window'%(pol,windowtime,))
-    windowgainchange.plot(label='Original')
-    detrended_windowgainchange.plot(label='Detrended')
-    window_occ.plot(label='Window Occupancy')
-    plt.hlines(2, timestamps.min(), timestamps.max(), colors='k')
+    windowgainchange.iloc[full].plot(label='Original')
+    detrended_windowgainchange.iloc[full].plot(label='Detrended')
+
+    plot_lims = plt.axis('tight')
+    plt.hlines(2, plot_lims[0], plot_lims[1], color = 'r')
+    if plot_lims[3] <= 2: # adjust limits to show pass line
+        plt.ylim(0,2.1)
+
     plt.ylabel('Percentage Variation')
     plt.xlabel('Date/Time')
     plt.legend(loc='best')
     #plt.title(" %s pol Gain"%(pol))
     #plt.plot(windowgainchange.mean(),'b',label='20 Min (std/mean)')
     #plt.plot(np.ones_like(windowgainchange.mean())*2.0,'r',label=' 2 level')
-    return returntext,pltobj  # a plot would be cool
+    return returntext,pltobj # a plot would be cool
 
 
 def remove_rfi(d,width=3,sigma=5,axis=1):
