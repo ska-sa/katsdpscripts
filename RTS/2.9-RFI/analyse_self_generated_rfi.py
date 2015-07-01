@@ -153,13 +153,13 @@ def detect_spikes_sumthreshold(data, blarray=None, spike_width=4, outlier_sigma=
     for bl_index in range(data.shape[-1]):
         # Extract this baseline from the data
         this_data_buffer = data[:,bl_index]
-        
+
         #Separate the auto-correlations and the cross-correlations
         #auto-correlations use a median filter and cross correlations
         #use a fitted spline.
         if blarray is not None:
             bl_name = bline.bls_ordering[bl_index]
-        
+
         # Check if this is an auto or a cross... (treat as auto if we have no bl-ordering)
         if blarray is None or bl_name[0][:-1] == bl_name[1][:-1]:
             #Auto-Correlation.
@@ -175,38 +175,38 @@ def detect_spikes_sumthreshold(data, blarray=None, spike_width=4, outlier_sigma=
             window_bl = window_size_cross
             # Can lower the threshold a little (10%) for cross correlations
             this_sigma = outlier_sigma * 0.9
-    
+
         av_dev = (this_data_buffer-filtered_data)
 
         av_abs_dev = np.abs(av_dev)
-            
+
         # Calculate median absolute deviation (MAD)
         med_abs_dev = np.median(av_abs_dev[av_abs_dev>0])
-            
+
         # Assuming normally distributed deviations, this is a robust estimator of the standard deviation
         estm_stdev = 1.4826 * med_abs_dev
-            
+
         # Identify initial outliers (again based on normal assumption), and replace them with local median
         threshold = this_sigma * estm_stdev
         outliers = np.zeros(data.shape[0],dtype=np.bool)
         # Always flag the first element of the array.
-        outliers[0] = True 
+        outliers[0] = True
 
         for window in window_bl:
             #Set up 'this_data' from the averaged background subtracted buffer 
             bl_data = av_dev.copy()
-                
+
             #The threshold for this iteration is calculated from the initial threshold
             #using the equation from Offringa (2010).
             # rho=1.3 in the equation seems to work better for KAT-7 than rho=1.5 from AO.
             thisthreshold = threshold / pow(1.2,(math.log(window)/math.log(2.0)))
             #Set already flagged values to be the value of this threshold
             bl_data[outliers] = thisthreshold
-                
+
             #Calculate a rolling average array from the data with a windowsize for this iteration
             weight = np.repeat(1.0, window)/window
             avgarray = np.convolve(bl_data, weight,mode='valid')
-                
+
             #Work out the flags from the convolved data using the current threshold.
             #Flags are padded with zeros to ensure the flag array (derived from the convolved data)
             #has the same dimension as the input data.
