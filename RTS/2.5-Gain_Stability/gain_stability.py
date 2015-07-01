@@ -9,6 +9,7 @@ import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas
 import pickle
+from katsdpscripts.RTS import git_info
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -222,11 +223,19 @@ for filename in args:
     #amp_vv = np.hstack(amp_vv.data)
 
 if True :
+    obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
     returntext,fig = calc_stats(timestamps,gain_hh,'HH',1200)
+    fig.suptitle(obs_details)
+    plt.subplots_adjust(bottom=0.3)
+    plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     plt.close()
     tmp,fig = calc_stats(timestamps,gain_vv,'VV',1200)
+    fig.suptitle(obs_details)
+    plt.subplots_adjust(bottom=0.3)
+    plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
+
     plt.close()
     returntext += tmp
     #detrend data
