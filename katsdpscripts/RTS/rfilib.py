@@ -485,11 +485,14 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
     after flagging and attach it to the pdf output.
     Also show fraction of times flagged per channel.
     """
+    from git_info import git_info, get_git_path
+
+    repo_path=get_git_path()
+    repo_info = git_info() if repo_path=='' else git_info(repo_path)
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
     plt.suptitle(label,fontsize=14)
-
     outer_grid= gridspec.GridSpec(2,1)
     
     for num,pol in enumerate(['HH','VV']):
@@ -497,6 +500,7 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
         inner_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
         #Plot the spectrum for each target
         ax1 = plt.subplot(inner_grid[0])
+        ax1.text(0.01, 0.90,repo_info, horizontalalignment='left',fontsize=10,transform=ax1.transAxes)
         ax1.set_title(pol +' polarisation')
         plt.plot(freqs,spectrum[:,num-1])
         plot_RFI_mask(ax1)
