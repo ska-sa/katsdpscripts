@@ -421,7 +421,9 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
-    plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1)))
+    lim_min = r_lim([np.percentile(Tsys[:,0:2],10),np.percentile(Tant[:,0:2],10),-5.])
+    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1],np.max)
+    plt.ylim(lim_min,lim_max)
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
@@ -432,7 +434,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
 
 def r_lim(dataf,func=np.min):
     """ Returns the func of the data , not used on nans"""
-    index = np.any(~np.isnan(dataf),axis=-1)
+    dataf = np.array(dataf)
+    index = ~np.isnan(dataf)
     return func(dataf[index,...])
 
 
@@ -466,7 +469,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
         plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency), color='b',linestyle='-')
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
-    low_lim = np.max((low_lim , -5.))
+    low_lim = -5. # np.max((low_lim , -5.))
     def tmp(x):
         return np.percentile(x,80)
     high_lim = (r_lim(Tsys[:,0:2],tmp),r_lim(Tant[:,0:2],tmp))
