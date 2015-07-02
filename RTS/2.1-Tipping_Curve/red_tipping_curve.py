@@ -181,7 +181,8 @@ class aperture_efficiency_models:
             aperture_eff_v = a800
             
         except IOError:
-            receiver_h = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_h = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_v = np.array([[800.,2000],[75.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.PiecewisePolynomial1DFit()
