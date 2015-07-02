@@ -26,6 +26,8 @@ import gsm
 import healpy as hp
 from astropy import units as u
 from astropy.coordinates import SkyCoord
+from katsdpscripts.RTS import git_info,get_git_path
+
 class Sky_temp:
     import gsm
     import healpy as hp
@@ -179,7 +181,8 @@ class aperture_efficiency_models:
             aperture_eff_v = a800
             
         except IOError:
-            receiver_h = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_h = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_v = np.array([[800.,2000],[75.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.PiecewisePolynomial1DFit()
@@ -418,7 +421,9 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
-    plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1)))
+    lim_min = r_lim([np.percentile(Tsys[:,0:2],10),np.percentile(Tant[:,0:2],10),-5.])
+    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1],np.max)
+    plt.ylim(lim_min,lim_max)
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
         plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
@@ -429,7 +434,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
 
 def r_lim(dataf,func=np.min):
     """ Returns the func of the data , not used on nans"""
-    index = np.any(~np.isnan(dataf),axis=-1)
+    dataf = np.array(dataf)
+    index = ~np.isnan(dataf)
     return func(dataf[index,...])
 
 
@@ -463,7 +469,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
         plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency), color='b',linestyle='-')
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
-    low_lim = np.max((low_lim , -5.))
+    low_lim = -5. # np.max((low_lim , -5.))
     def tmp(x):
         return np.percentile(x,80)
     high_lim = (r_lim(Tsys[:,0:2],tmp),r_lim(Tant[:,0:2],tmp))
@@ -600,12 +606,16 @@ for ant in h5.ants:
             lineval = 42
             if freq > 1420 : lineval = 46
             fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+            plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
+            plt.close(fig)
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
         fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
+        plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
         fig.savefig(pp,format='pdf')
+        plt.close(fig)
                 #break
 
     fig = plt.figure(None,figsize = (8,8))

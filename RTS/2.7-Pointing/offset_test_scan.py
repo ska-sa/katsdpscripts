@@ -146,14 +146,14 @@ with verify_and_connect(opts) as kat:
                                 scantime = 5*60*1.5
 
                         #session.label('slew')
-                        angle = np.arange(0., np.pi, np.pi /float(1200//scantime) )
+                        angle = np.arange(0., 2.*np.pi, 2.*np.pi /4.) ) # The four directions
                         anglekey += 1
                         if anglekey < len(angle):
                             offset = np.array((np.cos(angle[anglekey]), -np.sin(angle[anglekey]))) * opts.offset * (-1) ** anglekey
                             offset_targetval = (np.degrees(target.astrometric_radec()) + offset/(np.cos(target.astrometric_radec()[1]),1.0))
-                            offsettarget = katpoint.Target('offset,radec, %s , %s'%(offset_targetval[0]/15.,offset_targetval[1])) # the ra is in decimal hours for some reason
+                            offsettarget = katpoint.Target('offset,radec, %s , %s'%(offset_targetval[0],offset_targetval[1])) # the ra is in decimal hours for some reason
                             user_logger.info("Target & offset seperation = %s "%(np.degrees(target.separation(offsettarget))))
-                            session.track(target, duration=0, announce=False)
+                            session.track(offsettarget, duration=0, announce=False)
                         else :
                             offsetloop = False
                             

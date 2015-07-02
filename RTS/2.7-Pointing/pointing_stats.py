@@ -10,6 +10,7 @@ from matplotlib.projections import PolarAxes
 from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
+from katsdpscripts.RTS import git_info,get_git_path
 
 def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
@@ -204,6 +205,7 @@ if True :
     pp = PdfPages(nice_filename+'.pdf')
     fig = plt.figure(None,figsize = (10,16))
     plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
+    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
     pp.close()

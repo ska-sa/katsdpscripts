@@ -4,12 +4,15 @@ This takes in an obsevation where there are
 several mesurements with different offsets
 from the source 
 """
-
+import pickle
 import numpy as np
 import katdal
 import matplotlib.pyplot as plt  
 from matplotlib.backends.backend_pdf import PdfPages
 import optparse
+import katsdpscripts.RTS.rfilib as rfi
+from katsdpscripts.RTS import git_info,get_git_path
+
 
 def Ang_Separation(pos1,pos2):
     Ra1 = pos1[0]
@@ -63,8 +66,11 @@ parser.add_option( "--bins", default=40,
                   help="The number of bins to use when evaluation the different seperations', default = '%default'")
 parser.add_option( "--ant", default='',
                   help="The antenna to do the reduction. If blank then iterate through all antennas', default = '%default'")
-parser.add_option( "--centre-freq", default=None,
-                  help="The centre frequency for the reduction in Hz, if None it takes the file values', default = '%default'")
+parser.add_option( "--ku-band", action="store_true" , default=False,
+                  help="The centre frequency for the reduction is set to the ku-band frequency if set and rfi flagging is done")
+parser.add_option( "-m","--mask", default=' /home/kat/RTS/rfi_mask.pickle',
+                  help="This is the frequency rfi mask pickel that is used in no Ku band obsevations ', default = '%default'")
+
 parser.add_option( "-f","--freq", default='200,3800',
                   help="This is the frequency range of the channels to use in the reduction. this is passed as a comma delimatated pair of integer values', default = '%default'")
 
@@ -77,10 +83,20 @@ if len(args) < 1:
 height = 1.0
 bins = opts.bins
 
-if opts.centre_freq is None :
+if opts.ku_band is None :
+    pickle_fn = open(opts.mask)
+    rfi_static_flags = pickle.load(pickle_fn)
+    pickle_fn.close()    
     h5 = katdal.open(args[0])
 else:
-    h5 = katdal.open(args[0],centre_freq=np.float(opts.centre_freq) )
+    centre_freq = 12500.5e6
+    h5 = katdal.open(args[0],centre_freq=np.float(centre_freq) )
+    rfi_static_flags = rfi.detect_spikes_median(h5.vis[:], spike_width=3, outlier_sigma=5.0).max(axis=2).max(axis=0)
+    
+freqst,freqend = opts.freq.split(',')
+rfi_static_flags[0:np.int(freqst)] = True
+rfi_static_flags[np.int(freqend):-1] = True
+
 #1392246099.h5
 if opts.ant == '':
     ant_list = [ant.name for ant in h5.ants]
@@ -91,12 +107,11 @@ for ant in ant_list :
     nice_filename =  args[0].split('/')[-1]+ '_' +ant+'_jitter_test'
     pp = PdfPages(nice_filename+'.pdf')
 
-    freqst,freqend = opts.freq.split(',')
-
-    h5.select(scans='track',ants=ant,channels=slice(np.int(freqst),np.int(freqend)  ) )
+    h5.select(scans='track',ants=ant,channels= ~rfi_static_flags)
     pos1,pos2 = np.radians((h5.az[:,0],h5.el[:,0])),np.array(h5.catalogue.targets[0].azel(h5.timestamps[:]))
 
-    dish_factor = 1.02 #Kat-7  uniformaly ilimanated circular apiture 
+    #dish_factor = 1.02 #Kat-7  uniformaly ilimanated circular apiture 
+    dish_factor = 1.17  # MKAT taperd dish
     hpbw = fwhm = np.degrees(dish_factor*(c/h5.channel_freqs)/h5.ants[0].diameter)
     pos1,pos2 = np.radians((h5.az[:,0],h5.el[:,0])),np.array(h5.catalogue.targets[0].azel(h5.timestamps[:]))
     sep = np.degrees(Ang_Separation(pos1,pos2))
@@ -119,26 +134,28 @@ for ant in ant_list :
             lower = []
             mean =  []
             thetav = []
-            returntext.append('Calculated Antenna short timescale jitter for %s'%(blvalue[0]))
+            returntext.append('File:%s Calculated Antenna short timescale jitter for %s'%(args[0].split('/')[-1],blvalue[0]))
             returntext.append('Antenna, Angle ,  mean ,  lower ,upper errors')
             for n,i in enumerate(hist.nonzero()[0]) :
                 data =  np.abs((h5.vis[digibins == i+1,:,:]-baseline_mean)*norm)
                 var[n,:,:] = (np.std(data,axis=0))**2 - var_inf #  digitize has a [1..bins] index
                 var_amp = var[n,:,blcount]
                 theta = sep[digibins == i+1].mean()
-                if theta > 0.01 and theta < 2*fwhm.max() :
+                if theta > 0.01 and theta < 1.5*fwhm.max() :
                     #var_0 = 1./(2.*np.pi*beamwidth(fwhm)**2*(-np.log(var_amp*beamwidth(fwhm)**6)))
                     var_theta = var_amp*2.*np.pi*beamwidth(fwhm)**6*(1./theta**2)*np.exp(theta**2/beamwidth(fwhm)**2)   
+                    #print var_theta,var_theta.shape
                     thetav.append(theta)
                     lower.append(getper(var_theta,c=50.-34.13))
                     mean.append(getper(var_theta,c=50))
                     upper.append(getper(var_theta,c=50.+34.13))
                     returntext.append('%s, %.4f ,  %.4f ,  %.4f ,  %.4f'%(blvalue[0],theta,getper(var_theta,c=50),getper(var_theta,c=50.-34.13),getper(var_theta,c=50.+34.13)))
+                    #print (theta/fwhm).mean(),returntext[-1]
             mean = np.array(mean)
             lower = np.array(lower)
             upper = np.array(upper)
             fig = plt.figure(None)
-            plt.title('Calculated Antenna short timescale jitter for %s'%(blvalue[0]))
+            plt.title('File:%s Calculated Antenna short timescale jitter for %s'%(args[0].split('/')[-1],blvalue[0]))
             plt.xlabel("Angle offset from Boresight (degrees)")
             plt.ylabel("Standard Devation of Telescope pointing (arcseconds)")
             #plt.plot(thetav,mean,'go')
@@ -146,6 +163,7 @@ for ant in ant_list :
             #plt.plot(thetav,upper,'bo')
             plt.errorbar(thetav,mean, yerr=(mean-lower,upper-mean) )
             # the formulate is valid in these ranges 0.25 -> 0.55  
+            plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf') 
             plt.close(fig)
 
