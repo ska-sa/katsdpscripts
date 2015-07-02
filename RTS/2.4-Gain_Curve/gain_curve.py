@@ -366,7 +366,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
 
     fig.subplots_adjust(hspace=0.0, bottom=0.2)
     plt.suptitle(obs_details)
-    plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
+    
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(511)
 
@@ -456,6 +456,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
         outputtext += 'Fit of atmospheric emission:  '
         outputtext += 'T_rec (K): %.2f   T_atm (K): %.2f'%(T_rec, T_atm)
     plt.figtext(0.1,0.1, outputtext,fontsize=11)
+    plt.figtext(0.89, 0.09, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pdf,format='pdf')
     plt.close(fig)
 
