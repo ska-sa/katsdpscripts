@@ -19,6 +19,8 @@ from scipy import optimize
 import scipy.interpolate as interpolate
 
 from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
+from katsdpscripts.RTS import git_info
+
 import scape
 import katpoint
 
@@ -358,10 +360,13 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     #Set up range of elevations for plotting fits
     fit_elev = np.linspace(5, 90, 85, endpoint=False)
     
+    obs_details = data['timestamp_ut'][0] + ', ' + data['dataset'][0]+'.h5'
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
 
-    fig.subplots_adjust(hspace=0.0)
+    fig.subplots_adjust(hspace=0.0, bottom=0.2)
+    plt.suptitle(obs_details)
+    plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(511)
 
