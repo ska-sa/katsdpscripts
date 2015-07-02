@@ -150,12 +150,12 @@ for ant in ant_list :
                     mean.append(getper(var_theta,c=50))
                     upper.append(getper(var_theta,c=50.+34.13))
                     returntext.append('%s, %.4f ,  %.4f ,  %.4f ,  %.4f'%(blvalue[0],theta,getper(var_theta,c=50),getper(var_theta,c=50.-34.13),getper(var_theta,c=50.+34.13)))
-                    print (theta/fwhm).mean(),returntext[-1]
+                    #print (theta/fwhm).mean(),returntext[-1]
             mean = np.array(mean)
             lower = np.array(lower)
             upper = np.array(upper)
             fig = plt.figure(None)
-            plt.title('Calculated Antenna short timescale jitter for %s'%(blvalue[0]))
+            plt.title('File:%s Calculated Antenna short timescale jitter for %s'%(args[0].split('/')[-1],blvalue[0]))
             plt.xlabel("Angle offset from Boresight (degrees)")
             plt.ylabel("Standard Devation of Telescope pointing (arcseconds)")
             #plt.plot(thetav,mean,'go')
