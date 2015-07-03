@@ -179,7 +179,7 @@ def configure_celery():
                 use_sudo=True)
     files.sed(CELERYD_CONF,
                 'CELERYD_NODES="w1"',
-                'CELERYD_NODES="rts-imager"',
+                'CELERYD_NODES="Kat RTS Meerkat manual"',
                 use_sudo=True)
     files.append(CELERYD_CONF,
                 'CELERY_APP="katsdpworkflow"',
@@ -198,7 +198,7 @@ def configure_celery():
                 use_sudo=True)
     files.sed(CELERYD_CONF,
                 'CELERYD_OPTS="--time-limit=300 --concurrency=8"',
-                'CELERYD_OPTS="--concurrency=8"',
+                'CELERYD_OPTS="-Q:Kat Kat -c:Kat 2 -Q:RTS RTS -c:RTS 2 -Q:Meerkat Meerkat -c:Meerkat 2 -Q:manual manual -c:manual 1"',
                 use_sudo=True)
     sudo('/etc/init.d/celeryd start')
 
