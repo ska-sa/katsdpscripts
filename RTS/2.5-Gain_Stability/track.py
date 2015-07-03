@@ -37,6 +37,7 @@ with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+	time.sleep(10)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
@@ -56,10 +57,10 @@ with verify_and_connect(opts) as kat:
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
-                if session.dbe.req.zero_delay():
-                    user_logger.info("Zeroed the delay values.")
-                else:
-                    user_logger.error('Unable to zero delay values.')
+                #if session.dbe.req.zero_delay():
+                #    user_logger.info("Zeroed the delay values.")
+                #else:
+                #    user_logger.error('Unable to zero delay values.')
 
             session.standard_setup(**vars(opts))
             session.capture_start()
