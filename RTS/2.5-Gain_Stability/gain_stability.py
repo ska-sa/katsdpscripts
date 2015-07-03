@@ -118,7 +118,7 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     plt.hlines(2, plot_lims[0], plot_lims[1], color = 'r')
     if plot_lims[3] <= 2: # adjust limits to show pass line
         plt.ylim(0,2.1)
-
+    plt.grid()
     plt.ylabel('Percentage Variation')
     plt.xlabel('Date/Time')
     plt.legend(loc='best')
