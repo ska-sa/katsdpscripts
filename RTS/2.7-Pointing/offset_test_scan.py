@@ -58,7 +58,7 @@ if opts.quick:
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(3)
+        time.sleep(10)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
     if len(args) > 0:
