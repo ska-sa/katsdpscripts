@@ -146,7 +146,7 @@ with verify_and_connect(opts) as kat:
                                 scantime = 5*60*1.5
 
                         #session.label('slew')
-                        angle = np.arange(0., 2.*np.pi, 2.*np.pi /4.) ) # The four directions
+                        angle = np.arange(0., 2.*np.pi, 2.*np.pi /4.)  # The four directions
                         anglekey += 1
                         if anglekey < len(angle):
                             offset = np.array((np.cos(angle[anglekey]), -np.sin(angle[anglekey]))) * opts.offset * (-1) ** anglekey
