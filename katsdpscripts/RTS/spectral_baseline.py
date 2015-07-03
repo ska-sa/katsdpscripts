@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker
 
 from katsdpscripts.RTS import rfilib
+from katsdpscripts.RTS import git_info
 
 import h5py
 
@@ -205,7 +206,7 @@ def weighted_avg_and_std(values, weights, axis=None):
     variance = np.ma.average((values-average)**2, axis=axis, weights=weights)  # Fast and numerically precise
     return (average, np.sqrt(variance))
 
-def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav,fileprefix='filename'):
+def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav, obs_details, fileprefix='filename'):
 
     #Frequency Range in MHz
     start_freq = freqdata[0]
@@ -242,9 +243,11 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     pstring += 'Frequency average: %4.1f MHz.\n'%(freqav)
     pstring += 'Median standard deviation: %6.4f%%'%np.ma.median(corr_visdata_std/mean_visdata*100.0)
     plt.figtext(0.5,0.83,pstring)
+    plt.grid()
 
     #plot title
     plt.title(tstring)
+    plt.suptitle(obs_details)
     
     #Plot the spectrum with standard deviations around it
     ax2 = plt.subplot(212, sharex=ax1)
@@ -263,6 +266,8 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     #Convert ticks to MHZ
     ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
     ax2.xaxis.set_major_formatter(ticks)
+    plt.grid()
+    plt.figtext(0.89, 0.13, git_info(), horizontalalignment='right',fontsize=10)
 
     fig.savefig(fileprefix+'_SpecBase_'+baseline+'_'+pol+'.pdf')
     plt.close(fig)
@@ -293,7 +298,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     # Extract visibility data as a masked array containing flags
     # visdata = extract_visibiities(data)
     # Correct the visibilities by subtracting the average of the channels at each timestamp
-    #and the a verage of the timestamps at each channel.
+    #and the average of the timestamps at each channel.
     if correct=='channels':
         corr_vis = correct_by_mean(visdata,axis="Channel")
         corr_vis = correct_by_mean(corr_vis,axis="Time")
@@ -342,4 +347,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     corr_vis_mean, corr_vis_std = weighted_avg_and_std(av_corr_vis, av_weightdata, axis=0)
 
     fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
+    obs_duration = np.str(np.round((h5data.end_time.to_mjd() - h5data.start_time.to_mjd())*24*60,2)) + ' min'
+    h5name = h5data.name.split('/')[-1]
+    obs_details = h5name + ', start ' + h5data.start_time.to_string() + ', duration ' + obs_duration
     plot_std_results(corr_vis_std,np.squeeze(av_visdata),av_channel_freqs,av_corr_vis.mask,bline, polarisation, freqav, timeav,fileprefix)
