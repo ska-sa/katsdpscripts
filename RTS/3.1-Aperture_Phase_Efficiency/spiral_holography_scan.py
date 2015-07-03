@@ -1,4 +1,4 @@
-    #!/usr/bin/python
+#!/usr/bin/python
 # Perform spiral holography scan on specified target(s). Mostly used for beam pattern measurement.
 #
 # to run on simulator:
@@ -33,7 +33,7 @@ import katpoint
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
                        start_session, user_logger, ant_array
 import numpy as np
-import scipy
+#import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
@@ -187,15 +187,14 @@ opts, args = parser.parse_args()
 compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx)
 timeperstep=opts.sampletime;
 
-
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
-
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
     catalogue = collect_targets(kat, args)
@@ -205,7 +204,6 @@ with verify_and_connect(opts) as kat:
                          "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
     target=targets[0]#only use first target
     lasttargetel=target.azel()[1]*180.0/np.pi
-
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
@@ -220,10 +218,10 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Turning off delay tracking.")
             else:
                 user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
+            #if session.dbe.req.zero_delay():
+            #    user_logger.info("Zeroed the delay values.")
+            #else:
+            #    user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
