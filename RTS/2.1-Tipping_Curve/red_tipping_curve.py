@@ -9,89 +9,73 @@
 # To run type the following: %run fit_tipping_curve_nad.py -a 'A7A7' -t  /Users/nadeem/Dev/svnScience/KAT-7/comm/scripts/K7_tip_predictions
 # /mrt2/KAT/DATA/Tipping/Ant7/1300572919.h5
 #
-import sys
+#import sys
 import optparse
-import re
-import os.path
+#import re
+#import os.path
 import numpy as np
 import matplotlib.pyplot as plt
-import pyfits
+#import pyfits
 
 import warnings
 from matplotlib.backends.backend_pdf import PdfPages
 import katdal
 import scape
 import scikits.fitting as fit
-from katpoint import rad2deg, deg2rad,  construct_azel_target
-
+import gsm
+import healpy as hp
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+from katsdpscripts.RTS import git_info,get_git_path
 
 class Sky_temp:
+    import gsm
+    import healpy as hp
+    from astropy import units as u
+    from astropy.coordinates import SkyCoord
     """
-       T_sky = T_cont + T_casA + T_HI + T_cmb
-       Read in the convolved file, and provide a method of passing back the Tsky temp a at a position
+       T_sky = T_cont + T_cmb  from the global sky model
+       Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
-    def __init__(self,inputfile='TBGAL_CONVL.FITS',nu=1828.0):
+    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm",diameter=13.5,smooth=True):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
-        This takes in 2 optional parameters:
-        inputfile (filename) a fits file at 1420 MHz
+        This takes in 1 parameter:
         nu (MHz) center frequency
-        the data is scaled by the alpha=-0.727
-        This needs to be checked
-        This initilises the sky temp object.
-
         """
-        self.ra =  lambda x: int(x/0.25) # helper functions
-        self.dec = lambda x: int((-x+90)/0.25)
+        if smooth :
+            self.freq_map = hp.sphtfunc.smoothing(gsm.get_freq(nu,path),fwhm=(1.17*(3e8/(nu*1e6))/diameter ) )
+        else :
+            self.freq_map = gsm.get_freq(nu,path)
         self.nu = nu
-        self.alpha = -0.727
-        def Tsky_approx(ra,dec):
-            T_cmb = 2.7
-            T_gal = 10.0 * (self.nu/408) ** (-(2-self.alpha))
-            return T_cmb + T_gal
-        self.Tsky_approx = Tsky_approx
-        try:
-            hdulist = pyfits.open(inputfile)
-            self.Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
-            self.Data_imshow = np.flipud(hdulist[0].data) # data is in the first element of the fits file
-            def Tsky(ra,dec):
-                return self.Data[self.dec(dec),self.ra(ra)]*(self.nu/1420.0)**(-(2-self.alpha))
-            self.data_freq = 1420.0
-            self.Tsky =  Tsky
-        except IOError:
-            warnings.warn('Warning: Failed to load sky tempreture map using approximations')
-            self.Tsky =  self.Tsky_approx
-            Data = np.zeros([360,180])
-            for ra in range(360):
-                for dec in range(-90,90):
-                    Data[ra,dec+90] =  self.Tsky(ra,dec)
-            self.Data = Data
-            self.data_freq = self.nu
+        self.smooth=smooth
 
-    def set_freq(self,nu):
-        """ Set the frequency. This is only needed for approximations """
-        self.nu = nu
+    def Tsky(self,ra,dec):
+        """given RA/Dec in Degrees  return the value of the spot
+        assuming the healpix map is in Galatic coords
+        """
+        c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+        l = c.galactic.l.radian
+        b = c.galactic.b.radian
+        nside = hp.npix2nside(self.freq_map.shape[0])
+        ipix = hp.ang2pix(nside, np.pi/2.0 - b , l % (np.pi*2),nest=False)
+        return self.freq_map[ipix]
 
-    def plot_sky(self,ra=None,dec=None,figure_no=None):
+
+    def plot_sky(self,ra=None,dec=None,norm = 'log',unit='Kelvin',heapix_array=None):
         """ plot_sky plots the sky tempreture and overlays pointing centers as red dots
         The sky tempreture is the data that was loaded when the class was iniitated.
         plot_sky takes in 3 optional parameters:
                 ra,dec  are list/1D-array like values of right assension and declanation
-                figure_no is the figure number, None just makes a new figure.
         returns matplotlib figure object that the plot is assosated with.
         """
-        if figure_no is None:
-             fig = plt.figure()
-        else:
-            fig =plt.figure(figure_no)
-            fig.clf()
-        if not ra is None and not dec is None :
-            if len(dec) == len(ra) :
-                plt.plot(ra,dec,'ro')
-        else:
-            raise RuntimeError('Number of Declanation values (%s) is not equal to the number of Right assension values (%s) in plot_sky'%(len(dec),len(ra)))
-        plt.xlabel("RA(J2000) [degrees]")
-        plt.ylabel("Dec(J2000) [degrees]")
-        plt.imshow(np.fliplr(self.Data), extent=[360,0,-90,90],vmax=50) #*(self.nu/self.data_freq)**(-(2-self.alpha))
+        #self.freq_map
+        fig = plt.figure(figsize=(16,9))
+        hp.cartview(self.freq_map,norm = norm,unit=unit,fig=fig.number)
+        c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+        l = np.degrees(-c.galactic.l.radian % (np.pi*2))
+        b = np.degrees(c.galactic.b.radian)
+        plt.plot(l,b,'ro')
+        #hp.graticule()
         return fig
 
 class Spill_Temp:
@@ -112,48 +96,110 @@ class Spill_Temp:
         """
 #TODO Need to sort out better frequency interpolation & example
         try:
-            spillover_H,spillover_V = np.loadtxt(filename).reshape(2,3,-1)
+            datafile =np.loadtxt(filename)
+            elevation = datafile[1:,0]
+            numfreqs = (datafile.shape[1]-1)//2
+            freqs= datafile[0,1::2]
+            elevation_list = np.array(())
+            freq_list = np.array(())
+            data_list = np.array(())
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0] ## Hard code the lower limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+0*2]]
+            for x in range(numfreqs):
+                elevation_list = np.r_[elevation_list,elevation]
+                freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
+                data_list = np.r_[data_list,datafile[1:,1+x*2]]
+
+            T_H = fit.Delaunay2DScatterFit() 
+            T_H.fit((90.-elevation_list,freq_list),data_list)
+
+            elevation_list = np.array(())
+            freq_list = np.array(())
+            data_list = np.array(())
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0]  ## Hard code the lower limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+0*2+1]]
+            for x in range(numfreqs):
+                elevation_list = np.r_[elevation_list,elevation]
+                freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
+                data_list = np.r_[data_list,datafile[1:,1+x*2+1]]
+            T_V = fit.Delaunay2DScatterFit()
+            T_V.fit((90.-elevation_list,freq_list),data_list)
+            self.spill = {}
+            self.spill['HH'] = T_H # The HH and VV is a scape thing
+            self.spill['VV'] = T_V
+            #print self.spill['HH']((90.-elevation_list,freq_list))
+   
         except IOError:
-            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])
-            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])
+            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
+            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
+            spillover_H[0]= 90-spillover_H[0]
+            spillover_V[0]= 90-spillover_V[0]
+            T_H = fit.Delaunay2DScatterFit() 
+            T_V = fit.Delaunay2DScatterFit()
+            T_H.fit(spillover_H[[0,2],:],spillover_H[1,:])
+            T_V.fit(spillover_V[[0,2],:],spillover_V[1,:])
+            self.spill = {}
+            self.spill['HH'] = T_H # The HH and VV is a scape thing
+            self.spill['VV'] = T_V
             warnings.warn('Warning: Failed to load Spillover models, setting models to zeros')
+            print "error"
         # the models are in a format of theta=0  == el=90
-        spillover_H[0]= 90-spillover_H[0]
-        spillover_V[0]= 90-spillover_V[0]
 
-        #np.array([[33.0,],[1200.]])
-        #Assume  Provided models are a function of zenith angle & frequency
-        T_H = fit.Spline2DScatterFit(degree=(1,1))
-        T_V = fit.Spline2DScatterFit(degree=(1,1))
-        T_H.fit(spillover_H[[0,2],:],spillover_H[1,:])
-        T_V.fit(spillover_V[[0,2],:],spillover_V[1,:])
-        self.spill = {}
-        self.spill['HH'] = T_H # The HH and VV is a scape thing
-        self.spill['VV'] = T_V
 
-    def save(filename=None,HH=np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]]),VV=np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1200.,1200.,2000.,2000.]])):
-        """ Save a Spillover model in the correct format
-        filename : String filename
-        HH,VV    : ndarray with shape (3,N )
-                 : HH[0,:] is elevation degrees from zenith
-                 : HH[1,:] is tempreture
-                 : HH[2,:] is frequency
-         the file is read using the command HH,VV = np.loadtxt('SpilloverModel.dat').reshape(2,3,-1)
-        """
-        if filename is None :
-            print(help(self.save))
-        else :
-            with file(filename, 'w') as outfile:
-                np.savetxt(outfile,HH)
-                np.savetxt(outfile,VV)
-
-class Rec_Temp:
-    """Load Receiver models and interpolate to centre observing frequency."""
-    def __init__(self,filename=''):
-        """ The class Rec_temp reads the receiver model from file and
+class aperture_efficiency_models:
+    """Load aperture_efficiency_models and interpolate to centre observing frequency."""
+    def __init__(self,filenameH='',filenameV='',):
+        """ The class aperture_efficiency reads the aperture_efficiency
+        model from file and
         produces fitted functions for a frequency
         The class/__init__function takes in one parameter:
         filename : (default='') This is the filename
+               of the recever model
+               these files have 2 cols:
+                Frequency (MHz),aperture_efficiency  (fraction),
+               if there are no file 15k recever  is assumed.
+        returns :
+               dict  spill with two elements 'HH' 'VV' that
+               are intepolation functions that take in Frequency(MHz)
+               and return fraction.
+        """
+        try:
+            aperture_eff_h = np.loadtxt(filenameH,comments='#')# Change units to fraction
+            a800 = np.zeros((aperture_eff_h.shape[0]+2,2))
+            a800[0,:] = [800,aperture_eff_h[0,1]]
+            a800[1:-1,:] = aperture_eff_h
+            a800[-1,:] = [2000,aperture_eff_h[-1,1]]
+            aperture_eff_h = a800
+
+            aperture_eff_v = np.loadtxt(filenameV,comments='#')# Change units to fraction
+            a800 = np.zeros((aperture_eff_v.shape[0]+2,2))
+            a800[0,:] = [800,aperture_eff_v[0,1]]
+            a800[1:-1,:] = aperture_eff_v
+            a800[-1,:] = [2000,aperture_eff_v[-1,1]]
+            aperture_eff_v = a800
+            
+        except IOError:
+            aperture_eff_h = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_v = np.array([[800.,2000],[75.,75.]])
+            warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
+        #Assume  Provided models are a function of zenith angle & frequency
+        T_H = fit.PiecewisePolynomial1DFit()
+        T_V = fit.PiecewisePolynomial1DFit()
+        T_H.fit(aperture_eff_h[:,0],aperture_eff_h[:,1]/100.)
+        T_V.fit(aperture_eff_v[:,0],aperture_eff_v[:,1]/100.)
+        self.eff = {}
+        self.eff['HH'] = T_H # The HH and VV is a scape thing
+        self.eff['VV'] = T_V
+
+class Rec_Temp:
+    """Load Receiver models and interpolate to centre observing frequency."""
+    def __init__(self,filenameH='',filenameV=''):
+        """ The class Rec_temp reads the receiver model from file and
+        produces fitted functions for a frequency
+        The class/__init__function takes in one parameter:
+        filenameH : (default='') This is the filename
                of the recever model
                these files have 2 cols:
                 Frequency (MHz),tempreture (MHz),
@@ -164,47 +210,37 @@ class Rec_Temp:
                and return tempreture in Kelven.
         """
         try:
-             receiver_h,receiver_v = np.loadtxt(filename, unpack=True)
+            receiver_h = (np.loadtxt(filenameH,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz # discard the gain col
+            a800 = np.zeros((2,np.shape(receiver_h)[-1]+1))
+            a800[:,0] = [800,receiver_h[1,0]]
+            a800[:,1:] = receiver_h
+            receiver_h = a800
+            receiver_v = (np.loadtxt(filenameV,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz  # discard the gain col
+            a800 = np.zeros((2,np.shape(receiver_v)[-1]+1))
+            a800[:,0] = [800,receiver_v[1,0]]
+            a800[:,1:] = receiver_v
+            receiver_v = a800
         except IOError:
-            receiver_h = np.array([[900.,2000],[15.,15.]])
-            receiver_v = np.array([[900.,2000],[15.,15.]])
+            receiver_h = np.array([[800.,2000],[15.,15.]])
+            receiver_v = np.array([[800.,2000],[15.,15.]])
             warnings.warn('Warning: Failed to load Receiver models, setting models to 15 K ')
         #Assume  Provided models are a function of zenith angle & frequency
-        T_H = fit.Spline1DFit(degree=1)
-        T_V = fit.Spline1DFit(degree=1)
+        T_H = fit.PiecewisePolynomial1DFit()
+        T_V = fit.PiecewisePolynomial1DFit()
         T_H.fit(receiver_h[0],receiver_h[1])
         T_V.fit(receiver_v[0],receiver_v[1])
         self.rec = {}
         self.rec['HH'] = T_H # The HH and VV is a scape thing
         self.rec['VV'] = T_V
 
-    def save(filename=None,HH=np.array([[900.,2000],[15.,15.]]),VV=np.array([[900.,2000],[15.,15.]])):
-        """ Save a Recever model in the correct format
-        filename : String filename
-        HH,VV    : ndarray with shape (3,N )
-                 : HH[0,:] is frequency
-                 : HH[1,:] is tempreture
-                 :
-         the file is read using the command HH,VV = np.loadtxt('ReceverModel.dat').reshape(2,2,-1)
-        """
-        if filename is None :
-            print(help(self.save))
-        else :
-            with file(filename, 'w') as outfile:
-                np.savetxt(outfile,HH)
-                np.savetxt(outfile,VV)
-
-
 class System_Temp:
     """Extract tipping curve data points and surface temperature."""
-    def __init__(self,d,path='TBGAL_CONVL.FITS',freqs=1822,freq_index=0):#d, nu, pol
+    def __init__(self,d,freqs=1822,freq_index=0,elevation=None,ra=None,dec=None ,surface_temperature=23.0,air_relative_humidity=0.23):#d, nu, pol
         """ First extract total power in each scan (both mean and standard deviation) """
-        T_skytemp = Sky_temp(inputfile=path,nu=freqs)
-        T_skytemp.set_freq(freqs)
-        #print freqs
+        T_skytemp = Sky_temp(nu=freqs)
         T_sky =  T_skytemp.Tsky
         self.units = d.data_unit
-        self.inputpath = path
+        
         self.name = d.antenna.name
         self.filename = d.filename
         self.elevation =  {}
@@ -212,17 +248,15 @@ class System_Temp:
         self.sigma_Tsys = {}
         self.Tsys_sky = {}
         self.T_sky = []
+        self.height = d.antenna.position_wgs84[2]
+        self.pressure =  np.mean([line[1] for line in d.enviro['pressure'] ])
+        self.air_relative_humidity = air_relative_humidity
         # Sort data in the order of ascending elevation
-        elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
-        ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
-        dec       = np.array([np.average(scan_dec) for scan_dec in scape.extract_scan_data(d.scans,'dec').data])
-        sort_ind  = elevation.argsort()
-        elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
         valid_el = (elevation >= 10)
         self.elevation =  elevation[valid_el]
         self.ra = ra[valid_el]
         self.dec = dec[valid_el]
-        self.surface_temperature = np.mean(d.enviro['temperature']['value'])# Extract surface temperature from weather data
+        self.surface_temperature = surface_temperature# Extract surface temperature from weather data
         self.freq = d.freqs[0]  #MHz Centre frequency of observation
         for pol in ['HH','VV']:
             power_stats = [scape.stats.mu_sigma(s.pol(pol)[:,freq_index]) for s in d.scans]
@@ -239,9 +273,8 @@ class System_Temp:
         TmpSky.fit(self.elevation, self.T_sky)
         self.Tsky = TmpSky
 
-    def sky_fig(self):
-        T_skytemp = Sky_temp(inputfile=self.inputpath,nu=self.freq)
-        T_skytemp.set_freq(self.freq)
+    def sky_fig(self,freq=1328):
+        T_skytemp = Sky_temp(freq)
         return T_skytemp.plot_sky(self.ra,self.dec)
 
 
@@ -257,18 +290,19 @@ class System_Temp:
 
 
 ###########################End Classes
+
 def remove_rfi(d,width=3,sigma=5,axis=1):
     for i in range(len(d.scans)):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
 
-
-def load_cal(filename, baseline, freq_channel=None,channel_bw=10.0):
+def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0):
     """ Load the dataset into memory """
-    d = scape.DataSet(filename, baseline=baseline)#, nd_models=nd_models
+    print('Loading noise diode models')
+    d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
     #if not freq_channel is None :
     #    d = d.select(freqkeep=freq_channel)
-    print "Flagging RFI"
+    #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
     print "Converting to Tempreture"
     d = d.convert_power_to_temperature(freq_width=0.0)
@@ -278,6 +312,63 @@ def load_cal(filename, baseline, freq_channel=None,channel_bw=10.0):
         d.average(channels_per_band=freq_channel) 
     return d
 
+def chisq_pear(fit,Tsys):
+    fit = np.array(fit)
+    return np.sum((Tsys-fit)**2/fit)
+
+def calc_atmospheric_opacity(T, RH, P, h, f):
+    """ 
+        Calculates zenith opacity according to ITU-R P.676-9. For elevations > 10 deg.
+        Use as "Tsky*(1-exp(-opacity/sin(el)))" for elevation dependence.
+        T: temperature in deg C
+        RH: relative humidity, 0 < RH < 1
+        P: dry air pressure in hPa (equiv. mbar)
+        h: height above sea level in km
+        f: frequency in GHz (must be < 55 GHz)
+        This function returns the return: approximate atmospheric opacity at zenith [Nepers]
+    """
+    es = 6.1121*np.exp((18.678-T/234.5)*T/(257.14+T)) # [hPa] from A. L. Buck research manual 1996
+    rho = RH*es*216.7/(T+273.15) # [g/m^3] from A. L. Buck research manual 1996 (ITU-R ommited the factor "RH" - a mistake)
+
+    # The following is taken directly from ITU-R P.676-9
+    p_tot = P + es # from eq 3
+
+    rho = rho*np.exp(h/2) # Adjust to sea level as per eq 32
+
+    # eq 22
+    r_t = 288./(273.+T)
+    r_p = p_tot/1013.
+    phi = lambda a, b, c, d: r_p**a*r_t**b*np.exp(c*(1-r_p)+d*(1-r_t))
+    E_1 = phi(0.0717,-1.8132,0.0156,-1.6515)
+    E_2 = phi(0.5146,-4.6368,-0.1921,-5.7416)
+    E_3 = phi(0.3414,-6.5851,0.2130,-8.5854)
+    # Following is valid only for f <= 54 GHz
+    yo = ( 7.2*r_t**2.8 / (f**2+0.34*r_p**2*r_t**1.6) + 0.62*E_3 / ((54-f)**(1.16*E_1)+0.83*E_2) ) * f**2 * r_p**2 *1e-3
+    # eq 23
+    n_1 = 0.955*r_p*r_t**0.68 + 0.006*rho
+    n_2 = 0.735*r_p*r_t**0.5 + 0.0353*r_t**4*rho
+    g = lambda f, f_i: 1+(f-f_i)**2/(f+f_i)**2
+    yw = (  3.98*n_1*np.exp(2.23*(1-r_t))/((f-22.235)**2+9.42*n_1**2)*g(f,22) + 11.96*n_1*np.exp(0.7*(1-r_t))/((f-183.31)**2+11.14*n_1**2)
+          + 0.081*n_1*np.exp(6.44*(1-r_t))/((f-321.226)**2+6.29*n_1**2) + 3.66*n_1*np.exp(1.6*(1-r_t))/((f-325.153)**2+9.22*n_1**2)
+          + 25.37*n_1*np.exp(1.09*(1-r_t))/(f-380)**2 + 17.4*n_1*np.exp(1.46*(1-r_t))/(f-448)**2
+          + 844.6*n_1*np.exp(0.17*(1-r_t))/(f-557)**2*g(f,557) + 290*n_1*np.exp(0.41*(1-r_t))/(f-752)**2*g(f,752)
+          + 8.3328e4*n_2*np.exp(0.99*(1-r_t))/(f-1780)**2*g(f,1780)
+          ) * f**2*r_t**2.5*rho*1e-4
+
+    # eq 25
+    t_1 = 4.64/(1+0.066*r_p**-2.3) * np.exp(-((f-59.7)/(2.87+12.4*np.exp(-7.9*r_p)))**2)
+    t_2 = 0.14*np.exp(2.12*r_p) / ((f-118.75)**2+0.031*np.exp(2.2*r_p))
+    t_3 = 0.0114/(1+0.14*r_p**-2.6) * f * (-0.0247+0.0001*f+1.61e-6*f**2) / (1-0.0169*f+4.1e-5*f**2+3.2e-7*f**3)
+    ho = 6.1/(1+0.17*r_p**-1.1)*(1+t_1+t_2+t_3)
+
+    # eq 26
+    sigma_w = 1.013/(1+np.exp(-8.6*(r_p-0.57)))
+    hw = 1.66*( 1 + 1.39*sigma_w/((f-22.235)**2+2.56*sigma_w) + 3.37*sigma_w/((f-183.31)**2+4.69*sigma_w) + 1.58*sigma_w/((f-325.1)**2+2.89*sigma_w) )
+
+    # Attenuation from dry & wet atmosphere relative to a point outside of the atmosphere
+    A = yo*ho*np.exp(-h/ho) + yw*hw*np.exp(-h/hw) # [dB] from equations 27, 30 & 31
+
+    return A*np.log(10)/10.0 # Convert dB to Nepers
 
 
 def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
@@ -294,39 +385,32 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     T_atm = 1.12 * (273.15 + T_sys.surface_temperature) - 50.0 # This is some equation
     returntext = []
     if not fixopacity:
-        # a list of Text to print to pdf
-        # Create a function to give the spillover at any elevation at the observing frequency
-        # Set up full tipping equation y = f(p, x):
-        #   function input x = elevation in degrees
-        #   parameter vector p = [T_rx, zenith opacity tau_0]
-        #   function output y = T_sys in kelvin
-        #   func = lambda p, x: p[0] + T_cmb + T_gal  + T_spill_func(x) + T_atm * (1 - np.exp(-p[1] / np.sin(deg2rad(x))))
-        #T_sky = np.average(T_sys.T_sky)# T_sys.Tsky(x)
-        func = lambda p, x: p[0] + T_rx.rec[pol](freqs)+  T_sys.Tsky(x) + SpillOver.spill[pol](np.array([[x,],[freqs]])) + T_atm * (1 - np.exp(-p[1] / np.sin(np.radians(x))))
-        # Initialise the fitter with the function and an initial guess of the parameter values
-        tip = scape.fitting.NonLinearLeastSquaresFit(func, [30, 0.01])
-        tip.fit(T_sys.elevation, T_sys.Tsys[pol])
-        returntext.append('Fit results for %s polarisation at %.1f Mhz:' % (pol,np.mean(freqs)))
-        returntext.append('$T_{ant}$ %s = %.2f %s  at %.1f Mhz' % (pol,tip.params[0],T_sys.units,np.mean(freqs)))
-        returntext.append('Zenith opacity $tau_{0}$ %s= %.5f  at %.1f Mhz' % (pol,tip.params[1],np.mean(freqs)))
-        fit_func = []
-        for el in T_sys.elevation: fit_func.append(func(tip.params,el))
-        chisq =chisq_pear(fit_func,T_sys.Tsys[pol])
-        returntext.append('$\chi^2$ for %s is: %6f ' % (pol,chisq,))
-        # Calculate atmosphesric noise contribution at 10 degrees elevation for comparison with requirements
-        #T_atm_10 = T_atm * (1 - np.exp(-tip.params[1] / np.sin(deg2rad(10))))#Atmospheric noise contribution at 10 degrees
+        #print T_sys.surface_temperature,T_sys.air_relative_humidity, T_sys.pressure, T_sys.height, freqs
+        tau = calc_atmospheric_opacity(T_sys.surface_temperature,T_sys.air_relative_humidity, T_sys.pressure, T_sys.height/1000., freqs/1000.)
+        # Height in meters above sea level, frequency in GHz.
     else:
         tau = 0.01078
-        tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
-        func = lambda x, tsys: tsys - (T_rx.rec[pol](freqs)+  T_sys.Tsky(x) + SpillOver.spill[pol](np.array([[x,],[freqs]])) + T_atm * (1 - np.exp(-tau / np.sin(np.radians(x)))))
-        fit_func = []
-        returntext.append('Not fitting Opacity assuming a value if %f , $T_{ant}$ is the residual of of model data. ' % (tau,))
-        for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): fit_func.append(func(el,t_sys))
-        chisq =0.0# nonsense Vars
+    print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
+    tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
+    def know_quant(x):
+        rx = T_rx.rec[pol](freqs)
+        sky = T_sys.Tsky(x)
+        spill = SpillOver.spill[pol](np.array([[x,],[freqs]]))
+        atm = T_atm * (1 - np.exp(-tau / np.sin(np.radians(x))))
+        #print "Rec %3.1f + Sky %3.1f + Spill %3.1f + Atm %3.1f = %3.1f" % (rx ,sky , spill , atm,rx+sky+spill+atm)
+        return rx + sky + spill + atm
+
+    func = know_quant
+    fit_func = []
+    returntext.append('Not fitting Opacity assuming a value if %f , $T_{ant}$ is the residual of of model data. ' % (tau,))
+    for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): 
+        fit_func.append(t_sys - func(el))
+        #print "T_sys %3.1f - T_other %3.1f " %(t_sys,func(el))
+    chisq =0.0# nonsense Vars
     return {'params': tip.params,'fit':fit_func,'scatter': (T_sys.Tsys[pol]-fit_func),'chisq':chisq,'text':returntext}
 
-def plot_data_el(Tsys,Tant,title='',units='K',line=42):
-    fig = plt.figure()
+def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,frequency=1420):
+    fig = plt.figure(figsize=(16,9))
     elevation = Tsys[:,2]
     line1,=plt.plot(elevation, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(elevation, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
@@ -334,46 +418,73 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42):
     line3,=plt.plot(elevation, Tsys[:,1], marker='^', color='r', linewidth=0)
     plt.errorbar(elevation, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
     line4,=plt.plot(elevation, Tant[:,1], color='r')
-    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}$ HH','$T_{ant}$ HH', '$T_{sys}$ VV','$T_{ant}$ VV'), loc='best')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
-    plt.ylim(np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),np.max((np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1)))
+    lim_min = r_lim([np.percentile(Tsys[:,0:2],10),np.percentile(Tant[:,0:2],10),-5.])
+    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1],np.max)
+    plt.ylim(lim_min,lim_max)
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
+    if aperture_efficiency is not None:
+        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
+        plt.hlines(receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency),elevation.min(), elevation.max(), colors='b',linestyle='-')
     plt.grid()
-    if units == 'K':
-        plt.ylabel('Tempreture (K)')
-    else:
-        plt.ylabel('Raw power (counts)')
-        plt.legend()
+    plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
 
-def plot_data_freq(frequency,Tsys,Tant,title=''):
-    fig = plt.figure()
+def r_lim(dataf,func=np.min):
+    """ Returns the func of the data , not used on nans"""
+    dataf = np.array(dataf)
+    index = ~np.isnan(dataf)
+    return func(dataf[index,...])
+
+
+#plot_data(freqs/1e6, np.linspace(275,410,len(freqs)), newfig=False, label="275-410 m^2/K at Receivers CDR")
+def receptor_Lband_limit(frequency):
+    """275-410 m^2/K at Receivers CDR"""
+    return_array = np.zeros_like(frequency,dtype=np.float)
+    return_array[np.array(frequency < 1280)] = np.array(12 + 6+(5.5-6)/(1280-900)*(frequency-900))[np.array(frequency < 1280)]
+    return_array[np.array(~(frequency < 1280))] = np.array(12 + 5.5+(4-5.5)/(1670-1280)*(frequency-1280))[np.array(~(frequency < 1280))]
+    return return_array
+
+def receptor_UHFband_limit(frequency):
+    return_array = np.zeros_like(frequency,dtype=np.float)
+    return_array[np.array(frequency < 900)] = np.array(8 + (12-8)/(1015-580)*(frequency-580) + 8+(7-8)/(900-580)*(frequency-580))[np.array(frequency < 900)]
+    return_array[np.array(~(frequency < 900))] = np.array (8 + (12-8)/(1015-580)*(frequency-580) + 7+(4-7)/(1015-900)*(frequency-900))[np.array(~(frequency < 900))]
+    return return_array
+
+def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
+    fig = plt.figure(figsize=(16,9))
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
     line2,=plt.plot(frequency, Tant[:,0], color='b'  )
     line3,=plt.plot(frequency, Tsys[:,1], marker='^', color='r',  linewidth=0)
     plt.errorbar(frequency, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
     line4,=plt.plot(frequency, Tant[:,1], color='r')
-    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}$ HH','$T_{ant}$ HH', '$T_{sys}$ VV','$T_{ant}$ VV'), loc='best')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
-    plt.ylim(np.max((np.min((Tsys[:,0:2].min(),Tant[:,0:2].min())),-5)),np.max((np.percentile(Tsys[:,0:2],80),np.percentile(Tant[:,0:2],80),46*1.3)))
+    if aperture_efficiency is not None:
+        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency), color='b',linestyle='-')
+        plt.plot(frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency), color='b',linestyle='-')
+    low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
+    low_lim = np.min(low_lim)
+    low_lim = -5. # np.max((low_lim , -5.))
+    def tmp(x):
+        return np.percentile(x,80)
+    high_lim = (r_lim(Tsys[:,0:2],tmp),r_lim(Tant[:,0:2],tmp))
+    high_lim = np.max(high_lim)
+    high_lim = np.max((high_lim , 46*1.3))
+    plt.ylim(low_lim,high_lim)
     if np.min(frequency) <= 1420 :
         plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
     if np.max(frequency) >=1420 :
         plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
     plt.grid()
-    if units == 'K':
-        plt.ylabel('Tempreture (K)')
-    else:
-        plt.ylabel('Raw power (counts)')
+    plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
 
 
-def chisq_pear(fit,Tsys):
-    fit = np.array(fit)
-    return np.sum((Tsys-fit)**2/fit)
 
 
 # Parse command-line options and arguments
@@ -381,20 +492,24 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='900,1420,1790,1840',
+parser.add_option("-r", "--select-freq", default='900,1420,1670,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
-parser.add_option("-b", "--freq-bw", default=10.0,
+parser.add_option("-b", "--freq-bw", default=10.0,type="float",
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
-parser.add_option("-s", "--spill-over-models",default='',
-                  help="Name of file containing spillover models")
-parser.add_option( "--receiver-models",default='',
-                  help="Name of file containing receiver models")
-parser.add_option( "--fix-opacity",default=True,
-                  help="This option has not been completed, Do not let opacity be a free parameter in the fit , this changes the fitting in to just a model subtraction and T_ant is the error")
-parser.add_option( "--sky-map", default='TBGAL_CONVL.FITS',
-                  help="Name of map of sky tempreture in fits format', default = '%default'")
+parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat',
+                  help="Name of FIle containing spillover models default= %default")
+parser.add_option( "--receiver-models",default='/var/kat/katconfig/user/receiver-models/mkat/',
+                  help="Name of Directory containing receiver models default= %default")
+parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-models/mkat/',
+                  help="Name of Dir containing noise diode models models default= %default")
+
+parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
+                  help="Name of Directory containing aperture-efficiencyr models default= %default")
+
+parser.add_option( "--fix-opacity",action="store_true", default=False,
+                  help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
 
 (opts, args) = parser.parse_args()
 
@@ -409,72 +524,104 @@ select_freq= np.array(opts.select_freq.split(','),dtype=float)
 select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
 h5.select(scans='track')
+nd_models = opts.nd_models
+spill_over_models =  opts.spill_over_models
+filename = args[0]
+channel_bw = opts.freq_bw
+freq_bw = opts.freq_bw
+
+fix_opacity = opts.fix_opacity
 if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
 for ant in h5.ants:
     #Load the data file
-    first = True
-    #freq loop
+
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-    #T_SysTemp = System_Temp(d,opts.sky_map,h5.channel_freqs.mean()/1e6)
-    #T_SysTemp.sky_fig.savefig(pp,format='pdf')
-    channel_bw = opts.freq_bw
+    nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
+    SN = '0004'  # This is read from the file
+    Band = 'L'
+    Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default 
+    #"{:0>4d}".format(int(sn))
+    receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
+    receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
+    aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
+    aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
+    aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
+
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
+
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     tsys = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     tant = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     print "Selecting channel data to form %f MHz Channels"%(channel_bw)
-    d = load_cal(args[0], "%s" % (ant.name), chunks)
+    d = load_cal(filename, "%s" % (ant.name), nd_models, chunks)
+    SpillOver = Spill_Temp(filename=spill_over_models)
+    receiver = Rec_Temp(receiver_model_H, receiver_model_V)
+    elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
+    ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
+    dec       = np.array([np.average(scan_dec) for scan_dec in scape.extract_scan_data(d.scans,'dec').data])
+    sort_ind  = elevation.argsort()
+    elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
+    surface_temperature = np.mean(d.enviro['temperature']['value'])
+    air_relative_humidity = h5.sensor['Enviro/air_relative_humidity'].mean()/100. # Fractional
+    length = 0
+    #freq loop
     for i,chunk in enumerate(chunks):
         if not d is None:
-            d.filename = [args[0]]
+
+            d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
-            SpillOver = Spill_Temp(filename=opts.spill_over_models)
-            recever = Rec_Temp(filename=opts.receiver_models)
-            T_SysTemp = System_Temp(d,opts.sky_map,d.freqs[i],freq_index=i)
+            #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
+            T_SysTemp = System_Temp(d,d.freqs[i],freq_index=i,elevation=elevation,ra=ra,dec=dec,surface_temperature = surface_temperature,air_relative_humidity=air_relative_humidity)
+            #print("Load T_sysTemp = %.2f Seconds"%(time.time()-time_start))
             units = T_SysTemp.units+''
-            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],recever,fixopacity=opts.fix_opacity)
-            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],recever,fixopacity=opts.fix_opacity)
+            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],receiver,fixopacity=fix_opacity)
+            #print("Fit tipping H = %.2f Seconds"%(time.time()-time_start))
+            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],receiver,fixopacity=fix_opacity)
+            #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
-            tsys[0:length,i,0] = T_SysTemp.Tsys['HH']
-            tsys[0:length,i,1] = T_SysTemp.Tsys['VV']
+            tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+2.725)/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+2.725)/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
-            tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']
-            tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']
-            tant[0:length,i,0] = fit_H['fit']
-            tant[0:length,i,1] = fit_V['fit']
+            tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
+            tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]
+            tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]
             tant[0:length,i,2] = T_SysTemp.elevation
+            #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
 
-            #break
 
-            #fig,text = plot_data(T_SysTemp,fit_H,fit_V)
-            if first :
-                fig = T_SysTemp.sky_fig()
-                fig.savefig(pp,format='pdf')
-                first = False
-                plt.close()
+    fig = T_SysTemp.sky_fig()
+    fig.savefig(pp,format='pdf')
+    plt.close(fig)
+
     for freq in select_freq :
         title = ""
-        if np.abs(freq_list-freq).min() < opts.freq_bw*1.1 :
+        if np.abs(freq_list-freq).min() < freq_bw*1.1 :
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f MHz"%(freq),units=units,line=lineval)
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+            plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
+            plt.close(fig)
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"$T_{sys}$ and $T_{ant}$ at %.1f Degrees elevation"%(np.abs(tsys[0:length,:,2].max(axis=1)))[i])
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
+        plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
         fig.savefig(pp,format='pdf')
+        plt.close(fig)
+                #break
 
     fig = plt.figure(None,figsize = (8,8))
     text =r"""The 'tipping curve' is calculated according to the expression below,
 with the the parameters of $T_{ant}$ and $\tau_{0}$,
-the Antenna tempreture and the atmospheric opacity respectivly.
+the Antenna temperature and the atmospheric opacity respectivly.
 All the varables are also functions of frequency.
 
 $T_{sys}(el) = T_{cmb}(ra,dec) + T_{gal}(ra,dec) + T_{atm}*(1-\exp(\frac{-\tau_{0}}{\sin(el)})) + T_{spill}(el) + T_{ant} + T_{rx}$
@@ -483,13 +630,20 @@ $T_{sys}(el)$ is determined from the noise diode calibration
 so it is $\frac{T_{sys}(el)}{\eta_{illum}}$.
 We assume the opacity and $T_{ant}$ is the residual after
 the tipping curve function is calculated. T_cmb + T_gal is
-obtained from the Sky model. $\tau_{0}$, the opacity,
+obtained from the Sky model. """
+    if fix_opacity :
+        text += """$\tau_{0}$, the zenith opacity,
 is set to 0.01078 (Van Zee et al.,1997). $T_{ant}$ is the excess
+tempreture since the other components are known."""
+    else:
+        text += """$\tau_{0}$, the zenith opacity,
+ is calculated opacity according to ITU-R P.676-9. $T_{ant}$ is the excess
 tempreture since the other components are known."""
 
     plt.figtext(0.1,0.1,text,fontsize=10)
     fig.savefig(pp,format='pdf')
     pp.close()
+    plt.close(fig)
     plt.close('all')
 
 
@@ -512,3 +666,4 @@ tempreture since the other components are known."""
 #plt.title(r"\TeX\ is Number "
 #          r"$\displaystyle\sum_{n=1}^\infty\frac{-e^{i\pi}}{2^n}$!",
 #          fontsize=16, color='gray')
+

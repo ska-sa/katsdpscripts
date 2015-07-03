@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-from setuptools import setup, find_packages
+from setuptools import find_packages
+from numpy.distutils.core import  setup, Extension
 
 setup (
     name = "katsdpscripts",
@@ -30,4 +31,7 @@ setup (
     install_requires = ['numpy', 'katpoint', 'katcp'],
     keywords = "meerkat kat ska",
     zip_safe = False,
+    ext_modules = [Extension(name='gsm', sources=['RTS/gsm/gsm.f', ],
+                             extra_f77_compile_args=['-std=legacy -ffixed-line-length-0'])],
+    package_data = {'': ['RTS/gsm/gsm.f']}, 
 )
