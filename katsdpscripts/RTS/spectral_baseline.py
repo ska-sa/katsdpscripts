@@ -206,7 +206,7 @@ def weighted_avg_and_std(values, weights, axis=None):
     variance = np.ma.average((values-average)**2, axis=axis, weights=weights)  # Fast and numerically precise
     return (average, np.sqrt(variance))
 
-def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav, obs_details, fileprefix='filename'):
+def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, pol, freqav, timeav, obs_details, fileprefix):
 
     #Frequency Range in MHz
     start_freq = freqdata[0]
@@ -350,4 +350,4 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     obs_duration = np.str(np.round((h5data.end_time.to_mjd() - h5data.start_time.to_mjd())*24*60,2)) + ' min'
     h5name = h5data.name.split('/')[-1]
     obs_details = h5name + ', start ' + h5data.start_time.to_string() + ', duration ' + obs_duration
-    plot_std_results(corr_vis_std,np.squeeze(av_visdata),av_channel_freqs,av_corr_vis.mask,bline, polarisation, freqav, timeav,fileprefix)
+    plot_std_results(corr_vis_std,np.squeeze(av_visdata),av_channel_freqs,av_corr_vis.mask,bline, polarisation, freqav, timeav, obs_details, fileprefix)
