@@ -1,3 +1,4 @@
+
 #!/usr/bin/python
 # Track target(s) for a specified time.
 
@@ -6,8 +7,9 @@ from __future__ import with_statement
 
 import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
-import katpoint
-
+#import katpoint
+import scpi as SCPI
+ 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='Track one or more sources for a specified time. At least one '
@@ -23,18 +25,44 @@ parser.add_option('--repeat', action="store_true", default=False,
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
+parser.add_option('--siggen-ip',  default='192.168.14.61',
+                  help='Signal Generator IP adress (default=%default)')
+parser.add_option('--siggen-port', type='int', default=5025,
+                  help='Signal Generator port (default=%default)')
+parser.add_option('--siggen-freq', type='float', default=600.0,
+                  help='Signal Generator frequency  in MHz(default=%default)')
+parser.add_option('--siggen-power', type='float', default=-30.0,
+                  help='Signal Generator power in dBm (default=%default)')
+parser.add_option('--force-siggen', action="store_true", default=False,
+                  help='Force the Signal Generator commands during dry run as a test')
+
+
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Target track',dump_rate=0.1)
+parser.set_defaults(description='UHF signal generator track',dump_rate=1.0)
 # Parse the command line
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
-                     "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+    user_logger.info("Default SCP source added to catalogue")
+    args.append('SCP,radec,0,-90')
 
+if  opts.siggen_power > -20.:
+    raise ValueError("Please specify a Signal Generator power less than -20 dBm")
+
+
+siggen_ip = opts.siggen_ip
+siggen_port = opts.siggen_port
+siggen_freq = opts.siggen_freq
+siggen_power = opts.siggen_power
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
+    if opts.force_siggen and  kat.dry_run: user_logger.warning("The signal generator commands are being used during a dry-run")
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -57,6 +85,29 @@ with verify_and_connect(opts) as kat:
                 else:
                     user_logger.error('Unable to zero delay values.')
 
+            user_logger.info("Setting up the signal Generator ip:port %s:%i."%(siggen_ip,siggen_port))
+            if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
+                sig=SCPI(siggen_ip,siggen_port)
+                testcon = sig.testConnect()
+                if testcon == False:
+                    user_logger.error('Test connection to signal generator failed.')
+                else:
+                    user_logger.info("Connected to Signal Generator:%s"%(testcon))
+                    sig.reset()
+                    user_logger.info("Signal Generator reset")
+                    sig.outputOn()
+                    user_logger.info("Signal Generator output on")
+                    sig.setFrequency(siggen_freq*1.0e6)
+                    user_logger.info("Signal Generator frequency is set to %7.3f MHz"%(sig.getFrequency()*1.0e-6 ))
+                    siggen_freq = sig.getFrequency()
+                    sig.setPower(siggen_power)
+                    user_logger.info("Signal Generator Power is set to %f dBm"%(sig.getPower()))
+                    siggen_power=sig.getPower()
+                    
+
+        
+## Using SCPI class for comms to signal generator for CW input signal
+
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -69,7 +120,7 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    session.label('track')
+                    session.label('siggen,f=%f,p=%f,'%(siggen_freq,siggen_power ))
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
@@ -94,3 +145,9 @@ with verify_and_connect(opts) as kat:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                     keep_going = False
             user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+            if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
+                user_logger.info("Turning Off Signal Generator RF Power")
+                sig.outputOff()
+                user_logger.info("Closing connection to Signal Generator")
+                sig.__close__()
+            
