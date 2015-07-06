@@ -19,6 +19,8 @@ from scipy import optimize
 import scipy.interpolate as interpolate
 
 from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
+from katsdpscripts.RTS import git_info
+
 import scape
 import katpoint
 
@@ -44,6 +46,9 @@ def parse_arguments():
     parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
     parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
     parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
+    parser.add_option("--channel-mask", type="string", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of rfi mask pickle file specifying channels to flag")
+    parser.add_option("--ku-band", action="store_true", help="Force the center frequency of the input file to be Ku band")
+    parser.add_option("--chan-range", default='211,3896', help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 211,3896)")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
         print 'Please specify a file to process.'
@@ -127,6 +132,41 @@ def compute_tsys_sefd(data, gain, antenna, pol):
 
     return e, Tsys, SEFD
 
+def select_outliers(data,pol,n_sigma=4.0):
+    """ Flag data points with data['beam_height'] more than n_sigma from the median.
+    Parameters
+    ----------
+    data : heterogeneous record array containing 'targets', 'beam_height' records
+    pol : polarisation to inspect
+    n_sigma : tolerance in sigma for rejecting discrepant points
+
+    Return
+    ------
+    good : boolean mask of data to keep True means good data, False means bad data.
+    """
+
+    beam_heights = data['beam_height_'+pol]
+    targets = np.unique(data['target'])
+    elevation = data['elevation']
+    good = np.ones(beam_heights.shape,dtype=np.bool)
+
+    #Loop through targets individually
+    for target in targets:
+        target_indices = np.where(data['target']==target)
+        beam_heights_target = beam_heights[target_indices]
+        elevation_target = elevation[target_indices]
+        median_beam_height = np.median(beam_heights_target)
+        abs_dev = np.abs(beam_heights_target-median_beam_height)
+        plt.plot(elevation_target,beam_heights_target-median_beam_height, 'ro')
+        med_abs_dev=np.median(abs_dev)
+        good_target = abs_dev < (1.4826*med_abs_dev)*5.0
+        fit=np.polyfit(elevation_target[good_target], beam_heights_target[good_target], 1)
+        abs_dev = np.abs(beam_heights_target - (fit[0]*elevation_target + fit[1]))
+        med_abs_dev=np.median(abs_dev)
+        good_target = abs_dev < (1.4826*med_abs_dev)*n_sigma
+        good[target_indices] = good_target
+
+    return good
 
 def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, eff=None, eff_lim=[35,100], units='K', interferometric=False, condition_select="none", pol='I'):
     """ Apply conditions to the data to choose which can be used for 
@@ -174,6 +214,9 @@ def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, ef
     if condition_select!="none":
         good = good & select_environment(data, antenna, condition_select)
     print "7: Flag for environmental condition", np.sum(good)
+    #Flag discrepant gain values
+    good = good & select_outliers(data,pol,4.0)
+    print "8: Flag for gain outliers", np.sum(good)
 
     return good
 
@@ -299,14 +342,10 @@ def calc_atmospheric_opacity(T, RH, h, f):
 
 
 
-def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsys=None, SEFD=None, T_atm=None, T_rec=None):
+def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD=None, T_atm=None, T_rec=None):
     """ Generate a pdf report containing relevant results
         and a txt file with the plotting data.
     """
-
-    # Multipage Pdf
-    pdf = PdfPages(output_filename+'.pdf')
-
     #Set up list of separate targets for plotting
     if opts.targets:
         targets = opts.targets.split(',')
@@ -321,10 +360,13 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     #Set up range of elevations for plotting fits
     fit_elev = np.linspace(5, 90, 85, endpoint=False)
     
+    obs_details = data['timestamp_ut'][0] + ', ' + data['dataset'][0]+'.h5'
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
 
-    fig.subplots_adjust(hspace=0.0)
+    fig.subplots_adjust(hspace=0.0, bottom=0.2)
+    plt.suptitle(obs_details)
+    
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(511)
 
@@ -336,6 +378,9 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
             fit_gain = gain[good & targetmask[targ] & use_elev]
             fit=np.polyfit(fit_elev, fit_gain, 1)
             g90=fit[0]*90.0 + fit[1]
+            if fit[0]<0.0:
+                print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
+                g90=max(fit_gain)
             plot_gain = gain[good & targetmask[targ]]/g90
             plot_elevation = data['elevation'][good & targetmask[targ]]
             plt.plot(plot_elevation, plot_gain, 'o', label=targ)
@@ -361,7 +406,7 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
     title += ' ' + '%.0f MHz'%(data['frequency'][0])
     title += ' ' + '%s conditions'%(condition)
     plt.title(title)
-    legend = plt.legend(loc=4)
+    legend = plt.legend(loc='best')
     plt.setp(legend.get_texts(), fontsize='small')
 
     # Only do derived plots if units were in Kelvin
@@ -411,33 +456,28 @@ def make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, Tsy
         outputtext += 'Fit of atmospheric emission:  '
         outputtext += 'T_rec (K): %.2f   T_atm (K): %.2f'%(T_rec, T_atm)
     plt.figtext(0.1,0.1, outputtext,fontsize=11)
+    plt.figtext(0.89, 0.09, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pdf,format='pdf')
     plt.close(fig)
 
-    pdf.close()
-
-    #Write out gain data to file
-    output_file = file(output_filename+'.csv',mode='w')
-    #Header
-    output_file.write("# Gain vs elevation data for %s, units of gain are: %s/Jy, Atmospheric correction?: %s\n"%(antenna.name, opts.units, opts.correct_atmosphere))
-    output_file.write("#Target        ,Elev. ,  Gain  \n")
-    output_file.write("# name         ,(deg.), (%s/Jy)\n"%(opts.units))
-    for data in zip(data['target'], data['elevation'][good], gain[good]):
-        output_file.write("%-15s,%4.1f  ,%7.5f\n"%(data[0], data[1],data[2]))
-
-
 #get the command line arguments
 opts, filename = parse_arguments()
+
+#No Channel mask in Ku band.
+if opts.ku_band:
+    opts.channel_mask=None
 
 #Check if we're using an h5 file or a csv file and read appropriately
 if opts.csv:
     # Get the data from the csv file
     data, antenna = parse_csv(filename)
+    file_basename = data['dataset'][0]
 else:
     #Got an h5 file - run analyse point source scans.
     file_basename = os.path.splitext(os.path.basename(filename))[0]
     prep_basename = file_basename + '_' + opts.bline.translate(None,',') + '_point_source_scans'
-    antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline)
+    antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline,
+                                                            ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
 
 if opts.units == None:
     opts.units = data['data_unit'][0]
@@ -445,13 +485,16 @@ if opts.units == None:
 #Get available polarisations to loop over or make a list out of options if available
 if opts.polarisation == None:
     keys = np.array(data.dtype.names)
-    pol = np.unique([key.split('_')[-1] for key in keys if key.split('_')[-1] in ['HH','VV']])
+    pol = np.unique([key.split('_')[-1] for key in keys if key.split('_')[-1] in ['HH','VV','I']])
 else:
     pol = opts.polarisation.split(',')
 
-for opts.polarisation in pol:
+#Set up plots
+# Multipage Pdf
+output_filename = opts.outfilebase + '_' + file_basename + '_' + antenna.name + '_' + '%.0f'%data['frequency'][0]
+pdf = PdfPages(output_filename+'.pdf')
 
-    output_filename = opts.outfilebase + '_' + antenna.name + '_' + opts.polarisation + '_' + '%.0f'%data['frequency'][0]
+for opts.polarisation in pol:
 
     # Compute the gains from the data and fill the data recarray with the values
     gain = compute_gain(data,opts.polarisation)
@@ -498,5 +541,16 @@ for opts.polarisation in pol:
 
 
     # Make a report describing the results (no Tsys data if interferometric)
-    make_result_report(data, good, opts, output_filename, gain, e, g_0, tau, 
+    make_result_report(data, good, opts, pdf, gain, e, g_0, tau, 
                     Tsys=Tsys, SEFD=SEFD, T_atm=T_atm, T_rec=T_rec)
+
+    #Write out gain data to file
+    output_file = file(output_filename+'_'+opts.polarisation+'.csv',mode='w')
+    #Header
+    output_file.write("# Gain vs elevation data for %s, units of gain are: %s/Jy, Atmospheric correction?: %s\n"%(antenna.name, opts.units, opts.correct_atmosphere))
+    output_file.write("#Target        ,Elev. ,  Gain  \n")
+    output_file.write("# name         ,(deg.), (%s/Jy)\n"%(opts.units))
+    for output_data in zip(data['target'], data['elevation'][good], gain[good]):
+        output_file.write("%-15s,%4.1f  ,%7.5f\n"%(output_data[0], output_data[1],output_data[2]))
+
+pdf.close()

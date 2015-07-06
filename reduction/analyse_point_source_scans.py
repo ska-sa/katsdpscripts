@@ -13,9 +13,11 @@ parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                            "from the compound scans in it. It runs interactively by default, "
                                            "which allows the user to inspect results and discard bad scans.")
 parser.add_option("-a", "--baseline", default='sd',
-                  help="Baseline to load (e.g. 'A1A1' for antenna 1), default is first single-dish baseline in file")
+                  help="Baseline to load (e.g. 'ant1' for antenna 1 or 'ant1,ant2' for 1-2 baseline), "
+                       "default is first single-dish baseline in file")
 parser.add_option("-b", "--batch", action="store_true",
                   help="Flag to do processing in batch mode without user interaction")
+parser.add_option("-c", "--channel-mask", default=None, help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-f", "--freq-chans",
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass)")
 parser.add_option("-k", "--keep", dest="keepfilename",
@@ -31,6 +33,7 @@ parser.add_option("-p", "--pointing-model",
 parser.add_option("-s", "--plot-spectrum", action="store_true", help="Flag to include spectral plot")
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
+parser.add_option("-u", "--ku-band", action="store_true", help="Force center frequency to be 12500.5 MHz")
 parser.add_option("--old-loader", action="store_true", help="Use old SCAPE loader to open HDF5 file instead of katfile")
 (opts, args) = parser.parse_args()
 

@@ -1,5 +1,3 @@
-
-
 #!/usr/bin/python
 # Track SCP  for a specified time for hotbox tests.
 
@@ -9,6 +7,7 @@ from __future__ import with_statement
 import time
 from katcorelib import standard_script_options, verify_and_connect,  start_session, user_logger
 import katpoint
+from katpoint import wrap_angle
 import numpy as np
 import pyfits
 
@@ -37,7 +36,7 @@ nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'peri
 #if len(args) == 0:
 #    raise ValueError("Please specify the sources to observe as arguments, either as "
 #                     "description strings or catalogue filenames")
-fl = '/../2.1-Tipping_Curve/TBGAL_CONVL.FITS'
+fl = '/home/kat/RTS/2.1-Tipping_Curve/TBGAL_CONVL.FITS'
 hdulist = pyfits.open(fl)
 Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
 ra =  lambda x: int(x/0.25) # helper functions
@@ -47,6 +46,7 @@ dec = lambda x: int((-x+90)/0.25)
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(3)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
     moon = kat.sources.lookup['moon']
@@ -61,10 +61,10 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Turning off delay tracking.")
             else:
                 user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
+            #if session.dbe.req.zero_delay():
+            #    user_logger.info("Zeroed the delay values.")
+            #else:
+            #    user_logger.error('Unable to zero delay values.')
 
         session.standard_setup(**vars(opts))
         session.nd_params = nd_off
@@ -74,17 +74,19 @@ with verify_and_connect(opts) as kat:
         while once or  time.time() < start_time + opts.max_duration :
             once = False
             moon =  katpoint.Target('Moon, special')
-            moon.antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')  
+            antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')  # find some way of getting this from session
+            moon.antenna = antenna
             off1 = katpoint.construct_radec_target(moon.azel()[0] + np.radians(10),moon.azel()[1] )
-            off1.antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22') 
+            katpoint.construct_radec_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
+            off1.antenna = antenna
             off1.name = 'off'
-            off2 = katpoint.construct_azel_target(moon.azel()[0] - np.radians(10),moon.azel()[1] )
-            off2.antenna =  katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')   
+            off2 = katpoint.construct_azel_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
+            off2.antenna =  antenna 
             off2.name = 'off'
             sources = katpoint.Catalogue(add_specials=False)
             sources.add(moon)
-            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(off1.radec()[0]))]
-            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(off2.radec()[0]))]
+            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(wrap_angle(off1.radec()[0])))]
+            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(wrap_angle(off2.radec()[0])))]
             if off1_T > off2_T:
                 sources.add(off2)
             else:

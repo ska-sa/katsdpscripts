@@ -19,11 +19,8 @@ import matplotlib as mpl
 from matplotlib.projections import PolarAxes
 
 import katpoint
-from katpoint import rad2deg, deg2rad
+from katpoint import rad2deg, deg2rad, wrap_angle
 
-def angle_wrap(angle, period=2.0 * np.pi):
-    """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
-    return (angle + 0.5 * period) % period - 0.5 * period
 
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
@@ -61,12 +58,11 @@ logger.setLevel(logging.DEBUG)
 old_model = None
 if opts.pmfilename:
     try:
-        old_model = file(opts.pmfilename).readline().strip()
-        logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(old_model.split(',')), opts.pmfilename))
-        old_model = katpoint.PointingModel(old_model, strict=False)
+        old_model = katpoint.PointingModel(file(opts.pmfilename).readline())
+        logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename))
     except IOError:
         logger.warning("Could not load old pointing model from '%s'" % (opts.pmfilename,))
-    
+
 # Load data file in one shot as an array of strings
 data = np.loadtxt(filename, dtype='string', comments='#', delimiter=', ')
 # Interpret first non-comment line as header
@@ -84,7 +80,7 @@ antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
 if old_model is None:
     old_model = antenna.pointing_model
 # Obtain desired fields and convert to radians
-az, el = angle_wrap(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
+az, el = wrap_angle(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
 measured_delta_az, measured_delta_el = deg2rad(data['delta_azimuth']), deg2rad(data['delta_elevation'])
 # Uncertainties are optional
 min_std = deg2rad(opts.min_rms / 60. / np.sqrt(2))
@@ -97,8 +93,8 @@ keep = data['keep'].astype(np.bool) if 'keep' in data.dtype.fields else np.tile(
 
 # Initialise new pointing model and set default enabled parameters
 new_model = katpoint.PointingModel()
-num_params = new_model.num_params
-default_enabled = old_model.params.nonzero()[0]
+num_params = len(new_model)
+default_enabled = np.nonzero(old_model.values())[0]
 # If the old model is empty / null, select the most basic set of parameters for starters
 if len(default_enabled) == 0:
     default_enabled = np.array([1, 3, 4, 5, 6, 7]) - 1
@@ -152,6 +148,12 @@ def quiver_segments(delta_az, delta_el, scale):
     theta2, r2 = np.arctan2(y2, x2), np.sqrt(x2 ** 2 + y2 ** 2)
     return np.c_[np.c_[theta1, r1], np.c_[theta2, r2]].reshape(-1, 2, 2)
 
+def param_to_str(model, p):
+    """Represent value of *p*'th parameter of *model* as a string."""
+    parameter = [param for param in model][p]
+    # Represent P9 and P12 (scale parameters) in shorter form
+    return parameter.value_str if p not in [8, 11] else ("%.3e" % parameter.value)
+
 def update(fig):
     """Fit new pointing model and update plots."""
     # Perform early redraw to improve interactivity of clicks (which typically change state of target dots)
@@ -177,14 +179,14 @@ def update(fig):
     fig.texts[-1].set_text(unique_targets[fig.highlighted_target])
     # Update model parameter strings
     for p, param in enumerate(display_params):
-        fig.texts[2*p + 6].set_text(new_model.param_str(param + 1, '%.3e') if enabled_params[param] else '')
+        fig.texts[2*p + 6].set_text(param_to_str(new_model, param) if enabled_params[param] else '')
         # HACK to convert sigmas to arcminutes, but not for P9 and P12 (which are scale factors)
         # This functionality should really reside inside the PointingModel class
         std_param = rad2deg(sigma_params[param]) * 60. if param not in [8, 11] else sigma_params[param]
         std_param_str = ("%.2f'" % std_param) if param not in [8, 11] else ("%.0e" % std_param)
         fig.texts[2*p + 7].set_text(std_param_str if enabled_params[param] and opts.use_stats else '')
         # Turn parameter string bold if it changed significantly from old value
-        if np.abs(params[param] - old_model.params[param]) > 3.0 * sigma_params[param]:
+        if np.abs(params[param] - old_model.values()[param]) > 3.0 * sigma_params[param]:
             fig.texts[2*p + 6].set_weight('bold')
             fig.texts[2*p + 7].set_weight('bold')
         else:
@@ -213,7 +215,7 @@ def update(fig):
 
 theta_formatter = PolarAxes.ThetaFormatter()
 def angle_formatter(x, pos=None):
-    return theta_formatter(angle_wrap(np.pi / 2.0 - x), pos)
+    return theta_formatter(wrap_angle(np.pi / 2.0 - x), pos)
 def arcmin_formatter(x, pos=None):
     return "%g'" % x
 
@@ -371,9 +373,10 @@ save_button = mpl.widgets.Button(fig.add_axes([0.51, 0.81, 0.05, 0.04]), 'SAVE',
 def save_callback(event):
     # Save pointing model to file
     outfile = file(opts.outfilebase + '.csv', 'w')
-    outfile.write(new_model.description)
+    # The original pointing model description string was comma-separated
+    outfile.write(new_model.description.replace(" ", ", "))
     outfile.close()
-    logger.debug("Saved %d-parameter pointing model to '%s'" % (len(new_model.params), opts.outfilebase + '.csv'))
+    logger.debug("Saved %d-parameter pointing model to '%s'" % (len(new_model), opts.outfilebase + '.csv'))
     # Turn data recarray into list of dicts and add residuals to the mix
     extended_data = []
     for n in range(len(data)):
@@ -435,7 +438,7 @@ fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
 fig.text(0.225, 0.95, 'STD', ha='center', va='bottom', size='large')
 for p, param in enumerate(display_params):
-    param_str = old_model.param_str(param + 1, '%.3e') if old_model.params[param] else ''
+    param_str = param_to_str(old_model, param) if old_model.values()[param] else ''
     fig.text(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), param_str, ha='right', va='center')
 
 # Create target selector buttons and related text (title + target string)

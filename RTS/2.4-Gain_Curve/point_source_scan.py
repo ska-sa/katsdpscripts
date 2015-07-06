@@ -35,6 +35,10 @@ parser.add_option('--source-strength', type='choice', default='auto', choices=('
 parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
                        'spaced 0.5 degrees apart with 2 Hz dump rate.')
+parser.add_option( '--fine', action="store_true" , default=False,
+                  help='Do a fine grained pointscan with an extent of 1 degree and a duration of 60 seconds.'
+                  'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
+
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
@@ -48,6 +52,7 @@ if opts.quick:
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
@@ -87,10 +92,10 @@ with verify_and_connect(opts) as kat:
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
-                if session.dbe.req.zero_delay():
-                    user_logger.info("Zeroed the delay values.")
-                else:
-                    user_logger.error('Unable to zero delay values.')
+                #if session.dbe.req.zero_delay():
+                #    user_logger.info("Zeroed the delay values.")
+                #else:
+                #    user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -105,9 +110,10 @@ with verify_and_connect(opts) as kat:
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
                     session.label('raster')
                     # Do different raster scan on strong and weak targets
-                    if not opts.quick:
+                    if not opts.quick and not opts.fine:
                         if opts.source_strength == 'strong' or \
                            (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
+                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
                             session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
@@ -115,9 +121,17 @@ with verify_and_connect(opts) as kat:
                             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                    else:
-                        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                    else:  # The branch for Quick and Fine scans
+                        if opts.quick:
+                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                            session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                             scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                        else: # if opts.fine:
+                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
+                                            scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
 
                     targets_observed.append(target.name)

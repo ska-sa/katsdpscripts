@@ -33,6 +33,7 @@ with verify_and_connect(opts) as kat:
     # Start Antenna for observing
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(3)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
@@ -71,16 +72,16 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Turning off delay tracking.")
             else:
                 user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
+            #if session.dbe.req.zero_delay():
+            #    user_logger.info("Zeroed the delay values.")
+            #else:
+            #    user_logger.error('Unable to zero delay values.')
         session.standard_setup(**vars(opts))
         session.capture_start()
         # Iterate through elevation angles
         spacings = list(np.arange(15.0,90.1,opts.spacing))
         if opts.tip_both_directions :
-            spacings += list(np.arange(90.0,14.9,-opts.spacing))
+            spacings += list(np.arange(90.0,19.9,-opts.spacing))
         for el in spacings:
             session.label('track')
             session.track('azel, %f, %f' % (opts.az, el), duration=on_time)
