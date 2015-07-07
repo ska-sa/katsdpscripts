@@ -33,8 +33,10 @@ parser.add_option('--siggen-freq','--siggen-freq-major',  type='str', default='3
 parser.add_option('--siggen-freq-minor', type='str', default='0.0',
                   help='Signal Generator frequency range in reletive to the siggen-freq-major MHz,'
                   'of the form ( value |  value1,value2 | start,stop,step ) (default=%default)')
-parser.add_option('--siggen-power', type='float', default=-30.0,
-                  help='Signal Generator power in dBm (default=%default)')
+parser.add_option('--siggen-power','--siggen-power-major',  type='str', default='-30',
+                  help='Signal Generator power in dBm,'
+                  'of the form ( value |  value1,value2 | start,stop,step ) (default=%default)')
+
 parser.add_option('--force-siggen', action="store_true", default=False,
                   help='Force the Signal Generator commands during dry run as a test')
 
@@ -54,7 +56,7 @@ if  opts.siggen_power > -20.:
 
 siggen_ip = opts.siggen_ip
 siggen_port = opts.siggen_port
-siggen_freq_str = str(opts.siggen_freq).split(',')
+siggen_freq_str = str(opts.siggen_freq).split(',')  
 if len(siggen_freq_str) == 1 : siggen_freq_list = np.array(float(siggen_freq_str[0]))
 if len(siggen_freq_str) == 2 : siggen_freq_list = np.array((float(siggen_freq_str[0]),float(siggen_freq_str[1])))
 if len(siggen_freq_str) == 3 : siggen_freq_list = np.arange(float(siggen_freq_str[0]),float(siggen_freq_str[1]),float(siggen_freq_str[2]))
@@ -66,7 +68,12 @@ if len(siggen_freq_minor_str) == 3 : siggen_freq_minor_list = np.arange(float(si
 siggen_freq_minor = siggen_freq_minor_list[0]  # Set minor frequency to first value in the list
 siggen_freq = siggen_freq_list[0] +siggen_freq_minor  # Set current frequency to first value in the list
 
-siggen_power = opts.siggen_power
+siggen_power_str = str(opts.siggen_power).split(',')
+if len(siggen_power_str) == 1 : siggen_power_list = np.array(float(siggen_power_str[0]))
+if len(siggen_power_str) == 2 : siggen_power_list = np.array((float(siggen_power_str[0]),float(siggen_power_str[1])))
+if len(siggen_power_str) == 3 : siggen_power_list = np.arange(float(siggen_power_str[0]),float(siggen_power_str[1]),float(siggen_power_str[2]))
+siggen_power = siggen_power_list[0]
+
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
@@ -116,14 +123,9 @@ with verify_and_connect(opts) as kat:
                     sig.setPower(siggen_power)
                     user_logger.info("Signal Generator Power is set to %f dBm"%(sig.getPower()))
                     siggen_power=sig.getPower()
-                    
-
-        
 ## Using SCPI class for comms to signal generator for CW input signal
-
             session.standard_setup(**vars(opts))
             session.capture_start()
-
             start_time = time.time()
             targets_observed = []
             # Keep going until the time is up
@@ -137,37 +139,45 @@ with verify_and_connect(opts) as kat:
                         if keep_going :
                             for freq_minor in siggen_freq_minor_list:
                                 if keep_going :
-                                    if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
-                                        session.label('transition')
-                                        sig.setFrequency((freq+freq_minor)*1.0e6)
-                                        user_logger.info("Signal Generator frequency is set to %7.3f MHz"%(sig.getFrequency()*1.0e-6 ))
-                                        siggen_freq = sig.getFrequency()
-                                        time.sleep(2.0)
-                                    else :
-                                        session.label('transition')
-                                        time.sleep(2.0) # this is just a timing thing
+                                    for power in siggen_power_list:
+                                        if keep_going :
+                                            change_freq = np.shape(siggen_freq_list)[0] + np.shape(siggen_freq_minor_list)[0] > 2
+                                            change_power = np.shape(siggen_power_list)[0] > 1 
+                                            if change_freq or change_power : session.label('transition')
+                                            if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
+                                                if change_freq :
+                                                    sig.setFrequency((freq+freq_minor)*1.0e6)
+                                                    user_logger.info("Signal Generator frequency is set to %7.3f MHz"%(sig.getFrequency()*1.0e-6 ))
+                                                    siggen_freq = sig.getFrequency()
+                                                if change_power:
+                                                    sig.setPower(siggen_power)
+                                                    user_logger.info("Signal Generator Power is set to %f dBm"%(sig.getPower()))
+                                                    siggen_power=sig.getPower()
+                                                if change_freq or change_power :  time.sleep(2.0)
+                                            else :
+                                                if change_freq or change_power : session.track(target, duration=2.0, announce=False)#time.sleep(2.0) # this is just a timing thing
                                 
-                                    session.label('siggen,f=%f,p=%f,'%(siggen_freq,siggen_power ))
-                                    user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
-                                    # Split the total track on one target into segments lasting as long as the noise diode period
-                                    # This ensures the maximum number of noise diode firings
-                                    total_track_time = 0.
-                                    while total_track_time < opts.track_duration:
-                                        next_track = opts.track_duration - total_track_time
-                                        # Cut the track short if time ran out
-                                        if opts.max_duration is not None:
-                                            next_track = min(next_track, opts.max_duration - (time.time() - start_time))
-                                        if opts.nd_params['period'] > 0:
-                                            next_track = min(next_track, opts.nd_params['period'])
-                                        if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
-                                            break
-                                        total_track_time += next_track
-                                    if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
-                                                            (opts.max_duration,))
-                                        keep_going = False
-                                        break
-                                    targets_observed.append(target.name)
+                                            session.label('siggen,f=%f,p=%f,'%(siggen_freq,siggen_power ))
+                                            user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
+                                            # Split the total track on one target into segments lasting as long as the noise diode period
+                                            # This ensures the maximum number of noise diode firings
+                                            total_track_time = 0.
+                                            while total_track_time < opts.track_duration:
+                                                next_track = opts.track_duration - total_track_time
+                                                # Cut the track short if time ran out
+                                                if opts.max_duration is not None:
+                                                    next_track = min(next_track, opts.max_duration - (time.time() - start_time))
+                                                if opts.nd_params['period'] > 0:
+                                                    next_track = min(next_track, opts.nd_params['period'])
+                                                if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
+                                                    break
+                                                total_track_time += next_track
+                                            if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
+                                                user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
+                                                                    (opts.max_duration,))
+                                                keep_going = False
+                                                break
+                                            targets_observed.append(target.name)
                 if keep_going and len(targets_observed) == targets_before_loop:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                     keep_going = False
