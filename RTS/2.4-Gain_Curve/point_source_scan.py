@@ -39,6 +39,10 @@ parser.add_option( '--fine', action="store_true" , default=False,
                   help='Do a fine grained pointscan with an extent of 1 degree and a duration of 60 seconds.'
                   'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
 
+parser.add_option( '--search-fine', action="store_true" , default=False,
+                  help='Do a fine grained pointscan with an extent of 2 degree and a duration of 60 seconds.'
+                  'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
+
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
@@ -128,10 +132,15 @@ with verify_and_connect(opts) as kat:
                             session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                             scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
-                        else: # if opts.fine:
+                        if opts.fine:
                             user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
                             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
                                             scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                        else: #if opts.search_fine:
+                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                            session.raster_scan(target, num_scans=9, scan_duration=60, scan_extent=2.0,
+                                            scan_spacing=5./60., scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
 
                     targets_observed.append(target.name)
