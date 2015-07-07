@@ -2,7 +2,7 @@
 
 ##Basic socket interface to the R&S signal generator used for CW test signal input
 
-import serial, socket, string, time
+import serial, socket,  time
 
 class SCPI:
   PORT = 5025
@@ -57,7 +57,7 @@ class SCPI:
     if self.connection == 'serial':
       return self.s.readline()
     else:
-      return self .s.recv(128)
+      return self.s.recv(128)
 
   # activates RF output
   def outputOn(self):
@@ -69,6 +69,8 @@ class SCPI:
   def reset(self):
     self.write("*RST")
     self.write(" *CLS")
+    time.sleep(5)
+    # Sleep for 5 second the time of the reset
 
   # close the comms port to the R&S signal generator
   def  __close__(self):
