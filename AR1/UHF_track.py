@@ -20,8 +20,6 @@ parser.add_option('-t', '--track-duration', type='float', default=60.0,
 parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
-parser.add_option('--repeat', action="store_true", default=False,
-                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
@@ -38,7 +36,7 @@ parser.add_option('--force-siggen', action="store_true", default=False,
 
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='UHF signal generator track',dump_rate=1.0)
+parser.set_defaults(description='UHF signal generator track',dump_rate=1.0,nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -116,7 +114,7 @@ with verify_and_connect(opts) as kat:
             # Keep going until the time is up
             keep_going = True
             while keep_going:
-                keep_going = (opts.max_duration is not None) and opts.repeat
+                keep_going = (opts.max_duration is not None)
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
