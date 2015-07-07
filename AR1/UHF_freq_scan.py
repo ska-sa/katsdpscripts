@@ -29,10 +29,10 @@ parser.add_option('--siggen-port', type='int', default=5025,
                   help='Signal Generator port (default=%default)')
 parser.add_option('--siggen-freq','--siggen-freq-major',  type='str', default='300.0,600.0,0.208984375',
                   help='Signal Generator frequency range in MHz,'
-                  'of the form ( value |  start,stop | start,stop,step ) (default=%default)')
+                  'of the form ( value |  value1,value2 | start,stop,step ) (default=%default)')
 parser.add_option('--siggen-freq-minor', type='str', default='0.0',
                   help='Signal Generator frequency range in reletive to the siggen-freq-major MHz,'
-                  'of the form ( value |  start,stop | start,stop,step ) (default=%default)')
+                  'of the form ( value |  value1,value2 | start,stop,step ) (default=%default)')
 parser.add_option('--siggen-power', type='float', default=-30.0,
                   help='Signal Generator power in dBm (default=%default)')
 parser.add_option('--force-siggen', action="store_true", default=False,
@@ -56,12 +56,12 @@ siggen_ip = opts.siggen_ip
 siggen_port = opts.siggen_port
 siggen_freq_str = str(opts.siggen_freq).split(',')
 if len(siggen_freq_str) == 1 : siggen_freq_list = np.array(float(siggen_freq_str[0]))
-if len(siggen_freq_str) == 2 : siggen_freq_list = np.arange(float(siggen_freq_str[0]),float(siggen_freq_str[1]))
+if len(siggen_freq_str) == 2 : siggen_freq_list = np.array((float(siggen_freq_str[0]),float(siggen_freq_str[1])))
 if len(siggen_freq_str) == 3 : siggen_freq_list = np.arange(float(siggen_freq_str[0]),float(siggen_freq_str[1]),float(siggen_freq_str[2]))
 
 siggen_freq_minor_str = str(opts.siggen_freq_minor).split(',')
 if len(siggen_freq_minor_str) == 1 : siggen_freq_minor_list = np.array(float(siggen_freq_minor_str[0]))
-if len(siggen_freq_minor_str) == 2 : siggen_freq_minor_list = np.arange(float(siggen_freq_minor_str[0]),float(siggen_freq_minor_str[1]))
+if len(siggen_freq_minor_str) == 2 : siggen_freq_minor_list = np.array((float(siggen_freq_minor_str[0]),float(siggen_freq_minor_str[1])))
 if len(siggen_freq_minor_str) == 3 : siggen_freq_minor_list = np.arange(float(siggen_freq_minor_str[0]),float(siggen_freq_minor_str[1]),float(siggen_freq_minor_str[2]))
 siggen_freq_minor = siggen_freq_minor_list[0]  # Set minor frequency to first value in the list
 siggen_freq = siggen_freq_list[0] +siggen_freq_minor  # Set current frequency to first value in the list
