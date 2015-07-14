@@ -54,7 +54,7 @@ opts, args = parser.parse_args()
 
 if opts.quick:
     opts.dump_rate = 2.0
-
+uniquename = 0.25
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
@@ -151,7 +151,8 @@ with verify_and_connect(opts) as kat:
                         if anglekey < len(angle):
                             offset = np.array((np.cos(angle[anglekey]), -np.sin(angle[anglekey]))) * opts.offset * (-1) ** anglekey
                             offset_targetval = (np.degrees(target.astrometric_radec()) + offset/(np.cos(target.astrometric_radec()[1]),1.0))
-                            offsettarget = katpoint.Target('offset,radec, %s , %s'%(offset_targetval[0],offset_targetval[1])) # the ra is in decimal hours for some reason
+                            uniquename = uniquename + 1
+                            offsettarget = katpoint.Target('offset_%i,radec, %s , %s'%(uniquename,offset_targetval[0],offset_targetval[1])) # the ra is in decimal hours for some reason
                             user_logger.info("Target & offset seperation = %s "%(np.degrees(target.separation(offsettarget))))
                             session.track(offsettarget, duration=0, announce=False)
                         else :
