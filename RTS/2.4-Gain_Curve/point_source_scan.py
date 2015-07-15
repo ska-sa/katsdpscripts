@@ -40,7 +40,7 @@ parser.add_option( '--fine', action="store_true" , default=False,
                   'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
 
 parser.add_option( '--search-fine', action="store_true" , default=False,
-                  help='Do a fine grained pointscan with an extent of 2 degree and a duration of 60 seconds.'
+                  help='Do a fine grained pointscan with an extent of 2 degree and a duration of 30 seconds.'
                   'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
 
 parser.add_option('--no-delays', action="store_true", default=False,
@@ -113,11 +113,23 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
                     session.label('raster')
-                    # Do different raster scan on strong and weak targets
-                    if not opts.quick and not opts.fine:
+                    user_logger.info("Doing scan of %r with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                    # Do different raster scan depending on selected raster style
+                    if opts.quick:
+                        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                                            scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                    elif opts.fine:
+                        session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
+                                            scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                    elif opts.search_fine:
+                        session.raster_scan(target, num_scans=25, scan_duration=30, scan_extent=2.0,
+                                            scan_spacing=5./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
+                    else:
                         if opts.source_strength == 'strong' or \
                            (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
-                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
                             session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
@@ -125,23 +137,6 @@ with verify_and_connect(opts) as kat:
                             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                    else:  # The branch for Quick and Fine scans
-                        if opts.quick:
-                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                            session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
-                                            scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
-                                            projection=opts.projection)
-                        if opts.fine:
-                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
-                                            scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
-                                            projection=opts.projection)
-                        else: #if opts.search_fine:
-                            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                            session.raster_scan(target, num_scans=9, scan_duration=60, scan_extent=2.0,
-                                            scan_spacing=5./60., scan_in_azimuth=not opts.scan_in_elevation,
-                                            projection=opts.projection)
 
                     targets_observed.append(target.name)
                     skip_file.write(target.description + "\n")
