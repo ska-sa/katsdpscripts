@@ -16,18 +16,18 @@ import katpoint
 
 # Raster scan styles
 styles = {
-  # Sources at L-band, default
-  'strong': dict(dump_rate=1.0, num_scans=5, scan_duration=30, scan_extent=6.0, scan_spacing=0.25),
-  # Weaker sources at L-band, requiring more time on source
-  'weak': dict(dump_rate=1.0, num_scans=5, scan_duration=60, scan_extent=4.0, scan_spacing=0.25),
-  # Either 'strong' or 'weak', only evaluated once the source flux is known
-  'auto': dict(),
-  # Sources at L-band, quick check
-  'quick': dict(dump_rate=2.0, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5),
-  # Sources at Ku-band
-  'fine': dict(dump_rate=1.0, num_scans=5, scan_duration=60, scan_extent=1.0, scan_spacing=4./60.),
-  # Sources at Ku-band, wider search area
-  'search-fine': dict(dump_rate=4.0, num_scans=25, scan_duration=30, scan_extent=2.0, scan_spacing=5./60.),
+    # Sources at L-band, default
+    'strong': dict(dump_rate=1.0, num_scans=5, scan_duration=30, scan_extent=6.0, scan_spacing=0.25),
+    # Weaker sources at L-band, requiring more time on source
+    'weak': dict(dump_rate=1.0, num_scans=5, scan_duration=60, scan_extent=4.0, scan_spacing=0.25),
+    # Either 'strong' or 'weak', only evaluated once the source flux is known
+    'auto': dict(),
+    # Sources at L-band, quick check
+    'quick': dict(dump_rate=2.0, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5),
+    # Sources at Ku-band
+    'fine': dict(dump_rate=1.0, num_scans=5, scan_duration=60, scan_extent=1.0, scan_spacing=4./60.),
+    # Sources at Ku-band, wider search area
+    'search-fine': dict(dump_rate=4.0, num_scans=25, scan_duration=30, scan_extent=2.0, scan_spacing=5./60.),
 }
 
 # Set up standard script options
@@ -56,13 +56,13 @@ parser.add_option('--style', type='choice', default='auto', choices=styles.keys(
 parser.add_option('--source-strength', type='choice', default='none', choices=('strong', 'weak', 'auto', 'none'),
                   help="Scanning strategy based on source strength, one of 'strong', 'weak' or 'auto' (default). "
                        "Auto is based on flux density specified in catalogue. *DEPRECATED*")
-parser.add_option( '--quick', action="store_true" , default=False,
+parser.add_option('--quick', action="store_true", default=False,
                   help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
                        'spaced 0.5 degrees apart with 2 Hz dump rate. *DEPRECATED*')
-parser.add_option( '--fine', action="store_true" , default=False,
+parser.add_option('--fine', action="store_true", default=False,
                   help='Do a fine-grained point scan with an extent of 1 degree and a duration of 60 seconds.'
                   'This is for Ku-band observations where the beam is 8 arcmin. *DEPRECATED*')
-parser.add_option( '--search-fine', action="store_true" , default=False,
+parser.add_option('--search-fine', action="store_true", default=False,
                   help='Do a fine-grained point scan with an extent of 2 degrees and a duration of 30 seconds.'
                   'This is for Ku-band observations where the beam is 8 arcmin. *DEPRECATED*')
 # Set default value for any option (both standard and experiment-specific options)
@@ -88,7 +88,7 @@ if not opts.dump_rate:
     opts.dump_rate = styles[opts.style].pop('dump_rate', 1.0)
 
 with verify_and_connect(opts) as kat:
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
+    if not kat.dry_run and kat.ants.req.mode('STOP'):
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         time.sleep(10)
     else:
@@ -120,7 +120,7 @@ with verify_and_connect(opts) as kat:
         skip_file = file(opts.skip_catalogue, "a") \
                     if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
+            if not opts.no_delays and not kat.dry_run:
                 if session.dbe.req.auto_delay('on'):
                     user_logger.info("Turning on delay tracking.")
                 else:
@@ -130,10 +130,10 @@ with verify_and_connect(opts) as kat:
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
-                #if session.dbe.req.zero_delay():
-                #    user_logger.info("Zeroed the delay values.")
-                #else:
-                #    user_logger.error('Unable to zero delay values.')
+                # if session.dbe.req.zero_delay():
+                #     user_logger.info("Zeroed the delay values.")
+                # else:
+                #     user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -148,7 +148,7 @@ with verify_and_connect(opts) as kat:
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
                     session.label('raster')
                     az, el = target.azel()
-                    user_logger.info("Doing scan of target %r with current azel (%s, %s)" % (target.description, az, el))
+                    user_logger.info("Scanning target %r with current azel (%s, %s)" % (target.description, az, el))
                     if opts.style == 'auto':
                         style = 'strong' if target.flux_density(opts.centre_freq) > 10.0 else 'weak'
                     else:
