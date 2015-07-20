@@ -57,20 +57,20 @@ if  opts.siggen_power < -20.:
 siggen_ip = opts.siggen_ip
 siggen_port = opts.siggen_port
 siggen_freq_str = str(opts.siggen_freq).split(',')  
-if len(siggen_freq_str) == 1 : siggen_freq_list = np.array(float(siggen_freq_str[0]))
-if len(siggen_freq_str) == 2 : siggen_freq_list = np.array((float(siggen_freq_str[0]),float(siggen_freq_str[1])))
+if len(siggen_freq_str) == 1 : siggen_freq_list = np.array([float(siggen_freq_str[0])])
+if len(siggen_freq_str) == 2 : siggen_freq_list = np.array([float(siggen_freq_str[0]),float(siggen_freq_str[1])])
 if len(siggen_freq_str) == 3 : siggen_freq_list = np.arange(float(siggen_freq_str[0]),float(siggen_freq_str[1]),float(siggen_freq_str[2]))
 
 siggen_freq_minor_str = str(opts.siggen_freq_minor).split(',')
-if len(siggen_freq_minor_str) == 1 : siggen_freq_minor_list = np.array(float(siggen_freq_minor_str[0]))
-if len(siggen_freq_minor_str) == 2 : siggen_freq_minor_list = np.array((float(siggen_freq_minor_str[0]),float(siggen_freq_minor_str[1])))
+if len(siggen_freq_minor_str) == 1 : siggen_freq_minor_list = np.array([float(siggen_freq_minor_str[0])])
+if len(siggen_freq_minor_str) == 2 : siggen_freq_minor_list = np.array([float(siggen_freq_minor_str[0]),float(siggen_freq_minor_str[1])])
 if len(siggen_freq_minor_str) == 3 : siggen_freq_minor_list = np.arange(float(siggen_freq_minor_str[0]),float(siggen_freq_minor_str[1]),float(siggen_freq_minor_str[2]))
-siggen_freq_minor = siggen_freq_minor_list[0]  # Set minor frequency to first value in the list
+siggen_freq_minor = siggen_freq_minor_list[0] # Set minor frequency to first value in the list
 siggen_freq = siggen_freq_list[0] +siggen_freq_minor  # Set current frequency to first value in the list
 
 siggen_power_str = str(opts.siggen_power).split(',')
-if len(siggen_power_str) == 1 : siggen_power_list = np.array(float(siggen_power_str[0]))
-if len(siggen_power_str) == 2 : siggen_power_list = np.array((float(siggen_power_str[0]),float(siggen_power_str[1])))
+if len(siggen_power_str) == 1 : siggen_power_list = np.array([float(siggen_power_str[0])])
+if len(siggen_power_str) == 2 : siggen_power_list = np.array([float(siggen_power_str[0]),float(siggen_power_str[1])])
 if len(siggen_power_str) == 3 : siggen_power_list = np.arange(float(siggen_power_str[0]),float(siggen_power_str[1]),float(siggen_power_str[2]))
 siggen_power = siggen_power_list[0]
 
