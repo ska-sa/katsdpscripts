@@ -50,7 +50,7 @@ if len(args) == 0:
     user_logger.info("Default SCP source added to catalogue")
     args.append('SCP,radec,0,-90')
 
-if  opts.siggen_power > -20.:
+if  opts.siggen_power < -20.:
     raise ValueError("Please specify a Signal Generator power less than -20 dBm")
 
 
