@@ -271,10 +271,15 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                                                                                   opts.mc_iterations, opts.batch, **kwargs)
 
 def analyse_point_source_scans(filename, opts):
+    # Produce canonical version of baseline string (remove duplicate antennas)
+    baseline_ants = opts.baseline.split(',')
+    if len(baseline_ants) == 2 and baseline_ants[0] == baseline_ants[1]:
+        opts.baseline = baseline_ants[0]
+
     dataset_name = os.path.splitext(os.path.basename(filename))[0]
     # Default output file names are based on input file name
     if opts.outfilebase is None:
-        opts.outfilebase = dataset_name + '_point_source_scans'
+        opts.outfilebase = dataset_name + '_' + opts.baseline + '_point_source_scans'
 
     # Set up logging: logging everything (DEBUG & above), both to console and file
     logger = logging.root
@@ -289,11 +294,6 @@ def analyse_point_source_scans(filename, opts):
     #Force centre freqency if ku-band option is set
     if opts.ku_band:
         kwargs['centre_freq'] = 12.5005e9
-
-    # Produce canonical version of baseline string (remove duplicate antennas)
-    baseline_ants = opts.baseline.split(',')
-    if len(baseline_ants) == 2 and baseline_ants[0] == baseline_ants[1]:
-        opts.baseline = baseline_ants[0]
 
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
