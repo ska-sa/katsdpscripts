@@ -153,6 +153,31 @@ def generatespiral(totextent,tottime,tracktime=1,sampletime=1,kind='uniform',mir
     
     return compositex,compositey,ncompositex,ncompositey
 
+def gen_scan(lasttime,target,az_arm,el_arm ):
+    num_points = np.shape(az_arm)[0]
+    az_arm = az_arm*np.pi/180.0
+    el_arm = el_arm*np.pi/180.0
+    scan_data = np.zeros((num_points,3))
+    curtime = lasttime+np.arange(1,num_points+1)*timeperstep
+    #spiral arm scan
+    targetaz_rad,targetel_rad=target.azel(curtime)
+    scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm )
+    #print targetaz_rad.shape,az_arm.shape ,curtime.shape
+    scan_data[:,0] = curtime
+    scan_data[:,1] = scanaz*180.0/np.pi
+    scan_data[:,2] = scanel*180.0/np.pi
+    return scan_data
+
+def gen_track(lasttime,target,tracktime,timeperstep=0.2):
+    track_data = np.zeros((int(tracktime/timeperstep),3))
+    num_points = int(tracktime/timeperstep)
+    curtime = lasttime+np.arange(1,num_points+1)*timeperstep
+    targetaz_rad,targetel_rad=target.azel(curtime)
+    track_data[:,0] = curtime
+    track_data[:,1] = targetaz_rad
+    track_data[:,2] = targetel_rad
+    return track_data
+
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
@@ -200,7 +225,7 @@ with verify_and_connect(opts) as kat:
                          "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
     target=targets[0]#only use first target
     lasttargetel=target.azel()[1]*180.0/np.pi
-
+    currtime=time.time()
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
@@ -248,62 +273,24 @@ with verify_and_connect(opts) as kat:
                     user_logger.info("Exiting because target is %g degrees too low to accommodate a scan extent of %g degrees above the horizon limit of %g."%((opts.horizon+(opts.scan_extent/2.0)-targetel),opts.scan_extent,opts.horizon))
                     break;
             user_logger.info("Performing scan cycle %d."%(cycle+1))
-            lasttargetel=targetel
+            #print("Using all antennas: %s" % (' '.join([ant  for ant in ants]),))
+            user_logger.info("Using all antennas: %s" % (' '.join([ant  for ant in session.ants]),))
+            slewtime = 0
+            scan_track = gen_track(currtime+slewtime,target,tracktime=10,timeperstep=0.2)
             session.ants = all_ants
-            user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-            session.track(target, duration=0, announce=False)
-            session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
-            session.ants = scan_ants
-            user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-#                session.set_target(target)
-#                session.ants.req.drive_strategy('shortest-slew')
-#                session.ants.req.mode('POINT')
+            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
             for iarm in range(len(cx)):#spiral arm index
-                scan_index=0
-                wasstowed=False
-                while(scan_index!=len(cx[iarm])-1):
-                    while (not kat.dry_run and wasstowed):
-                        user_logger.info("Attempting to recover from wind stow" )
-                        session.ants = all_ants
-                        user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                        session.track(target, duration=0, announce=False)
-                        if (not any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
-                            scan_index=0
-                            wasstowed=False
-                            session.fire_noise_diode(announce=False, **nd_params)#provides opportunity to fire noise diode
-                            session.ants = scan_ants
-                            user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                            if (cx[iarm][scan_index]!=0.0 or cy[iarm][scan_index]!=0.0):
-                                targetaz_rad,targetel_rad=target.azel()
-                                scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
-                                # targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
-                                targetx,targety=sphere_to_plane_holography(scanaz,scanel,targetaz_rad,targetel_rad)
-                                session.ants.req.offset_fixed(targetx*180.0/np.pi,-targety*180.0/np.pi,opts.projection)
-                                # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
-                                time.sleep(10)#gives 10 seconds to slew to outside arm if that is where pattern commences
-                            user_logger.info("Recovered from wind stow, repeating cycle %d scan %d"%(cycle+1,iarm+1))
-                        else:
-                            time.sleep(60)
-                    lastproctime=time.time()
-                    for scan_index in range(len(cx[iarm])):#spiral arm scan
-                        targetaz_rad,targetel_rad=target.azel()
-                        scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,cx[iarm][scan_index]*np.pi/180.0,cy[iarm][scan_index]*np.pi/180.0)
-                        # targetx,targety=katpoint.sphere_to_plane[opts.projection](targetaz_rad,targetel_rad,scanaz,scanel)
-                        targetx,targety=sphere_to_plane_holography(scanaz,scanel,targetaz_rad,targetel_rad)
-                        session.ants.req.offset_fixed(targetx*180.0/np.pi,-targety*180.0/np.pi,opts.projection)
-                        # session.ants.req.offset_fixed(cx[iarm][scan_index],cy[iarm][scan_index],opts.projection)
-                        curproctime=time.time()
-                        proctime=curproctime-lastproctime
-                        if (timeperstep>proctime):
-                            time.sleep(timeperstep-proctime)
-                        lastproctime=time.time()
-                        if not kat.dry_run and (np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])):
-                            if (wasstowed==False):
-                                user_logger.info("Cycle %d scan %d interrupted. Some antennas are stowed ... waiting to resume scanning"%(cycle+1,iarm+1) )
-                            wasstowed=True
-                            time.sleep(60)
-                            break#repeats this spiral arm scan if stow occurred
-        #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
+                scan_data = gen_scan(currtime,target,cx[iarm],cy[iarm])
+                #plot(scan_data[:,1],scan_data[:,2],'b') 
+                scan_track = gen_track(currtime,target,tracktime=scan_data[-1,0]-currtime,timeperstep=0.2)
+            currtime = scan_data[-1,0]
+            #print("Using scan antennas: %s" % (' '.join([ant  for ant in ants]),))
+            user_logger.info("Using scan antennas: %s" % (' '.join([ant  for ant in session.ants]),))
+            session.ants = scan_ants
+            session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+            session.ants = track_ants
+            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+
+#set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
         session.ants = all_ants
-                
 
