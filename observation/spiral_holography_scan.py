@@ -157,14 +157,14 @@ def gen_scan(lasttime,target,az_arm,el_arm ):
     num_points = np.shape(az_arm)[0]
     az_arm = az_arm*np.pi/180.0
     el_arm = el_arm*np.pi/180.0
-    scan_data = np.zeros((num_points,3))
+    scan_data = np.zeros((num_points,3))    
     curtime = lasttime+np.arange(1,num_points+1)*timeperstep
     #spiral arm scan
     targetaz_rad,targetel_rad=target.azel(curtime)
     scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm )
     #print targetaz_rad.shape,az_arm.shape ,curtime.shape
     scan_data[:,0] = curtime
-    scan_data[:,1] = scanaz*180.0/np.pi
+    scan_data[:,1] = katpoint.wrap_angle(scanaz)*180.0/np.pi
     scan_data[:,2] = scanel*180.0/np.pi
     return scan_data
 
@@ -174,8 +174,8 @@ def gen_track(lasttime,target,tracktime,timeperstep=0.2):
     curtime = lasttime+np.arange(1,num_points+1)*timeperstep
     targetaz_rad,targetel_rad=target.azel(curtime)
     track_data[:,0] = curtime
-    track_data[:,1] = targetaz_rad
-    track_data[:,2] = targetel_rad
+    track_data[:,1] = katpoint.wrap_angle(targetaz_rad)*180.0/np.pi
+    track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
 
@@ -257,7 +257,7 @@ with verify_and_connect(opts) as kat:
         session.label('holo')
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second cycles extending %g degrees) on target '%s'"
                          % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
-
+        session.set_target(target)
         for cycle in range(opts.num_cycles):
             targetel=target.azel()[1]*180.0/np.pi
             if (targetel>lasttargetel):#target is rising - scan top half of pattern first
@@ -274,23 +274,23 @@ with verify_and_connect(opts) as kat:
                     break;
             user_logger.info("Performing scan cycle %d."%(cycle+1))
             #print("Using all antennas: %s" % (' '.join([ant  for ant in ants]),))
-            user_logger.info("Using all antennas: %s" % (' '.join([ant  for ant in session.ants]),))
+            user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
             slewtime = 0
             scan_track = gen_track(currtime+slewtime,target,tracktime=10,timeperstep=0.2)
             session.ants = all_ants
             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
             for iarm in range(len(cx)):#spiral arm index
+		user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
                 scan_data = gen_scan(currtime,target,cx[iarm],cy[iarm])
-                #plot(scan_data[:,1],scan_data[:,2],'b') 
                 scan_track = gen_track(currtime,target,tracktime=scan_data[-1,0]-currtime,timeperstep=0.2)
-            currtime = scan_data[-1,0]
-            #print("Using scan antennas: %s" % (' '.join([ant  for ant in ants]),))
-            user_logger.info("Using scan antennas: %s" % (' '.join([ant  for ant in session.ants]),))
-            session.ants = scan_ants
-            session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-            session.ants = track_ants
-            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-
+                session.ants = scan_ants
+                user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                session.ants = track_ants
+                user_logger.info("Using Track antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                time.sleep(scan_data[-1,0]-currtime)
+                currtime = scan_data[-1,0]
 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
         session.ants = all_ants
 
