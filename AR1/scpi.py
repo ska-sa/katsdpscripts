@@ -2,7 +2,7 @@
 
 ##Basic socket interface to the R&S signal generator used for CW test signal input
 
-import serial, socket,  time
+import socket,  time
 
 class SCPI:
   PORT = 5025
@@ -11,11 +11,11 @@ class SCPI:
   ## Connect to the R&S signal generator
   def __init__(self,
                host=None, port=PORT,           # set up socket connection
-               device=None, baudrate=BAUDRATE, # set up serial port
+               device=None, baudrate=BAUDRATE, # set up serial port not used
                timeout=1,
                display_info = False):
-    if host and device:
-      raise RuntimeError('Only one connection can be initaited at a time.\nSelect socket or serial connection.\n')
+    if device:
+      raise RuntimeError('Only one connection can be initaited at a time.\nSelect socket connection.\n')
 
     # Ethernet socket connection
     self.connection = None
@@ -24,9 +24,6 @@ class SCPI:
       self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.s.connect((host, port))
       self.s.settimeout(1)
-    elif device:
-      self.connection = 'serial'
-      self.s = serial.Serial(device, baudrate, timeout, rtscts=0)
     else:
       raise RuntimeError('No connections specified.\n')
 
@@ -48,16 +45,11 @@ class SCPI:
 
   # send query / command via relevant port comm
   def write(self, command):
-    if self.connection == 'serial':
-      self.s.write(command + '\r\n')
-    else:
-      self.s.send(command+ '\n')
+    self.s.send(command+ '\n')
     time.sleep(1)
+
   def read(self):
-    if self.connection == 'serial':
-      return self.s.readline()
-    else:
-      return self.s.recv(128)
+    return self.s.recv(128)
 
   # activates RF output
   def outputOn(self):
