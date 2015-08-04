@@ -36,7 +36,6 @@ if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
-args_target_obj = None
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     args_target_list =[]
@@ -50,7 +49,7 @@ with verify_and_connect(opts) as kat:
     
     try:
         observation_sources.add_tle(file(args[0]))
-    except :#IOError or ValueError : # If the file failed to load assume it is a target string
+    except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string
         args_target_obj = collect_targets(kat,args)
         observation_sources.add(args_target_obj)
             
