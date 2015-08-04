@@ -80,7 +80,7 @@ with verify_and_connect(opts) as kat:
             katpoint.construct_radec_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
             off1.antenna = antenna
             off1.name = 'off'
-            off2 = katpoint.construct_azel_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
+            off2 = katpoint.construct_radec_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
             off2.antenna =  antenna 
             off2.name = 'off'
             sources = katpoint.Catalogue(add_specials=False)
