@@ -55,16 +55,15 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
 
     # Secect desired channel range
     # Select frequency channels and setup defaults if not specified
-    num_channels = len(data.channels)
-    if channels is None:
+    #num_channels = len(data.channels)
+    #if channels is None:
         # Default is drop first and last 10% of the bandpass
-        start_chan = num_channels // 20
-        end_chan   = start_chan * 19
-    else:
-        start_chan = int(channels.split(',')[0])
-        end_chan = int(channels.split(',')[1])
-    chan_range = range(start_chan,end_chan+1)
-    select_data['channels']=chan_range
+    #    start_chan = num_channels // 20
+    #    end_chan   = start_chan * 19
+    #else:
+    #    start_chan = int(channels.split(',')[0])
+    #    end_chan = int(channels.split(',')[1])
+    #chan_range = range(start_chan,end_chan+1)
 
     data.select(strict=False, reset='', **select_data)
 
@@ -73,7 +72,7 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
         raise ValueError('Selection has resulted in no data to process.')
 
     #Get the selected visibilities and flags (average to stokes I if required and extend flags across corr products)
-    vis = np.abs(np.sum(data.vis[:],axis=-1))
+    vis = np.sum(np.abs(data.vis[:]),axis=-1)
     if flags_file is None:
         flags = np.sum(data.flags()[:],axis=-1)
     else:
@@ -92,13 +91,11 @@ def read_and_select_file(file, bline=None, target=None, channels=None, polarisat
     #return the selected data
     return outputvis, weights, data , ant1 + ant2, polarisation
 
-
 def getbackground_spline(data,spike_width):
 
     """ From a 1-d data array determine a background iteratively by fitting a spline
     and removing data more than a few sigma from the spline """
 
-    # Remove the first and last element in data from the fit.
     y=data[:]
     arraysize=y.shape[0]
     x=np.arange(arraysize)
@@ -123,8 +120,8 @@ def getbackground_spline(data,spike_width):
         indices = [index for index in indices if ~y.mask[index]]
 
         # Fit the spline with 0 weights at the mask.
-        thisfit = interpolate.LSQUnivariateSpline(x,y,indices,k=deg,w=(~y.mask).astype(np.float))
-        
+        thisfit = interpolate.LSQUnivariateSpline(x,y.data,indices,k=deg,w=(~y.mask).astype(np.float))
+
         thisfitted_data=np.asarray(thisfit(x),y.dtype)
 
         # Subtract the fitted spline from the data
@@ -319,6 +316,23 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
         timeav = dumpav*(h5data.dump_period/60.0)
     print "Averaging time to %3d x %4.1fmin (%d dump) intervals."%(len(h5data.timestamps)//dumpav,timeav,dumpav)
 
+
+    # Secect desired channel range
+    # Select frequency channels and setup defaults if not specified
+    num_channels = len(h5data.channels)
+    if freq_chans is None:
+        # Default is drop first and last 10% of the bandpass
+        start_chan = num_channels // 20
+        end_chan   = start_chan * 19
+    else:
+        start_chan = int(freq_chans.split(',')[0])
+        end_chan = int(freq_chans.split(',')[1])
+    chan_range = range(start_chan,end_chan+1)
+    h5data.select(channels=chan_range)
+    corr_vis=corr_vis[:,start_chan:end_chan+1]
+    visdata=visdata[:,start_chan:end_chan+1]
+    weightdata=weightdata[:,start_chan:end_chan+1]
+
     #Get the number of channels to average
     chanav = max(1,int(np.round(freqav*1e6 / h5data.channel_width)))
     if chanav > len(h5data.channel_freqs):
@@ -326,6 +340,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
         print "Frequency averaging interval of %4.1fMHz is wider than available bandwidth. No frequency averaging will be applied."%(freqav)
         freqav = h5data.channel_width/1e6
     print "Averaging frequency to %d x %4.1fMHz intervals."%(len(h5data.channel_freqs)//chanav,freqav)
+
 
     #Average the data over all time in chanav channels
     av_visdata = averager.average_visibilities(visdata.data, weightdata, visdata.mask, h5data.timestamps, h5data.channel_freqs, timeav=len(h5data.timestamps), chanav=chanav)
