@@ -228,7 +228,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     ax1.axhline(0.005,ls='--', color='red')
     ax1.plot(freqdata,corr_visdata_std/mean_visdata*100.0)
     ax1.set_yscale('log')
-    plt.ylabel('log10 [Standard Deviation (% of mean)]')
+    plt.ylabel('Standard Deviation (% of mean)')
     tstring = 'Spectral Baseline, %s'%baseline
     if pol=='I':
         tstring += ', Stokes I'
