@@ -9,7 +9,6 @@ from katcorelib import standard_script_options, verify_and_connect,  start_sessi
 import katpoint
 from katpoint import wrap_angle
 import numpy as np
-import pyfits
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] hotload or coldload",
@@ -36,17 +35,11 @@ nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'peri
 #if len(args) == 0:
 #    raise ValueError("Please specify the sources to observe as arguments, either as "
 #                     "description strings or catalogue filenames")
-fl = '/home/kat/RTS/2.1-Tipping_Curve/TBGAL_CONVL.FITS'
-hdulist = pyfits.open(fl)
-Data = np.flipud(np.fliplr(hdulist[0].data)) # data is in the first element of the fits file
-ra =  lambda x: int(x/0.25) # helper functions
-dec = lambda x: int((-x+90)/0.25)
-
 
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(3)
+        time.sleep(10)
     else:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
     moon = kat.sources.lookup['moon']
@@ -76,21 +69,16 @@ with verify_and_connect(opts) as kat:
             moon =  katpoint.Target('Moon, special')
             antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')  # find some way of getting this from session
             moon.antenna = antenna
-            off1 = katpoint.construct_radec_target(moon.azel()[0] + np.radians(10),moon.azel()[1] )
-            katpoint.construct_radec_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
+            off1 = katpoint.construct_radec_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
             off1.antenna = antenna
-            off1.name = 'off'
+            off1.name = 'off1'
             off2 = katpoint.construct_radec_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
             off2.antenna =  antenna 
-            off2.name = 'off'
+            off2.name = 'off2'
             sources = katpoint.Catalogue(add_specials=False)
             sources.add(moon)
-            off1_T = Data[dec(np.degrees(off1.radec()[1])),ra(np.degrees(wrap_angle(off1.radec()[0])))]
-            off2_T = Data[dec(np.degrees(off2.radec()[1])),ra(np.degrees(wrap_angle(off2.radec()[0])))]
-            if off1_T > off2_T:
-                sources.add(off2)
-            else:
-                sources.add(off1)
+            sources.add(off2)
+            sources.add(off1)
             txtlist = ', '.join(  [ "'%s'" % (target.name,)  for target in sources])
             user_logger.info("Calibration targets are [%s]" %(txtlist))
             for target in sources:
