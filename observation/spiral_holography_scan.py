@@ -290,11 +290,11 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
             slewtime = 0
             session.ants = all_ants
-            session.track(target, duration=0, announce=False)
+            #session.track(target, duration=0, announce=False)
             lasttime=time.time()
             for iarm in range(len(cx)):#spiral arm index
-		        user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
-                scan_data = gen_scan(lasttime+opts.lagtime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
+                scan_data = gen_scan(lasttime+opts.prepopulatetime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
                 scan_track = gen_track(scan_data[:,0],target)
                 session.ants = scan_ants
                 user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
@@ -302,7 +302,7 @@ with verify_and_connect(opts) as kat:
                 session.ants = track_ants
                 user_logger.info("Using Track antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
                 session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-                time.sleep(scan_data[-1,0]-time.time()-opts.lagtime)
+                time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                 lasttime = scan_data[-1,0]
         time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
