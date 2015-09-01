@@ -290,11 +290,13 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
             slewtime = 0
             session.ants = all_ants
-            #session.track(target, duration=0, announce=False)
-            lasttime=time.time()
+            #get both antennas to target ASAP
+            scan_track = gen_track(np.arange(opts.prepopulatetime)+time.time(),target)
+            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+            lasttime=time.time()+opts.prepopulatetime
             for iarm in range(len(cx)):#spiral arm index
                 user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
-                scan_data = gen_scan(lasttime+opts.prepopulatetime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
                 scan_track = gen_track(scan_data[:,0],target)
                 session.ants = scan_ants
                 user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
