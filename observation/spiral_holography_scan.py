@@ -60,7 +60,8 @@ def spiral(params,indep):
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
-def generatespiral(totextent,tottime,tracktime=1,slewtime=1,sampletime=1,kind='uniform',mirrorx=False):
+#slowtime redistributes samples on each arm so that start and stop of scan occurs slower within this timerange in seconds
+def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletime=1,kind='uniform',mirrorx=False):
     totextent=np.float(totextent)
     tottime=np.float(tottime)
     sampletime=np.float(sampletime)
@@ -100,11 +101,19 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,sampletime=1,kind='u
         army=np.zeros(ntime)
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
         #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
+        if (slowtime>0.0):
+            repl=linspace(0.0,slowtime/sampletime,2+(slowtime)/sampletime)
+            dt=np.float(slowtime)/np.float(sampletime)*np.ones(ntime,dtype='float')
+            dt[:len(repl)-1]=repl[1:]
+            dt[1-len(repl):]=repl[:0:-1]
+            dt=dt/np.sum(dt)
+        else:
+            dt=1.0/ntime*np.ones(ntime)
         lastr=0.0
         for it in range(1,ntime):
-            data=np.array([1.0/ntime])
+            data=np.array([dt[it-1]])
             indep=np.array([armx[it-1],army[it-1]])#last calculated coordinate in arm, is x0,y0
-            initialparams=np.array([lastr+1.0/ntime]);
+            initialparams=np.array([lastr+dt[it-1]]);
             fitter=NonLinearLeastSquaresFit(spiral,initialparams)
             fitter.fit(indep,data)
             lastr=fitter.params[0];
