@@ -102,7 +102,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
         #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
         if (slowtime>0.0):
-            repl=linspace(0.0,slowtime/sampletime,2+(slowtime)/sampletime)
+            repl=np.linspace(0.0,slowtime/sampletime,2+(slowtime)/sampletime)
             dt=np.float(slowtime)/np.float(sampletime)*np.ones(ntime,dtype='float')
             dt[:len(repl)-1]=repl[1:]
             dt[1-len(repl):]=repl[:0:-1]
@@ -220,6 +220,8 @@ parser.add_option('--tracktime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
 parser.add_option('--slewtime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to slew when passing from one spiral arm to another (default=%default)')
+parser.add_option('--slowtime', type='float', default=1.0,
+                  help='Time in seconds to slow down at start and end of each spiral arm (default=%default)')
 parser.add_option('--sampletime', type='float', default=1.0,
                   help='time in seconds to spend on pointing (default=%default)')
 parser.add_option('--prepopulatetime', type='float', default=30.0,
@@ -233,7 +235,7 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx)
+compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx)
 
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "
