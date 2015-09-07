@@ -478,6 +478,9 @@ else:
     prep_basename = file_basename + '_' + opts.bline.translate(None,',') + '_point_source_scans'
     antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline,
                                                             ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
+#Check we've some data to process
+if len(data['data_unit'])==0:
+    sys.exit()
 
 if opts.units == None:
     opts.units = data['data_unit'][0]
