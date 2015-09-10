@@ -299,20 +299,29 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Performing scan cycle %d."%(cycle+1))
             #print("Using all antennas: %s" % (' '.join([ant  for ant in ants]),))
             user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
-            slewtime = 0
+            scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
+            track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
             session.ants = all_ants
             #get both antennas to target ASAP
+            session.ants = scan_ants
+            target.antenna = scan_observer
             scan_track = gen_track(np.arange(opts.prepopulatetime)+time.time(),target)
+            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+            session.ants = track_ants
+            target.antenna = track_observer
+            scan_track = gen_track(scan_track[:,0],target)
             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
             lasttime=time.time()+opts.prepopulatetime
             for iarm in range(len(cx)):#spiral arm index
                 user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
-                scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                scan_track = gen_track(scan_data[:,0],target)
                 session.ants = scan_ants
+                target.antenna = scan_observer
+                scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
                 user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
                 session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                 session.ants = track_ants
+                target.antenna = track_observer
+                scan_track = gen_track(scan_data[:,0],target)
                 user_logger.info("Using Track antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
                 session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
                 time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
