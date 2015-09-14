@@ -406,7 +406,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     title += ' ' + '%.0f MHz'%(data['frequency'][0])
     title += ' ' + '%s conditions'%(condition)
     plt.title(title)
-    legend = plt.legend(bbox_to_anchor=(1.2, 0.5))
+    legend = plt.legend(bbox_to_anchor=(1.3, 0.7))
     plt.setp(legend.get_texts(), fontsize='small')
 
     # Only do derived plots if units were in Kelvin
