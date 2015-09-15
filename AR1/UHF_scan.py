@@ -90,24 +90,24 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
-                if session.dbe.req.auto_delay('on'):
-                    user_logger.info("Turning on delay tracking.")
-                else:
-                    user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not kat.dry_run:
-                if session.dbe.req.auto_delay('off'):
-                    user_logger.info("Turning off delay tracking.")
-                else:
-                    user_logger.error('Unable to turn off delay tracking.')
-                if session.dbe.req.zero_delay():
-                    user_logger.info("Zeroed the delay values.")
-                else:
-                    user_logger.error('Unable to zero delay values.')
+            #if not opts.no_delays and not kat.dry_run :
+            #    if session.dbe.req.auto_delay('on'):
+            #        user_logger.info("Turning on delay tracking.")
+            #    else:
+            #        user_logger.error('Unable to turn on delay tracking.')
+            #elif opts.no_delays and not kat.dry_run:
+            #    if session.dbe.req.auto_delay('off'):
+            #        user_logger.info("Turning off delay tracking.")
+            #    else:
+            #        user_logger.error('Unable to turn off delay tracking.')
+            #    if session.dbe.req.zero_delay():
+            #        user_logger.info("Zeroed the delay values.")
+            #    else:
+            #        user_logger.error('Unable to zero delay values.')
 
             user_logger.info("Setting up the signal Generator ip:port %s:%i."%(siggen_ip,siggen_port))
             if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
-                sigconn=SCPI(siggen_ip,siggen_port)
+                sigconn=SCPI.SCPI(siggen_ip,siggen_port)
                 testcon = sigconn.testConnect()
             else : 
                 sigconn = file('tempsock.tmp')
@@ -136,8 +136,10 @@ with verify_and_connect(opts) as kat:
                 targets_observed = []
                 # Keep going until the time is up
                 keep_going = True
-                while keep_going:
-                    keep_going = (opts.max_duration is not None) 
+                #print "siggen_freq_list",siggen_freq_list
+                #print "siggen_freq_minor_list",siggen_freq_minor_list
+                #print "siggen_power_list",siggen_power_list
+                while keep_going:   
                     targets_before_loop = len(targets_observed)
                     # Iterate through source list, picking the next one that is up
                     for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
@@ -184,13 +186,8 @@ with verify_and_connect(opts) as kat:
                                                     keep_going = False
                                                     break
                                                 targets_observed.append(target.name)
+                    keep_going = (opts.max_duration is not None) 
                     if keep_going and len(targets_observed) == targets_before_loop:
                         user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                         keep_going = False
-                user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
-            if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
-                user_logger.info("Turning Off Signal Generator RF Power")
-                sig.outputOff()
-                user_logger.info("Closing connection to Signal Generator")
-                sig.__close__()
-            
+                user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))            
