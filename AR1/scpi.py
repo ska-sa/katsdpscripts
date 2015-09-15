@@ -65,9 +65,19 @@ class SCPI:
     # Sleep for 5 second the time of the reset
 
   # close the comms port to the R&S signal generator
-  def  __close__(self):
+  def __close__(self):
     self.s.close()
 
+  
+  def __exit__(self, type, value, traceback):
+    self.outputOff()
+    self.s.close()
+    return isinstance(value, TypeError)
+    
+
+  def __enter__(self):
+      return self
+      
   # set requested frequency
   def setFrequency(self, freq):
     self.write(" FREQuency %.2f"%(freq,)) # Hz
