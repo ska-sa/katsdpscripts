@@ -350,6 +350,7 @@ def analyse_point_source_scans(filename, opts):
             raise ValueError('Number of channels in provided mask does not match number of channels in data')
         chan_select[:start_chan] = False
         chan_select[end_chan:] = False
+
     dataset = dataset.select(freqkeep=chan_select)
 
     # Check scan count
@@ -370,6 +371,8 @@ def analyse_point_source_scans(filename, opts):
         dataset.nd_v_model=None
         for i in range(len(dataset.scans)):
             dataset.scans[i].data = scape.stats.remove_spikes(dataset.scans[i].data,axis=1,spike_width=3,outlier_sigma=5.)
+            if hasattr(opts, 'pol'):
+                dataset.scans[i].data[:,:,:] = dataset.scans[i].pol(opts.pol)[:,:,np.newaxis]
 
     # Initialise the output data cache (None indicates the compscan has not been processed yet)
     reduced_data = [{} for n in range(len(scan_dataset.compscans))]
