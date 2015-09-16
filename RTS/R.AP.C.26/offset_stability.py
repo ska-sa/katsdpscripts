@@ -34,9 +34,7 @@ def calc_rms_total(x):
     Finds the RMS of a set of data
     """
     if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z1 = np.ma.array(data=np.nan_to_num(x[:,0]),mask=np.isnan(x[:,0]))
-    z2 = np.ma.array(data=np.nan_to_num(x[:,1]),mask=np.isnan(x[:,1]))
-    z = np.sqrt((z1-z1.mean())**2 + (z2-z2.mean())**2  )
+    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
     return np.ma.sqrt(np.ma.mean((z-z.mean())**2))
 
 
@@ -53,9 +51,7 @@ def calc_change_total(x):
     Finds the RMS of a set of data
     """
     if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z1 = np.ma.array(data=np.nan_to_num(x[:,0]),mask=np.isnan(x[:,0]))
-    z2 = np.ma.array(data=np.nan_to_num(x[:,1]),mask=np.isnan(x[:,1]))
-    z = np.sqrt((z1-z1.mean())**2 + (z2-z2.mean())**2  )
+    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
     return z[-1] - z[0]
 
 
@@ -131,13 +127,13 @@ for i in xrange(len(az)) :
 
 #print new_model.description
 dataset_str = '_'.join(np.unique(offsetdata['dataset']).tolist() )
-nice_filename =  dataset_str + '_4_hour_offset'
+nice_filename =  dataset_str + '_4_hour_offset_stability'
 pp = PdfPages(nice_filename+'.pdf')
 
 
 offset_az_ts = pandas.Series(measured_delta_az*np.cos(el), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 offset_el_ts = pandas.Series(measured_delta_el, pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
-offset_total_ts = pandas.Series(zip(measured_delta_az*np.cos(el),measured_delta_el**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+offset_total_ts = pandas.Series( np.sqrt((measured_delta_az*np.cos(el))**2+measured_delta_el**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 
 #(np.sqrt(change_el**2+change_az**2)).plot()
 #(offset_el_ts*3600).plot()
@@ -149,10 +145,10 @@ offset_total_ts = pandas.Series(zip(measured_delta_az*np.cos(el),measured_delta_
 fig = plt.figure()
 change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
 change_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
-change_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_change_total,freq='360s')*3600
+#change_total = np.sqrt(change_el**2 + change_az**2)
 change_el.plot(label='Elevation',legend=True,grid=True) 
 change_az.plot(label='Azimuth',legend=True,grid=True)
-change_total.plot(label='Total change in pointing Error',legend=True,grid=True)
+#change_total.plot(label='Total change in pointing Error',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
 plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
