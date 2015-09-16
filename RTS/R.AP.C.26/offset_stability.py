@@ -142,7 +142,7 @@ offset_total_ts = pandas.Series( np.sqrt((measured_delta_az*np.cos(el))**2+measu
 #min_az = ((pandas.rolling_min(offset_az_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_az_ts,4*60,0,freq='60s'))*3600)
 #min_el = ((pandas.rolling_min(offset_el_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_el_ts,4*60,0,freq='60s'))*3600)
 
-fig = plt.figure()
+fig = plt.figure(figsize=(10,5))
 change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
 change_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
 #change_total = np.sqrt(change_el**2 + change_az**2)
@@ -151,7 +151,7 @@ change_az.plot(label='Azimuth',legend=True,grid=True)
 #change_total.plot(label='Total change in pointing Error',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
-plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.title("Antenna:%s Dataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
 plt.ylabel('4 Hour Change  (arc-seconds)')
 plt.xlabel('Time (UTC)')
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
@@ -160,7 +160,7 @@ fig.savefig(pp,format='pdf')
 plt.close(fig)
 
 
-fig = plt.figure()
+fig = plt.figure(figsize=(10,5))
 mean_rms_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_rms_total,freq='360s')*3600
@@ -169,7 +169,7 @@ mean_rms_az.plot(label='Azimuth',legend=True,grid=True)
 mean_rms_total.plot(label='Total pointing Error',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
-plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.title("Antenna:%s Dataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
 plt.ylabel('4 Hour RMS Error (arc-seconds)')
 plt.xlabel('Time (UTC)')
 plt.hlines(25,plt.xlim()[0],plt.xlim()[1])
@@ -182,20 +182,17 @@ fig.savefig(pp,format='pdf')
 plt.close(fig)
 
 
-fig = plt.figure()
+fig = plt.figure(figsize=(10,5))
 temperature_ts = pandas.Series(offsetdata['temperature'], pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 wind_speed_ts = pandas.Series(offsetdata['wind_speed'], pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 temperature_ts.plot(label='Surface Temperature ',legend=True,grid=True) 
 wind_speed_ts.plot(label='Wind Speed (m/s)',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
-plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.title("Antenna:%s Dataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
 plt.ylabel('')
 plt.xlabel('Time (UTC)')
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
-minv,maxv = plt.ylim()
-if maxv < 26 : maxv = 26
-plt.ylim(minv,maxv)
 
 fig.savefig(pp,format='pdf')
 plt.close(fig)
