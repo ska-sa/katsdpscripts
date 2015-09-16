@@ -1,20 +1,18 @@
-import sys
 import optparse
-import logging
 import time
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.projections import PolarAxes
-from matplotlib.ticker import MultipleLocator,FormatStrFormatter
+#import matplotlib as mpl
+#from matplotlib.projections import PolarAxes
+#from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
-from katpoint import rad2deg, deg2rad
+from katpoint import  deg2rad #,rad2deg,
 from katsdpscripts.RTS import git_info,get_git_path
 import pandas
 
-from astropy.time import Time
-from matplotlib.dates import DateFormatter
+#from astropy.time import Time
+#from matplotlib.dates import DateFormatter
 
 
 def angle_wrap(angle, period=2.0 * np.pi):
@@ -22,6 +20,43 @@ def angle_wrap(angle, period=2.0 * np.pi):
     return (angle + 0.5 * period) % period - 0.5 * period
 
 
+
+def calc_rms(x):
+    """
+    Finds the RMS of a set of data
+    """
+    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
+    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
+    return np.ma.sqrt(np.ma.mean((z-z.mean())**2))
+
+def calc_rms_total(x):
+    """
+    Finds the RMS of a set of data
+    """
+    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
+    z1 = np.ma.array(data=np.nan_to_num(x[:,0]),mask=np.isnan(x[:,0]))
+    z2 = np.ma.array(data=np.nan_to_num(x[:,1]),mask=np.isnan(x[:,1]))
+    z = np.sqrt((z1-z1.mean())**2 + (z2-z2.mean())**2  )
+    return np.ma.sqrt(np.ma.mean((z-z.mean())**2))
+
+
+def calc_change(x):
+    """
+    Finds the RMS of a set of data
+    """
+    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
+    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
+    return z[-1] - z[0]
+
+def calc_change_total(x):
+    """
+    Finds the RMS of a set of data
+    """
+    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
+    z1 = np.ma.array(data=np.nan_to_num(x[:,0]),mask=np.isnan(x[:,0]))
+    z2 = np.ma.array(data=np.nan_to_num(x[:,1]),mask=np.isnan(x[:,1]))
+    z = np.sqrt((z1-z1.mean())**2 + (z2-z2.mean())**2  )
+    return z[-1] - z[0]
 
 
 
@@ -48,26 +83,6 @@ def read_offsetfile(filename):
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
     # If the antenna has no model specified, a default null model will be used
     return data,antenna
-
-
-
-def plot_data(targets,datasets,time_stamps,measured_delta_az,measured_delta_el) :
-    timestamps = Time(time_stamps,format='unix')
-    plt.figure(figsize=[15,10])
-    #ax1 = plt.subplot(211)
-    dataset_str = ' ,'.join(np.unique(datasets).tolist() )
-    target_str = ' ,'.join(np.unique(targets).tolist() )
-    plt.title("Dataset: %s  \nTarget(s): %s " %( dataset_str ,target_str ))
-    plt.plot(timestamps.datetime, (measured_delta_az-measured_delta_az.mean())*3600,'.', label = "Azimuth Offset")
-    plt.plot(timestamps.datetime, (measured_delta_el-measured_delta_el.mean())*3600,'*',label = "Elevation Offset")
-    plt.xlabel('Time (UTC)')
-    plt.ylabel('Arc Seconds')
-    plt.legend(loc='best')
-    formatter = DateFormatter('%H:%M:%S')
-    plt.gcf().axes[0].xaxis.set_major_formatter(formatter)  
-    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
-    plt.grid('on')  
-
 
 
 parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
@@ -110,37 +125,49 @@ az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevati
 measured_delta_az, measured_delta_el = offsetdata['delta_azimuth'], offsetdata['delta_elevation']
 time_stamps = np.zeros_like(az)
 for i in xrange(len(az)) :
-    time_stamps[i] = katpoint.Timestamp(offsetdata['timestamp_ut'][i]).secs
+    time_stamps[i] = katpoint.Timestamp(offsetdata['timestamp_ut'][i]).secs  # Fix Timestamps 
 
 
-
-def calc_rms(x):
-    """
-    Finds the RMS of a set of data
-    """
-    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
-    return np.ma.sqrt(np.ma.mean((z-z.mean())**2))
 
 #print new_model.description
-
+dataset_str = '_'.join(np.unique(offsetdata['dataset']).tolist() )
+nice_filename =  dataset_str + '_4_hour_offset'
+pp = PdfPages(nice_filename+'.pdf')
 
 
 offset_az_ts = pandas.Series(measured_delta_az*np.cos(el), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 offset_el_ts = pandas.Series(measured_delta_el, pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
-offset_total_ts = pandas.Series(np.sqrt((measured_delta_az*np.cos(el))**2 + measured_delta_el**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+offset_total_ts = pandas.Series(zip(measured_delta_az*np.cos(el),measured_delta_el**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 
-
+#(np.sqrt(change_el**2+change_az**2)).plot()
+#(offset_el_ts*3600).plot()
 #max_az = ((pandas.rolling_max(offset_az_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_az_ts,4*60,0,freq='60s'))*3600)
 #max_el = ((pandas.rolling_max(offset_el_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_el_ts,4*60,0,freq='60s'))*3600)
 #min_az = ((pandas.rolling_min(offset_az_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_az_ts,4*60,0,freq='60s'))*3600)
 #min_el = ((pandas.rolling_min(offset_el_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_el_ts,4*60,0,freq='60s'))*3600)
 
+fig = plt.figure()
+change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
+change_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
+change_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_change_total,freq='360s')*3600
+change_el.plot(label='Elevation',legend=True,grid=True) 
+change_az.plot(label='Azimuth',legend=True,grid=True)
+change_total.plot(label='Total change in pointing Error',legend=True,grid=True)
+dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
+target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
+plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.ylabel('4 Hour Change  (arc-seconds)')
+plt.xlabel('Time (UTC)')
+plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+
+fig.savefig(pp,format='pdf')
+plt.close(fig)
+
 
 fig = plt.figure()
 mean_rms_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
-mean_rms_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
+mean_rms_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_rms_total,freq='360s')*3600
 mean_rms_el.plot(label='Elevation',legend=True,grid=True) 
 mean_rms_az.plot(label='Azimuth',legend=True,grid=True)
 mean_rms_total.plot(label='Total pointing Error',legend=True,grid=True)
@@ -151,6 +178,12 @@ plt.ylabel('4 Hour RMS Error (arc-seconds)')
 plt.xlabel('Time (UTC)')
 plt.hlines(25,plt.xlim()[0],plt.xlim()[1])
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+minv,maxv = plt.ylim()
+if maxv < 26 : maxv = 26
+plt.ylim(minv,maxv)
+
+fig.savefig(pp,format='pdf')
+plt.close(fig)
 
 
 fig = plt.figure()
@@ -164,7 +197,15 @@ plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,t
 plt.ylabel('')
 plt.xlabel('Time (UTC)')
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
- 
+minv,maxv = plt.ylim()
+if maxv < 26 : maxv = 26
+plt.ylim(minv,maxv)
+
+fig.savefig(pp,format='pdf')
+plt.close(fig)
+
+pp.close()
+
 
 #TODO Tilt infomation.
 #TODO Tiltsensor values in the H5 file
@@ -186,7 +227,7 @@ plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fon
 
 #text.append("")
 
-#nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
+#nice_filename =  args[0].split('/')[-1]+ '_4_hour_offset'
 #pp = PdfPages(nice_filename+'.pdf')
 #for line in text: print line
 #fig = plt.figure(None,figsize = (10,16))
