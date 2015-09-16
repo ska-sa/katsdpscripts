@@ -137,11 +137,10 @@ offset_total_ts = pandas.Series(np.sqrt((measured_delta_az*np.cos(el))**2 + meas
 #min_el = ((pandas.rolling_min(offset_el_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_el_ts,4*60,0,freq='60s'))*3600)
 
 
+fig = plt.figure()
 mean_rms_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
-
-
 mean_rms_el.plot(label='Elevation',legend=True,grid=True) 
 mean_rms_az.plot(label='Azimuth',legend=True,grid=True)
 mean_rms_total.plot(label='Total pointing Error',legend=True,grid=True)
@@ -151,7 +150,6 @@ plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,t
 plt.ylabel('4 Hour RMS Error (arc-seconds)')
 plt.xlabel('Time (UTC)')
 plt.hlines(25,plt.xlim()[0],plt.xlim()[1])
-#plt.gcf().axes[0].xaxis.set_major_formatter(formatter)  
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
 
 
@@ -165,6 +163,7 @@ target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
 plt.title("Antenna:%s \nDataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
 plt.ylabel('')
 plt.xlabel('Time (UTC)')
+plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
  
 
 #TODO Tilt infomation.
