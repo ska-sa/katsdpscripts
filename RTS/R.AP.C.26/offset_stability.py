@@ -127,13 +127,13 @@ for i in xrange(len(az)) :
 
 #print new_model.description
 dataset_str = '_'.join(np.unique(offsetdata['dataset']).tolist() )
-nice_filename =  dataset_str + '_4_hour_offset_stability'
+nice_filename =  '%s_%s_4_hour_offset_stability'%(dataset_str ,ant.name)
 pp = PdfPages(nice_filename+'.pdf')
 
 
-offset_az_ts = pandas.Series(measured_delta_az*np.cos(el), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
-offset_el_ts = pandas.Series(measured_delta_el, pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
-offset_total_ts = pandas.Series( np.sqrt((measured_delta_az*np.cos(el))**2+measured_delta_el**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+offset_az_ts = pandas.Series((measured_delta_az*np.cos(el)-(measured_delta_az*np.cos(el)).mean()), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+offset_el_ts = pandas.Series((measured_delta_el-(measured_delta_el).mean()), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+offset_total_ts = pandas.Series( np.sqrt((offset_az_ts)**2+offset_el_ts**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 
 #(np.sqrt(change_el**2+change_az**2)).plot()
 #(offset_el_ts*3600).plot()
@@ -141,6 +141,25 @@ offset_total_ts = pandas.Series( np.sqrt((measured_delta_az*np.cos(el))**2+measu
 #max_el = ((pandas.rolling_max(offset_el_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_el_ts,4*60,0,freq='60s'))*3600)
 #min_az = ((pandas.rolling_min(offset_az_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_az_ts,4*60,0,freq='60s'))*3600)
 #min_el = ((pandas.rolling_min(offset_el_ts,4*60,0,freq='60s')-pandas.rolling_min(offset_el_ts,4*60,0,freq='60s'))*3600)
+
+fig = plt.figure(figsize=(10,5))
+#change_total = np.sqrt(change_el**2 + change_az**2)
+(offset_el_ts*3600).plot(label='Elevation',legend=True,grid=True) 
+(offset_az_ts*3600).plot(label='Azimuth',legend=True,grid=True)
+(offset_total_ts*3600).plot(label='Total pointing Error',legend=True,grid=True)
+dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
+target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
+plt.title("Raw Offsets :   Antenna:%s Dataset:%s Target(s): %s " %(ant.name,dataset_str ,target_str ),fontsize=10)
+plt.ylabel('Offset  (arc-seconds)')
+plt.xlabel('Time (UTC)',fontsize=8)
+plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+
+fig.savefig(pp,format='pdf')
+plt.close(fig)
+
+#offset_az_ts = pandas.Series(measured_delta_az*np.cos(el), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+#offset_el_ts = pandas.Series(measured_delta_el, pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
+#offset_total_ts = pandas.Series( np.sqrt((measured_delta_az*np.cos(el))**2+measured_delta_el**2), pandas.to_datetime(time_stamps, unit='s'))#.asfreq(freq='1s')
 
 fig = plt.figure(figsize=(10,5))
 change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
@@ -151,9 +170,9 @@ change_az.plot(label='Azimuth',legend=True,grid=True)
 #change_total.plot(label='Total change in pointing Error',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
-plt.title("Antenna:%s Dataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.title("4 Hour Range  :   Antenna:%s Dataset: %s  Target(s): %s " %(ant.name,dataset_str ,target_str ),fontsize=10)
 plt.ylabel('4 Hour Change  (arc-seconds)')
-plt.xlabel('Time (UTC)')
+plt.xlabel('Time (UTC)',fontsize=10)
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
 
 fig.savefig(pp,format='pdf')
@@ -169,9 +188,9 @@ mean_rms_az.plot(label='Azimuth',legend=True,grid=True)
 mean_rms_total.plot(label='Total pointing Error',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
-plt.title("Antenna:%s Dataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.title("4 hour RMS :   Antenna:%s Dataset: %s  Target(s): %s " %(ant.name,dataset_str ,target_str ),fontsize=10)
 plt.ylabel('4 Hour RMS Error (arc-seconds)')
-plt.xlabel('Time (UTC)')
+plt.xlabel('Time (UTC)',fontsize=10)
 plt.hlines(25,plt.xlim()[0],plt.xlim()[1])
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
 minv,maxv = plt.ylim()
@@ -189,9 +208,9 @@ temperature_ts.plot(label='Surface Temperature ',legend=True,grid=True)
 wind_speed_ts.plot(label='Wind Speed (m/s)',legend=True,grid=True)
 dataset_str = ' ,'.join(np.unique(offsetdata['dataset']).tolist() )
 target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
-plt.title("Antenna:%s Dataset: %s  \nTarget(s): %s " %(ant.name,dataset_str ,target_str ))
+plt.title("Wind Speed & Temperature : Dataset: %s  " %(dataset_str))
 plt.ylabel('')
-plt.xlabel('Time (UTC)')
+plt.xlabel('Time (UTC)',fontsize=8)
 plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
 
 fig.savefig(pp,format='pdf')
@@ -204,33 +223,6 @@ pp.close()
 #TODO Tiltsensor values in the H5 file
 
 
-
-#(max_el-min_el).plot(label='Elevation',legend=True,grid=True) 
-#(max_az-min_az).plot(label='Azimuth',legend=True,grid=True)
-#plt.ylabel('4 Hour Error Range (arc-seconds)')
-#plt.xlabel('Time (UTC)')
-#plt.hlines(25,plt.xlim()[0],plt.xlim()[1])
-
-
-
-#plot_data(offsetdata['target'],offsetdata['dataset'],time_stamps,measured_delta_az,measured_delta_el) 
-
-#text1 = referencemetrics(measured_delta_az, measured_delta_el)
-#text += text1
-
-#text.append("")
-
-#nice_filename =  args[0].split('/')[-1]+ '_4_hour_offset'
-#pp = PdfPages(nice_filename+'.pdf')
-#for line in text: print line
-#fig = plt.figure(None,figsize = (10,16))
-#plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
-#plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
-#fig.savefig(pp,format='pdf')
-
-#plt.close(fig)
-#pp.close()
-
-
-
+#    antenna, data =    (filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline,
+#                                                            ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
 
