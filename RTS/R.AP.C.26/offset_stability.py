@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 #import matplotlib as mpl
 #from matplotlib.projections import PolarAxes
 #from matplotlib.ticker import MultipleLocator,FormatStrFormatter
+import os
 import katpoint
 from katpoint import  deg2rad #,rad2deg,
 from katsdpscripts.RTS import git_info,get_git_path
 import pandas
+from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
 
 #from astropy.time import Time
 #from matplotlib.dates import DateFormatter
@@ -18,8 +20,6 @@ import pandas
 def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
     return (angle + 0.5 * period) % period - 0.5 * period
-
-
 
 def calc_rms(x):
     """
@@ -81,38 +81,52 @@ def read_offsetfile(filename):
     return data,antenna
 
 
-parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
-                               description="This works out stability measures when given a data CSV file"
-                               "  "
-                               " "
-                               " ")
-# Minimum pointing uncertainty is arbitrarily set to 1e-12 degrees, which corresponds to a maximum error
-# of about 10 nano-arcseconds, as the least-squares solver does not like zero uncertainty
-parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e-12,
-                  help="Minimum uncertainty of data points, expressed as the sky RMS in arcminutes")
+parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
+                           description="This works out stability measures results of analyse_point_source_scans.py or an h5 file")
+parser.add_option("-o", "--output", dest="outfilebase", type="string", default='',
+              help="Base name of output files (*.png for plots and *.csv for gain curve data)")
+parser.add_option("-p", "--polarisation", type="string", default=None, 
+              help="Polarisation to analyse, options are I, HH or VV. Default is all available.")
+parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
+#parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
+parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
+parser.add_option("--channel-mask", type="string", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of rfi mask pickle file specifying channels to flag")
+parser.add_option("--ku-band", action="store_true", help="Force the center frequency of the input file to be Ku band")
+parser.add_option("--chan-range", default='211,3896', help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 211,3896)")
 (opts, args) = parser.parse_args()
-
-#if len(args) != 1 or not args[0].endswith('.csv'):
-#    raise RuntimeError('Please specify a single CSV data file as argument to the script')
-
-
-text = []
+if len(args) ==0:
+    raise RuntimeError('Please specify a file to process.')
 
 
-#offset_file = 'offset_scan.csv'
-#filename = '1386710316_point_source_scans.csv'
-#min_rms= np.sqrt(2) * 60. * 1e-12
-
-if len(args) < 1 or not args[0].endswith('.csv'):
+if not args[0].endswith('.csv') and not args[0].endswith('.h5'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 
-data = None
-for filename in args:
-    if data is None:
-        data,ant = read_offsetfile(filename)
-    else:
-        data,ant = np.r_[data,read_offsetfile(filename)]
+if opts.ku_band:
+    opts.channel_mask=None
 
+data=None
+for filename in args:
+    if filename.endswith('.csv') :
+        if data is None:
+            data,ant = read_offsetfile(filename)
+        else:
+            data = np.r_[data,read_offsetfile(filename)]
+    if filename.endswith('.h5') : 
+        if data is None:
+            if opts.polarisation is None:
+                ant, data = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
+                        ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
+            else:
+                ant, data = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
+                        ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range,pol=opts.polarisation)               
+        else:
+            ant, data_tmp = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
+                        ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
+            data = np.r_[data,data_tmp]
+
+        
+    
+    
 offsetdata = data
 
 
