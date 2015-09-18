@@ -257,19 +257,10 @@ parser.add_option('-a', '--ants', default='all',
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
-parser.add_option('-c', '--cal-duration', type='float', default=70,
-                  help='Minimum duration to track calibrator, in seconds '
-                       '(default=%default)')
-parser.add_option('--style', type='choice', default='flatten',
-                  choices=('norm', 'phase', 'flatten', 'scramble'),
-                  help="Phasing-up style for beamformer weights: "
-                       "'norm' corrects amp+phase, 'phase' corrects phase only, "
-                       "'flatten' corrects amp+phase but with average gain of 1, "
-                       "'scramble' applies random phases")
 parser.add_option('--half-band', action='store_true', default=False,
                   help='Use only inner 50% of output band')
-parser.add_option('--transpose', action='store_true', default=False,
-                  help='Transpose time frequency blocks from correlator')
+parser.add_option('--reset', action="store_true", default=False,
+                  help='Reset the gains to 160.')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off',
                     dump_rate=1.0, mode='bc16n400M1k')
@@ -278,8 +269,7 @@ opts, args = parser.parse_args()
 
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
-    raise ValueError("Please specify the target (and optionally calibrator) "
-                     "to observe as arguments")
+    raise ValueError("Please specify the target")
 with verify_and_connect(opts) as kat:
     cbf = kat.dbe7
     ants = kat.ants
@@ -291,35 +281,12 @@ with verify_and_connect(opts) as kat:
     if target_elevation < opts.horizon:
         raise ValueError("The desired target to be observed is below the horizon")
 
-    # Pick the closest cal target that is up (if provided)
-    user_logger.info('Looking up any calibrator target(s)...')
-    try:
-        cal_targets = collect_targets(kat, args[1:])
-    except ValueError:
-        cal_targets = None
-        user_logger.info('Found 0 targets')
-    if cal_targets:
-        cal_target = cal_targets.filter(el_limit_deg=opts.horizon).closest_to(target)[0]
-        # Ensure that cal target will be recognised as one and has model
-        cal_target.add_tags('gaincal')
-        if not cal_target.flux_model:
-            raise ValueError("Calibrator %r has no flux density model" %
-                             (cal_target.description,))
-    else:
-        cal_target = None
-
     # Start correlator capture session
     with start_session(kat, **vars(opts)) as corr_session:
         corr_session.standard_setup(**vars(opts))
         corr_session.dbe.req.auto_delay('on')
         corr_session.capture_start()
 
-        # Refresh beamformer weights if cal target and at least 4 antennas provided
-        if cal_target and len(ants) >= 4:
-            user_logger.info('Obtaining beamformer weights on calibrator source %r' %
-                             (cal_target.name))
-            corr_session.label('track')
-            corr_session.track(cal_target, duration=opts.cal_duration)
 
         # Dictionary to hold observation metadata to send over to beamformer receiver
         for beam in beams:
@@ -332,13 +299,13 @@ with verify_and_connect(opts) as kat:
         if len(ants) > 1:
             user_logger.info('Setting beamformer weight to 1 for %d antennas' % (len(ants),))
             inputs = reduce(lambda inp, beam: inp + beam.inputs, beams, [])
-            # Phase up beamformer using latest weights
+            # set the beamformer weights to 1 as the phaseing is done in the f-engine
             weights = {}
             bf_weights_str = ' '.join(1024 * ['1'])
             for inp in inputs:
                 weights[inp] = bf_weights_str
             for beam in beams:
-                phase_up(cbf, weights, inputs=beam.inputs, bf=beam.name, style=opts.style)
+                phase_up(cbf, weights, inputs=beam.inputs, bf=beam.name, style='norm')
                 time.sleep(1)
         else:
             # The single-dish case does not need beamforming
