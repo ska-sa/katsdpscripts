@@ -128,7 +128,7 @@ with verify_and_connect(opts) as kat:
                         for beam in ['bf0','bf1']:
                             kat.dbe7.req.dbe_k7_beam_weights(beam,inp,bf_weights_str)
                         user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
-                        session.track(target, duration=60, announce=False)
+                    session.track(target, duration=60, announce=False)
                 keep_going = False
             if opts.reset:
                 user_logger.info("Resetting f-engine gains to 160")
