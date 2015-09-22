@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 #import matplotlib as mpl
 #from matplotlib.projections import PolarAxes
 #from matplotlib.ticker import MultipleLocator,FormatStrFormatter
-import os
+#import os
 import katpoint
 from katpoint import  deg2rad #,rad2deg,
 from katsdpscripts.RTS import git_info,get_git_path
@@ -22,33 +22,15 @@ def angle_wrap(angle, period=2.0 * np.pi):
     return (angle + 0.5 * period) % period - 0.5 * period
 
 def calc_rms(x):
-    """
-    Finds the RMS of a set of data
-    """
-    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
-    return np.ma.sqrt(np.ma.mean((z-z.mean())**2))
-
-def calc_rms_total(x):
-    """
-    Finds the RMS of a set of data
-    """
-    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
-    return np.ma.sqrt(np.ma.mean((z-z.mean())**2))
-
+    """Calculates RMS of data set while ignoring NaNs."""
+    rms = np.ma.masked_invalid(x).std()
+    return rms if rms is not np.ma.masked else 0.0
+    
+    
 
 def calc_change(x):
     """
-    Finds the RMS of a set of data
-    """
-    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
-    return z[-1] - z[0]
-
-def calc_change_total(x):
-    """
-    Finds the RMS of a set of data
+    Finds the Difference between the first sample of the data and the last sample 
     """
     if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
     z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
@@ -85,8 +67,8 @@ parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
                            description="This works out stability measures results of analyse_point_source_scans.py or an h5 file")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='',
               help="Base name of output files (*.png for plots and *.csv for gain curve data)")
-parser.add_option("-p", "--polarisation", type="string", default=None, 
-              help="Polarisation to analyse, options are I, HH or VV. Default is all available.")
+#parser.add_option("-p", "--polarisation", type="string", default=None, 
+#              help="Polarisation to analyse, options are I, HH or VV. Default is all available.")
 parser.add_option("--condition_select", type="string", default="normal", help="Flag according to atmospheric conditions (from: ideal,optimal,normal,none). Default: normal")
 #parser.add_option("--csv", action="store_true", help="Input file is assumed to be csv- this overrides specified baseline")
 parser.add_option("--bline", type="string", default="sd", help="Baseline to load. Default is first single dish baseline in file")
@@ -113,19 +95,13 @@ for filename in args:
             data = np.r_[data,read_offsetfile(filename)]
     if filename.endswith('.h5') : 
         if data is None:
-            if opts.polarisation is None:
-                ant, data = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
+            ant, data = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
                         ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
-            else:
-                ant, data = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
-                        ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range,pol=opts.polarisation)               
         else:
             ant, data_tmp = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
                         ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
             data = np.r_[data,data_tmp]
 
-        
-    
     
 offsetdata = data
 
@@ -196,7 +172,7 @@ plt.close(fig)
 fig = plt.figure(figsize=(10,5))
 mean_rms_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_az = pandas.rolling_apply(offset_az_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
-mean_rms_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_rms_total,freq='360s')*3600
+mean_rms_total = pandas.rolling_apply(offset_total_ts,window=4*60/6.,min_periods=0,func=calc_rms,freq='360s')*3600
 mean_rms_el.plot(label='Elevation',legend=True,grid=True) 
 mean_rms_az.plot(label='Azimuth',legend=True,grid=True)
 mean_rms_total.plot(label='Total pointing Error',legend=True,grid=True)
