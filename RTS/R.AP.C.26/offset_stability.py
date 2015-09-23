@@ -27,15 +27,10 @@ def calc_rms(x):
     return rms if rms is not np.ma.masked else 0.0
     
     
-
 def calc_change(x):
-    """
-    Finds the Difference between the first sample of the data and the last sample 
-    """
-    if np.isnan(x).sum() >= x.shape[0]+1 : return 0.0
-    z = np.ma.array(data=np.nan_to_num(x),mask=np.isnan(x))
-    return z[-1] - z[0]
-
+    """Calculates difference between last and first elements of data set while ignoring NaNs."""
+    mx = np.ma.masked_invalid(x)
+    return mx[-1] - mx[0] if mx is not np.ma.masked else 0.0
 
 
 # These fields contain strings, while the rest of the fields are assumed to contain floats
