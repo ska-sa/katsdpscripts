@@ -43,7 +43,7 @@ parser.add_option('--transpose', action='store_true', default=False,
                           help='Transpose time frequency blocks from correlator')
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(observer='comm_test',nd_params='off',project_id='COMMTEST',description='Beamformer drift scan',dump_rate=1.0)
+parser.set_defaults(observer='comm_test',nd_params='off',project_id='COMMTEST',description='Phaseup observation setting f-engine weights',dump_rate=1.0)
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -51,6 +51,7 @@ opts, args = parser.parse_args()
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     ants = kat.ants
+    obs_ants = [ant.name for ant in ants]
     observation_sources = collect_targets(kat,args)
     # Find out what inputs are curremtly active
     reply = kat.dbe7.req.dbe_label_input()
@@ -99,7 +100,7 @@ with verify_and_connect(opts) as kat:
                     time.sleep(5)
                     # get and set the weights
                     for inp in inputs:
-                        if inp[:-1] in ['ant1','ant5','ant7'] : continue
+                        if inp[:-1] not in obs_ants : continue
                         if inp[-1] == 'v':
                             gains = bpass_v[inp[:-1]]
                         else:
@@ -117,8 +118,9 @@ with verify_and_connect(opts) as kat:
                         gains[~ind] = 160.0
                         N = phase_weights[ind].shape[0]
                         z = np.polyfit(np.arange(N),np.unwrap(np.angle(phase_weights)[ind]),1)
-                        print z
+                        #print z
                         phase = np.zeros(1024)
+                        #phase[ind] = np.angle(phase_weights[ind]) 
                         phase[ind] = z[0]*np.arange(N)+z[1]
                         new_weights = (160.0 / gains ) * np.exp(1j * phase)
                         weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real,w.imag)) for w in new_weights])
@@ -127,7 +129,7 @@ with verify_and_connect(opts) as kat:
                         bf_weights_str = ' '.join(1024 * ['1'])
                         for beam in ['bf0','bf1']:
                             kat.dbe7.req.dbe_k7_beam_weights(beam,inp,bf_weights_str)
-                        user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
+                    user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
                     session.track(target, duration=60, announce=False)
                 keep_going = False
             if opts.reset:
