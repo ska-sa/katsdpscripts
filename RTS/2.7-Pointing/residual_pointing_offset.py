@@ -50,7 +50,7 @@ def read_offsetfile(filename):
     antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
     # If the antenna has no model specified, a default null model will be used
-    return data
+    return data,antenna
 
 
 parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
@@ -82,11 +82,15 @@ if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 
 data = None
+ant = None
 for filename in args:
     if data is None:
-        data = read_offsetfile(filename)
+        data,ant = read_offsetfile(filename)
     else:
-        data = np.r_[data,read_offsetfile(filename)]
+        tmp_offsets,tmp_ant = read_offsetfile(filename)
+        if ant == tmp_ant :
+            data = np.r_[data,tmp_offsets]
+        else : raise RuntimeError("File %s contains infomation for antenna %s but antenna %s was expected"%(filename,ant.name,tmp_ant.name))
 
 offsetdata = data
 
@@ -101,19 +105,27 @@ offsetdata = data
 az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevation'])
 measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
 
-def referencemetrics(measured_delta_az, measured_delta_el):
+def referencemetrics(az, el,measured_delta_az, measured_delta_el):
     """Determine and sky RMS from pointing model."""
     text = []
     measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
     abs_sky_error = np.ma.array(data=measured_delta_xel,mask=False)
+    model_delta_az, model_delta_el = ant.pointing_model.offset(az, el)
+    residual_az = measured_delta_az - model_delta_az
+    residual_el = measured_delta_el - model_delta_el
+    residual_xel = residual_az * np.cos(el)
+    
+    
+
 
     for target in set(offsetdata['target']):
         keep = np.ones((len(offsetdata)),dtype=np.bool)
         for key,targetv in enumerate(offsetdata['target']):
             keep[key] = target == targetv
-        abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) * 60.
+        #abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) *3600
+        abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]-residual_xel[keep][0] ) ** 2 + (residual_el[keep]-residual_el[keep][0] )** 2)) *3600
         abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
-        text.append("Test Target: '%s'  Reference RMS = %.3f' (robust %.3f')  (N=%i Data Points)" % (target,np.sqrt((abs_sky_error[keep] ** 2).mean()), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
+        text.append("Test Target: '%s'  Reference RMS = %.3f\"  (robust %.3f\")  (N=%i Data Points)" % (target,np.sqrt((abs_sky_error[keep] ** 2).mean()), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
 
     ###### On the calculation of all-sky RMS #####
     # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
@@ -130,21 +142,21 @@ def referencemetrics(measured_delta_az, measured_delta_el):
     text.append("All Sky Reference RMS = %.3f' (robust %.3f')   (N=%i Data Points) R.T.P.4"  % (sky_rms, robust_sky_rms,abs_sky_error.count()))
     return text
 
-text1 = referencemetrics(measured_delta_az, measured_delta_el)
+text1 = referencemetrics(az,el,measured_delta_az, measured_delta_el)
 text += text1
 
 text.append("")
 
 nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
-pp = PdfPages(nice_filename+'.pdf')
+#pp = PdfPages(nice_filename+'.pdf')
 for line in text: print line
-fig = plt.figure(None,figsize = (10,16))
-plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
-plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
-fig.savefig(pp,format='pdf')
+#fig = plt.figure(None,figsize = (10,16))
+#plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
+#plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+#fig.savefig(pp,format='pdf')
 
-plt.close(fig)
-pp.close()
+#plt.close(fig)
+#pp.close()
 
 
 
