@@ -76,7 +76,7 @@ def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimu
         abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]-residual_xel[keep][0] ) ** 2 + (residual_el[keep]-residual_el[keep][0] )** 2)) *3600
         abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
         if keep.sum()-1 > 0 :
-            text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" fit accurecy %.3f\"  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.sqrt((abs_sky_error[keep] ** 2).mean()),np.mean(abs_sky_delta_std[keep]), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
+            text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" {fit-accurecy=%.3f\"}  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.sqrt((abs_sky_error[keep] ** 2).mean()),np.mean(abs_sky_delta_std[keep]), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
 
     ###### On the calculation of all-sky RMS #####
     # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
