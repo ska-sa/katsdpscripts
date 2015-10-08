@@ -52,60 +52,7 @@ def read_offsetfile(filename):
     # If the antenna has no model specified, a default null model will be used
     return data,antenna
 
-
-parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
-                               description="This fits a pointing model to the given data CSV file"
-                               " with the targets that are included in the the offset pointing csv file "
-                               " "
-                               " ")
-parser.add_option('-o', '--output', dest='outfilebase', default='pointing_model_%s' % (now,),
-                  help="Base name of output files (*.csv for new pointing model and *_data.csv for residuals, "
-                  "default is 'pointing_model_<time>')")
-# Minimum pointing uncertainty is arbitrarily set to 1e-12 degrees, which corresponds to a maximum error
-# of about 10 nano-arcseconds, as the least-squares solver does not like zero uncertainty
-parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e-12,
-                  help="Minimum uncertainty of data points, expressed as the sky RMS in arcminutes")
-(opts, args) = parser.parse_args()
-
-#if len(args) != 1 or not args[0].endswith('.csv'):
-#    raise RuntimeError('Please specify a single CSV data file as argument to the script')
-
-
-text = []
-
-
-#offset_file = 'offset_scan.csv'
-#filename = '1386710316_point_source_scans.csv'
-#min_rms= np.sqrt(2) * 60. * 1e-12
-
-if len(args) < 1 or not args[0].endswith('.csv'):
-    raise RuntimeError('Correct File not passed to program. File should be csv file')
-
-data = None
-ant = None
-for filename in args:
-    if data is None:
-        data,ant = read_offsetfile(filename)
-    else:
-        tmp_offsets,tmp_ant = read_offsetfile(filename)
-        if ant == tmp_ant :
-            data = np.r_[data,tmp_offsets]
-        else : raise RuntimeError("File %s contains infomation for antenna %s but antenna %s was expected"%(filename,ant.name,tmp_ant.name))
-
-offsetdata = data
-
-
-
-
-
-
-#print new_model.description
-
-
-az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevation'])
-measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
-
-def referencemetrics(az, el,measured_delta_az, measured_delta_el):
+def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimuth_std=0,delta_elevation_std=0):
     """Determine and sky RMS from pointing model."""
     text = []
     measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
@@ -115,17 +62,21 @@ def referencemetrics(az, el,measured_delta_az, measured_delta_el):
     residual_el = measured_delta_el - model_delta_el
     residual_xel = residual_az * np.cos(el)
     
+    delta_xel_std = delta_azimuth_std * np.cos(el)
+    abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + delta_azimuth_std**2))*3600
     
-
-
     for target in set(offsetdata['target']):
         keep = np.ones((len(offsetdata)),dtype=np.bool)
         for key,targetv in enumerate(offsetdata['target']):
             keep[key] = target == targetv
+            if keep[key] : 
+                print ("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key])) 
+        
         #abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) *3600
         abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]-residual_xel[keep][0] ) ** 2 + (residual_el[keep]-residual_el[keep][0] )** 2)) *3600
         abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
-        text.append("Test Target: '%s'  Reference RMS = %.3f\"  (robust %.3f\")  (N=%i Data Points)" % (target,np.sqrt((abs_sky_error[keep] ** 2).mean()), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
+        if keep.sum()-1 > 0 :
+            text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" fit accurecy %.3f\"  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.sqrt((abs_sky_error[keep] ** 2).mean()),np.mean(abs_sky_delta_std[keep]), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
 
     ###### On the calculation of all-sky RMS #####
     # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
@@ -139,24 +90,76 @@ def referencemetrics(az, el,measured_delta_az, measured_delta_el):
     # A more robust estimate of the RMS sky error is obtained via the median of the Rayleigh distribution,
     # which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
     robust_sky_rms = np.ma.median(abs_sky_error) * np.sqrt(2. / np.log(4.))
-    text.append("All Sky Reference RMS = %.3f' (robust %.3f')   (N=%i Data Points) R.T.P.4"  % (sky_rms, robust_sky_rms,abs_sky_error.count()))
+    text.append("Dataset:%s  All Sky Reference RMS = %.3f\" (robust %.3f\")   (N=%i Data Points) R.T.P.4"  % (offsetdata['dataset'][0],sky_rms, robust_sky_rms,abs_sky_error.count()))
     return text
 
-text1 = referencemetrics(az,el,measured_delta_az, measured_delta_el)
-text += text1
 
+parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
+                               description="This fits a pointing model to the given data CSV file"
+                               " with the targets that are included in the the offset pointing csv file "
+                               " "
+                               " ")
+parser.add_option('-o', '--output', dest='outfilebase', default='pointing_model_%s' % (now,),
+                  help="Base name of output files (*.csv for new pointing model and *_data.csv for residuals, "
+                  "default is 'pointing_model_<time>')")
+parser.add_option('--no-plot', default=False ,help="Produce a pdf output")
+# Minimum pointing uncertainty is arbitrarily set to 1e-12 degrees, which corresponds to a maximum error
+# of about 10 nano-arcseconds, as the least-squares solver does not like zero uncertainty
+parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e-12,
+                  help="Minimum uncertainty of data points, expressed as the sky RMS in arcminutes")
+(opts, args) = parser.parse_args()
+
+#if len(args) != 1 or not args[0].endswith('.csv'):
+#    raise RuntimeError('Please specify a single CSV data file as argument to the script')
+
+
+text = []
 text.append("")
 
-nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
-#pp = PdfPages(nice_filename+'.pdf')
-for line in text: print line
-#fig = plt.figure(None,figsize = (10,16))
-#plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
-#plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
-#fig.savefig(pp,format='pdf')
+#offset_file = 'offset_scan.csv'
+#filename = '1386710316_point_source_scans.csv'
+#min_rms= np.sqrt(2) * 60. * 1e-12
 
-#plt.close(fig)
-#pp.close()
+if len(args) < 1 or not args[0].endswith('.csv'):
+    raise RuntimeError('Correct File not passed to program. File should be csv file')
+
+data = None
+ant = None
+for filename in args:
+    if data is None:
+        data,ant = read_offsetfile(filename)
+        offsetdata= data
+    else:
+        tmp_offsets,tmp_ant = read_offsetfile(filename)
+        if ant == tmp_ant :
+            data = np.r_[data,tmp_offsets]
+            offsetdata= tmp_offsets
+        else : raise RuntimeError("File %s contains infomation for antenna %s but antenna %s was expected"%(filename,ant.name,tmp_ant.name))
+    
+    az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevation'])
+    measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
+    delta_azimuth_std,delta_elevation_std = deg2rad(offsetdata['delta_azimuth_std']), deg2rad(offsetdata['delta_elevation_std'])
+
+    text1 = referencemetrics(ant,az,el,measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std)
+    text += text1
+
+#print new_model.description
+
+
+
+
+
+text.append("")
+for line in text: print line
+if not opts.no_plot :
+    nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
+    pp = PdfPages(nice_filename+'.pdf')
+    fig = plt.figure(None,figsize = (10,16))
+    plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
+    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    fig.savefig(pp,format='pdf')
+    plt.close(fig)
+    pp.close()
 
 
 
