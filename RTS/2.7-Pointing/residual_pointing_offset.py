@@ -148,6 +148,7 @@ for filename in args:
 
     text1 = referencemetrics(ant,az,el,measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std,opts.num_samples_limit)
     text += text1
+    text.append("")
 
 #print new_model.description
 
