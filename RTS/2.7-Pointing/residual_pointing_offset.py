@@ -52,7 +52,7 @@ def read_offsetfile(filename):
     # If the antenna has no model specified, a default null model will be used
     return data,antenna
 
-def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimuth_std=0,delta_elevation_std=0):
+def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimuth_std=0,delta_elevation_std=0,num_samples_limit=1):
     """Determine and sky RMS from pointing model."""
     text = []
     measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
@@ -73,11 +73,13 @@ def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimu
                 print ("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key])) 
         
         #abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) *3600
-        abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]-residual_xel[keep][0] ) ** 2 + (residual_el[keep]-residual_el[keep][0] )** 2)) *3600
-        abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
-        if keep.sum()-1 > 0 :
-            text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" {fit-accurecy=%.3f\"}  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.sqrt((abs_sky_error[keep] ** 2).mean()),np.mean(abs_sky_delta_std[keep]), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
-
+        abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]) ** 2 + (residual_el[keep])** 2)) *3600
+        #abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
+        if keep.sum() > num_samples_limit :
+            #text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" {fit-accurecy=%.3f\"}  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.sqrt((abs_sky_error[keep] ** 2).mean()),np.mean(abs_sky_delta_std[keep]), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
+            text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" {fit-accurecy=%.3f\"}  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]), np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum()))
+        else : 
+            abs_sky_error.mask[keep] = True # Remove Samples from the catalogue if there are not enough mesuments
     ###### On the calculation of all-sky RMS #####
     # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
     # They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
@@ -85,11 +87,11 @@ def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimu
     # The absolute sky error (== Euclidean length of 2-dim error vector) then has a Rayleigh distribution
     # The RMS sky error has a mean value of sqrt(2) * sigma, since each squared error term is the sum of
     # two squared Gaussian random values, each with an expected value of sigma^2.
-    sky_rms = np.sqrt(np.ma.mean(abs_sky_error ** 2))
+    sky_rms = np.sqrt(np.ma.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
     #print abs_sky_error
     # A more robust estimate of the RMS sky error is obtained via the median of the Rayleigh distribution,
     # which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
-    robust_sky_rms = np.ma.median(abs_sky_error) * np.sqrt(2. / np.log(4.))
+    robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
     text.append("Dataset:%s  All Sky Reference RMS = %.3f\" (robust %.3f\")   (N=%i Data Points) R.T.P.4"  % (offsetdata['dataset'][0],sky_rms, robust_sky_rms,abs_sky_error.count()))
     return text
 
@@ -102,6 +104,10 @@ parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
 parser.add_option('-o', '--output', dest='outfilebase', default='pointing_model_%s' % (now,),
                   help="Base name of output files (*.csv for new pointing model and *_data.csv for residuals, "
                   "default is 'pointing_model_<time>')")
+parser.add_option('--num-samples-limit', default=3,
+                  help="The number of valid offset mesurments needed , in order to have a valid sample." )
+
+
 parser.add_option('--no-plot', default=False ,help="Produce a pdf output")
 # Minimum pointing uncertainty is arbitrarily set to 1e-12 degrees, which corresponds to a maximum error
 # of about 10 nano-arcseconds, as the least-squares solver does not like zero uncertainty
@@ -140,7 +146,7 @@ for filename in args:
     measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
     delta_azimuth_std,delta_elevation_std = deg2rad(offsetdata['delta_azimuth_std']), deg2rad(offsetdata['delta_elevation_std'])
 
-    text1 = referencemetrics(ant,az,el,measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std)
+    text1 = referencemetrics(ant,az,el,measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std,opts.num_samples_limit)
     text += text1
 
 #print new_model.description
