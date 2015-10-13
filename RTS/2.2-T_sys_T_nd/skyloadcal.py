@@ -69,10 +69,15 @@ with verify_and_connect(opts) as kat:
             moon =  katpoint.Target('Moon, special')
             antenna = katpoint.Antenna('ant1, -30:43:17.3, 21:24:38.5, 1038.0, 12.0, 18.4 -8.7 0.0, -0:05:30.6 0 -0:00:03.3 0:02:14.2 0:00:01.6 -0:01:30.6 0:08:42.1, 1.22')  # find some way of getting this from session
             moon.antenna = antenna
-            off1 = katpoint.construct_radec_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
+            off1_azel = katpoint.construct_azel_target(wrap_angle(moon.azel()[0] + np.radians(10) ),moon.azel()[1] )
+            off1_azel.antenna = antenna
+            off1      = katpoint.construct_radec_target(off1_azel.radec()[0],off1_azel.radec()[1])
             off1.antenna = antenna
             off1.name = 'off1'
-            off2 = katpoint.construct_radec_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
+
+            off2_azel = katpoint.construct_azel_target(wrap_angle(moon.azel()[0] - np.radians(10) ),moon.azel()[1] )
+            off2_azel.antenna = antenna
+            off2      = katpoint.construct_radec_target(off2_azel.radec()[0],off2_azel.radec()[1])
             off2.antenna =  antenna 
             off2.name = 'off2'
             sources = katpoint.Catalogue(add_specials=False)
