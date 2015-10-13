@@ -75,10 +75,13 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     pressure = np.mean(interp_sensor(compscan, 'pressure', 950.0)(compscan_times))
     humidity = np.mean(interp_sensor(compscan, 'humidity', 15.0)(compscan_times))
     wind_speed = np.mean(interp_sensor(compscan, 'wind_speed', 0.0)(compscan_times))
-
+    wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(interp_sensor(compscan, 'wind_direction', 0.0)(compscan_times))))) )# Vector Mean
+    sun = katpoint.Target('Sun, special')
     # Calculate pointing offset
     # Obtain middle timestamp of compound scan, where all pointing calculations are done
     middle_time = np.median(compscan_times, axis=None)
+    # work out the sun's angle
+    sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time,antenna=compscan.dataset.antenna)))
     # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
     requested_azel = compscan.target.azel(middle_time)
     # Correct for refraction, which becomes the requested value at input of pointing model
@@ -103,9 +106,9 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
         offset_azel = np.array([np.nan, np.nan])
     # Outputs that are not expected to change if visibility data is perturbed
     fixed_names = 'antenna dataset target timestamp_ut data_unit frequency flux ' \
-                  'temperature pressure humidity wind_speed azimuth elevation beam_expected_width_I'
+                  'temperature pressure humidity wind_speed wind_direction azimuth elevation beam_expected_width_I sun_az sun_el timestamp'
     fixed = list(compscan_key(compscan)) + [compscan.dataset.data_unit, compscan.dataset.freqs[0]] + \
-            [average_flux, temperature, pressure, humidity, wind_speed] + requested_azel.tolist() + [expected_width]
+            [average_flux, temperature, pressure, humidity, wind_speed, wind_direction] + requested_azel.tolist() + [expected_width] + sun_azel.tolist() + [middle_time,]
     # Outputs that are expected to change if visibility data is perturbed
     var_names = 'delta_azimuth delta_elevation'
     variable = offset_azel.tolist()
@@ -199,7 +202,8 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                         '%(beam_width_I_std).7f, %(baseline_height_I).7f, %(baseline_height_I_std).7f, %(refined_I).7f, ' \
                         '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
                         '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
-                        '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f\n'
+                        '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
+                        '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
         output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
         output_data = [output_fields % out for out in reduced_data if out and out['keep']]
         f = file(opts.outfilebase + '.csv', 'w')
@@ -278,7 +282,7 @@ def analyse_point_source_scans(filename, opts):
 
     dataset_name = os.path.splitext(os.path.basename(filename))[0]
     # Default output file names are based on input file name
-    if opts.outfilebase is None:
+    if opts.outfilebase  is None:
         opts.outfilebase = dataset_name + '_' + opts.baseline + '_point_source_scans'
 
     # Set up logging: logging everything (DEBUG & above), both to console and file
