@@ -61,7 +61,7 @@ def spiral(params,indep):
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
 #slowtime redistributes samples on each arm so that start and stop of scan occurs slower within this timerange in seconds
-def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletime=1,kind='uniform',mirrorx=False):
+def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletime=1,kind='uniform',mirrorx=False,num_scans=None,scan_duration=None):
     totextent=np.float(totextent)
     tottime=np.float(tottime)
     sampletime=np.float(sampletime)
@@ -93,6 +93,68 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         narmtheta=narmrad/radextent*np.pi
         armx=narmrad*np.cos(narmtheta)
         army=narmrad*np.sin(narmtheta)
+    elif (kind=='raster' or kind=='rasterx' or kind=='rastery'):
+        c=180.0/(16.0*np.pi)
+        narms=num_scans
+        ntime=int((tottime/num_scans-tracktime*2-slewtime*2.0)/sampletime)
+        armx=np.zeros(ntime)
+        army=np.zeros(ntime)
+        if (slowtime>0.0):
+            repl=np.linspace(0.0,slowtime/sampletime,2+(slowtime)/sampletime)
+            dt=np.float(slowtime)/np.float(sampletime)*np.ones(ntime,dtype='float')
+            dt[:len(repl)-1]=repl[1:]
+            dt[1-len(repl):]=repl[:0:-1]
+            dt=dt/np.sum(dt)
+            sdt=np.float(slowtime)/np.float(sampletime)*np.ones(slewtime/sampletime,dtype='float')
+            sdt[:len(repl)-1]=repl[1:]
+            sdt[1-len(repl):]=repl[:0:-1]
+            sdt=sdt/np.sum(sdt)
+        else:
+            dt=1.0/ntime*np.ones(ntime)
+            sdt=1.0/(slewtime/sampletime)*np.ones(slewtime/sampletime)
+        scan=np.cumsum(dt)
+        scan=((scan-scan[0])/(scan[-1]-scan[0])-0.5)*radextent*2
+        slew=np.cumsum(sdt)
+        slew=((slew-slew[0])/(slew[-1]-slew[0]))*radextent
+        fullscanx=np.r_[np.zeros(int(tracktime/sampletime)),-slew,scan,slew[::-1],np.zeros(int(tracktime/sampletime))]
+        fullscany=np.r_[np.zeros(int(tracktime/sampletime)),slew/radextent,np.ones(len(scan)),slew[::-1]/radextent,np.zeros(int(tracktime/sampletime))]
+        compositex=[[] for ia in range(narms)]
+        compositey=[[] for ia in range(narms)]
+        ncompositex=[[] for ia in range(narms)]
+        ncompositey=[[] for ia in range(narms)]
+        if (kind=='rastery'):
+            for ia,y in enumerate(np.linspace(-radextent,radextent,num_scans)):
+                compositey[ia]=fullscanx
+                compositex[ia]=fullscany*y
+                ncompositey[ia]=fullscanx
+                ncompositex[ia]=fullscany*y
+        else:
+            for ia,y in enumerate(np.linspace(-radextent,radextent,num_scans)):
+                compositex[ia]=fullscanx
+                compositey[ia]=fullscany*y
+                ncompositex[ia]=fullscanx
+                ncompositey[ia]=fullscany*y
+        return compositex,compositey,ncompositex,ncompositey
+    elif (kind=='radial'):
+        c=180.0/(16.0*np.pi)
+        narms=2*int(1.5*(np.sqrt(tottime/c+((tracktime+slewtime)/c)**2)-(tracktime+slewtime)/c))#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+        print 'narms',narms
+        ntime=int((tottime-(tracktime+slewtime)*narms)/(sampletime*narms))
+        armx=np.zeros(ntime)
+        army=np.zeros(ntime)
+        #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
+        #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
+        if (slowtime>0.0):
+            repl=np.linspace(0.0,slowtime/sampletime,2+(slowtime)/sampletime)
+            dt=np.float(slowtime)/np.float(sampletime)*np.ones(ntime,dtype='float')
+            dt[:len(repl)-1]=repl[1:]
+            dt[1-len(repl):]=repl[:0:-1]
+            dt=dt/np.sum(dt)
+        else:
+            dt=1.0/ntime*np.ones(ntime)
+        armx=np.cumsum(dt)
+        maxrad=np.sqrt(armx[-1]**2+army[-1]**2)
+        armx=armx*radextent/maxrad
     else:#'uniform'
         c=180.0/(16.0*np.pi)
         narms=2*int(np.sqrt(tottime/c+((tracktime+slewtime)/c)**2)-(tracktime+slewtime)/c)#ensures even number of arms - then scan pattern ends on target (if odd it will not)
@@ -204,18 +266,23 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                  description='This script performs a holography scan on the specified target. '
                                              'All the antennas initially track the target, whereafter a subset '
                                              'of the antennas (the "scan antennas" specified by the --scan-ants '
-                                             'option) perform a spiral raster scan on the target. Note also some '
+                                             'option) perform a scan on the target. Note also some '
                                              '**required** options below.')
 # Add experiment-specific options
 parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
+parser.add_option('--track-ants', help='Subset of all antennas that will track source (default=all non-scanning antennas)')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
+parser.add_option('--num-scans', type='int', default=None,
+                  help='Number of raster scans or spiral arms in scan pattern. This value is usually automatically determined. (default=%default)')
+parser.add_option('--scan-duration', type='float', default=None,
+                  help='Time in seconds to spend on each scan. This value is usually automatically determined (default=%default)')
 parser.add_option('--cycle-duration', type='float', default=300.0,
                   help='Time to spend measuring beam pattern per cycle, in seconds (default=%default)')
 parser.add_option('-l', '--scan-extent', type='float', default=4.0,
                   help='Diameter of beam pattern to measure, in degrees (default=%default)')
 parser.add_option('--kind', type='string', default='uniform',
-                  help='Kind of spiral, could be "uniform" or "dense-core" (default=%default)')
+                  help='Kind of spiral, could be "radial", "raster", "uniform" or "dense-core" (default=%default)')
 parser.add_option('--tracktime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
 parser.add_option('--slewtime', type='float', default=1.0,
@@ -224,8 +291,10 @@ parser.add_option('--slowtime', type='float', default=1.0,
                   help='Time in seconds to slow down at start and end of each spiral arm (default=%default)')
 parser.add_option('--sampletime', type='float', default=1.0,
                   help='time in seconds to spend on pointing (default=%default)')
-parser.add_option('--prepopulatetime', type='float', default=30.0,
+parser.add_option('--prepopulatetime', type='float', default=20.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
+parser.add_option('--slew-to-target-time', type='float', default=60.0,
+                  help='time in seconds to allow antennas to slew to target initially (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
@@ -235,7 +304,7 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx)
+compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration)
 
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "
@@ -272,8 +341,9 @@ with verify_and_connect(opts) as kat:
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
-        # Assign rest of antennas to tracking antenna subarray
-        track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
+        # Assign rest of antennas to tracking antenna subarray (or use given antennas)
+        track_ants = opts.track_ants if opts.track_ants else [ant for ant in all_ants if ant not in scan_ants]
+        track_ants = ant_array(kat, track_ants, 'track_ants')
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
@@ -303,15 +373,17 @@ with verify_and_connect(opts) as kat:
             track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
             session.ants = all_ants
             #get both antennas to target ASAP
-            session.ants = scan_ants
+            session.ants = scan_ants            
             target.antenna = scan_observer
-            scan_track = gen_track(np.arange(opts.prepopulatetime)+time.time(),target)
+            scan_track = gen_track(np.arange(opts.slew_to_target_time)+time.time(),target)
             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
             session.ants = track_ants
             target.antenna = track_observer
             scan_track = gen_track(scan_track[:,0],target)
             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-            lasttime=time.time()+opts.prepopulatetime
+            scan_data=scan_track
+            time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
+            lasttime = scan_data[-1,0]
             for iarm in range(len(cx)):#spiral arm index
                 user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
                 session.ants = scan_ants
