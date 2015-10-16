@@ -56,6 +56,9 @@ with verify_and_connect(opts) as kat:
     # Find out what inputs are curremtly active
     reply = kat.dbe7.req.dbe_label_input()
     inputs = [m.arguments[0] for m in reply.messages[3:]]
+    user_logger.info("Resetting f-engine gains to 160 to allow phasing up")
+    for inp in inputs:
+       kat.dbe7.req.dbe_k7_gain(inp,160)
 
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -107,6 +110,7 @@ with verify_and_connect(opts) as kat:
                             gains = bpass_h[inp[:-1]]
                         gains = np.hstack((np.zeros(1),gains))
                         weights = getattr(kat.dbe7.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_stored_history()[1][-1]
+			# added print statement - weigths empty?
                         update = getattr(kat.dbe7.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_stored_history()[0][-1]
                         print katpoint.Timestamp(update).local()
                         f = StringIO.StringIO(weights)
@@ -114,6 +118,8 @@ with verify_and_connect(opts) as kat:
                         amp_weights = np.abs(orig_weights)
                         phase_weights = orig_weights / amp_weights
                         ind = np.repeat(False,1024)
+                        # here is where you hack things to get "fuller" band
+                        #ind[slice(10,1000)]=True # this will not work! but do not have time to repair that
                         ind[slice(200,800)]=True
                         gains[~ind] = 160.0
                         N = phase_weights[ind].shape[0]
