@@ -104,7 +104,8 @@ with verify_and_connect(opts) as kat:
                     # get and set the weights
                     for inp in inputs:
                         if inp[:-1] not in obs_ants : continue
-                        if inp[-1] == 'v':
+                        pol = inp[-1]
+                        if pol == 'v':
                             gains = bpass_v[inp[:-1]]
                         else:
                             gains = bpass_h[inp[:-1]]
@@ -133,8 +134,10 @@ with verify_and_connect(opts) as kat:
                         kat.dbe7.req.dbe_k7_gain(inp,weights_str)
                         #because we are phasing in the f-engine set the b-engine weights to 1
                         bf_weights_str = ' '.join(1024 * ['1'])
-                        for beam in ['bf0','bf1']:
-                            kat.dbe7.req.dbe_k7_beam_weights(beam,inp,bf_weights_str)
+                        if pol == 'v':
+                            kat.dbe7.req.dbe_k7_beam_weights('bf1',inp,bf_weights_str)
+                        else:
+                            kat.dbe7.req.dbe_k7_beam_weights('bf0',inp,bf_weights_str)
                     user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
                     session.track(target, duration=60, announce=False)
                 keep_going = False
