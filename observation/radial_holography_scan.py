@@ -119,3 +119,4 @@ with verify_and_connect(opts) as kat:
                 
                 targets_observed.append(target.name)
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+        session.ants.req.mode('STOP')#necessary hack for now
