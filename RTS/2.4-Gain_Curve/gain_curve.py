@@ -364,7 +364,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
 
-    fig.subplots_adjust(hspace=0.0, bottom=0.2)
+    fig.subplots_adjust(hspace=0.0, bottom=0.2, right=0.8)
     plt.suptitle(obs_details)
     
     #Plot the gain vs elevation for each target
@@ -406,7 +406,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     title += ' ' + '%.0f MHz'%(data['frequency'][0])
     title += ' ' + '%s conditions'%(condition)
     plt.title(title)
-    legend = plt.legend(loc='best')
+    legend = plt.legend(bbox_to_anchor=(1.3, 0.7))
     plt.setp(legend.get_texts(), fontsize='small')
 
     # Only do derived plots if units were in Kelvin
