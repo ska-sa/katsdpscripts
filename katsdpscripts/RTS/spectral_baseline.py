@@ -128,6 +128,10 @@ def getbackground_spline(data,spike_width):
         residual = y-thisfitted_data
         this_std = np.ma.std(residual)
 
+        #Mask the whole array if spline fit has failed.
+        if np.all(np.isnan(thisfitted_data)):
+            this_std=0.0
+
         # Reject data more than 5sigma from the residual. 
         flags = residual > 5*this_std
 
@@ -303,7 +307,8 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     elif correct=='spline':
         #Knots will have to satisfy Schoenberg-Whitney conditions for spline else revert to straight mean of channels
         try:
-            corr_vis = np.ma.masked_array([data - getbackground_spline(data, 3) for data in visdata],mask=visdata.mask)
+            corr_vis = np.ma.masked_invalid(np.ma.masked_array([data - getbackground_spline(data, 3) for data in visdata],mask=visdata.mask,fill_value=0.0))
+            #Fill masked values with zero (these will not contribute to the average - and deals with nans returned from the spline fit creeping into the average)
         except ValueError:
             corr_vis = correct_by_mean(visdata,axis="Channel")
             corr_vis = correct_by_mean(corr_vis,axis="Time")
@@ -346,7 +351,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     av_visdata = averager.average_visibilities(visdata.data, weightdata, visdata.mask, h5data.timestamps, h5data.channel_freqs, timeav=len(h5data.timestamps), chanav=chanav)
 
     #Average the background subtracted data in dumpav times and chanav channels
-    av_corr_vis = averager.average_visibilities(corr_vis.data, weightdata, corr_vis.mask, h5data.timestamps, h5data.channel_freqs, timeav=dumpav, chanav=chanav)
+    av_corr_vis = averager.average_visibilities(corr_vis.filled(), weightdata, corr_vis.mask, h5data.timestamps, h5data.channel_freqs, timeav=dumpav, chanav=chanav)
 
     #Get the averaged weights and channel frequencies
     av_weightdata = av_corr_vis[1]
