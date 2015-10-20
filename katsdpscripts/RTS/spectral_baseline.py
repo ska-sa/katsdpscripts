@@ -307,9 +307,13 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
     elif correct=='spline':
         #Knots will have to satisfy Schoenberg-Whitney conditions for spline else revert to straight mean of channels
         try:
+            print "Fitting background using splines."
             corr_vis = np.ma.masked_invalid(np.ma.masked_array([data - getbackground_spline(data, 3) for data in visdata],mask=visdata.mask,fill_value=0.0))
             #Fill masked values with zero (these will not contribute to the average - and deals with nans returned from the spline fit creeping into the average)
+            removed_dumps=np.all(corr_vis.mask,axis=1)
+            print np.sum(removed_dumps),"out of",len(removed_dumps),"dumps have been rejected during spline fitting."
         except ValueError:
+            print "Spline fitting failed- using mean deviation instead."
             corr_vis = correct_by_mean(visdata,axis="Channel")
             corr_vis = correct_by_mean(corr_vis,axis="Time")
 
@@ -320,7 +324,6 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='I',baseline=None,ta
         print "Time averaging interval of %4.1fmin is longer than the observation length. No time averaging will be applied."%(timeav)
         timeav = dumpav*(h5data.dump_period/60.0)
     print "Averaging time to %3d x %4.1fmin (%d dump) intervals."%(len(h5data.timestamps)//dumpav,timeav,dumpav)
-
 
     # Secect desired channel range
     # Select frequency channels and setup defaults if not specified
