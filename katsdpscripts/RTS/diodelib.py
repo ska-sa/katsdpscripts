@@ -36,21 +36,20 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     if not(Ku): 
         fig1 = plt.figure(1,figsize = (20,5))
     fig2 = plt.figure(2,figsize = (20,5))
-    rx_serial = str(4)
-    rx_band = 'l'
     for pol in pols:
         for a,col in zip(ants,colour):    
             ant = a.name
             ant_num = int(ant[3])
+            
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
-                diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_band+'.'+rx_serial+'.'+pol+'.csv'
+                diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+h5.receivers[ant]+'.'+pol+'.csv'
                 nd = scape.gaincal.NoiseDiodeModel(diode_filename)
             
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
             #cold data
-            h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = 'OFF',scans='track')
+            h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = 'off1',scans='track')
             freq = h5.channel_freqs
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
@@ -112,7 +111,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if not(Ku):
                 plt.figure(1)
                 plt.subplot(n_ants,2,p)
-                plt.ylim(10,25)
+                plt.ylim(14,27)
                 plt.ylabel('T_ND [K]')
                 plt.xlim(900,1670)
                 plt.xlabel('f [MHz]')
@@ -152,21 +151,21 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         plt.subplot(n_ants,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Coupler Diode: H pol: '+file_base)
+        plt.title('Coupler Diode: V pol: '+file_base)
         plt.subplot(n_ants,2,2)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Coupler Diode: V pol: '+file_base)
+        plt.title('Coupler Diode: H pol: '+file_base)
 
     plt.figure(2)
     plt.subplot(n_ants,2,1)
     ax = plt.gca()
     ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-    plt.title('Tsys/eta_A: H pol: '+file_base)
+    plt.title('Tsys/eta_A: V pol: '+file_base)
     plt.subplot(n_ants,2,2)
     ax = plt.gca()
     ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-    plt.title('Tsys/eta_A: V pol: '+file_base)
+    plt.title('Tsys/eta_A: H pol: '+file_base)
     if pdf:
         if not(Ku):
             fig1.savefig(pp,format='pdf')
@@ -174,6 +173,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         fig2.savefig(pp,format='pdf')
         plt.close(fig2)
         pp.close() # close the pdf file
+
 
 
 # test main method for the library
