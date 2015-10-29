@@ -133,8 +133,11 @@ def extract_cal_dataset(dataset):
 
 def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True,keep_all=True, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
+    dataset = scape.DataSet(None, [dataset.compscans[compscan_index]], dataset.experiment_id, dataset.observer,
+                       dataset.description, dataset.data_unit, dataset.corrconf,
+                       dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
     scan_dataset = dataset.select(labelkeep='scan', copy=False)
-    compscan = scan_dataset.compscans[compscan_index]
+    compscan = scan_dataset.compscans[0]
     if kwargs.has_key('logger'):
         kwargs['logger'].info("==== Processing compound scan %d of %d: '%s' ====" % (compscan_index + 1, len(scan_dataset.compscans),
                                                                        ' '.join(compscan_key(compscan)),))
