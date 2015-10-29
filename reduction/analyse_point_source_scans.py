@@ -35,6 +35,8 @@ parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
 parser.add_option("-u", "--ku-band", action="store_true", help="Force center frequency to be 12500.5 MHz")
 parser.add_option("--old-loader", action="store_true", help="Use old SCAPE loader to open HDF5 file instead of katfile")
+parser.add_option("--keep-all", action="store_true", help="Keep all the results if there is a beam that has been fitted")
+
 (opts, args) = parser.parse_args()
 
 if len(args) != 1 or not args[0].endswith('.h5'):
