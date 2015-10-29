@@ -61,7 +61,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     # Fit the requested beams and extract beam/baseline parameters
     beams = []
     for pol in beam_pols:
-        compscan.fit_beam_and_baselines('abs' + pol)
+        compscan.fit_beam_and_baselines(pol='abs' + pol)
         bh = compscan.baseline_height()
         if bh is None:
             bh = np.nan
@@ -131,7 +131,7 @@ def extract_cal_dataset(dataset):
                          dataset.description, dataset.data_unit, dataset.corrconf.select(copy=True),
                          dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
 
-def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True, **kwargs):
+def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True,keep_all=True, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
     scan_dataset = dataset.select(labelkeep='scan', copy=False)
     compscan = scan_dataset.compscans[compscan_index]
@@ -163,7 +163,8 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
     var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
-    keep = batch and main_compscan.beam and main_compscan.beam.is_valid
+    keep = batch and main_compscan.beam and (keep_all or main_compscan.beam.is_valid)
+    print("keep_all=%s,main_compscan.beam.is_valid=%s , keep=%s "%(keep_all,main_compscan.beam.is_valid,keep) )
     output_dict = {'keep' : keep, 'compscan' : main_compscan, 'unavg_dataset' : unavg_compscan_dataset}
     output_dict.update(fixed)
     output_dict.update(var_mean)
@@ -225,7 +226,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
     if not reduced_data[current_compscan]:
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan] = reduce_compscan_with_uncertainty(dataset, current_compscan,
-                                                                              opts.mc_iterations, opts.batch, **kwargs)
+                                                                              opts.mc_iterations, opts.batch,keep_all =opts.keep_all, **kwargs)
 
     # Display compound scan
     if fig:
@@ -272,7 +273,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
     if (current_compscan < len(reduced_data) - 1) and not reduced_data[current_compscan + 1]:
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan + 1] = reduce_compscan_with_uncertainty(dataset, current_compscan + 1,
-                                                                                  opts.mc_iterations, opts.batch, **kwargs)
+                                                                                  opts.mc_iterations, opts.batch,opts.keep_all, **kwargs)
 
 def analyse_point_source_scans(filename, opts):
     # Produce canonical version of baseline string (remove duplicate antennas)
@@ -369,7 +370,7 @@ def analyse_point_source_scans(filename, opts):
         dataset.antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
 
     # Remove any noise diode models if the ku band option is set and flag for spikes
-    if opts.ku_band:
+    if opts.ku_band :
         dataset.nd_h_model=None
         dataset.nd_v_model=None
         for i in range(len(dataset.scans)):
@@ -495,13 +496,13 @@ def analyse_point_source_scans(filename, opts):
 
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd', 
         mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, 
-        ku_band=False, channel_mask=None):
+        ku_band=False, channel_mask=None,keep_all=None):
 
     class FakeOptsForBatch(object):
         batch = True #always batch
         plot_spectrum = False #never plot
         def __init__(self, outfilebase, keepfilename, baseline, 
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask):
+                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all):
             self.outfilebase=outfilebase
             self.keepfilename=keepfilename
             self.baseline=baseline
@@ -513,10 +514,12 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
             self.nd_models=nd_models
             self.ku_band=ku_band
             self.channel_mask=channel_mask
+            self.channel_mask=channel_mask
+            self.keep_all=keep_all
 
     fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
     mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
-    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask)
+    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
     
     return dataset_antenna, output_data
