@@ -5,11 +5,11 @@ from katsdpscripts.RTS import spectral_baseline
 
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <file>")
-    parser.add_option("-p", "--polarisation", type="string", default="I", help="Polarisation to produce spectrum, options are I, HH, VV, HV, VH. Default is I.")
+    parser.add_option("-p", "--polarisation", type="string", default="HH,VV", help="List of polarisation to produce spectra of, options are I, HH, VV, HV, VH. Default is I.")
     parser.add_option("-b", "--baseline", type="string", default=None, help="Baseline to load (e.g. 'ant1,ant1' for antenna 1 auto-corr), default is first single-dish baseline in file.")
     parser.add_option("-t", "--target", type="string", default=None, help="Target to plot spectrum of, default is the first target in the file.")
-    parser.add_option("-c", "--freqaverage", type="float", default=10.0, help="Frequency averaging interval in MHz. Default is 10 MHz.")
-    parser.add_option("-d", "--timeaverage", type="float", default=5.0, help="Time averageing interval in minutes. Default is 5 minutes.")
+    parser.add_option("-c", "--freqaverage", type="float", default=1.0, help="Frequency averaging interval in MHz. Default is 1 MHz.")
+    parser.add_option("-d", "--timeaverage", type="float", default=60.0, help="Time averageing interval in minutes. Default is 60 minutes.")
     parser.add_option("-f", "--freq-chans", help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.")
     parser.add_option("--correct", default='spline', help="Method to use to correct the spectrum in each average timestamp. Options are 'spline' - fit a cubic spline,'channels' - use the average at each channel Default: 'spline'")
     parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
