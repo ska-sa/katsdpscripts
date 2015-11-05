@@ -30,7 +30,6 @@ parser.add_option('-m','--max-duration', type='float', default=3600,
                   help='Minimum duration of obsevation (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
-parser.add_option('--tracking-target', help='Override target on tracking antennas')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan', nd_params='off')
 # Parse the command line
@@ -89,16 +88,9 @@ with verify_and_connect(opts) as kat:
                 session.label('holo')
                 user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
                                  % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
-                if opts.tracking_target:
-                    user_logger.info("Overriding target on tracking antennas with %r" % (opts.tracking_target,))
-                tracking_target = opts.tracking_target if opts.tracking_target else target
                 user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                 # Slew all antennas onto the target (don't spend any more time on it though)
-                session.ants = scan_ants
                 session.track(target, duration=0, announce=False)
-                session.ants = track_ants
-                session.track(tracking_target, duration=0, announce=False)
-                session.ants = all_ants
                 # Provide opportunity for noise diode to fire on all antennas
                 session.fire_noise_diode(announce=False, **nd_params)
                 # Perform multiple scans across the target at various angles with the scan antennas only
@@ -112,7 +104,7 @@ with verify_and_connect(opts) as kat:
                     # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
                     session.ants = track_ants
                     user_logger.info("Using track antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                    session.track(tracking_target, duration=0, announce=False)
+                    session.track(target, duration=0, announce=False)
                     # Provide opportunity for noise diode to fire on all antennas
                     session.ants = all_ants
                     user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
