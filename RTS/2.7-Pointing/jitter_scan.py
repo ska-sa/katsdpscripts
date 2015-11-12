@@ -85,7 +85,11 @@ with verify_and_connect(opts) as kat:
 
             session.standard_setup(**vars(opts))
             session.capture_start()
-            for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):    
+            time_start = time.time()
+            for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):   
+                if time.time() - time_start  > opts.max_duration :
+                    user_logger.info("Maximum duration of '%s' s reached "%(opts.max_duration))
+                    break 
                 for offset_y in np.linspace(-opts.max_extent,opts.max_extent,opts.number_of_steps):           
                     session.label('raster')
                     user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
