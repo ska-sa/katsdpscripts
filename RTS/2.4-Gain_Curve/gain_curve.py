@@ -280,7 +280,7 @@ def select_environment(data, antenna, condition="normal"):
     return good
 
 
-
+##This is probably not necessary - use weather data to calculate tau.
 def fit_atmospheric_absorption(gain, elevation):
     """ Fit an elevation dependent atmospheric absorption model.
         Model is G=G_0*exp(-tau*airmass)
@@ -297,7 +297,7 @@ def fit_atmospheric_absorption(gain, elevation):
 
 def fit_atmospheric_emission(tsys, elevation, tau):
     """ Fit an elevation dependent atmospheric emission model.
-
+        Can also derive system temperature from this.
     """
     #Airmass increases as inverse sine of the elevation    
     airmass = 1/np.sin(elevation)
@@ -364,7 +364,7 @@ def calc_atmospheric_opacity(T, RH, P, h, f):
 
 
 
-def make_result_report(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=None, SEFD=None, T_atm=None, T_rec=None):
+def make_result_report_L_band(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=None, SEFD=None, T_atm=None, T_rec=None):
     """ Generate a pdf report containing relevant results
         and a txt file with the plotting data.
     """
@@ -389,8 +389,6 @@ def make_result_report(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=
     fig.subplots_adjust(hspace=0.0, bottom=0.2, right=0.8)
     plt.suptitle(obs_details)
     
-    norm_gain = list()
-    norm_elev = list()
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(511)
 
@@ -405,8 +403,6 @@ def make_result_report(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=
             if fit[0]<0.0:
                 print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
                 g90=max(fit_gain)
-            norm_gain.append(plot_gain)
-            norm_elev.append(plot_elevation)
             plot_gain = gain[good & targetmask[targ]]/g90
             plot_elevation = data['elevation'][good & targetmask[targ]]
             plt.errorbar(x=plot_elevation, y=plot_gain, yerr=gain_err[good & targetmask[targ]], fmt='.', label=targ)
@@ -419,7 +415,6 @@ def make_result_report(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=
 
     
     #Plot the model curve for the gains if units are K
- ###remove this   
     if opts.units!="counts":
         fit_gain = g_0*np.exp(-tau/np.sin(np.radians(fit_elev)))
         plt.plot(fit_elev, fit_gain, 'k-')
@@ -437,6 +432,7 @@ def make_result_report(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=
     plt.title(title)
     legend = plt.legend(bbox_to_anchor=(1.3, 0.7))
     plt.setp(legend.get_texts(), fontsize='small')
+    plt.grid()
 
     # Only do derived plots if units were in Kelvin
     if opts.units!="counts":
@@ -488,6 +484,103 @@ def make_result_report(data, good, opts, pdf, gain, gain_err, e, g_0, tau, Tsys=
     plt.figtext(0.89, 0.09, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pdf,format='pdf')
     plt.close(fig)
+
+def scale_gain(g, nu_0, nu, el):
+    """ 
+    Scale gain to higher frequency using scaling law of Ruze equation
+    Returns predicted gain over elevation range for plotting purposes,
+    and predicted gain at 15 and 90 degree elevation per SE requirement
+    """
+    scale = (nu**2/nu_0**2)-1
+    return (g(el)**scale)*g(el), (g(15)**scale)*g(15), (g(90)**scale)*g(90)
+
+def make_result_report_ku_band(gain, gain_err, tau):
+    """
+       No noise diode present at ku-band.  
+       Gains will always have to be normalised.  
+       We are interested in the relative gain change between 15 to 90 degrees elevation
+    
+    """
+    #Set up list of separate targets for plotting
+    #if opts.targets:
+     #   targets = opts.targets.split(',')
+    if opts['targets']:
+        targets = opts['targets'][0].split(',')
+    else:
+        #Plot all targets 
+        targets = list(set(data['target']))
+    #Separate masks for each target to plot separately
+    targetmask={}
+    for targ in targets:
+        targetmask[targ] = np.array([test_targ==targ.strip() for test_targ in data['target']])
+
+    #Set up range of elevations for plotting fits
+    fit_elev = np.linspace(5, 90, 85, endpoint=False)
+    
+    obs_details = data['timestamp_ut'][0] + ', ' + data['dataset'][0]+'.h5'
+    #Set up the figure
+    fig = plt.figure(figsize=(8.3,11.7))
+
+    fig.subplots_adjust(hspace=0.0, bottom=0.2, right=0.8)
+    plt.suptitle(obs_details)
+    
+    #Plot the gain vs elevation for each target
+    ax1 = plt.subplot(511)
+    #get ready to collect normalised gains for each target.
+    norm_gain = list()
+    norm_elev = list()
+    for targ in targets:
+        # Normalise the data by fit of line to it
+        if not opts['no_normalise_gain']:
+            use_elev = data['elevation']>opts['min_elevation']
+            fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
+            fit_gain = gain[good & targetmask[targ] & use_elev]
+            fit=np.polyfit(fit_elev, fit_gain, 1)
+            g90=fit[0]*90.0 + fit[1]
+            if fit[0]<0.0:
+                print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
+                g90=max(fit_gain)
+            plot_gain = gain[good & targetmask[targ]]/g90
+            plot_elevation = data['elevation'][good & targetmask[targ]]
+            plt.errorbar(x=plot_elevation, y=plot_gain, yerr=gain_err[good & targetmask[targ]], fmt='.', label=targ)
+            norm_gain.append(plot_gain)
+            norm_elev.append(plot_elevation)
+    plt.ylabel('Normalised gain')
+    plt.xlabel('Elevation (deg)')
+    norm_gain = np.hstack(norm_gain)
+    norm_elev = np.hstack(norm_elev)
+    
+    g = np.poly1d(np.polyfit(norm_elev, norm_gain, 1))
+    fit_elev = np.linspace(20, 90, 85, endpoint=False)
+    plt.plot(fit_elev, g(fit_elev), label='12.5 GHz fit')
+
+    #Get a title string
+    if opts['condition_select'] not in ['ideal','optimum','normal']:
+        condition = 'all'
+    else: 
+        condition = opts['condition_select']
+    title = 'Gain Curve, '
+    title += antenna.name + ','
+    title += ' ' + opts['polarisation'] + ' polarisation,'
+    title += ' ' + '%.0f MHz'%(data['frequency'][0])
+    title += ' ' + '%s conditions'%(condition)
+    plt.title(title)
+    plt.grid()
+    
+    nu = 14.5e9
+    nu_0 = 12.5e9
+    g14, g14_15, g14_90 = scale_gain(g, nu_0, nu, fit_elev)
+    loss_12 = (g_m062(90) - g_m062(15))/g_m062(90)*100
+    loss_14 = (g14_90 - g14_15)/g14_90*100
+    
+    plt.plot(fit_elev, g14, label = 'scaled 14.5 GHz')
+    legend = plt.legend(bbox_to_anchor=(1.14, 0.7))
+    plt.setp(legend.get_texts(), fontsize='small')
+    outputtext = 'Relative loss in gain at 12.5 GHz is %.2f %%\n'%loss_12
+    outputtext +='Relative loss in gain at 14.5 GHz is %.2f %%'%loss_14
+    plt.figtext(0.1,0.55, outputtext,fontsize=11)
+    plt.figtext(0.89, 0.5, git_info(), horizontalalignment='right',fontsize=10)
+
 
 #get the command line arguments
 opts, filename = parse_arguments()
@@ -558,15 +651,12 @@ for opts.polarisation in pol:
     gain = gain/(np.exp(-tau/np.sin(el)))
     gain_err = gain_err/(np.exp(-tau/np.sin(el)))
 
-    if opts.units=="K":
-        T_atm, T_rec = None, None
         # Fit T_atm and T_rec using atmospheric emission model for single dish case
 #########Is this still necessary??
-        T_atm, T_rec = fit_atmospheric_emission(Tsys[good],el[good],tau)
-    #estimate apperture efficiency
     if opts.units=="K":
-        e = gain*2761/(np.pi*(antenna.diameter/2.0)**2))*100
+        T_atm, T_rec = None, None
 
+        T_atm, T_rec = fit_atmospheric_emission(Tsys[good],el[good],tau)
 
     # Make a report describing the results (no Tsys data if interferometric)
     make_result_report(data, good, opts, pdf, gain, e, g_0, tau, 
