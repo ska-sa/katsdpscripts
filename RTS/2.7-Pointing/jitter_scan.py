@@ -15,6 +15,11 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=20.0,
                   help='Length of time to track each source, in seconds (default=%default)')
+parser.add_option( '--scan-duration', type='float', default=20.0*7,
+                  help='Length of time to take when scaning each source, in seconds (default=%default)')
+parser.add_option( '--scan-spacing', type='float', default=2./60.,
+                  help='The spacing between each scan  in degrees (default=%default)')
+
 parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
@@ -84,8 +89,8 @@ with verify_and_connect(opts) as kat:
                 for offset_y in np.linspace(-opts.max_extent,opts.max_extent,opts.number_of_steps):           
                     session.label('raster')
                     user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                    session.raster_scan(target, num_scans=7, scan_duration=20, scan_extent=2.0*opts.max_extent,
-                                                scan_spacing=2./60., scan_in_azimuth=not opts.scan_in_elevation,
+                    session.raster_scan(target, num_scans=7, scan_duration=opts.track_duration/7., scan_extent=2.0*opts.max_extent,
+                                                scan_spacing=opts.scan_spacing, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
                     session.label('track')
                     session.set_target(target) # Set the target
