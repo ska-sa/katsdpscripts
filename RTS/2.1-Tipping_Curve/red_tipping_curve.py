@@ -535,7 +535,7 @@ parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-mo
                   help="Name of Dir containing noise diode models models default= %default")
 
 parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
-                  help="Name of Directory containing aperture-efficiencyr models default= %default")
+                  help="Name of Directory containing aperture-efficiency models default= %default")
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
@@ -592,7 +592,7 @@ for ant in h5.ants:
     tant = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     print "Selecting channel data to form %f MHz Channels"%(channel_bw)
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)
-    for j in enumerate(d.freqs):freq_list[j] = d.freqs[j]
+    for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
     
     SpillOver = Spill_Temp(filename=spill_over_models)
     receiver = Rec_Temp(receiver_model_H, receiver_model_V)
