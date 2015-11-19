@@ -33,7 +33,7 @@ def parse_arguments():
     parser.add_option("-o", "--output", dest="outfilebase", type="string", default='./gain_curve',
                   help="Base name of output files (*.png for plots and *.csv for gain curve data)")
     parser.add_option("-p", "--polarisation", type="string", default=None, 
-                  help="Polarisation to analyse, options are HH or VV. Default is all available.")
+                  help="Polarisation to analyse, options are I, HH or VV. Default is all available.")
     parser.add_option("-t", "--targets", default=None, help="Comma separated list of targets to use from the input csv file. Default is all of them.")
     parser.add_option("--tsys_lim", type="float", default=150, help="Limit on calculated Tsys to flag data for atmospheric fits.")
     parser.add_option("--eff_min", type="float", default=35, help="Minimum acceptable calculated aperture efficiency.")
@@ -102,7 +102,6 @@ def compute_gain(data,pol):
     gain : The gains
     """
     gain = data['beam_height_' + pol] / data['flux']
-    
     return gain
 
 
@@ -280,11 +279,13 @@ def select_environment(data, antenna, condition="normal"):
     return good
 
 
-
+##This is probably not necessary - use weather data to calculate tau.
+##
 def fit_atmospheric_absorption(gain, elevation):
     """ Fit an elevation dependent atmospheric absorption model.
         Model is G=G_0*exp(-tau*airmass)
-
+        Assumes atmospheric conditions do no change
+        over the course of the observation.
     """
     #Airmass increases as inverse sine of the elevation    
     airmass = 1/np.sin(elevation)
@@ -297,7 +298,9 @@ def fit_atmospheric_absorption(gain, elevation):
 
 def fit_atmospheric_emission(tsys, elevation, tau):
     """ Fit an elevation dependent atmospheric emission model.
-
+        Can also derive system temperature from this.
+        Assumes atmospheric conditions do not change 
+        over the course of the observation.
     """
     #Airmass increases as inverse sine of the elevation    
     airmass = 1/np.sin(elevation)
@@ -308,41 +311,63 @@ def fit_atmospheric_emission(tsys, elevation, tau):
 
     return tatm, trec
 
-def calc_atmospheric_opacity(T, RH, h, f):
+def calc_atmospheric_opacity(T, RH, P, h, f):
+    """ 
+        Calculates zenith opacity according to ITU-R P.676-9. For elevations > 10 deg.
+        Use as "Tsky*(1-exp(-opacity/sin(el)))" for elevation dependence.
+        T: temperature in deg C
+        RH: relative humidity, 0 < RH < 1
+        P: dry air pressure in hPa (equiv. mbar)
+        h: height above sea level in km
+        f: frequency in GHz (must be < 55 GHz)
+        This function returns the return: approximate atmospheric opacity at zenith [Nepers]
     """
-        Calculates zenith opacity according to NASA's Propagation Effects Handbook
-        for Satellite Systems, chapter VI (Ippolito 1989). For elevations > 10 deg.
-        Multiply by (1-exp(-opacity/sin(el))) for elevation dependence.
-        Taken from katlab.
-        @param T: temperature in deg C
-        @param RH: relative humidity, 0 < RH < 1
-        @param h: height above sea level in km
-        @param f: frequency in GHz (must be < 57 GHz)
-    """
-    T0 = 15 # Reference temp for calculations, deg C
-    # Vapour pressure
-    es = 100 * 6.1121*np.exp((18.678-T0/234.5)*T0/(257.14+T0)) # [Pa], from A. L. Buck research manual 1996 rather than NASA Handbook
-    rw = RH*es/(.461*(T0+273.15)) # [g/m^3]
-    # Basic values
-    yo = (7.19e-3+6.09/(f**2+.227)+4.81/((f-57)**2+1.50))*f**2*1e-3
-    yw = (.067+3/((f-22.3)**2+7.3)+9/((f-183.3)**2+6)+4.3/((f-323.8)**2+10))*f**2*rw*1e-4
-    # yw above is only for rw <= 12 g/m^3. the following alternative is suggested in NASA's handbook
-    if rw>12.0:
-        yw = (.05+0.0021*rw+3.6/((f-22.2)**2+8.5)+10.6/((f-183.3)**2+9)+8.9/((f-325.4)**2+26.3))*f**2*rw*1e-4
-    # Correct for temperature
-    yo = yo*(1-0.01*(T-T0))
-    yw = yw*(1-0.006*(T-T0))
-    # Scale heights
-    ho = 6.
-    hw = (2.2+3/((f-22.3)**2+3)+1/((f-183.3)**2+1)+1/((f-323.8)**2+1))
-    # Attenuation
-    A = yo*ho*np.exp(-h/ho) + yw*hw
+    es = 6.1121*np.exp((18.678-T/234.5)*T/(257.14+T)) # [hPa] from A. L. Buck research manual 1996
+    rho = RH*es*216.7/(T+273.15) # [g/m^3] from A. L. Buck research manual 1996 (ITU-R ommited the factor "RH" - a mistake)
+    
+    # The following is taken directly from ITU-R P.676-9
+    p_tot = P + es # from eq 3
+    
+    rho = rho*np.exp(h/2) # Adjust to sea level as per eq 32
+    
+    # eq 22
+    r_t = 288./(273.+T)
+    r_p = p_tot/1013.
+    phi = lambda a, b, c, d: r_p**a*r_t**b*np.exp(c*(1-r_p)+d*(1-r_t))
+    E_1 = phi(0.0717,-1.8132,0.0156,-1.6515)
+    E_2 = phi(0.5146,-4.6368,-0.1921,-5.7416)
+    E_3 = phi(0.3414,-6.5851,0.2130,-8.5854)
+    # Following is valid only for f <= 54 GHz
+    yo = ( 7.2*r_t**2.8 / (f**2+0.34*r_p**2*r_t**1.6) + 0.62*E_3 / ((54-f)**(1.16*E_1)+0.83*E_2) ) * f**2 * r_p**2 *1e-3
+    # eq 23
+    n_1 = 0.955*r_p*r_t**0.68 + 0.006*rho
+    n_2 = 0.735*r_p*r_t**0.5 + 0.0353*r_t**4*rho
+    g = lambda f, f_i: 1+(f-f_i)**2/(f+f_i)**2
+    yw = (  3.98*n_1*np.exp(2.23*(1-r_t))/((f-22.235)**2+9.42*n_1**2)*g(f,22) + 11.96*n_1*np.exp(0.7*(1-r_t))/((f-183.31)**2+11.14*n_1**2)
+          + 0.081*n_1*np.exp(6.44*(1-r_t))/((f-321.226)**2+6.29*n_1**2) + 3.66*n_1*np.exp(1.6*(1-r_t))/((f-325.153)**2+9.22*n_1**2)
+          + 25.37*n_1*np.exp(1.09*(1-r_t))/(f-380)**2 + 17.4*n_1*np.exp(1.46*(1-r_t))/(f-448)**2
+          + 844.6*n_1*np.exp(0.17*(1-r_t))/(f-557)**2*g(f,557) + 290*n_1*np.exp(0.41*(1-r_t))/(f-752)**2*g(f,752)
+          + 8.3328e4*n_2*np.exp(0.99*(1-r_t))/(f-1780)**2*g(f,1780)
+          ) * f**2*r_t**2.5*rho*1e-4
+    
+    # eq 25
+    t_1 = 4.64/(1+0.066*r_p**-2.3) * np.exp(-((f-59.7)/(2.87+12.4*np.exp(-7.9*r_p)))**2)
+    t_2 = 0.14*np.exp(2.12*r_p) / ((f-118.75)**2+0.031*np.exp(2.2*r_p))
+    t_3 = 0.0114/(1+0.14*r_p**-2.6) * f * (-0.0247+0.0001*f+1.61e-6*f**2) / (1-0.0169*f+4.1e-5*f**2+3.2e-7*f**3)
+    ho = 6.1/(1+0.17*r_p**-1.1)*(1+t_1+t_2+t_3)
+    
+    # eq 26
+    sigma_w = 1.013/(1+np.exp(-8.6*(r_p-0.57)))
+    hw = 1.66*( 1 + 1.39*sigma_w/((f-22.235)**2+2.56*sigma_w) + 3.37*sigma_w/((f-183.31)**2+4.69*sigma_w) + 1.58*sigma_w/((f-325.1)**2+2.89*sigma_w) )
+    
+    # Attenuation from dry & wet atmosphere relative to a point outside of the atmosphere
+    A = yo*ho*np.exp(-h/ho) + yw*hw*np.exp(-h/hw) # [dB] from equations 27, 30 & 31
+    
+    return A*np.log(10)/10.0 # Convert dB to Nepers
 
-    return np.exp(A/10.*np.log(10))-1
 
 
-
-def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD=None, T_atm=None, T_rec=None):
+def make_result_report_L_band(data, good, opts, pdf, gain, e,  Tsys=None, SEFD=None):
     """ Generate a pdf report containing relevant results
         and a txt file with the plotting data.
     """
@@ -386,14 +411,11 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
             plt.plot(plot_elevation, plot_gain, 'o', label=targ)
             # Plot a pass fail line
             plt.axhline(0.95, 0.0, 90.0, ls='--', color='red')
+            plt.axhline(1.05, 0.0, 90.0, ls='--', color='red')
             plt.ylabel('Normalised gain')
         else:
-            plt.plot(data['elevation'][good & targetmask[targ]], gain[good & targetmask[targ]], 'o', label=targ)
+            plt.plot(plot_elevation, plot_gain, 'o', label=targ)
             plt.ylabel('Gain (%s/Jy)'%opts.units)
-    #Plot the model curve for the gains if units are K
-    if opts.units!="counts":
-        fit_gain = g_0*np.exp(-tau/np.sin(np.radians(fit_elev)))
-        plt.plot(fit_elev, fit_gain, 'k-')
 
     #Get a title string
     if opts.condition_select not in ['ideal','optimum','normal']:
@@ -408,6 +430,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     plt.title(title)
     legend = plt.legend(bbox_to_anchor=(1.3, 0.7))
     plt.setp(legend.get_texts(), fontsize='small')
+    plt.grid()
 
     # Only do derived plots if units were in Kelvin
     if opts.units!="counts":
@@ -417,15 +440,17 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
             plt.plot(data['elevation'][good & targetmask[targ]], e[good & targetmask[targ]], 'o', label=targ)
         plt.ylim((opts.eff_min,opts.eff_max))
         plt.ylabel('Ae  %')
+        plt.grid()
 
         #Plot Tsys vs elevation for each target and the fit of the atmosphere
         ax3 = plt.subplot(513, sharex=ax1)
         for targ in targets:
             plt.plot(data['elevation'][good & targetmask[targ]], Tsys[good & targetmask[targ]], 'o', label=targ)
         #Plot the model curve for Tsys
-        fit_Tsys=T_rec + T_atm*(1 - np.exp(-tau/np.sin(np.radians(fit_elev))))
-        plt.plot(fit_elev, fit_Tsys, 'k-')
+        #fit_Tsys=T_rec + T_atm*(1 - np.exp(-tau/np.sin(np.radians(fit_elev))))
+        #plt.plot(fit_elev, fit_Tsys, 'k-')
         plt.ylabel('Tsys (K)')
+        plt.grid()
 
         #Plot SEFD vs elevation for each target
         ax4 = plt.subplot(514, sharex=ax1)
@@ -434,6 +459,7 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
         plt.ylabel('SEFD (Jy)')
         xticklabels = ax1.get_xticklabels()+ax2.get_xticklabels()+ax3.get_xticklabels()
         plt.setp(xticklabels, visible=False)
+        plt.grid()
     
 
     plt.xlabel('Elevation (deg)')
@@ -446,22 +472,117 @@ def make_result_report(data, good, opts, pdf, gain, e, g_0, tau, Tsys=None, SEFD
     outputtext = 'Median Gain (%s/Jy): %1.4f  std: %.4f  (el. > %2.0f deg.)\n'%(opts.units,np.median(gain[good]), np.std(gain[good]), opts.min_elevation)
     if opts.units!="counts":
         outputtext += 'Median Ae (%%):       %2.2f    std: %.2f      (el. > %2.0f deg.)\n'%(np.median(e[good]), np.std(e[good]), opts.min_elevation)
-        outputtext += 'Fit of atmospheric attenuation:  '
-        outputtext += 'G_0 (%s/Jy): %.4f   tau: %.4f\n'%(opts.units,g_0, tau)
     if Tsys is not None:
         outputtext += 'Median T_sys (K):   %1.2f    std: %1.2f      (el. > %2.0f deg.)\n'%(np.median(Tsys[good]),np.std(Tsys[good]),opts.min_elevation)
     if SEFD is not None:
         outputtext += 'Median SEFD (Jy):   %4.1f  std: %4.1f    (el. > %2.0f deg.)\n'%(np.median(SEFD[good]),np.std(SEFD[good]),opts.min_elevation)
-    if (T_rec is not None) and (T_atm is not None):
-        outputtext += 'Fit of atmospheric emission:  '
-        outputtext += 'T_rec (K): %.2f   T_atm (K): %.2f'%(T_rec, T_atm)
     plt.figtext(0.1,0.1, outputtext,fontsize=11)
     plt.figtext(0.89, 0.09, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pdf,format='pdf')
     plt.close(fig)
 
+def scale_gain(g, nu_0, nu, el):
+    """ 
+    Scale gain to higher frequency using scaling law of Ruze equation
+    Returns predicted gain over elevation range for plotting purposes,
+    and predicted gain at 15 and 90 degree elevation per SE requirement
+    """
+    scale = (nu**2/nu_0**2)-1
+    return (g(el)**scale)*g(el), (g(15)**scale)*g(15), (g(90)**scale)*g(90)
+
+def make_result_report_ku_band(gain, tau):
+    """
+       No noise diode present at ku-band.  
+       Gains will always have to be normalised.  
+       We are interested in the relative gain change between 15 to 90 degrees elevation
+    
+    """
+    #Set up list of separate targets for plotting
+    #if opts.targets:
+     #   targets = opts.targets.split(',')
+    if opts.targets:
+        targets = opts.targets[0].split(',')
+    else:
+        #Plot all targets 
+        targets = list(set(data['target']))
+    #Separate masks for each target to plot separately
+    targetmask={}
+    for targ in targets:
+        targetmask[targ] = np.array([test_targ==targ.strip() for test_targ in data['target']])
+
+    #Set up range of elevations for plotting fits
+    fit_elev = np.linspace(5, 90, 85, endpoint=False)
+    
+    obs_details = data['timestamp_ut'][0] + ', ' + data['dataset'][0]+'.h5'
+    #Set up the figure
+    fig = plt.figure(figsize=(8.3,11.7))
+
+    fig.subplots_adjust(hspace=0.0, bottom=0.2)
+    plt.suptitle(obs_details)
+    
+    #Plot the gain vs elevation for each target
+    ax1 = plt.subplot(511)
+    #get ready to collect normalised gains for each target.
+    norm_gain = list()
+    norm_elev = list()
+    for targ in targets:
+        # Normalise the data by fit of line to it
+        if not opts.no_normalise_gain:
+            use_elev = data['elevation']>opts.min_elevation
+            fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
+            fit_gain = gain[good & targetmask[targ] & use_elev]
+            fit=np.polyfit(fit_elev, fit_gain, 1)
+            g90=fit[0]*90.0 + fit[1]
+            if fit[0]<0.0:
+                print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
+                g90=max(fit_gain)
+            plot_gain = gain[good & targetmask[targ]]/g90
+            plot_elevation = data['elevation'][good & targetmask[targ]]
+            plt.plot(plot_elevation, plot_gain, 'o', label=targ)
+            norm_gain.append(plot_gain)
+            norm_elev.append(plot_elevation)
+    plt.ylabel('Normalised gain')
+    plt.xlabel('Elevation (deg)')
+    norm_gain = np.hstack(norm_gain)
+    norm_elev = np.hstack(norm_elev)
+    
+    g = np.poly1d(np.polyfit(norm_elev, norm_gain, 1))
+    fit_elev = np.linspace(20, 90, 85, endpoint=False)
+    plt.plot(fit_elev, g(fit_elev), label='12.5 GHz fit')
+
+    #Get a title string
+    if opts.condition_select not in ['ideal','optimum','normal']:
+        condition = 'all'
+    else: 
+        condition = opts.condition_select
+    title = 'Gain Curve, '
+    title += antenna.name + ','
+    title += ' ' + opts.polarisation + ' polarisation,'
+    title += ' ' + '%.0f MHz'%(data['frequency'][0])
+    title += ' ' + '%s conditions'%(condition)
+    plt.title(title)
+    plt.grid()
+    
+    nu = 14.5e9
+    nu_0 = 12.5e9
+    g14, g14_15, g14_90 = scale_gain(g, nu_0, nu, fit_elev)
+    loss_12 = (g(90) - g(15))/g(90)*100
+    loss_14 = (g14_90 - g14_15)/g14_90*100
+    
+    plt.plot(fit_elev, g14, label = '14.5 GHz fit')
+    legend = plt.legend(bbox_to_anchor=(1, -0.1))
+    plt.setp(legend.get_texts(), fontsize='small')
+    outputtext = 'Relative loss in gain at 12.5 GHz is %.2f %%\n'%loss_12
+    outputtext +='Relative loss in gain at 14.5 GHz is %.2f %%'%loss_14
+    plt.figtext(0.1,0.55, outputtext,fontsize=11)
+    plt.figtext(0.89, 0.5, git_info(), horizontalalignment='right',fontsize=10)
+    fig.savefig(pdf,format='pdf')
+    plt.close(fig)
+
+
 #get the command line arguments
 opts, filename = parse_arguments()
+
 
 #No Channel mask in Ku band.
 if opts.ku_band:
@@ -520,32 +641,18 @@ for opts.polarisation in pol:
     # Obtain desired elevations in radians
     az, el = angle_wrap(katpoint.deg2rad(data['azimuth'])), katpoint.deg2rad(data['elevation'])
 
-    # Get a fit of an atmospheric absorption model if units are in "K", otherwise use weather data to estimate 
-    # opacity for each data point
-    if opts.units=="K":
-        g_0, tau = fit_atmospheric_absorption(gain[good],el[good])
-    else:
-        tau=np.array([])
-        for opacity_info in data:
-            tau=np.append(tau,(calc_atmospheric_opacity(opacity_info['temperature'],opacity_info['humidity']/100, 
-                                            antenna.observer.elevation/1000, opacity_info['frequency']/1000.0)))
-        g_0 = None
-
-    T_atm, T_rec = None, None
-    # Fit T_atm and T_rec using atmospheric emission model for single dish case
-    if opts.units=="K":
-        T_atm, T_rec = fit_atmospheric_emission(Tsys[good],el[good],tau)
-
-    #remove the effect of atmospheric attenuation from the data
-    if opts.correct_atmosphere:
-        if opts.units=="K":
-            e = (gain -  g_0*np.exp(-tau/np.sin(el)) + g_0)*(2761/(np.pi*(antenna.diameter/2.0)**2))*100
-        gain = gain/(np.exp(-tau/np.sin(el)))
-
+    #Correct for atmospheric opacity
+    tau=np.array([])
+    for opacity_info in data:
+        tau = np.append(tau,(calc_atmospheric_opacity(opacity_info['temperature'],opacity_info['humidity']/100, 
+                                    opacity_info['pressure'], antenna.observer.elevation/1000, opacity_info['frequency']/1000.0)))
+    gain = gain/(np.exp(-tau/np.sin(el)))
 
     # Make a report describing the results (no Tsys data if interferometric)
-    make_result_report(data, good, opts, pdf, gain, e, g_0, tau, 
-                    Tsys=Tsys, SEFD=SEFD, T_atm=T_atm, T_rec=T_rec)
+    if opts.ku_band:
+        make_result_report_ku_band(gain, tau)
+    else:
+        make_result_report_L_band(data, good, opts, pdf, gain, e, Tsys, SEFD)
 
     #Write out gain data to file
     output_file = file(output_filename+'_'+opts.polarisation+'.csv',mode='w')
