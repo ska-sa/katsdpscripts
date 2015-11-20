@@ -819,7 +819,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=2.1,width_time=30.0,write_into_input=False,speedup=True,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=2.1,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in static_flags.
 
@@ -873,34 +873,42 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=
     flagger = sumthreshold_flagger(outlier_sigma=4.5,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
 
     for scan, state, target in h5.scans():
-        this_data = np.abs(h5.vis[:])
-        file_flags = h5.flags('detected_rfi')[:]
+        #Take slices through scan if it is too large for memory
+        if h5.shape[0]>max_scan:
+            scan_slices = [slice(i,i+max_scan,1) for i in range(0,h5.shape[0],max_scan)]
+            scan_slices[-1] = slice(scan_slices[-1].start,h5.shape[0],1)
+        else:
+            scan_slices = [slice(0,h5.shape[0])]
+        #loop over slices
+        for this_slice in scan_slices:
+            this_data = np.abs(h5.vis[this_slice,:,:])
+            file_flags = h5.flags('detected_rfi')[this_slice,:,:]
 
-        #Construct a masked array with flags removed
-        mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
-        #Broadcast the channel mask to the same shape as this_flags
-        mask_flags[:] = mask_array
+            #Construct a masked array with flags removed
+            mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
+            #Broadcast the channel mask to the same shape as this_flags
+            mask_flags[:] = mask_array
 
-        #OR the mask flags with the flags already in the h5 file
-        this_flags = file_flags | mask_flags
+            #OR the mask flags with the flags already in the h5 file
+            this_flags = file_flags | mask_flags
 	
-        detected_flags = flagger.get_flags(this_data,this_flags[:],blarray=h5.corr_products,num_cores=cores_to_use)
-        #Flags are 8 bit:
-        #1: 'reserved0' 
-        #2: 'static' 
-        #3: 'cam' 
-        #4: 'reserved3' 
-        #5: 'detected_rfi' 
-        #6: 'predicted_rfi' 
-        #7: 'cal_rfi' 
-        #8: 'reserved7'
-        all_flags = np.zeros(h5.vis.shape+(8,),dtype=np.uint8)
-        all_flags[...,1] = mask_flags
-        all_flags[...,6] = detected_flags
-        all_flags[...,4] = file_flags
+            detected_flags = flagger.get_flags(this_data,this_flags,blarray=h5.corr_products,num_cores=cores_to_use)
+            #Flags are 8 bit:
+            #1: 'reserved0' 
+            #2: 'static' 
+            #3: 'cam' 
+            #4: 'reserved3' 
+            #5: 'detected_rfi' 
+            #6: 'predicted_rfi' 
+            #7: 'cal_rfi' 
+            #8: 'reserved7'
+            all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
+            all_flags[...,1] = mask_flags
+            all_flags[...,6] = detected_flags
+            all_flags[...,4] = file_flags
 
-        all_flags=np.packbits(all_flags,axis=3).squeeze()
-        final_flags[h5.dumps,:,0:h5.vis.shape[-1]]=all_flags
+            all_flags=np.packbits(all_flags,axis=3).squeeze()
+            final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
     if write_into_input:
         h5._flags[:] = final_flags[:]
         h5.file.close()
