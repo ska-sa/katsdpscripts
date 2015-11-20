@@ -1,4 +1,6 @@
 #!/usr/bin/python -W ignore
+import warnings
+warnings.simplefilter('ignore')
 import optparse
 from katsdpscripts.RTS import generate_flag_table, generate_rfi_report
 import os
