@@ -439,7 +439,7 @@ class sumthreshold_flagger():
 
 
     def _sumthreshold(self,input_data,flags,axis,window_bl,sigma):
-        sd_mask = (input_data==0.)&(flags)
+        sd_mask = (input_data==0.)|(flags)
         #Get standard deviations along the axis using MAD
         estm_stdev = 1.4826 * np.ma.median(np.ma.masked_array(np.abs(input_data),mask=sd_mask),axis=axis)
         # Identify initial outliers (again based on normal assumption), and replace them with local median
