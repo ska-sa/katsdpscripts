@@ -278,10 +278,10 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
     debug: make a debug file containing all of the background fits to the dumps
     """
 
+    h5data = katdal.open(input_file)
     #Get Baseline
     if baseline == None:
         baseline = h5data.ants[0].name+','+h5data.ants[0].name
-    h5data = katdal.open(input_file, ref_ant=baseline.split(',')[0])
     #Set up plotting.
     fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
     basename = fileprefix+'_SpecBase_'+baseline.replace(',','')
