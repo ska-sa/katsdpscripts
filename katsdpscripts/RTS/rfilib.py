@@ -724,7 +724,7 @@ def plot_flag_data(label,spectrum,flagfrac,h5data,pdf):
         pol_lookup = np.where(h5data._corrprod_keep)[0]
         h5data.select(ants=ant,pol=pol)
         pol_lookup = np.nonzero(np.where(h5data._corrprod_keep)[0]==pol_lookup)[0][0]
-        inner_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
+        inner_grid = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
         #Plot the spectrum for each target
         ax1 = plt.subplot(inner_grid[0])
         ax1.text(0.01, 0.90,repo_info, horizontalalignment='left',fontsize=10,transform=ax1.transAxes)
@@ -742,21 +742,34 @@ def plot_flag_data(label,spectrum,flagfrac,h5data,pdf):
         plt.plot(freqs,flagfrac[:,pol_lookup],'r-')
         plt.ylim((0.,1.))
         plot_RFI_mask(ax)
-        ticklabels=ax.get_xticklabels()
-        plt.setp(ticklabels,visible=False)
         plt.xlim((min(freqs),max(freqs)))
         plt.ylabel('Fraction flagged')
-        #Plot the waterfall
-        ax = plt.subplot(inner_grid[2],sharex=ax1)
-        plot_waterfall_subsample(h5data.vis,h5data.flags(),freqs,ax)
-
+        #Convert ticks to MHZ
+        ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
+        ax.xaxis.set_major_formatter(ticks)
+        ticklabels = ax.get_yticklabels()
+        plt.setp(ticklabels,visible=False)
+        plt.xlabel('Frequency (Hz)')
     pdf.savefig(fig)
+    for pol in ['HH','VV']:
+        h5data.select(ants=ant,pol=pol)
+        fig=plot_waterfall_subsample(h5data.vis,h5data.flags(),freqs,label+'\n'+pol+' polarisation')
+        pdf.savefig(fig)
     plt.close('all')
 
-def plot_waterfall_subsample(visdata, flagdata, freqs, ax, resolution=300):
+def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300):
     """
     Make a waterfall plot from visdata with flags overplotted. 
     """
+    from git_info import git_info, get_git_path
+
+    repo_path=get_git_path()
+    repo_info = git_info() if repo_path=='' else git_info(repo_path)
+
+    fig = plt.figure(figsize=(8.3,11.7))
+    ax = plt.subplot(111)
+    ax.set_title(label)
+    ax.text(0.01, 0.02,repo_info, horizontalalignment='left',fontsize=10,transform=ax.transAxes)
     display_limits = ax.get_window_extent()
     #300dpi, and one pixel per desired data-point
     #in pixels at 300dpi
@@ -775,8 +788,8 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, ax, resolution=300):
     image = plt.imshow(data,**kwargs)
     image.set_cmap('Greys')
     plt.imshow(plotflags,**kwargs)
-    ampsort = np.sort(data,axis=None)
-    arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
+    ampsort = np.sort(data[(data>0.0) | (~flags)], axis=None)
+    arrayremove = int(len(ampsort)*(1.0 - 0.95)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
@@ -786,8 +799,9 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, ax, resolution=300):
     ax.xaxis.set_major_formatter(ticks)
     ticklabels = ax.get_yticklabels()
     plt.setp(ticklabels,visible=False)
-    plt.ylabel('Time')
+    plt.ylabel('Time $\longrightarrow$')
     plt.xlabel('Frequency (Hz)')
+    return(fig)
 
 
 def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
@@ -807,8 +821,8 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
         plt.imshow(plotflags,**kwargs)
     else: 
         flags=np.zeros_like(data,dtype=np.bool)
-    ampsort=np.sort(data[(data>0.0) & (~flags)],axis=None)
-    arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
+    ampsort=np.sort(data[(data>0.0) | (~flags)],axis=None)
+    arrayremove = int(len(ampsort)*(1.0 - 0.95)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
