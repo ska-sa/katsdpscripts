@@ -143,7 +143,10 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
                                                                        ' '.join(compscan_key(compscan)),))
     # Build data set containing a single compound scan at a time (make copy, as reduction modifies it)
     scan_dataset.compscans = [compscan]
-    compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True)
+    if not dataset.nd_h_model is None and not dataset.nd_v_model is None : # If there are no noisediode models assume that there are no noisediodes
+        compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True)
+    else :
+        compscan_dataset = dataset.select(labelkeep='scan', copy=True)
     cal_dataset = extract_cal_dataset(dataset)
     # Do first reduction run
     main_compscan = compscan_dataset.compscans[0]
