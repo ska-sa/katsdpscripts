@@ -8,6 +8,7 @@ import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import stefcal
 import pandas
+import os
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -229,7 +230,7 @@ def peak2peak(y):
 def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
     """ calculate the Stats needed to evaluate the obsevation"""
     returntext = []
-    gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s')).asfreq(freq='1s')
+    gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))
     #mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
     std = pandas.rolling_apply(gain_ts,windowtime,anglestd,minsamples)    
     peakmin= pandas.rolling_min(gain_ts,windowtime,minsamples)
@@ -275,9 +276,9 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <file>",
                                description=" This produces a pdf file with graphs decribing the gain sability for each antenna in the file")
-parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='200,800',
+parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='211,3896',
                   help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
-
+parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 (opts, args) = parser.parse_args()
 
 if len(args) ==0:
@@ -288,18 +289,15 @@ if len(args) ==0:
 # frequency channels to keep
 start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
-start_freq_channel = 200
-end_freq_channel = 800
-
 
 h5 = katdal.open(args)
-#h5 = katdal.open('1387000585.h5')
-nice_filename =  args[0]+ '_phase_stability'
+fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1])[0])
+nice_filename =  fileprefix+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
     h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
     # loop over both polarisations
-    if np.all(h5.sensor['DBE/auto-delay'] == '0') :
+    if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
         print "Need to do fringe stopping "
         vis = fringe_stopping(h5)
     else:
@@ -330,7 +328,7 @@ for pol in ('h','v'):
     i = 0
     for scan in h5.scans():
         print scan
-        if np.all(h5.sensor['DBE/auto-delay'] == '0') :
+        if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
             print "stopping fringes for size ",h5.shape
             vis = fringe_stopping(h5)
         else:
