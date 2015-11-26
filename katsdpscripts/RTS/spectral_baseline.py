@@ -61,8 +61,8 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
         start_chan = num_channels // 20
         end_chan   = start_chan * 19
     else:
-        start_chan = int(freq_chans.split(',')[0])
-        end_chan = int(freq_chans.split(',')[1])
+        start_chan = int(channels.split(',')[0])
+        end_chan = int(channels.split(',')[1])
     chan_range = range(start_chan,end_chan+1)
     select_data['channels']=chan_range
 
