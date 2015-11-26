@@ -3,6 +3,7 @@ import os
 import numpy as np
 from numpy.ma import MaskedArray
 import scipy.interpolate as interpolate
+import scipy.ndimage as ndimage
 
 import katdal
 from katdal import averager
