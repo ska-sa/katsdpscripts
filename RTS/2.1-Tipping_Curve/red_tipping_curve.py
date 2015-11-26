@@ -9,14 +9,12 @@
 # To run type the following: %run fit_tipping_curve_nad.py -a 'A7A7' -t  /Users/nadeem/Dev/svnScience/KAT-7/comm/scripts/K7_tip_predictions
 # /mrt2/KAT/DATA/Tipping/Ant7/1300572919.h5
 #
-#import sys
+
 import optparse
-#import re
-#import os.path
 import numpy as np
 import matplotlib.pyplot as plt
-#import pyfits
 
+import pickle
 import warnings
 from matplotlib.backends.backend_pdf import PdfPages
 import katdal
@@ -46,6 +44,7 @@ class Sky_temp:
             self.freq_map = hp.sphtfunc.smoothing(gsm.get_freq(nu,path),fwhm=(1.17*(3e8/(nu*1e6))/diameter ) )
         else :
             self.freq_map = gsm.get_freq(nu,path)
+        self.freq_map += 2.725  # CMB tempreture not included in de Oliveira-Costa's GSM
         self.nu = nu
         self.smooth=smooth
 
@@ -111,7 +110,7 @@ class Spill_Temp:
                 freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
                 data_list = np.r_[data_list,datafile[1:,1+x*2]]
 
-            T_H = fit.Delaunay2DScatterFit() 
+            T_H = fit.Delaunay2DScatterFit()
             T_H.fit((90.-elevation_list,freq_list),data_list)
 
             elevation_list = np.array(())
@@ -130,13 +129,13 @@ class Spill_Temp:
             self.spill['HH'] = T_H # The HH and VV is a scape thing
             self.spill['VV'] = T_V
             #print self.spill['HH']((90.-elevation_list,freq_list))
-   
+
         except IOError:
             spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
             spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
             spillover_H[0]= 90-spillover_H[0]
             spillover_V[0]= 90-spillover_V[0]
-            T_H = fit.Delaunay2DScatterFit() 
+            T_H = fit.Delaunay2DScatterFit()
             T_V = fit.Delaunay2DScatterFit()
             T_H.fit(spillover_H[[0,2],:],spillover_H[1,:])
             T_V.fit(spillover_V[[0,2],:],spillover_V[1,:])
@@ -179,7 +178,7 @@ class aperture_efficiency_models:
             a800[1:-1,:] = aperture_eff_v
             a800[-1,:] = [2000,aperture_eff_v[-1,1]]
             aperture_eff_v = a800
-            
+
         except IOError:
             aperture_eff_h = np.array([[800.,2000],[75.,75.]])
             aperture_eff_v = np.array([[800.,2000],[75.,75.]])
@@ -240,7 +239,7 @@ class System_Temp:
         T_skytemp = Sky_temp(nu=freqs)
         T_sky =  T_skytemp.Tsky
         self.units = d.data_unit
-        
+
         self.name = d.antenna.name
         self.filename = d.filename
         self.elevation =  {}
@@ -296,28 +295,58 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
 
-def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0):
+def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,channel_mask='',n_chan = 4096,channel_range=None):
     """ Load the dataset into memory """
     print('Loading noise diode models')
     d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
+    if not channel_range is None :
+        start_freq_channel = int(channel_range.split(',')[0])
+        end_freq_channel = int(channel_range.split(',')[1])
+        edge = np.tile(True, n_chan)
+        edge[slice(start_freq_channel, end_freq_channel)] = False
+    else :
+        edge = np.tile(False, n_chan)
+    #load static flags if pickle file is given
+    if len(channel_mask)>0:
+        pickle_file = open(channel_mask)
+        rfi_static_flags = pickle.load(pickle_file)
+        pickle_file.close()
+    else:
+        rfi_static_flags = np.tile(False, n_chan)
+
+    static_flags = np.logical_or(edge,rfi_static_flags)
+
+    #d = d.select(freqkeep=~static_flags)
+    freq_channel_flagged = []
+    for band in freq_channel:
+        tmp_band = []
+        for channel in band :
+            if not static_flags[channel] : # if not flagged
+                tmp_band.append(channel)
+        #if len(tmp_band) > 0 :
+        freq_channel_flagged.append(tmp_band)
+
     #if not freq_channel is None :
     #    d = d.select(freqkeep=freq_channel)
     #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
     print "Converting to Tempreture"
+    print "Plotting the number of channels in each band of the list of lists freq_channel_flagged will be usefull "
     d = d.convert_power_to_temperature(freq_width=0.0)
     if not d is None:
         d = d.select(flagkeep='~nd_on')
         d = d.select(labelkeep='track', copy=False)
-        d.average(channels_per_band=freq_channel) 
+        d.average(channels_per_band=freq_channel_flagged)
     return d
+
+
 
 def chisq_pear(fit,Tsys):
     fit = np.array(fit)
     return np.sum((Tsys-fit)**2/fit)
 
 def calc_atmospheric_opacity(T, RH, P, h, f):
-    """ 
+    """
         Calculates zenith opacity according to ITU-R P.676-9. For elevations > 10 deg.
         Use as "Tsky*(1-exp(-opacity/sin(el)))" for elevation dependence.
         T: temperature in deg C
@@ -403,7 +432,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     func = know_quant
     fit_func = []
     returntext.append('Not fitting Opacity assuming a value if %f , $T_{ant}$ is the residual of of model data. ' % (tau,))
-    for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]): 
+    for el,t_sys in zip(T_sys.elevation, T_sys.Tsys[pol]):
         fit_func.append(t_sys - func(el))
         #print "T_sys %3.1f - T_other %3.1f " %(t_sys,func(el))
     chisq =0.0# nonsense Vars
@@ -506,10 +535,12 @@ parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-mo
                   help="Name of Dir containing noise diode models models default= %default")
 
 parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
-                  help="Name of Directory containing aperture-efficiencyr models default= %default")
+                  help="Name of Directory containing aperture-efficiency models default= %default")
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
+parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', 
+                  help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 
 (opts, args) = parser.parse_args()
 
@@ -529,9 +560,13 @@ spill_over_models =  opts.spill_over_models
 filename = args[0]
 channel_bw = opts.freq_bw
 freq_bw = opts.freq_bw
+channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
+n_chans = h5.shape[1]
+
 
 fix_opacity = opts.fix_opacity
-if not opts.freq_chans is None: h5.select(channels=slice(opts.freq_chans.split(',')[0],opts.freq_chans.split(',')[1]))
+freq_chans = opts.freq_chans
+
 for ant in h5.ants:
     #Load the data file
 
@@ -540,7 +575,7 @@ for ant in h5.ants:
     nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
     SN = '0004'  # This is read from the file
     Band = 'L'
-    Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default 
+    Band,SN = h5.receivers.get(h5.ants[0].name,'l.4').split('.') # A safe Default
     #"{:0>4d}".format(int(sn))
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
@@ -556,7 +591,9 @@ for ant in h5.ants:
     tsys = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     tant = np.zeros((len(h5.scan_indices),len(chunks),5 ))#*np.NaN
     print "Selecting channel data to form %f MHz Channels"%(channel_bw)
-    d = load_cal(filename, "%s" % (ant.name), nd_models, chunks)
+    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)
+    for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
+
     SpillOver = Spill_Temp(filename=spill_over_models)
     receiver = Rec_Temp(receiver_model_H, receiver_model_V)
     elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
@@ -568,7 +605,7 @@ for ant in h5.ants:
     air_relative_humidity = h5.sensor['Enviro/air_relative_humidity'].mean()/100. # Fractional
     length = 0
     #freq loop
-    for i,chunk in enumerate(chunks):
+    for i,freq_val in enumerate(d.freqs):
         if not d is None:
 
             d.filename = [filename]
@@ -584,8 +621,9 @@ for ant in h5.ants:
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
-            tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+2.725)/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+2.725)/aperture_efficiency.eff['VV'](d.freqs[i])
+            Tsky_spec = 2.725 + 1.6*(d.freqs[i]/1e3)**-2.75 # T_SysTemp.Tsys_sky  is Tsys-(Tsky-cmb) . We then add the spec sky aproxx (T_gal+Tcmb) 
+            tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+Tsky_spec)/aperture_efficiency.eff['HH'](d.freqs[i])
+            tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+Tsky_spec)/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
             tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
             tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
