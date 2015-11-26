@@ -20,7 +20,7 @@ from matplotlib.projections import PolarAxes
 
 import katpoint
 from katpoint import rad2deg, deg2rad, wrap_angle
-
+from katsdpscripts.RTS import git_info,get_git_path
 
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
@@ -433,6 +433,9 @@ def setup_param_button(p):
 param_buttons = [setup_param_button(p) for p in xrange(len(display_params))]
 
 # Add old pointing model and labels
+list_o_names = 'Datasets:'+' ,'.join(np.unique(data['dataset']).tolist() )
+fig.text(0.405, 0.96,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+fig.text(0.905, 0.96,list_o_names, horizontalalignment='right',fontsize=10)
 fig.text(0.053, 0.95, 'OLD', ha='center', va='bottom', size='large')
 fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
