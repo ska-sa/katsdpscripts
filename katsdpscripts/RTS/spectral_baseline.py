@@ -3,6 +3,7 @@ import os
 import numpy as np
 from numpy.ma import MaskedArray
 import scipy.interpolate as interpolate
+import scipy.ndimage as ndimage
 
 import katdal
 from katdal import averager
@@ -27,6 +28,8 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
         A masked array with the visibility data to plot and the frequency array to plot.
     """
 
+    #reset selection
+    data.select()
     #Make selection from dictionary
     select_data={}
     #Antenna
@@ -49,8 +52,20 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
 
     #Only tracks- no slews
     select_data['scans']='track'
-    #reset selection
-    data.select()
+    
+    # Secect desired channel range
+    # Select frequency channels and setup defaults if not specified
+    num_channels = len(data.channels)
+    if channels is None:
+        # Default is drop first and last 5% of the bandpass
+        start_chan = num_channels // 20
+        end_chan   = start_chan * 19
+    else:
+        start_chan = int(channels.split(',')[0])
+        end_chan = int(channels.split(',')[1])
+    chan_range = range(start_chan,end_chan+1)
+    select_data['channels']=chan_range
+
     data.select(strict=False, **select_data)
 
     #Check there is some data left over
@@ -77,65 +92,109 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
     #return the selected data
     return outputvis, weights, data
 
-def getbackground_spline(data,spike_width):
 
-    """ From a 1-d data array determine a background iteratively by fitting a spline
-    and removing data more than a few sigma from the spline """
+class onedbackground():
 
-    y=data[:]
-    arraysize=y.shape[0]
-    x=np.arange(arraysize)
+    def __init__(self, smoothing=3, background_method='spline'):
 
-    # Iterate 2 times
-    for iteration in range(2):
+        self.smoothing = smoothing
+        self.getbackground = getattr(self, '_'+background_method)
 
-        # First iteration fits a linear spline with 3 knots.
-        if iteration==0:
-            npieces=3
-            deg=1
-        # Second iteration fits a cubic spline to every second data point with 10 knots.
-        elif iteration==1:
-            npieces=int(arraysize/3)
-            deg=3
 
-        # Size of each piece of the spline.
-        psize = arraysize/npieces
-        firstindex = arraysize%psize + int(psize/2)
-        indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
-        #remove masked indices
-        indices = [index for index in indices if ~y.mask[index]]
+    def _rolling_window(self, a, window, axis=-1, pad=False, mode='reflect', **kwargs):
+        """
+        This method produces a rolling window shaped data with the rolled data in the last col
+            #Stolen from spassmoor - TM
+            a      :  n-D array of data  
+            window : integer is the window size
+            axis   : integer, axis to move the window over
+                     default is the last axis.
+            pad    : {Boolean} Pad the array to the origanal size
+            mode : {str, function} from the function numpy.pad
+            One of the following string values or a user supplied function.
+            'constant'      Pads with a constant value.
+            'edge'          Pads with the edge values of array.
+            'linear_ramp'   Pads with the linear ramp between end_value and the
+                            array edge value.
+            'maximum'       Pads with the maximum value of all or part of the
+                            vector along each axis.
+            'mean'          Pads with the mean value of all or part of the
+                          con  vector along each axis.
+            'median'        Pads with the median value of all or part of the
+                            vector along each axis.
+            'minimum'       Pads with the minimum value of all or part of the
+                            vector along each axis.
+            'reflect'       Pads with the reflection of the vector mirrored on
+                            the first and last values of the vector along each
+                            axis.
+            'symmetric'     Pads with the reflection of the vector mirrored
+                            along the edge of the array.
+            'wrap'          Pads with the wrap of the vector along the axis.
+                            The first values are used to pad the end and the
+                            end values are used to pad the beginning.
+            <function>      of the form padding_func(vector, iaxis_pad_width, iaxis, **kwargs)
+                            see numpy.pad notes
+            **kwargs are passed to the function numpy.pad
+        
+        Returns:
+            an array with shape = np.array(a.shape+(window,))
+            and the rolled data on the last axis
+        
+        Example:
+            import numpy as np
+            data = np.random.normal(loc=1,scale=np.sin(5*np.pi*np.arange(10000).astype(float)/10000.)+1.1, size=10000)
+            stddata = rolling_window(data, 400).std(axis=-1)
+        """
 
-        # Fit the spline with 0 weights at the mask.
-        thisfit = interpolate.LSQUnivariateSpline(x,y.data,indices,k=deg,w=(~y.mask).astype(np.float))
+        if axis == -1 : axis = len(a.shape)-1 
+        if pad :
+            pad_width = []
+            for i in xrange(len(a.shape)):
+                if i == axis: 
+                    pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
+                else :  
+                    pad_width += [(0,0)] 
+            a = np.pad(a,pad_width=pad_width,mode=mode,**kwargs)
+        a1 = np.swapaxes(a,axis,-1) # Move target axis to last axis in array
+        shape = a1.shape[:-1] + (a1.shape[-1] - window + 1, window)
+        strides = a1.strides + (a1.strides[-1],)
+        return np.lib.stride_tricks.as_strided(a1, shape=shape, strides=strides).swapaxes(-2,axis) # Move original axis to 
 
-        thisfitted_data=np.asarray(thisfit(x),y.dtype)
+    def _spline(self, data):
 
-        # Subtract the fitted spline from the data
-        residual = y-thisfitted_data
-        this_std = np.ma.std(residual)
+        spike_width = self.smoothing
+        x=np.arange(data.shape[0])
+        # Final iteration has knots separated by "spike_width".
+        npieces = int(data.shape[0]/spike_width)
+        psize = (x[-1]+1)/npieces
+        firstindex = int((data.shape[0]%psize))
+        indices = np.trim_zeros(np.arange(firstindex,data.shape[0],psize))
 
-        #Mask the whole array if spline fit has failed.
-        if np.all(np.isnan(thisfitted_data)):
-            this_std=0.0
+        #remove the masked indices
+        indices = [index for index in indices if ~data.mask[index]]
+        # Get the final background.
+        finalfit = interpolate.LSQUnivariateSpline(x,data.data,indices,k=3,w=(~data.mask).astype(np.float))
+        background = np.asarray(finalfit(x),data.dtype)
 
-        # Reject data more than 5sigma from the residual. 
-        flags = residual > 5*this_std
+        return background
 
-        # Mask rejected data
-        y[flags] = np.ma.masked
 
-    # Final iteration has knots separated by "spike_width".
-    npieces = int(y.shape[0]/spike_width)
-    psize = (x[-1]+1)/npieces
-    firstindex = int((y.shape[0]%psize))
-    indices = np.trim_zeros(np.arange(firstindex,arraysize,psize))
-    #remove the masked indices
-    indices = [index for index in indices if ~y.mask[index]]
-    # Get the final background.
-    finalfit = interpolate.LSQUnivariateSpline(x,y,indices,k=3,w=(~y.mask).astype(np.float))
-    thisfitted_data = np.asarray(finalfit(x),y.dtype)
+    def _median(self, data):
 
-    return(thisfitted_data)
+        background = np.ma.median(MaskedArray(self._rolling_window(data.data, self.smoothing,pad=True), \
+                                    mask=self._rolling_window(data.mask, self.smoothing, pad=True,mode='edge')),axis=-1)
+
+        return background.data      
+
+    def _gaussian(self, data):
+
+        mask = np.ones_like(data)
+        mask[data.mask]=0.0
+        sigma = self.smoothing
+        weight = ndimage.gaussian_filter1d(mask,sigma,mode='constant',cval=0.0)
+        background = ndimage.gaussian_filter1d(data.data*mask,sigma,mode='constant',cval=0.0)/weight
+
+        return background
 
 def condition_data(vis,flags,weight,polarisation):
     """
@@ -166,7 +225,6 @@ def condition_data(vis,flags,weight,polarisation):
     visdata = MaskedArray(visdata, mask=flags)
 
     return visdata, flags, weight
-
 
 def correct_by_mean(vis, axis="Time"):
     """
@@ -260,7 +318,7 @@ def plot_std_results(corr_visdata_std,mean_visdata,freqdata,flagdata, baseline, 
     plt.close(fig)
 
 
-def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=None,target=None,freqav=None,timeav=None,freq_chans=None,correct='spline',flags_file=None,debug=False):
+def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=None,target=None,freqav=None,timeav=None,freq_chans=None,correct='spline',flags_file=None,smooth=3):
     """
     Plot the mean and standard deviation of the bandpass amplitude for a given target in a file
 
@@ -297,16 +355,17 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
             corr_vis = correct_by_mean(visdata,axis="Channel")
             corr_vis = correct_by_mean(corr_vis,axis="Time")
         # Correct the background in each time bin by fitting a cubic spline.
-        elif correct=='spline':
+        else:
+            bg = onedbackground(smoothing=smooth,background_method=correct)
             #Knots will have to satisfy Schoenberg-Whitney conditions for spline else revert to straight mean of channels
             try:
-                print "Fitting background using splines."
-                corr_vis = np.ma.masked_invalid(np.ma.masked_array([data - getbackground_spline(data, 3) for data in visdata],mask=visdata.mask,fill_value=0.0))
+                print "Fitting background using "+correct+" smoothing."
+                corr_vis = np.ma.masked_invalid(np.ma.masked_array([data - bg.getbackground(data) for data in visdata],mask=visdata.mask,fill_value=0.0))
                 #Fill masked values with zero (these will not contribute to the average - and deals with nans returned from the spline fit creeping into the average)
                 removed_dumps=np.all(corr_vis.mask,axis=1)
-                print np.sum(removed_dumps),"out of",len(removed_dumps),"dumps have been rejected during spline fitting."
+                print np.sum(removed_dumps),"out of",len(removed_dumps),"dumps have been rejected during fitting."
             except ValueError:
-                print "Spline fitting failed- using mean deviation instead."
+                print "Background fitting failed- using mean deviation instead."
                 corr_vis = correct_by_mean(visdata,axis="Channel")
                 corr_vis = correct_by_mean(corr_vis,axis="Time")
 
@@ -317,22 +376,6 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
             print "Time averaging interval of %4.1fmin is longer than the observation length. No time averaging will be applied."%(timeav)
             timeav = dumpav*(h5data.dump_period/60.0)
         print "Averaging time to %3d x %4.1fmin (%d dump) intervals."%(len(h5data.timestamps)//dumpav,timeav,dumpav)
-
-        # Secect desired channel range
-        # Select frequency channels and setup defaults if not specified
-        num_channels = len(h5data.channels)
-        if freq_chans is None:
-            # Default is drop first and last 10% of the bandpass
-            start_chan = num_channels // 20
-            end_chan   = start_chan * 19
-        else:
-            start_chan = int(freq_chans.split(',')[0])
-            end_chan = int(freq_chans.split(',')[1])
-        chan_range = range(start_chan,end_chan+1)
-        h5data.select(channels=chan_range)
-        corr_vis=corr_vis[:,start_chan:end_chan+1]
-        visdata=visdata[:,start_chan:end_chan+1]
-        weightdata=weightdata[:,start_chan:end_chan+1]
 
         #Get the number of channels to average
         chanav = max(1,int(np.round(freqav*1e6 / h5data.channel_width)))
