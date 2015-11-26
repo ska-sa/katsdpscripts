@@ -104,7 +104,7 @@ offsetdata = data
 
 az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevation'])
 model_delta_az, model_delta_el = ant.pointing_model.offset(az, el)
-measured_delta_az = offsetdata['delta_azimuth'], - model_delta_az # pointing model correction
+measured_delta_az = offsetdata['delta_azimuth'] - model_delta_az # pointing model correction
 measured_delta_el = offsetdata['delta_elevation'] - model_delta_el# pointing model correction
 time_stamps = np.zeros_like(az)
 for i in xrange(len(az)) :
