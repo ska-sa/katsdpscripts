@@ -349,7 +349,7 @@ for pol in ('h','v'):
     
     for i,(ant1,ant2) in  enumerate(h5.corr_products):
         print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
-        returntext,pltfig = calc_stats(h5.timestamps[:],np.angle(data[:,i]) ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1)
+        returntext,pltfig = calc_stats(h5.timestamps[:],np.unwrap(np.angle(data[:,i])) ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1)
         pltfig.savefig(pp,format='pdf') 
         plt.close(pltfig)
         fig = plt.figure(None,figsize = (10,10))
