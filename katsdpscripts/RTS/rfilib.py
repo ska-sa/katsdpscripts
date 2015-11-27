@@ -744,11 +744,10 @@ def plot_flag_data(label,spectrum,flagfrac,h5data,pdf):
         plot_RFI_mask(ax)
         plt.xlim((min(freqs),max(freqs)))
         plt.ylabel('Fraction flagged')
+        ticklabels=ax.get_yticklabels()
         #Convert ticks to MHZ
         ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
         ax.xaxis.set_major_formatter(ticks)
-        ticklabels = ax.get_yticklabels()
-        plt.setp(ticklabels,visible=False)
         plt.xlabel('Frequency (Hz)')
     pdf.savefig(fig)
     for pol in ['HH','VV']:
