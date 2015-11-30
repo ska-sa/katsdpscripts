@@ -9,6 +9,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import stefcal
 import pandas
 import os
+from katsdpscripts.RTS import git_info
+from astropy.time import Time
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -188,8 +190,6 @@ def plot_AntennaGain(gains,freq,inputs):
 
 
 
-
-
 def  fringe_stopping(data):
     new_ants = {
     'ant1' : ('25.0950 -9.0950 0.0450', 23220.506e-9, 23228.551e-9),
@@ -228,10 +228,11 @@ def peak2peak(y):
     return np.degrees(np.ma.ptp(np.ma.angle(np.ma.array(data=np.nan_to_num(y),mask=np.isnan(y)))))
 
 def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
-    """ calculate the Stats needed to evaluate the obsevation"""
+    """ calculate the Stats needed to evaluate the observation"""
     returntext = []
+    #note gain is in radians
     gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))
-    #mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
+    #note std is returned in degrees
     std = pandas.rolling_apply(gain_ts,windowtime,anglestd,minsamples)    
     peakmin= pandas.rolling_min(gain_ts,windowtime,minsamples)
     peakmax= pandas.rolling_max(gain_ts,windowtime,minsamples)
@@ -247,25 +248,33 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f  (req < 3 )"%(windowtime,pol,np.degrees(peak.mean())))
-    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f   (req < 3 )"%(windowtime,pol,np.degrees(peak.max())))
-    returntext.append("The mean variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,np.degrees(std.mean())))
-    returntext.append("The Max  variation over %i seconds of %s is: %.5f    (req < 2.5 )"%(windowtime,pol,np.degrees(std.max())))
-    returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.mean())))
-    returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
+    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,np.degrees(peak.mean())))
+    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,np.degrees(peak.max())))
+    returntext.append("The mean variation over %i seconds of %s is: %.5f    "%(windowtime,pol,std.mean()))
+    returntext.append("The Max  variation over %i seconds of %s is: %.5f    "%(windowtime,pol,std.max()))
+    returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,dtrend_std.mean()))
+    returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,dtrend_std.max()))
     #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
     
     pltobj = plt.figure()
+    plt.subplots_adjust(bottom=0.15, hspace=0.25)
+    ax1 = plt.subplot(211)
+    plt.title('Original unwrapped phases for '+pol)
+    plt.plot(Time(timestamps,format='unix').datetime, np.degrees(gain))
+    plt.ylabel('Gain phase (deg)')
+    formatter = mdates.DateFormatter('%H:%M')
+    plt.gcf().axes[0].xaxis.set_major_formatter(formatter)  
+    ax2 = plt.subplot(212)
     plt.title('Variation of %s, %i Second sliding Window'%(pol,windowtime,))
-    std.plot(label='Orignal')
+    std.plot(label='Original')
     dtrend_std.plot(label='Detrended')
     #window_occ.plot(label='Window Occupancy')
-    plt.hlines(2.3, timestamps.min(), timestamps.max(), colors='k')
-    plt.hlines(2.5, timestamps.min(), timestamps.max(), colors='k')
-    plt.hlines(3, timestamps.min(), timestamps.max(), colors='k')
-    plt.ylabel('Variation')
+    ax2.axhline(13,ls='--', color='red')
+    ax2.axhline(2.3,ls='--', color='red')
+    plt.ylabel('Variation (deg)')
     plt.xlabel('Date/Time')
     plt.legend(loc='best')
+    plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
     #plt.title(" %s pol Gain"%(pol))
     #plt.plot(windowgainchange.mean(),'b',label='20 Min (std/mean)')
     #plt.plot(np.ones_like(windowgainchange.mean())*2.0,'r',label=' 2 level')
@@ -275,7 +284,7 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
 
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <file>",
-                               description=" This produces a pdf file with graphs decribing the gain sability for each antenna in the file")
+                               description=" This produces a pdf file with graphs decribing the gain stability for each antenna in the file")
 parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='211,3896',
                   help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
