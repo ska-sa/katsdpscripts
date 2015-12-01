@@ -190,7 +190,7 @@ def plot_AntennaGain(gains,freq,inputs):
 
 
 
-def  fringe_stopping(data):
+def  fringe_stopping(data): #This will have to be updated for MKAT
     new_ants = {
     'ant1' : ('25.0950 -9.0950 0.0450', 23220.506e-9, 23228.551e-9),
     'ant2' : ('90.2844 26.3804 -0.22636', 23283.799e-9, 23286.823e-9),
@@ -232,52 +232,55 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     returntext = []
     #note gain is in radians
     gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))
+    window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
+    full = np.where(window_occ==1)
     #note std is returned in degrees
-    std = pandas.rolling_apply(gain_ts,windowtime,anglestd,minsamples)    
-    peakmin= pandas.rolling_min(gain_ts,windowtime,minsamples)
-    peakmax= pandas.rolling_max(gain_ts,windowtime,minsamples)
+    std = (pandas.rolling_apply(gain_ts,windowtime,anglestd,minsamples)).iloc[full]    
+    peakmin= (np.degrees(pandas.rolling_min(gain_ts,windowtime,minsamples))).iloc[full]
+    peakmax= (np.degrees(pandas.rolling_max(gain_ts,windowtime,minsamples))).iloc[full]
     peak = peakmax-peakmin
-    dtrend_std = pandas.rolling_apply(gain_ts,windowtime,detrend,minsamples)
+    dtrend_std = (pandas.rolling_apply(gain_ts,windowtime,detrend,minsamples)).iloc[full]
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     timeval = timestamps.max()-timestamps.min()
-    #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
+    
     
     #rms = np.sqrt((gain**2).mean())
-    returntext.append("Total time of obsevation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
+    returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
     #returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,np.degrees(peak.mean())))
-    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,np.degrees(peak.max())))
+    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,peak.mean()))
+    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,peak.max()))
     returntext.append("The mean variation over %i seconds of %s is: %.5f    "%(windowtime,pol,std.mean()))
     returntext.append("The Max  variation over %i seconds of %s is: %.5f    "%(windowtime,pol,std.max()))
     returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,dtrend_std.mean()))
     returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,dtrend_std.max()))
     #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
     
-    pltobj = plt.figure()
-    plt.subplots_adjust(bottom=0.15, hspace=0.25)
-    ax1 = plt.subplot(211)
+    pltobj = plt.figure(figsize=[8,11])
+    plt.suptitle(h5.name)
+    plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
+    ax1 = plt.subplot(311)
     plt.title('Original unwrapped phases for '+pol)
-    plt.plot(Time(timestamps,format='unix').datetime, np.degrees(gain))
-    plt.ylabel('Gain phase (deg)')
-    formatter = mdates.DateFormatter('%H:%M')
-    plt.gcf().axes[0].xaxis.set_major_formatter(formatter)  
-    ax2 = plt.subplot(212)
-    plt.title('Variation of %s, %i Second sliding Window'%(pol,windowtime,))
-    std.plot(label='Original')
-    dtrend_std.plot(label='Detrended')
-    #window_occ.plot(label='Window Occupancy')
+    np.degrees(gain_ts).plot(label='gain phase')
+    peakmax.plot(label='rolling max')
+    peakmin.plot(label='rolling min')
+    plt.legend(loc='best')
+    plt.ylabel('Gain phase (rad)') 
+    ax2 = plt.subplot(312)
+    plt.title('Peak to peak variation of %s, %i Second sliding Window'%(pol,windowtime,))
+    peak.plot(color='blue')
     ax2.axhline(13,ls='--', color='red')
-    ax2.axhline(2.3,ls='--', color='red')
+
+    ax3  = plt.subplot(313)
+    plt.title('Variation of %s, %i Second sliding Window'%(pol,windowtime,))
+    dtrend_std.plot(label='Detrended std')
+    ax3.axhline(2.3,ls='--', color='red')
     plt.ylabel('Variation (deg)')
     plt.xlabel('Date/Time')
     plt.legend(loc='best')
     plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
-    #plt.title(" %s pol Gain"%(pol))
-    #plt.plot(windowgainchange.mean(),'b',label='20 Min (std/mean)')
-    #plt.plot(np.ones_like(windowgainchange.mean())*2.0,'r',label=' 2 level')
     return returntext,pltobj  # a plot would be cool
 
 
@@ -347,6 +350,7 @@ for pol in ('h','v'):
     figlist = []
     figlist += plot_AntennaGain(gains,h5.channel_freqs,h5.inputs)
     fig = plt.figure()
+    plt.suptitle(h5.name)
     plt.title('Phase angle in Baseline vs. Time for %s pol baselines '%(pol))
     plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='nearest')
     #ax = plt.subplot(111)
@@ -362,14 +366,9 @@ for pol in ('h','v'):
         pltfig.savefig(pp,format='pdf') 
         plt.close(pltfig)
         fig = plt.figure(None,figsize = (10,10))
-        plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
+        plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
-        
-
-        
-
-
 
 #figlist += plot_DataStd(gains,freq,h5.inputs)
 #figlist += plot_DataStd(vis,freq,h5.corr_products)
