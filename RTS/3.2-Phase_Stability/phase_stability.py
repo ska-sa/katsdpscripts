@@ -267,11 +267,12 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     peakmax.plot(label='rolling max')
     peakmin.plot(label='rolling min')
     plt.legend(loc='best')
-    plt.ylabel('Gain phase (rad)') 
+    plt.ylabel('Gain phase (deg)') 
     ax2 = plt.subplot(312)
     plt.title('Peak to peak variation of %s, %i Second sliding Window'%(pol,windowtime,))
     peak.plot(color='blue')
     ax2.axhline(13,ls='--', color='red')
+    plt.ylabel('Variation (deg)')
 
     ax3  = plt.subplot(313)
     plt.title('Variation of %s, %i Second sliding Window'%(pol,windowtime,))
