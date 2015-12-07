@@ -31,7 +31,7 @@ with verify_and_connect(opts) as kat:
 ## RvR 20151206 -- RTS antenna to stop mode (need to check this for AR1)
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-         time.sleep(10)
+        time.sleep(10)
     else:
          user_logger.error("Unable to set Antenna mode to 'STOP'.")
 ## RvR 20151206 -- RTS antenna to stop mode (need to check this for AR1)

@@ -8,6 +8,13 @@ import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import katpoint
 
+def stop_ants(kat):
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
+    else:
+         user_logger.error("Unable to set Antenna mode to 'STOP'.")
+
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
                                  description='Panel Gap Test 5 - Stationary Capture on Az=0, El=16 for 20 min.'
@@ -32,7 +39,7 @@ with verify_and_connect(opts) as kat:
 ## RvR 20151206 -- RTS antenna to stop mode (need to check this for AR1)
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-         time.sleep(10)
+        time.sleep(10)
     else:
          user_logger.error("Unable to set Antenna mode to 'STOP'.")
 ## RvR 20151206 -- RTS antenna to stop mode (need to check this for AR1)
@@ -65,15 +72,18 @@ with verify_and_connect(opts) as kat:
 
         session.label('scan')
         user_logger.info("Setting AP to mode STOP")
-        kat.ants.req.mode('STOP')
-        time.sleep(5)
+#         kat.ants.req.mode('STOP')
+#         time.sleep(5)
+	stop_ants(kat)
         target1 = katpoint.Target('scan1 - Stationary Az=-10 El=16, azel, -10, 16')
         user_logger.info("Initiating '%s'" % (target1.name))
         session.track(target1, duration=1200)
-        kat.ants.req.mode('STOP')
-        time.sleep(5)
+#         kat.ants.req.mode('STOP')
+#         time.sleep(5)
+	stop_ants(kat)
         user_logger.info("Setting AP to mode STOP")
-        kat.ants.req.mode('STOP')
-        time.sleep(5)
+#         kat.ants.req.mode('STOP')
+#         time.sleep(5)
+	stop_ants(kat)
 
 # -fin-
