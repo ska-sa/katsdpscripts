@@ -83,14 +83,16 @@ with verify_and_connect(opts) as kat:
 
 #   General: 4 Hz dumps, full speed movement.
 
-## RvR 20151207 -- Indexer can only be moved at low elevation
-        target1 = katpoint.Target('slew - back to origin Az=0 El=16, azel, 0, 16')
-        user_logger.info("Initiating '%s'" % (target1.name))
-        session.track(target1, duration=0)
-## RvR 20151207 -- Indexer can only be moved at low elevation
-## RvR 20151207 -- Default receiver indexer position
-        mv_idx(kat, opts.rip)
-## RvR 20151207 -- Default receiver indexer position
+## RvR 20151208 -- Set indexer position command seem not reliable, removing temporarity
+# ## RvR 20151207 -- Indexer can only be moved at low elevation
+#         target1 = katpoint.Target('slew - back to origin Az=0 El=16, azel, 0, 16')
+#         user_logger.info("Initiating '%s'" % (target1.name))
+#         session.track(target1, duration=0)
+# ## RvR 20151207 -- Indexer can only be moved at low elevation
+# ## RvR 20151207 -- Default receiver indexer position
+#         mv_idx(kat, opts.rip)
+# ## RvR 20151207 -- Default receiver indexer position
+## RvR 20151208 -- Set indexer position command seem not reliable, removing temporarity
 
         session.label('scan')
         user_logger.info("Setting AP to mode STOP")
@@ -108,13 +110,9 @@ with verify_and_connect(opts) as kat:
 #         time.sleep(5)
 	stop_ants(kat)
 
-## RvR 20151207 -- Return to origin position
-        target1 = katpoint.Target('slew - back to origin Az=0 El=16, azel, 0, 16')
-        user_logger.info("Initiating '%s'" % (target1.name))
-        session.track(target1, duration=0)
-## RvR 20151207 -- Return to origin position
-
+## RvR 20151208 -- Nag user to ensure L-band before returning system and leaving
 	if string.lower(opts.rip) != 'l':
 	    user_logger.info('Receiver Indexer currently on \'%s\', please return to \'l\' before leaving' % string.lower(opts.rip))
+## RvR 20151208 -- Nag user to ensure L-band before returning system and leaving
 
 # -fin-

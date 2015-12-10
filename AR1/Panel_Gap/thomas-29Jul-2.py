@@ -84,14 +84,16 @@ with verify_and_connect(opts) as kat:
 #   General: 4 Hz dumps, full speed movement.
 #   Full scan: Az of 0, 1, 3, 7, 15, 31, El from 15 to 85 each time. (Return to 0,15.)
 
-## RvR 20151207 -- Indexer can only be moved at low elevation
-        target1 = katpoint.Target('slew - back to origin Az=0 El=16, azel, 0, 16')
-        user_logger.info("Initiating '%s'" % (target1.name))
-        session.track(target1, duration=0)
-## RvR 20151207 -- Indexer can only be moved at low elevation
-## RvR 20151207 -- Default receiver indexer position
-        mv_idx(kat, opts.rip)
-## RvR 20151207 -- Default receiver indexer position
+## RvR 20151208 -- Set indexer position command seem not reliable, removing temporarity
+# ## RvR 20151207 -- Indexer can only be moved at low elevation
+#         target1 = katpoint.Target('slew - back to origin Az=0 El=16, azel, 0, 16')
+#         user_logger.info("Initiating '%s'" % (target1.name))
+#         session.track(target1, duration=0)
+# ## RvR 20151207 -- Indexer can only be moved at low elevation
+# ## RvR 20151207 -- Default receiver indexer position
+#         mv_idx(kat, opts.rip)
+# ## RvR 20151207 -- Default receiver indexer position
+## RvR 20151208 -- Set indexer position command seem not reliable, removing temporarity
 
         session.label('scan')
         target1 = katpoint.Target('scan1 - Az=0 El=16 to 86, azel, 0, 51')
@@ -122,7 +124,9 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Initiating '%s'" % (target1.name))
         session.track(target1, duration=0)
 
+## RvR 20151208 -- Nag user to ensure L-band before returning system and leaving
 	if string.lower(opts.rip) != 'l':
 	    user_logger.info('Receiver Indexer currently on \'%s\', please return to \'l\' before leaving' % string.lower(opts.rip))
+## RvR 20151208 -- Nag user to ensure L-band before returning system and leaving
 
 # -fin-
