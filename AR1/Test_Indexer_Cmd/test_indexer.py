@@ -24,11 +24,12 @@ def stop_ants(kat):
 def mv_idx(kat, band):
     stop_ants(kat)
     user_logger.info("Moving Receiver Indexer to position %s" % string.upper(band))
-    try:
-         if not kat.dry_run:
-             kat.ants.req.ap_set_indexer_position(string.lower(band))
-             time.sleep(60)
-    except: raise RuntimeError('Unknown indexer %s' % string.upper(band))
+    #try:
+    if not kat.dry_run:
+        kat.ants.req.ap_set_indexer_position('l', timeout=60) # string.lower(band))
+        # time.sleep(60)
+    #except: 
+    #   raise RuntimeError('Unknown indexer %s' % string.upper(band))
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
@@ -51,6 +52,9 @@ with verify_and_connect(opts) as kat:
 
 ## RvR 20151207 -- Default receiver indexer position
     stop_ants(kat)
+    #if not kat.dry_run:
+    #    # kat.ants.req.ap_set_indexer_position('u') # string.lower(band))
+    #    kat.m024.req.ap_set_indexer_position('u') # string.lower(band))
     mv_idx(kat, opts.rip)
 ## RvR 20151207 -- Default receiver indexer position
 
