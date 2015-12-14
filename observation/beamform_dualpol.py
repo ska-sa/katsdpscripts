@@ -281,7 +281,7 @@ if len(args) == 0:
     raise ValueError("Please specify the target (and optionally calibrator) "
                      "to observe as arguments")
 with verify_and_connect(opts) as kat:
-    cbf = kat.dbe7
+    cbf = kat.data
     ants = ant_array(kat, opts.ants)
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
