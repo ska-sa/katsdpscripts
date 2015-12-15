@@ -379,6 +379,7 @@ def analyse_point_source_scans(filename, opts):
     if opts.ku_band :
         dataset.nd_h_model=None
         dataset.nd_v_model=None
+    if opts.remove_spikes :
         for i in range(len(dataset.scans)):
             dataset.scans[i].data = scape.stats.remove_spikes(dataset.scans[i].data,axis=1,spike_width=3,outlier_sigma=5.)
 
@@ -502,7 +503,7 @@ def analyse_point_source_scans(filename, opts):
 
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd', 
         mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, 
-        ku_band=False, channel_mask=None,keep_all=None):
+        ku_band=False, channel_mask=None,keep_all=None,remove_spikes=False):
 
     class FakeOptsForBatch(object):
         batch = True #always batch
@@ -522,10 +523,11 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
             self.channel_mask=channel_mask
             self.channel_mask=channel_mask
             self.keep_all=keep_all
+            self.remove_spikes=remove_spikes
 
     fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
     mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
-    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all)
+    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all,remove_spikes=remove_spikes)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
     
     return dataset_antenna, output_data
