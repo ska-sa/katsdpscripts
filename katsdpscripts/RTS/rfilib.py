@@ -257,12 +257,13 @@ def getbackground(data,in_flags=None,broad_iterations=1,fine_iterations=3,spike_
         residual=data-background
         # 2 mask runs
         for i in range(2):
-            mask[residual>reject_threshold*np.std(residual[np.where(mask)])]=False
+            mask[residual>reject_threshold*1.5*np.std(residual[np.where(mask)])]=False
     mask=mask.astype(np.float)
     #Next convolve with Gaussians with increasing width from iterations*spike_width to 1*spike_width
     for extend_factor in range(fine_iterations,0,-1):
         #Convolution sigma
-        sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//5,1)),min(spike_width_freq*extend_factor,data.shape[1]//5)])
+        sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//10,1)),min(spike_width_freq*extend_factor,data.shape[1]//10)])
+        #sigma=np.array([1,min(spike_width_freq*extend_factor,data.shape[1]//10)])
         #Get weight and background convolved in time axis
         weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
         #Smooth background and apply weight
@@ -431,7 +432,6 @@ class sumthreshold_flagger():
         flags = flags | ~np.isfinite(filtered_data)
         #Subtract background
         av_dev = data-filtered_data
-
         #Sumthershold along time axis
         flags = self._sumthreshold(av_dev,flags,0,window_bl,this_sigma)
         #Sumthreshold along frequency axis
@@ -838,7 +838,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=10.1,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=4.0,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in static_flags.
 
