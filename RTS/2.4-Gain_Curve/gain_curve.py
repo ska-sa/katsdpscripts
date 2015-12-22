@@ -131,7 +131,7 @@ def compute_tsys_sefd(data, gain, antenna, pol):
 
     return e, Tsys, SEFD
 
-def select_outliers(data,pol,n_sigma=4.0):
+def select_outliers(data,pol,targets,n_sigma=4.0):
     """ Flag data points with data['beam_height'] more than n_sigma from the median.
     Parameters
     ----------
@@ -145,7 +145,6 @@ def select_outliers(data,pol,n_sigma=4.0):
     """
 
     beam_heights = data['beam_height_'+pol]
-    targets = np.unique(data['target'])
     elevation = data['elevation']
     good = np.ones(beam_heights.shape,dtype=np.bool)
 
@@ -154,14 +153,14 @@ def select_outliers(data,pol,n_sigma=4.0):
         target_indices = np.where(data['target']==target)
         beam_heights_target = beam_heights[target_indices]
         elevation_target = elevation[target_indices]
-        median_beam_height = np.median(beam_heights_target)
+        median_beam_height = np.nanmedian(beam_heights_target)
         abs_dev = np.abs(beam_heights_target-median_beam_height)
         plt.plot(elevation_target,beam_heights_target-median_beam_height, 'ro')
-        med_abs_dev=np.median(abs_dev)
+        med_abs_dev=np.nanmedian(abs_dev)
         good_target = abs_dev < (1.4826*med_abs_dev)*5.0
         fit=np.polyfit(elevation_target[good_target], beam_heights_target[good_target], 1)
         abs_dev = np.abs(beam_heights_target - (fit[0]*elevation_target + fit[1]))
-        med_abs_dev=np.median(abs_dev)
+        med_abs_dev=np.nanmedian(abs_dev)
         good_target = abs_dev < (1.4826*med_abs_dev)*n_sigma
         good[target_indices] = good_target
 
@@ -214,7 +213,7 @@ def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, ef
         good = good & select_environment(data, antenna, condition_select)
     print "7: Flag for environmental condition", np.sum(good)
     #Flag discrepant gain values
-    good = good & select_outliers(data,pol,4.0)
+    good = good & select_outliers(data,pol,targets,4.0)
     print "8: Flag for gain outliers", np.sum(good)
 
     return good
@@ -365,7 +364,11 @@ def calc_atmospheric_opacity(T, RH, P, h, f):
     
     return A*np.log(10)/10.0 # Convert dB to Nepers
 
+def fit_func(x, a, b):
+    return np.abs(a)*x + b
 
+def fit_func90(x,a):
+    return np.abs(a)*x 
 
 def make_result_report_L_band(data, good, opts, pdf, gain, e,  Tsys=None, SEFD=None):
     """ Generate a pdf report containing relevant results
@@ -380,7 +383,7 @@ def make_result_report_L_band(data, good, opts, pdf, gain, e,  Tsys=None, SEFD=N
     #Separate masks for each target to plot separately
     targetmask={}
     for targ in targets:
-        targetmask[targ] = np.array([test_targ==targ.strip() for test_targ in data['target']])
+        targetmask[targ] = np.array([test_targ==targ.strip() for test_targ in data['target'][good]])
 
     #Set up range of elevations for plotting fits
     fit_elev = np.linspace(5, 90, 85, endpoint=False)
@@ -403,9 +406,9 @@ def make_result_report_L_band(data, good, opts, pdf, gain, e,  Tsys=None, SEFD=N
             fit_gain = gain[good & targetmask[targ] & use_elev]
             fit=np.polyfit(fit_elev, fit_gain, 1)
             g90=fit[0]*90.0 + fit[1]
-            if fit[0]<0.0:
-                print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
-                g90=max(fit_gain)
+            #if fit[0]<0.0:
+            #    print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
+            #    g90=max(fit_gain)
             plot_gain = gain[good & targetmask[targ]]/g90
             plot_elevation = data['elevation'][good & targetmask[targ]]
             plt.plot(plot_elevation, plot_gain, 'o', label=targ)
@@ -488,23 +491,18 @@ def scale_gain(g, nu_0, nu, el):
     and predicted gain at 15 and 90 degree elevation per SE requirement
     """
     scale = (nu**2/nu_0**2)-1
-    return (g(el)**scale)*g(el), (g(15)**scale)*g(15), (g(90)**scale)*g(90)
+    g_el = g(el-90.) + 1.
+    g_15 = g(15-90.) + 1.
+    g_90 = g(0.) + 1.
+    return (g_el**scale)*g_el, (g_15**scale)*g_15, (g_90**scale)*g_90
 
-def make_result_report_ku_band(gain, tau, opts):
+def make_result_report_ku_band(gain, opts, targets, pdf):
     """
        No noise diode present at ku-band.  
        Gains will always have to be normalised.  
        We are interested in the relative gain change between 15 to 90 degrees elevation
     
     """
-    #Set up list of separate targets for plotting
-    #if opts.targets:
-     #   targets = opts.targets.split(',')
-    if opts.targets:
-        targets = opts.targets.split(',')
-    else:
-        #Plot all targets 
-        targets = list(set(data['target']))
     #Separate masks for each target to plot separately
     targetmask={}
     for targ in targets:
@@ -530,11 +528,11 @@ def make_result_report_ku_band(gain, tau, opts):
             use_elev = data['elevation']>opts.min_elevation
             fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
             fit_gain = gain[good & targetmask[targ] & use_elev]
-            fit=np.polyfit(fit_elev, fit_gain, 1)
-            g90=fit[0]*90.0 + fit[1]
-            if fit[0]<0.0:
-                print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
-                g90=max(fit_gain)
+            fit, cov = optimize.curve_fit(fit_func, fit_elev, fit_gain)
+            g90=np.abs(fit[0])*90.0 + fit[1]
+            #if fit[0]<0.0:
+            #    print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
+            #    g90=max(fit_gain)
             plot_gain = gain[good & targetmask[targ]]/g90
             plot_elevation = data['elevation'][good & targetmask[targ]]
             plt.plot(plot_elevation, plot_gain, 'o', label=targ)
@@ -542,12 +540,14 @@ def make_result_report_ku_band(gain, tau, opts):
             norm_elev.append(plot_elevation)
     plt.ylabel('Normalised gain')
     plt.xlabel('Elevation (deg)')
-    norm_gain = np.hstack(norm_gain)
-    norm_elev = np.hstack(norm_elev)
-    
-    g = np.poly1d(np.polyfit(norm_elev, norm_gain, 1))
+    norm_gain_90 = np.hstack(norm_gain) - 1.
+    norm_elev_90 = np.hstack(norm_elev) - 90.
+
+    fit, cov = optimize.curve_fit(fit_func90, norm_elev_90, norm_gain_90)
+    fit[0] = np.abs(fit[0])
+    g = np.poly1d([fit[0],0.])
     fit_elev = np.linspace(20, 90, 85, endpoint=False)
-    plt.plot(fit_elev, g(fit_elev), label='12.5 GHz fit')
+    plt.plot(fit_elev, g(fit_elev-90.)+1., label='12.5 GHz fit')
 
     #Get a title string
     if opts.condition_select not in ['ideal','optimum','normal']:
@@ -565,7 +565,7 @@ def make_result_report_ku_band(gain, tau, opts):
     nu = 14.5e9
     nu_0 = 12.5e9
     g14, g14_15, g14_90 = scale_gain(g, nu_0, nu, fit_elev)
-    loss_12 = (g(90) - g(15))/g(90)*100
+    loss_12 = (g(0.) - g(15.-90.))/(g(0.)+1.)*100
     loss_14 = (g14_90 - g14_15)/g14_90*100
     
     plt.plot(fit_elev, g14, label = '14.5 GHz fit')
@@ -627,8 +627,10 @@ for opts.polarisation in pol:
     if opts.units=="K":
         e, Tsys, SEFD = compute_tsys_sefd(data, gain, antenna,opts.polarisation)
 
+    targets = opts.targets.split(',') if opts.targets else np.unique(data['target'])
+    targets = [target for target in targets if np.sum(data['target']==target)>1]
     # Determine "good" data to use for fitting and plotting
-    good = determine_good_data(data, antenna, targets=opts.targets, tsys=Tsys, tsys_lim=opts.tsys_lim, 
+    good = determine_good_data(data, antenna, targets=targets, tsys=Tsys, tsys_lim=opts.tsys_lim, 
                             eff=e, eff_lim=[opts.eff_min,opts.eff_max], units=opts.units,
                             condition_select=opts.condition_select, pol=opts.polarisation)
 
@@ -641,15 +643,16 @@ for opts.polarisation in pol:
     az, el = angle_wrap(katpoint.deg2rad(data['azimuth'])), katpoint.deg2rad(data['elevation'])
 
     #Correct for atmospheric opacity
-    tau=np.array([])
-    for opacity_info in data:
-        tau = np.append(tau,(calc_atmospheric_opacity(opacity_info['temperature'],opacity_info['humidity']/100, 
-                                    opacity_info['pressure'], antenna.observer.elevation/1000, opacity_info['frequency']/1000.0)))
-    gain = gain/(np.exp(-tau/np.sin(el)))
+    if opts.correct_atmosphere:
+        tau=np.array([])
+        for opacity_info in data:
+            tau = np.append(tau,(calc_atmospheric_opacity(opacity_info['temperature'],opacity_info['humidity']/100, 
+                                opacity_info['pressure'], antenna.observer.elevation/1000, opacity_info['frequency']/1000.0)))
+        gain = (gain/(np.exp(-tau/np.sin(el)))).astype(np.float32)
 
     # Make a report describing the results (no Tsys data if interferometric)
     if opts.ku_band:
-        make_result_report_ku_band(gain, tau, opts)
+        make_result_report_ku_band(gain, opts, targets, pdf)
     else:
         make_result_report_L_band(data, good, opts, pdf, gain, e, Tsys, SEFD)
 
