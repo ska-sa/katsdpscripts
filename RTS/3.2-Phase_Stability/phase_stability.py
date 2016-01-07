@@ -11,6 +11,7 @@ import pandas
 import os
 from katsdpscripts.RTS import git_info
 from astropy.time import Time
+import pickle
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -292,6 +293,8 @@ parser = optparse.OptionParser(usage="%prog [opts] <file>",
 parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='211,3896',
                   help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
+parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', 
+                  help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
 (opts, args) = parser.parse_args()
 
 if len(args) ==0:
@@ -304,11 +307,30 @@ start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
 
 h5 = katdal.open(args)
+n_chan = np.shape(h5.channels)[0]
+if not opts.freq_keep is None :
+    start_freq_channel = int(opts.freq_keep.split(',')[0])
+    end_freq_channel = int(opts.freq_keep.split(',')[1])
+    edge = np.tile(True, n_chan)
+    edge[slice(start_freq_channel, end_freq_channel)] = False
+else :
+    edge = np.tile(False, n_chan)
+#load static flags if pickle file is given
+if len(opts.channel_mask)>0:
+    pickle_file = open(opts.channel_mask)
+    rfi_static_flags = pickle.load(pickle_file)
+    pickle_file.close()
+else:
+    rfi_static_flags = np.tile(False, n_chan)
+
+static_flags = np.logical_or(edge,rfi_static_flags)
+
+
 fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1])[0])
 nice_filename =  fileprefix+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
-    h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
+    h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
     # loop over both polarisations
     if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
         print "Need to do fringe stopping "
@@ -336,7 +358,7 @@ for pol in ('h','v'):
     gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
     calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
 
-    h5.select(channels=slice(start_freq_channel,end_freq_channel),pol=pol,corrprods='cross',scans='track')
+    h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
     data = np.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0
     for scan in h5.scans():
