@@ -33,12 +33,13 @@ def anglemean(th,axis=None):
     ca = np.nansum(np.cos(th),axis=axis)
     return np.arctan2(sa,ca)
 
-def plot_phase_freq(channel_freqs,a123):
+def plot_phase_freq(channel_freqs,a123,title=''):
     """
     channel_freqs is an array of channel frequencys in Hz
     a123 is the closure quantity in radians 
     """
     fig = plt.figure(figsize=(20,10))
+    plt.title(title)
     plot(channel_freqs/1e6,np.degrees(a123) )
     plt.ylim(-5,5)
     plt.grid(True)
@@ -47,12 +48,13 @@ def plot_phase_freq(channel_freqs,a123):
     plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
     return fig 
 
-def plot_amp_freq(channel_freqs,a123):
+def plot_amp_freq(channel_freqs,a1234,title=''):
     """
     channel_freqs is an array of channel frequencys in Hz
     a1234 is the closure quantity  
     """
     fig = plt.figure(figsize=(20,10))
+    plt.title(title)
     plot(channel_freqs/1e6,a1234 )
     plt.grid(True)
     plt.ylabel('Mean Amplitude Closure ')
@@ -80,38 +82,35 @@ nice_filename =  args[0].split('/')[-1]+ '_closure'
 pp =PdfPages(nice_filename+'.pdf')
 
 h5 = katdal.open('/data/sean/1451995933.h5')
-for pol in ['h','v'] :
-    h5.select()
-    h5.select(pol=pol)
-#h5.select(scans='track',targets='PKS1934-638')
-N_ants = len(h5.ants)
-antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
-antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
+h5.select()
+for scan in h5.scans() :
+    for pol in ['h','v'] :    
+        h5.select(pol=pol)
+        #h5.select(scans='track',targets='PKS1934-638')
+        N_ants = len(h5.ants)
+        antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
+        antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
 
-full_vis = (np.concatenate((h5.vis[:], (h5.vis[:]).conj()), axis=-1))
-full_antA = np.r_[antA, antB]
-full_antB = np.r_[antB, antA]
-corrprods = zip(full_antA,full_antB)
-up = {}
-for i,(x,y)  in enumerate(zip(full_antA,full_antB)): # make lookup table
-    up[x,y]=i
-    up[y,x]=i
-
-
-
-a1,a2,a3 = phase_combinations(full_antA,up)
-a123 =  anglemean(np.rollaxis(np.angle(full_vis[:,:,l1])-np.angle(full_vis[:,:,l2]) +np.angle(full_vis[:,:,l3]),0,2  ).reshape(full_vis.shape[1],-1)  ,axis=1 ) 
-fig = plot_phase_freq(h5.channel_freqs,a123)
-fig.savefig(pp,format='pdf')
-plt.close(fig)
+        full_vis = (np.concatenate((h5.vis[:], (h5.vis[:]).conj()), axis=-1))
+        full_antA = np.r_[antA, antB]
+        full_antB = np.r_[antB, antA]
+        corrprods = zip(full_antA,full_antB)
+        up = {}
+        for i,(x,y)  in enumerate(zip(full_antA,full_antB)): # make lookup table
+            up[x,y]=i
+            up[y,x]=i
+        title = "%s : pol %s  , target=%s , %s "%(args[0].split('/')[-1],pol,scan[2].name,scan[1])
+        a1,a2,a3 = phase_combinations(full_antA,up,title)
+        a123 =  anglemean(np.rollaxis(np.angle(full_vis[:,:,l1])-np.angle(full_vis[:,:,l2]) +np.angle(full_vis[:,:,l3]),0,2  ).reshape(full_vis.shape[1],-1)  ,axis=1 ) 
+        fig = plot_phase_freq(h5.channel_freqs,a123)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
  
-
-
-a1,a2,a3,a4 = amp_combinations(full_antA,up)
-a1234 =  np.nanmean(np.rollaxis((np.abs(full_vis[:,:,l1])*np.abs(full_vis[:,:,l4]))/(np.abs(full_vis[:,:,l2])*np.abs(full_vis[:,:,l3] ) ) ,0,2).reshape(full_vis.shape[1],-1),axis=-1) 
-fig = plot_amp_freq(h5.channel_freqs,a1234)
-fig.savefig(pp,format='pdf')
-plt.close(fig)
+        a1,a2,a3,a4 = amp_combinations(full_antA,up,title)
+        a1234 =  np.nanmean(np.rollaxis((np.abs(full_vis[:,:,l1])*np.abs(full_vis[:,:,l4]))/(np.abs(full_vis[:,:,l2])*np.abs(full_vis[:,:,l3] ) ) ,0,2).reshape(full_vis.shape[1],-1),axis=-1) 
+        fig = plot_amp_freq(h5.channel_freqs,a1234)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
 
 
 if opts.print_description :
