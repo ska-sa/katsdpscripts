@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import itertools
 from matplotlib.backends.backend_pdf import PdfPages
 from katsdpscripts.RTS import git_info,get_git_path
-
+import pickle
 import optparse
 
 def phase_combinations(ant_list,look_up):
@@ -68,8 +68,10 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a plots of the closure quantitiys in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-d", "--print_description", action="store_true",default=False,
+parser.add_option("-d", "--print-description", action="store_true",default=False,
                   help="Add an additional page that discribes the therory of the plots, default= %default)")
+parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', 
+                  help="Optional pickle file with boolean array specifying channels to mask (default=%default)")
 
 (opts, args) = parser.parse_args()
 
@@ -84,9 +86,26 @@ pp =PdfPages(nice_filename+'.pdf')
 
 h5 = katdal.open(args[0])
 h5.select()
+n_chan = h5.channels.shape[0]
 for scan in h5.scans() :
-    for pol in ['h','v'] :    
-        h5.select(pol=pol)
+    for pol in ['h','v'] :
+        if not opts.freq_chans is None :
+            start_freq_channel = int(opts.freq_chans.split(',')[0])
+            end_freq_channel = int(opts.freq_chans.split(',')[1])
+            edge = np.tile(True, n_chan)
+            edge[slice(start_freq_channel, end_freq_channel)] = False
+        else :
+            edge = np.tile(False, n_chan)
+        #load static flags if pickle file is given
+        if len(opts.channel_mask)>0:
+            pickle_file = open(opts.channel_mask)
+            rfi_static_flags = pickle.load(pickle_file)
+            pickle_file.close()
+        else:
+            rfi_static_flags = np.tile(False, n_chan)
+
+        static_flags = np.logical_or(edge,rfi_static_flags)
+        h5.select(pol=pol,channels=~static_flags)
         #h5.select(scans='track',targets='PKS1934-638')
         N_ants = len(h5.ants)
         antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
