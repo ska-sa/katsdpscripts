@@ -82,7 +82,7 @@ if len(args) < 1:
 nice_filename =  args[0].split('/')[-1]+ '_closure'
 pp =PdfPages(nice_filename+'.pdf')
 
-h5 = katdal.open('/data/sean/1451995933.h5')
+h5 = katdal.open(args[0])
 h5.select()
 for scan in h5.scans() :
     for pol in ['h','v'] :    
