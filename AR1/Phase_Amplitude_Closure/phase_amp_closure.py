@@ -14,7 +14,7 @@ def phase_combinations(ant_list,look_up):
         l1.append(look_up[a1,a2])
         l2.append(look_up[a1,a3])
         l3.append(look_up[a2,a3])
-return a1,a2,a3
+    return l1,l2,l3
 
 def amp_combinations(ant_list,look_up):
     l1,l2,l3,l4 = [],[],[],[]
@@ -23,7 +23,7 @@ def amp_combinations(ant_list,look_up):
         l2.append(look_up[a1,a3])
         l3.append(look_up[a2,a4])
         l4.append(look_up[a3,a4])
-    return a1,a2,a3,a4
+    return l1,l2,l3,l4 
 
 def anglemean(th,axis=None):
     """ Return the mean of angles
@@ -40,7 +40,7 @@ def plot_phase_freq(channel_freqs,a123,title=''):
     """
     fig = plt.figure(figsize=(20,10))
     plt.title(title)
-    plot(channel_freqs/1e6,np.degrees(a123) )
+    plt.plot(channel_freqs/1e6,np.degrees(a123) )
     plt.ylim(-5,5)
     plt.grid(True)
     plt.ylabel('Mean Phase Closure angle(degrees)')
@@ -55,7 +55,7 @@ def plot_amp_freq(channel_freqs,a1234,title=''):
     """
     fig = plt.figure(figsize=(20,10))
     plt.title(title)
-    plot(channel_freqs/1e6,a1234 )
+    plt.plot(channel_freqs/1e6,a1234 )
     plt.grid(True)
     plt.ylabel('Mean Amplitude Closure ')
     plt.xlabel('Frequency (MHz)')
@@ -100,13 +100,13 @@ for scan in h5.scans() :
             up[x,y]=i
             up[y,x]=i
         title = "%s : pol %s  , target=%s , %s "%(args[0].split('/')[-1],pol,scan[2].name,scan[1])
-        a1,a2,a3 = phase_combinations(full_antA,up,title)
+        l1,l2,l3 = phase_combinations(full_antA,up,title)
         a123 =  anglemean(np.rollaxis(np.angle(full_vis[:,:,l1])-np.angle(full_vis[:,:,l2]) +np.angle(full_vis[:,:,l3]),0,2  ).reshape(full_vis.shape[1],-1)  ,axis=1 ) 
         fig = plot_phase_freq(h5.channel_freqs,a123)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
  
-        a1,a2,a3,a4 = amp_combinations(full_antA,up,title)
+        l1,l2,l3,l4  = amp_combinations(full_antA,up,title)
         a1234 =  np.nanmean(np.rollaxis((np.abs(full_vis[:,:,l1])*np.abs(full_vis[:,:,l4]))/(np.abs(full_vis[:,:,l2])*np.abs(full_vis[:,:,l3] ) ) ,0,2).reshape(full_vis.shape[1],-1),axis=-1) 
         fig = plot_amp_freq(h5.channel_freqs,a1234)
         fig.savefig(pp,format='pdf')
