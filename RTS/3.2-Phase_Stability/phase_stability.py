@@ -12,7 +12,37 @@ import os
 from katsdpscripts.RTS import git_info
 from astropy.time import Time
 import pickle
+import h5py
 
+def read_and_select_file(data, flags_file=None, value=np.inf):
+    """
+    Read in the input h5 file and make a selection based on kwargs.
+    data : katdal object
+    flags_file:  {string} filename of h5 flagfile to open 
+
+    Returns:
+        A array with the visibility data and bad data changed to {value}.
+    """
+
+     #Check there is some data left over
+    if data.shape[0] == 0:
+        raise ValueError('No data to process.')
+
+    if flags_file is None:
+        raise ValueError('No flag data to process.')
+        #flags = np.sum(data.flags()[:],axis=-1)
+    else:
+        #Open the flags file
+        ff = h5py.File(flags_file)
+        #Select file flages based on h5 file selection
+        file_flags=ff['flags'].value
+        file_flags = file_flags[data.dumps]
+        file_flags = file_flags[:,data._freq_keep]
+        file_flags = file_flags[:,:,data._corrprod_keep]
+        #Extend flags
+        #flags = np.sum(file_flags,axis=-1)
+    return np.ma.masked_array(data.vis[:,:,:], mask=file_flags,fill_value=value)
+    
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
     Modified polyfit:Any nan values in x are 'masked' and std is returned .
@@ -49,13 +79,13 @@ def mean(a,axis=None):
     (1.4142135623730951+0j)
     """
     if a.dtype.kind == 'c':
-        r = np.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
-        th = np.arctan2(a.imag,a.real)
+        r = np.ma.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
+        th = np.ma.arctan2(a.imag,a.real)
         sa = (np.sin(th)).sum(axis=axis)
         ca = (np.cos(th)).sum(axis=axis)
-        thme = np.arctan2(sa,ca)
-        return r*np.exp(1j*thme)
-    else:
+        thme = np.ma.arctan2(sa,ca)
+        return r*np.ma.exp(1j*thme)
+    else: 
         return np.mean(a,axis=axis)
 
 
@@ -295,6 +325,9 @@ parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string",
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', 
                   help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
+parser.add_option("-r", "--rfi-flagging", default='', 
+                  help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
+
 (opts, args) = parser.parse_args()
 
 if len(args) ==0:
@@ -339,7 +372,6 @@ for pol in ('h','v'):
         print "Fringe stopping done in the correlator"
         vis = h5.vis[:,:,:]
 
-    flaglist = ~h5.flags()[:,:,:].any(axis=0).any(axis=-1)
     #flaglist[0:start_freq_channel] = False
     #flaglist[end_freq_channel:] = False
     antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
@@ -364,11 +396,12 @@ for pol in ('h','v'):
     for scan in h5.scans():
         print scan
         if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
-            print "stopping fringes for size ",h5.shape
+            print "Stopping fringes for size ",h5.shape
             vis = fringe_stopping(h5)
         else:
-            vis = h5.vis[:,:,:]
-        data[i:i+h5.shape[0]] = mean((vis*calfac[:,:,:h5.shape[-1]])[:,flaglist,:],axis=1)
+            vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
+            
+        data[i:i+h5.shape[0]] = mean((vis*calfac[:,:,:h5.shape[-1]]),axis=1)
         i += h5.shape[0]
     figlist = []
     figlist += plot_AntennaGain(gains,h5.channel_freqs,h5.inputs)
