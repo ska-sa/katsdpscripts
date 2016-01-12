@@ -78,7 +78,7 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
         flags = np.sum(data.flags()[:],axis=-1)
     else:
         #Open the flags file
-        ff = h5py.File(flags_file)
+        ff = h5py.File(flags_file, 'r')
         #Select file flages based on h5 file selection
         file_flags=ff['flags'].value
         file_flags = file_flags[data._time_keep]
