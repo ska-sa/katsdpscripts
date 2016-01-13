@@ -29,15 +29,15 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
 
     ants = h5.ants
     n_ants = len(ants)
-
+    ant_ind = np.arange(n_ants) + 1
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
     diode= 'coupler'
-    for a,col in zip(ants,colour):
+    for a,col,a_i in zip(ants,colour,ant_ind):    
         if not(Ku): 
-            fig1 = plt.figure(1,figsize = (20,5))
-        fig2 = plt.figure(2,figsize = (20,5))
-        for pol in pols:    
+            fig1 = plt.figure(a_i*2-1,figsize = (20,5))
+        fig2 = plt.figure(a_i,figsize = (20,5))
+        for pol in pols:
             ant = a.name
             ant_num = int(ant[3])
             
@@ -109,7 +109,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             
             p = 1 if pol == 'v' else 2
             if not(Ku):
-                plt.figure(1)
+                plt.figure(a_i*2-1)
                 plt.subplot(n_ants,2,p)
                 plt.ylim(14,27)
                 plt.ylabel('T_ND [K]')
@@ -126,7 +126,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.grid()
                 plt.legend()
                 
-            plt.figure(2)
+            plt.figure(a_i*2)
             plt.subplot(n_ants,2,p)
             if not(Ku): plt.ylim(15,50)
             plt.ylabel('Tsys/eta_A [K]')
@@ -147,7 +147,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             plt.legend(loc=2,fontsize=12)
         
         if not(Ku):
-            plt.figure(1)
+            plt.figure(a_i*2-1)
             plt.subplot(n_ants,2,1)
             ax = plt.gca()
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
@@ -157,7 +157,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
             plt.title('Coupler Diode: H pol: '+file_base)
 
-        plt.figure(2)
+        plt.figure(a_i)
         plt.subplot(n_ants,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
@@ -169,10 +169,9 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         if pdf:
             if not(Ku):
                 fig1.savefig(pp,format='pdf')
-                plt.close(fig1)
             fig2.savefig(pp,format='pdf')
-            plt.close(fig2)
-            pp.close() # close the pdf file
+    pp.close() # close the pdf file
+    plt.close("all")
 
 
 
