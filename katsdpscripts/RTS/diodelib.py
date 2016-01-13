@@ -36,7 +36,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     for a,col,a_i in zip(ants,colour,ant_ind):    
         if not(Ku): 
             fig1 = plt.figure(a_i*2-1,figsize = (20,5))
-        fig2 = plt.figure(a_i,figsize = (20,5))
+        fig2 = plt.figure(a_i*2,figsize = (20,5))
         for pol in pols:
             ant = a.name
             ant_num = int(ant[3])
@@ -151,21 +151,21 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             plt.subplot(n_ants,2,1)
             ax = plt.gca()
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-            plt.title('Coupler Diode: V pol: '+file_base)
+            plt.title('%s Coupler Diode: V pol: %s',(ant,file_base))
             plt.subplot(n_ants,2,2)
             ax = plt.gca()
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-            plt.title('Coupler Diode: H pol: '+file_base)
+            plt.title('%s Coupler Diode: H pol: %s'%(ant,file_base))
 
         plt.figure(a_i)
         plt.subplot(n_ants,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Tsys/eta_A: V pol: '+file_base)
+        plt.title('%s Tsys/eta_A: V pol: %s'%(ant,file_base))
         plt.subplot(n_ants,2,2)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Tsys/eta_A: H pol: '+file_base)
+        plt.title('%s Tsys/eta_A: H pol: %s'%(ant,file_base))
         if pdf:
             if not(Ku):
                 fig1.savefig(pp,format='pdf')
