@@ -33,11 +33,11 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
     diode= 'coupler'
-    if not(Ku): 
-        fig1 = plt.figure(1,figsize = (20,5))
-    fig2 = plt.figure(2,figsize = (20,5))
-    for pol in pols:
-        for a,col in zip(ants,colour):    
+    for a,col in zip(ants,colour):
+        if not(Ku): 
+            fig1 = plt.figure(1,figsize = (20,5))
+        fig2 = plt.figure(2,figsize = (20,5))
+        for pol in pols:    
             ant = a.name
             ant_num = int(ant[3])
             
@@ -146,33 +146,33 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             plt.grid()
             plt.legend(loc=2,fontsize=12)
         
-    if not(Ku):
-        plt.figure(1)
+        if not(Ku):
+            plt.figure(1)
+            plt.subplot(n_ants,2,1)
+            ax = plt.gca()
+            ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+            plt.title('Coupler Diode: V pol: '+file_base)
+            plt.subplot(n_ants,2,2)
+            ax = plt.gca()
+            ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+            plt.title('Coupler Diode: H pol: '+file_base)
+
+        plt.figure(2)
         plt.subplot(n_ants,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Coupler Diode: V pol: '+file_base)
+        plt.title('Tsys/eta_A: V pol: '+file_base)
         plt.subplot(n_ants,2,2)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Coupler Diode: H pol: '+file_base)
-
-    plt.figure(2)
-    plt.subplot(n_ants,2,1)
-    ax = plt.gca()
-    ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-    plt.title('Tsys/eta_A: V pol: '+file_base)
-    plt.subplot(n_ants,2,2)
-    ax = plt.gca()
-    ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-    plt.title('Tsys/eta_A: H pol: '+file_base)
-    if pdf:
-        if not(Ku):
-            fig1.savefig(pp,format='pdf')
-            plt.close(fig1)
-        fig2.savefig(pp,format='pdf')
-        plt.close(fig2)
-        pp.close() # close the pdf file
+        plt.title('Tsys/eta_A: H pol: '+file_base)
+        if pdf:
+            if not(Ku):
+                fig1.savefig(pp,format='pdf')
+                plt.close(fig1)
+            fig2.savefig(pp,format='pdf')
+            plt.close(fig2)
+            pp.close() # close the pdf file
 
 
 
