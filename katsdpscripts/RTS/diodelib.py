@@ -110,7 +110,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             p = 1 if pol == 'v' else 2
             if not(Ku):
                 plt.figure(a_i*2-1)
-                plt.subplot(n_ants,2,p)
+                plt.subplot(1,2,p)
                 plt.ylim(14,27)
                 plt.ylabel('T_ND [K]')
                 plt.xlim(900,1670)
@@ -127,7 +127,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.legend()
                 
             plt.figure(a_i*2)
-            plt.subplot(n_ants,2,p)
+            plt.subplot(1,2,p)
             if not(Ku): plt.ylim(15,50)
             plt.ylabel('Tsys/eta_A [K]')
             if not(Ku): plt.xlim(900,1670)
@@ -148,21 +148,21 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         
         if not(Ku):
             plt.figure(a_i*2-1)
-            plt.subplot(n_ants,2,1)
+            plt.subplot(1,2,1)
             ax = plt.gca()
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
             plt.title('%s Coupler Diode: V pol: %s'%(ant,file_base))
-            plt.subplot(n_ants,2,2)
+            plt.subplot(1,2,2)
             ax = plt.gca()
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
             plt.title('%s Coupler Diode: H pol: %s'%(ant,file_base))
 
         plt.figure(a_i)
-        plt.subplot(n_ants,2,1)
+        plt.subplot(1,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
         plt.title('%s Tsys/eta_A: V pol: %s'%(ant,file_base))
-        plt.subplot(n_ants,2,2)
+        plt.subplot(1,2,2)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
         plt.title('%s Tsys/eta_A: H pol: %s'%(ant,file_base))
