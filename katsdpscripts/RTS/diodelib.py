@@ -157,7 +157,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
             plt.title('%s Coupler Diode: H pol: %s'%(ant,file_base))
 
-        plt.figure(a_i)
+        plt.figure(a_i*2)
         plt.subplot(1,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
