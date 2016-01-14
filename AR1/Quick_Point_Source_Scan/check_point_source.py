@@ -18,7 +18,7 @@ parser = standard_script_options(usage="%prog [options] ['target']",
 # parser.add_option('-c', '--channels', default='100,400',
 #                   help="Frequency channel range to keep (zero-based, specified as 'start,end', default='%default')")
 ## Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Point source check', observer='check', dump_rate=1.0)
+parser.set_defaults(description='Point source check', observer='check')#, dump_rate=1.0)
 # parser.set_defaults(description='Point source check', observer='check', nd_params='coupler,0,0,-1', dump_rate=2.0)
 # Parse the command line
 opts, args = parser.parse_args()
@@ -63,5 +63,6 @@ with verify_and_connect(opts) as kat:
         session.label('raster')
 #         session.fire_noise_diode('coupler', on=4, off=4)
         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5, projection=opts.projection)
+#        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=7.0, scan_spacing=0.5, projection=opts.projection)
 
 # -fin-
