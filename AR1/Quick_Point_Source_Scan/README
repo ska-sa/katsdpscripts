@@ -1,0 +1,2 @@
+Usage example:
+python quick_analyse_point_source_scan.py -m 20 -v /var/kat/archive/data/comm/2015/08/05/1438762778.h5
