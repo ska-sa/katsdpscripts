@@ -60,7 +60,8 @@ with verify_and_connect(opts) as kat:
         time.sleep(10)
     else:
         if not kat.dry_run : user_logger.error("Unable to set Antenna mode to 'STOP'.")
-
+    for ant_x in ants:
+        if ant_x.name != 'm062' : RuntimeError("Unexpected antenna found : %s"%(ant_x.name))
     for i in range(int(opts.num_repeat)):
         for taz,tel,band in targetlist:
             target = katpoint.Target('Name,azel, %s,%s'%(taz,tel))
