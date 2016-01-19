@@ -98,7 +98,7 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     full = np.where(window_occ==1)
 
     #rms = np.sqrt((gain**2).mean())
-    returntext.append("Antenna : %s"%(antname) )
+    returntext.append("Antenna : %s:%s"%(antname,pol) )
     returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
     #returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
