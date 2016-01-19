@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pickle
 from katsdpscripts.RTS import git_info 
 
-def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False):
+def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1'):
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
     if pdf: pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
@@ -49,7 +49,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
             #cold data
-            h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = 'off1',scans='track')
+            h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
             freq = h5.channel_freqs
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
@@ -183,5 +183,7 @@ if __name__ == "__main__":
     Ku=False
     verbose=False
     out = '.'
+    error_bars = False
+    target = 'off1'
     print 'Performing test run with: ' + filename
-    read_and_plot_data(filename,out,pdf,Ku,verbose)
+    read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target)
