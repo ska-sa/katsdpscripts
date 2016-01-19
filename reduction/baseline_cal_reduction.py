@@ -12,19 +12,14 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-import katfile
+import katdal
 import scape
 import katpoint
 
 # Array position used for fringe stopping
-array_ant = katpoint.Antenna('ant0, -30:43:17.3, 21:24:38.5, 1038.0, 0.0')
-# Original estimated cable lengths to 12-m container
-ped_to_12m = {'ant1': 95.5, 'ant2': 108.8, 'ant3': 95.5 + 50, 'ant4': 95.5 + 70}
-# Estimated Losberg cable lengths to start from, in metres
-ped_to_losberg = {'ant1' : 4977.4, 'ant2' : 4988.8, 'ant3' : 5011.8, 'ant4' : 5035.4,
-                  'ant5' : 5067.3, 'ant6' : 5090.9, 'ant7' : 5143.9}
+array_ant = katpoint.Antenna('ref, -30:44:01.1, 21:25:43.9, 1041.568, 0.0')
 # The speed of light in the fibres is lower than in vacuum
-cable_lightspeed = katpoint.lightspeed / 1.4
+cable_lightspeed = 0.7 * katpoint.lightspeed
 
 # Parse command-line options and arguments
 parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]")
@@ -62,7 +57,7 @@ if len(args) < 1:
 katpoint.logger.setLevel(30)
 
 print "\nLoading and processing data...\n"
-data = katfile.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
+data = katdal.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
 
 # Select frequency channel range and only keep cross-correlation products and single pol in data set
 if opts.freq_chans is not None:
@@ -85,7 +80,7 @@ if num_bls == 0:
 # Reference antenna and excluded sources
 excluded_targets = opts.exclude.split(',')
 old_positions = np.array([ant.position_enu for ant in data.ants])
-old_cable_lengths = np.array([ped_to_losberg[ant.name] for ant in data.ants])
+old_cable_lengths = np.array([ant.delay_model['FIX_' + opts.pol] for ant in data.ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
 
 # Phase differences are associated with frequencies at midpoints between channels
@@ -330,3 +325,5 @@ ax.set_ylim(0., np.pi / 2.)
 ax.set_yticks(katpoint.deg2rad(np.arange(0., 90., 10.)))
 ax.set_yticklabels([])
 plt.title('Antenna positions and source directions')
+
+plt.show()
