@@ -32,3 +32,12 @@ Then repeat the list from 140 degrees again.
 * data for above plots available as a CSV or text file for plotting against power meter information
 * No analysis of sky data required.
 
+
+#### Example script 
+power_test.py "0,15,L"   -t 120
+
+power_test.py "140,25,L" "160,35,X" --num-repeat=5 -t 1
+
+power_test.py "140,25,L" -t 60
+    
+
