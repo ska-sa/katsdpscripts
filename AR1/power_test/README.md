@@ -9,19 +9,20 @@ _If possible, no data product specified, so that no correlator or digitiser is r
 Use maximum slew rate for all axes. If one axis accelerates faster and so moves the requested 20/10 degrees in less time than the other, the movement distance should be increased to have them both start and stop at the same time.
 
 ####Movement profile:
-||Azimuth||Elevation||Indexer||Dwell time||
-|0|15|L|120 s|
-|140|25|L|1 s|
-|160|35|X|1 s|
-|140|25|L|1 s|
-|160|35|X|1 s|
-|140|25|L|1 s|
-|160|35|X|1 s|
-|140|25|L|1 s|
-|160|35|X|1 s|
-|140|25|L|1 s|
-|160|35|X|1 s|
-|140|25|L|60 s|
+| Azimuth|Elevation|Indexer|Dwell time|
+|---|---|---|---|
+| 0   |15 | L | 120 s |
+| 140 |25 | L | 1 s |
+| 160 |35 | X | 1 s |
+| 140 |25 | L | 1 s |
+| 160 |35 | X | 1 s |
+| 140 |25 | L | 1 s |
+| 160 |35 | X | 1 s |
+| 140 |25 | L | 1 s | 
+| 160 |35 | X | 1 s |  
+| 140 |25 | L | 1 s |
+| 160 |35 | X | 1 s |
+| 140 |25 | L | 60 s |
 Then repeat the list from 140 degrees again.
 
 ####Reduction script:
