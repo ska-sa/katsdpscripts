@@ -44,7 +44,11 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+h5.receivers[ant]+'.'+pol+'.csv'
-                nd = scape.gaincal.NoiseDiodeModel(diode_filename)
+                try:
+                    nd = scape.gaincal.NoiseDiodeModel(diode_filename)
+                except:
+                    print "Error reading the noise diode file ... using a constant value of 20k"
+                    nd = scape.gaincal.NoiseDiodeModel(freq=[856,1712],temp=[20,20])
             
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
@@ -111,11 +115,12 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if not(Ku):
                 plt.figure(a_i*2-1)
                 plt.subplot(1,2,p)
-                plt.ylim(14,27)
+                plt.ylim(0,50)
                 plt.ylabel('T_ND [K]')
                 plt.xlim(900,1670)
                 plt.xlabel('f [MHz]')
                 if p ==ant_num * 2-1: plt.ylabel(ant)
+                plt.axhspan(14, 35, facecolor='g', alpha=0.5)
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 #outfile = file('%s/%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower()), 'w')
                 #outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
