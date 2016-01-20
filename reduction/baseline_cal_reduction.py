@@ -324,8 +324,11 @@ for ant, theta, r in zip(data.ants, eastnorth_angle, eastnorth_radius):
 quality = np.hstack([q.mean(axis=0) for q in extract_scan_segments(1.0 - sigma_delay / max_sigma_delay)])
 ax.scatter(np.pi/2 - np.array(scan_mid_az), np.pi/2 - np.array(scan_mid_el), 100*quality, 'k',
            edgecolors=None, linewidths=0, alpha=0.5)
+targets_done = set()
 for name, az, el in zip(scan_targets, scan_mid_az, scan_mid_el):
-    ax.text(np.pi/2. - az, np.pi/2. - el, name, ha='center', va='top')
+    if name not in targets_done:
+        ax.text(np.pi/2. - az, np.pi/2. - el, name, ha='left', va='top')
+        targets_done.add(name)
 ax.set_xticks(katpoint.deg2rad(np.arange(0., 360., 90.)))
 ax.set_xticklabels(['E', 'N', 'W', 'S'])
 ax.set_ylim(0., np.pi / 2.)
