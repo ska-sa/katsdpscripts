@@ -7,27 +7,22 @@ import katpoint
 import time
 
 
-def track(ants,target,index='l',duration=1,dry_run=False):
+def track(ants, target, index='l', duration=1, dry_run=False):
     # send this target to the antenna.
     ants.req.target(target.description)
+    ant_names = ','.join([ant.name for ant in ants])
     ants.req.mode("POINT")
-    for ant_x in ants:
-        user_logger.info("Slewing %s to target : %s"%(ant_x.name,target,))
+    user_logger.info("Slewing %s to target : %r" % (ant_names, target))
     ants.req.ap_set_indexer_position(index)
-    for ant_x in ants:
-        user_logger.info("Changing %s indexer to position : %s"%(ant_x.name,index,))
-   #if not dry_run : time.sleep(duration)
-    
-    locks = 0
-    for ant_x in ants:
-        if ant_x.wait("lock", True, 300): locks += 1
-    if len(ants) == locks:
-        user_logger.info("Tracking Target : %s for %s seconds"%(target,str(duration)))
+    user_logger.info("Changing indexers of %s to position : %r" % (ant_names, index))
+    #if not dry_run : time.sleep(duration)
+    if ants.wait('lock', True, timeout=300):
+        user_logger.info("Tracking Target : %r for %d seconds" % (target, duration))
         time.sleep(duration)
-        user_logger.info("Target tracked : %s "%(target,))
+        user_logger.info("Target tracked : %r" % (target,))
         return True
     else:
-        user_logger.warning("Unable to track Targe : %s "%(target,))
+        user_logger.warning("Unable to track Target : %r " % (target,))
         return False
 
 
