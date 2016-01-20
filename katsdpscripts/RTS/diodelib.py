@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pickle
 from katsdpscripts.RTS import git_info 
 
-def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False):
+def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1'):
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
     if pdf: pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
@@ -29,27 +29,31 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
 
     ants = h5.ants
     n_ants = len(ants)
-
+    ant_ind = np.arange(n_ants) + 1
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
     diode= 'coupler'
-    if not(Ku): 
-        fig1 = plt.figure(1,figsize = (20,5))
-    fig2 = plt.figure(2,figsize = (20,5))
-    for pol in pols:
-        for a,col in zip(ants,colour):    
+    for a,col,a_i in zip(ants,colour,ant_ind):    
+        if not(Ku): 
+            fig1 = plt.figure(a_i*2-1,figsize = (20,5))
+        fig2 = plt.figure(a_i*2,figsize = (20,5))
+        for pol in pols:
             ant = a.name
             ant_num = int(ant[3])
             
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+h5.receivers[ant]+'.'+pol+'.csv'
-                nd = scape.gaincal.NoiseDiodeModel(diode_filename)
+                try:
+                    nd = scape.gaincal.NoiseDiodeModel(diode_filename)
+                except:
+                    print "Error reading the noise diode file ... using a constant value of 20k"
+                    nd = scape.gaincal.NoiseDiodeModel(freq=[856,1712],temp=[20,20])
             
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
             #cold data
-            h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = 'off1',scans='track')
+            h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
             freq = h5.channel_freqs
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
@@ -109,13 +113,14 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             
             p = 1 if pol == 'v' else 2
             if not(Ku):
-                plt.figure(1)
-                plt.subplot(n_ants,2,p)
-                plt.ylim(14,27)
+                plt.figure(a_i*2-1)
+                plt.subplot(1,2,p)
+                plt.ylim(0,50)
                 plt.ylabel('T_ND [K]')
                 plt.xlim(900,1670)
                 plt.xlabel('f [MHz]')
                 if p ==ant_num * 2-1: plt.ylabel(ant)
+                plt.axhspan(14, 35, facecolor='g', alpha=0.5)
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 #outfile = file('%s/%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower()), 'w')
                 #outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
@@ -126,8 +131,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.grid()
                 plt.legend()
                 
-            plt.figure(2)
-            plt.subplot(n_ants,2,p)
+            plt.figure(a_i*2)
+            plt.subplot(1,2,p)
             if not(Ku): plt.ylim(15,50)
             plt.ylabel('Tsys/eta_A [K]')
             if not(Ku): plt.xlim(900,1670)
@@ -146,33 +151,32 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             plt.grid()
             plt.legend(loc=2,fontsize=12)
         
-    if not(Ku):
-        plt.figure(1)
-        plt.subplot(n_ants,2,1)
-        ax = plt.gca()
-        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Coupler Diode: V pol: '+file_base)
-        plt.subplot(n_ants,2,2)
-        ax = plt.gca()
-        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('Coupler Diode: H pol: '+file_base)
-
-    plt.figure(2)
-    plt.subplot(n_ants,2,1)
-    ax = plt.gca()
-    ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-    plt.title('Tsys/eta_A: V pol: '+file_base)
-    plt.subplot(n_ants,2,2)
-    ax = plt.gca()
-    ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-    plt.title('Tsys/eta_A: H pol: '+file_base)
-    if pdf:
         if not(Ku):
-            fig1.savefig(pp,format='pdf')
-            plt.close(fig1)
-        fig2.savefig(pp,format='pdf')
-        plt.close(fig2)
-        pp.close() # close the pdf file
+            plt.figure(a_i*2-1)
+            plt.subplot(1,2,1)
+            ax = plt.gca()
+            ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+            plt.title('%s Coupler Diode: V pol: %s'%(ant,file_base))
+            plt.subplot(1,2,2)
+            ax = plt.gca()
+            ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+            plt.title('%s Coupler Diode: H pol: %s'%(ant,file_base))
+
+        plt.figure(a_i*2)
+        plt.subplot(1,2,1)
+        ax = plt.gca()
+        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+        plt.title('%s Tsys/eta_A: V pol: %s'%(ant,file_base))
+        plt.subplot(1,2,2)
+        ax = plt.gca()
+        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+        plt.title('%s Tsys/eta_A: H pol: %s'%(ant,file_base))
+        if pdf:
+            if not(Ku):
+                fig1.savefig(pp,format='pdf')
+            fig2.savefig(pp,format='pdf')
+    pp.close() # close the pdf file
+    plt.close("all")
 
 
 
@@ -184,5 +188,7 @@ if __name__ == "__main__":
     Ku=False
     verbose=False
     out = '.'
+    error_bars = False
+    target = 'off1'
     print 'Performing test run with: ' + filename
-    read_and_plot_data(filename,out,pdf,Ku,verbose)
+    read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target)
