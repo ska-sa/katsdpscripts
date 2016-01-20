@@ -1,6 +1,6 @@
 #! /usr/bin/python
 #
-# Baseline calibration for multiple baselines using HDF5 format version 1 and 2 files.
+# Baseline calibration for multiple baselines.
 #
 # Ludwig Schwardt
 # 5 April 2011
@@ -9,7 +9,6 @@
 import optparse
 
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 import katdal
@@ -58,6 +57,7 @@ katpoint.logger.setLevel(30)
 
 print "\nLoading and processing data...\n"
 data = katdal.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
+center_freq = data.freqs[data.shape[1] // 2]
 
 # Select frequency channel range and only keep cross-correlation products and single pol in data set
 if opts.freq_chans is not None:
@@ -80,8 +80,10 @@ if num_bls == 0:
 # Reference antenna and excluded sources
 excluded_targets = opts.exclude.split(',')
 old_positions = np.array([ant.position_enu for ant in data.ants])
-old_cable_lengths = np.array([ant.delay_model['FIX_' + opts.pol] for ant in data.ants])
+old_cable_lengths = np.array([ant.delay_model['FIX_' + active_pol.upper()] for ant in data.ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
+# Original delay model
+correlator_model = katpoint.DelayCorrection(data.ants, array_ant, center_freq)
 
 # Phase differences are associated with frequencies at midpoints between channels
 mid_freqs = np.convolve(data.channel_freqs, [0.5, 0.5], mode='valid')
@@ -152,6 +154,11 @@ for scan_ind, state, target in data.scans():
     # The estimated mean group delay is the average of N-1 per-channel differences. Since this is less
     # variable than the per-channel data itself, we have to divide the data sigma by sqrt(N-1).
     delay_stats_sigma /= np.sqrt(num_chans - 1)
+    # Get corrections from existing / old correlator delay model and undo delay tracking
+    # Since baseline-based `delay` is delay2 - delay1, subtract the corrections accordingly
+    delay_corrections = correlator_model.corrections(target, ts)[0]
+    for bl, (inp1, inp2) in enumerate(data.corr_products):
+        delay_stats_mu[:, bl] += delay_corrections[inp1][:, 0] - delay_corrections[inp2][:, 0]
     # Rearrange measurements to shape (B T,)
     group_delay.append(delay_stats_mu.T.ravel())
     sigma_delay.append(delay_stats_sigma.T.ravel())
