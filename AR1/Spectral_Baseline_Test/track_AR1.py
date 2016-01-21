@@ -24,7 +24,8 @@ parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Target track',dump_rate=0.1)
+# parser.set_defaults(description='Target track',dump_rate=0.1)
+parser.set_defaults(description='Target track')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -48,12 +49,14 @@ with verify_and_connect(opts) as kat:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
             if not opts.no_delays and not kat.dry_run :
-                if session.dbe.req.auto_delay('on'):
+#                 if session.dbe.req.auto_delay('on'):
+                if session.data.req.auto_delay('on'):
                     user_logger.info("Turning on delay tracking.")
                 else:
                     user_logger.error('Unable to turn on delay tracking.')
             elif opts.no_delays and not kat.dry_run:
-                if session.dbe.req.auto_delay('off'):
+#                 if session.dbe.req.auto_delay('off'):
+                if session.data.req.auto_delay('off'):
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
