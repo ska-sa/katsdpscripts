@@ -10,6 +10,7 @@ def parse_arguments():
     parser.add_option("--Ku", action='store_true',default=False, help="The specified file is a Ku band observation")
     parser.add_option("-v","--verbose", action='store_true',default=False, help="Print some debugging information")
     parser.add_option("--error_bars", action='store_true',default=False, help="Include error bars - Still in development")
+    parser.add_option("--off_target", default='off1', help="which of the two off targets to use")
 
     (opts, args) = parser.parse_args()
     if len(args) ==0:

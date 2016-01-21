@@ -260,8 +260,15 @@ if __name__ == '__main__':
 
     # find inflection point using GPS power calculated
     inf_idx = numpy.argmax(numpy.abs(numpy.diff(Pgps)))
-    gps_offset_nonlinear = target_offset[inf_idx+1]
+    # gps_offset_nonlinear = target_offset[inf_idx+1]
+    gps_offset_nonlinear = target_offset[inf_idx]
     offset_idx = numpy.argmin(numpy.abs(gps_offset_nonlinear-target_offset))
+
+    # approximate dynamic range reading
+    visibilities = numpy.array(visibilities)
+    noisefloor = numpy.mean(10.*numpy.log10(visibilities.mean(axis=0)))
+    maxsignal = numpy.max(10.*numpy.log10(visibilities.max(axis=0)))
+    dr = (maxsignal-noisefloor)
 
 ##Test results
     # Generate output report
@@ -278,10 +285,18 @@ if __name__ == '__main__':
         pagetext += "\nScan offsets from max %.2f deg onto target using %d steps" % (opts.offset, opts.nsteps)
         pagetext += "\n\nMeasurement results:"
         pagetext += '\nCompression inflection at %.2f [deg] offset with GPS signal power %.2f [dBm]' % \
-                   (gps_offset_nonlinear, Pgps[offset_idx])
+                   (gps_offset_nonlinear, Pgps[inf_idx])
+                   # (gps_offset_nonlinear, Pgps[offset_idx])
         pagetext += '\nAverage power %.2f [dBm] at %.2f [MHz] null' % (numpy.mean(Pns[:inf_idx]), fnull/1e6)
-        if (Pgps[offset_idx]-spec) < 0: pagetext += '\n\n[Fail] Receiver power at receiver %.2f dB < %.2f dBm' % (abs(Pgps[offset_idx]-spec), spec)
-        else: pagetext +='\n\n[Success] Receiver power at compression angle %.2f dB >= %.2f dBm' % (abs(Pgps[offset_idx]-spec), spec)
+        pagetext += "\n\nInput power spec\n"
+        # if (Pgps[offset_idx]-spec) < 0: pagetext += '\n\n[Fail] Receiver power at receiver %.2f dB < %.2f dBm' % (abs(Pgps[offset_idx]-spec), spec)
+        if (Pgps[offset_idx]-spec) < 0: pagetext += '\n\n[Fail] Receiver power at receiver %.2f dB < %.2f dBm' % (abs(Pgps[inf_idx]-spec), spec)
+        # else: pagetext +='\n\n[Success] Receiver power at compression angle %.2f dB >= %.2f dBm' % (abs(Pgps[offset_idx]-spec), spec)
+        else: pagetext +='\n[Success] Receiver power at compression angle %.2f dB >= %.2f dBm' % (abs(Pgps[inf_idx]-spec), spec)
+        pagetext += "\n\nDynamic range\n"
+        if (dr - 27) < 0: pagetext += '\n\n[Fail] Not enough dynamic range %.2f dB < 27 dB' % numpy.abs(dr)
+        else: pagetext += '\n[Success] Enough dynamic range %.2f dB >= 27 dB' % numpy.abs(dr)
+
         pylab.figure(None,figsize = (16,8))
         pylab.axes(frame_on=False)
         pylab.xticks([])
@@ -350,7 +365,8 @@ if __name__ == '__main__':
         pylab.plot(target_offset[:len(Pgps)][:-1],numpy.diff(Pgps), 'b.-')
         pylab.axvline(x=target_offset[:len(Pgps)][inf_idx], color='r', linestyle=':')
         pylab.gca().invert_xaxis()
-        pylab.title('Inflection at %.2f [deg] offset, signal power %.2f [dBm]' % (gps_offset_nonlinear, Pgps[inf_idx+1]), fontsize=12)
+        # pylab.title('Inflection at %.2f [deg] offset, signal power %.2f [dBm]' % (gps_offset_nonlinear, Pgps[inf_idx+1]), fontsize=12)
+        pylab.title('Inflection at %.2f [deg] offset, signal power %.2f [dBm]' % (gps_offset_nonlinear, Pgps[inf_idx]), fontsize=12)
         pylab.ylabel('Gain [dB]', fontsize=12)
         pylab.xlabel('Lower Offset Angle [deg]', fontsize=12)
         pdf.savefig()
