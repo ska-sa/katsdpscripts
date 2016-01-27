@@ -34,6 +34,10 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
+# RvR -- temporarily added to allow manual start of metadata
+        user_logger.info('Start metadata capture')
+        time.sleep(2) # give time to issue cmd: cam.data_1.req.cbf_capture_meta('c856M4k')
+# RvR -- temporarily added to allow manual start of metadata
         # Pick a target, either explicitly or the closest strong one
         if len(args) > 0:
             target = collect_targets(kat, [args[0]]).targets[0]
@@ -62,7 +66,11 @@ with verify_and_connect(opts) as kat:
 
         session.label('raster')
 #         session.fire_noise_diode('coupler', on=4, off=4)
-        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5, projection=opts.projection)
-#        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=7.0, scan_spacing=0.5, projection=opts.projection)
+#         session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5, projection=opts.projection)
+# Longer test but better beam shape for fitting
+#         session.raster_scan(target, num_scans=3, scan_duration=59, scan_extent=5.0, scan_spacing=0.5, projection=opts.projection)
+# Quick test but wide scan if you do not know your pointing
+        session.raster_scan(target, num_scans=7, scan_duration=15, scan_extent=7.0, scan_spacing=1, projection=opts.projection)
+#         session.raster_scan(target, num_scans=7, scan_duration=30, scan_extent=5.0, scan_spacing=1, projection=opts.projection)
 
 # -fin-
