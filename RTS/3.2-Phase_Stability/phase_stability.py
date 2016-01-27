@@ -1,18 +1,16 @@
 #!/usr/bin/python
 #Plots uncalibrated power, noise diode firings, derived gains to assess gain stability and effectiveness of the gain calibration
-import matplotlib.dates as mdates
 import numpy as np
 import matplotlib.pyplot as plt   
 import optparse
 import katdal
 from matplotlib.backends.backend_pdf import PdfPages
-import stefcal
 import pandas
 import os
 from katsdpscripts.RTS import git_info
-from astropy.time import Time
 import pickle
 import h5py
+import katpoint
 
 def read_and_select_file(data, flags_file=None, value=np.inf):
     """
@@ -28,9 +26,9 @@ def read_and_select_file(data, flags_file=None, value=np.inf):
     if data.shape[0] == 0:
         raise ValueError('No data to process.')
 
-    if flags_file is None:
-        raise ValueError('No flag data to process.')
-        #flags = np.sum(data.flags()[:],axis=-1)
+    if flags_file is None or flags_file == '':
+        print('No flag data to process. Using the file flags')
+        file_flags = data.flags()[:]
     else:
         #Open the flags file
         ff = h5py.File(flags_file)
@@ -57,12 +55,88 @@ def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     #if np.isnan(gg[0]) : raise RuntimeError('NaN in polyfit, Error')
     return anglestd(z-x*gg[0])
 
+def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
+    """
+        This function produces a rolling window shaped data with the rolled data in the last col
+        a      :  n-D array of data
+        window : integer is the window size
+        axis   : integer, axis to move the window over
+        default is the last axis.
+        pad    : {Boolean} Pad the array to the origanal size
+        mode : {str, function} from the function numpy.pad
+        One of the following string values or a user supplied function.
+        'constant'      Pads with a constant value.
+        'edge'          Pads with the edge values of array.
+        'linear_ramp'   Pads with the linear ramp between end_value and the
+        array edge value.
+        'maximum'       Pads with the maximum value of all or part of the
+        vector along each axis.
+        'mean'          Pads with the mean value of all or part of the
+        con  vector along each axis.
+        'median'        Pads with the median value of all or part of the
+        vector along each axis.
+        'minimum'       Pads with the minimum value of all or part of the
+        vector along each axis.
+        'reflect'       Pads with the reflection of the vector mirrored on
+        the first and last values of the vector along each
+        axis.
+        'symmetric'     Pads with the reflection of the vector mirrored
+        along the edge of the array.
+        'wrap'          Pads with the wrap of the vector along the axis.
+        The first values are used to pad the end and the
+        end values are used to pad the beginning.
+        <function>      of the form padding_func(vector, iaxis_pad_width, iaxis, **kwargs)
+        see numpy.pad notes
+        **kargs are passed to the function numpy.pad
+        
+        Returns:
+        an array with shape = np.array(a.shape+(window,))
+        and the rolled data on the last axis
+        
+        Example:
+        import numpy as np
+        data = np.random.normal(loc=1,scale=np.sin(5*np.pi*np.arange(10000).astype(float)/10000.)+1.1, size=10000)
+        stddata = rolling_window(data, 400).std(axis=-1)
+        """
+    if axis == -1 : axis = len(a.shape)-1
+    if pad :
+        pad_width = []
+        for i in xrange(len(a.shape)):
+            if i == axis:
+                pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
+            else :
+                pad_width += [(0,0)]
+        a = np.pad(a,pad_width=pad_width,mode=mode,**kargs)
+    a1 = np.swapaxes(a,axis,-1) # Move target axis to last axis in array
+    shape = a1.shape[:-1] + (a1.shape[-1] - window + 1, window)
+    strides = a1.strides + (a1.strides[-1],)
+    return np.lib.stride_tricks.as_strided(a1, shape=shape, strides=strides).swapaxes(-2,axis) # Move original axis to
+
+
+def model(x, a,m,c):
+    a = 1.
+    return np.sqrt(a**2)*np.exp(1j*(m*x))*np.exp(1j*(np.sqrt(c**2) )) 
+
+def residuals(params, w, Z):
+    R, C, L = params
+    diff = model(w, R, C, L) - Z
+    return diff.real**2 + diff.imag**2 # np.abs(diff)#np.angle(diff) #
+
+
+def v_detrend(x):
+    result = np.zeros((x.shape[0],3))
+    for i in xrange(x.shape[0]) :
+        if i%200 == 0 :print " %i of %i"%(i,x.shape[0])
+        result[i,:] = fit_phase_std(np.arange(x.shape[-1]),x[i,:])
+    return result
+
+
 def detrend(x):
-    return polyfitstd(np.arange(x.shape[0]),x,1)
+    return fit_phase_std(np.arange(x.shape[0]),x)
 
 def cplot(data,*args,**kwargs):
-    if data.dtype.kind == 'c': plot(np.real(data),np.imag(data),*args,**kwargs)
-    else : plot(data,*args,**kwargs)
+    if data.dtype.kind == 'c': plt.plot(np.real(data),np.imag(data),*args,**kwargs)
+    else : plt.plot(data,*args,**kwargs)
 
 def mean(a,axis=None):
     """This function calclates the mean along the chosen axis of the array
@@ -81,8 +155,8 @@ def mean(a,axis=None):
     if a.dtype.kind == 'c':
         r = np.ma.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
         th = np.ma.arctan2(a.imag,a.real)
-        sa = (np.sin(th)).sum(axis=axis)
-        ca = (np.cos(th)).sum(axis=axis)
+        sa = (np.ma.sin(th)).sum(axis=axis)
+        ca = (np.ma.cos(th)).sum(axis=axis)
         thme = np.ma.arctan2(sa,ca)
         return r*np.ma.exp(1j*thme)
     else: 
@@ -185,17 +259,17 @@ def anglestd(a,axis=None):
          This returns a an array or a one value array
     Example:
     """
-    a = np.ma.array(data=np.nan_to_num(np.exp(1j* a)),mask=np.isnan(a))
-    rstd = np.ma.sqrt(a.real**2 + a.imag**2).std(axis=axis)#std
-    rmean = np.ma.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
-    th = np.ma.arctan2(a.imag,a.real)
-    sa = np.ma.sin(th).sum(axis=axis)
-    ca = np.ma.cos(th).sum(axis=axis)
-    thme = np.ma.arctan2(sa,ca)        
+    a = np.exp(1j* a)
+    #rstd = np.sqrt(a.real**2 + a.imag**2).std(axis=axis)#std
+    #rmean = np.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
+    th = np.arctan2(a.imag,a.real)
+    sa = np.sin(th).sum(axis=axis)
+    ca = np.cos(th).sum(axis=axis)
+    thme = np.arctan2(sa,ca)        
     nshape = np.array(th.shape)
     nshape[axis] = 1
-    S0 = 1-np.ma.cos(th-np.ma.reshape(thme,nshape)).mean(axis=axis)
-    return np.degrees(np.angle(np.exp(1j*np.ma.sqrt(-2.*np.log(1.-S0)))))
+    S0 = 1-np.cos(th-np.reshape(thme,nshape)).mean(axis=axis)
+    return np.angle(np.exp(1j*np.sqrt(-2.*np.log(1.-S0))))
 
 
 def plot_AntennaGain(gains,freq,inputs):
@@ -208,14 +282,14 @@ def plot_AntennaGain(gains,freq,inputs):
     returned_plots = []
     if len(gains.shape) == 2 : gains =gains[np.newaxis,:,:]
     for i in xrange(gains.shape[-1]):
-        fig, (ax) = plt.subplots(nrows=2, sharex=True)
-        ax[0].set_title('Phase %s'%(inputs[i]))
-        ax[1].set_title('Amplitude %s'%(inputs[i]))
-        ax[0].set_ylabel('Degrees')
-        ax[1].set_ylim(0,20)
-        ax[1].set_xlabel("Frequency (MHz)")
-        ax[0].plot(freq/1e6,np.degrees(np.angle(gains[:,:,i].T)))
-        ax[1].plot(freq/1e6,np.abs(gains[:,:,i].T))
+        fig, ax = plt.subplots(nrows=1, sharex=True)
+        ax.set_title('Correction Phase %s'%(inputs[i]))
+        #ax[1].set_title('Correction Amplitude %s'%(inputs[i]))
+        ax.set_ylabel('Degrees')
+        #ax[1].set_ylim(0,20)
+        ax.set_xlabel("Frequency (MHz)")
+        ax.plot(freq/1e6,np.degrees(np.angle(gains[:,:,i].T)))
+        #ax[1].plot(freq/1e6,np.abs(gains[:,:,i].T))
         returned_plots.append(fig)
     return returned_plots
 
@@ -238,7 +312,7 @@ def  fringe_stopping(data): #This will have to be updated for MKAT
     wavelengths = 3.0e8 / center_freqs
     # Number of turns of phase that signal B is behind signal A due to cable / receiver delay
     cable_delay_turns = np.array([(delays[inpB] - delays[inpA]) * center_freqs for inpA, inpB in data.corr_products]).T
-    crosscorr = [(data.inputs.index(inpA), data.inputs.index(inpB)) for inpA, inpB in data.corr_products]
+    #crosscorr = [(data.inputs.index(inpA), data.inputs.index(inpB)) for inpA, inpB in data.corr_products]
     # Assemble fringe-stopped visibility data for main (bandpass) calibrator
     vis_set = None
     for compscan_no,compscan_label,target in data.compscans():
@@ -254,23 +328,129 @@ def  fringe_stopping(data): #This will have to be updated for MKAT
             vis_set = np.append(vis_set,vis,axis = 0)
     return vis_set
 
+def fringe_correction(h5):
+    h5.select(corrprods='cross')
+    center_freqs = h5.channel_freqs
+    print center_freqs.mean()
+    wavelengths = 3.0e8 / center_freqs
+    vis_set = None
+    # Number of turns of phase that signal B is behind signal A due to cable / receiver delay
+    tar = h5.catalogue.targets[0]
+    antlook = {}
+    for ant in h5.ants: antlook[ant.name] = ant # make lookup dict
+    tar.antenna = antlook['m024']
+    anttmp = antlook['m025'].description.split(',')
+    #anttmp[5] =  "1257.713 2728.218 -7.917" #old
+    #anttmp[5] =  "1254.75111151  2725.01575851    -9.93164 "
+    #anttmp[5] = "1258.828 2728.943 -7.283" # only strong sources
+    #anttmp[5] = "1258.862 2729.194 -7.234" # pointy sources 
+    anttmp[5] = "1258.921 2729.124 -6.825" #best
+    anttmp[5] = "1258.892 2729.159 -7.029" #???
+    cable_delay_turns = 0.0  #  add delays correction 
+    for compscan_no,compscan_label,target in h5.compscans():
+        print compscan_no,target.description
+        #print "loop",compscan_no,compscan_label,target,h5.shape
+        vis = h5.vis[:,:,:]
+        # Number of turns of phase that signal B is behind signal A due to geometric delay
+        target.antenna = antlook['m024']
+        new_w =np.array(target.uvw(antenna2=katpoint.Antenna(','.join(anttmp) ),timestamp=h5.timestamps))[2,:]
+        w =  (new_w-h5.w[:,0])  
+        geom_delay_turns =  w[:, np.newaxis, np.newaxis] / wavelengths[:, np.newaxis]
+        # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
+        vis *= np.exp(2j * np.pi * (geom_delay_turns + cable_delay_turns))    
+        if vis_set is None:
+            vis_set = vis.copy()
+        else:
+            vis_set = np.append(vis_set,vis,axis = 0)
+    return vis_set
 
-def peak2peak(y):
-    return np.degrees(np.ma.ptp(np.ma.angle(np.ma.array(data=np.nan_to_num(y),mask=np.isnan(y)))))
 
-def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
+def anglemax(x):
+    x = np.exp(1j* x)
+    #x = np.ma.array(data=np.nan_to_num(x),mask=x.mask +np.isnan(x))
+    return np.angle(x/mean(x)).max()
+
+def anglemin(x):
+    x = np.exp(1j* x)
+    #x = np.ma.array(data=np.nan_to_num(x),mask=x.mask +np.isnan(x))
+    return np.angle(x/mean(x)).min()
+
+def angle_mean(x):
+    x = np.exp(1j* x)
+    #x = np.ma.array(data=np.nan_to_num(x),mask=x.mask +np.isnan(x))
+    return np.angle(mean(x))
+
+
+def peak2peak(x):
+    #x = np.exp(1j* x)
+    #x = np.ma.array(data=np.nan_to_num(x),mask=x.mask +np.isnan(x))
+    return anglemax(x)-anglemin(x)
+
+def angle_std(a,axis=None):
+    """This function calclates the standard devation along the chosen axis of the array
+    This function has been writen to calculate the mean of complex numbers correctly
+    by taking the standard devation  of the angle (exp(1j*theta) )
+    and standard devation over the mean of the argument
+    Input :
+    a    : N-D numpy array
+    axis : The axis to perform the operation over
+           The Default is over all axies
+    Output:
+         This returns a an array or a one value array
+    Example:
+    """
+    a = np.exp(1j* a)
+    #rstd = np.sqrt(a.real**2 + a.imag**2).std(axis=axis)#std
+    #rmean = np.sqrt(a.real**2 + a.imag**2).mean(axis=axis)
+    th = np.arctan2(a.imag,a.real)
+    sa = np.sin(th).sum(axis=axis)
+    ca = np.cos(th).sum(axis=axis)
+    thme = np.arctan2(sa,ca)        
+    nshape = np.array(th.shape)
+    nshape[axis] = 1
+    S0 = 1-np.cos(th-np.reshape(thme,nshape)).mean(axis=axis)
+    #print a.imag,a.real,th,sa,ca,thme,nshape,S0,np.degrees(np.angle(np.exp(1j*np.sqrt(-2.*np.log(1.-S0)))))
+    return np.angle(np.exp(1j*np.sqrt(-2.*np.log(1.-S0))))
+
+def fit_phase_std(x, y):
+    """
+    fit a 3 component model to the data to remove phase and fringe rate and amplitude 
+    Any nan values in x are 'masked' and std is returned .
+    """
+    if np.isnan(y).sum() >= y.shape[0]+1 : return 0.0 # All Nan
+    if (~np.isnan(y)).sum() <= 3 : return 0.0 # Not enough data
+    x_m = x-x.mean()
+    #y = np.angle(np.exp(1j*np.angle(y))/mean(y))
+    m= ((x_m)*(y-y.mean())).sum()/((x_m)**2).sum()
+    #print "m=",m
+    #p_guess = [1.,0.,0. ]
+    #params, cov = optimize.leastsq(residuals, p_guess, args=(x, z))
+    # print params, cov
+    #if np.isnan(gg[0]) : raise RuntimeError('NaN in polyfit, Error')
+    #np.exp(1j*np.angle(y))/(np.exp(1j*(m*x))
+    #plot(y-(m*x))
+    return  anglestd(y-(m*x))
+
+def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1200):
     """ calculate the Stats needed to evaluate the observation"""
     returntext = []
     #note gain is in radians
-    gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))
-    window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
-    full = np.where(window_occ==1)
+    #change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
+
+    gain_ts = pandas.Series(np.angle(gain), pandas.to_datetime(timestamps, unit='s'))
+
+    #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
+    #full = np.where(window_occ==1)
     #note std is returned in degrees
-    std = (pandas.rolling_apply(gain_ts,windowtime,anglestd,minsamples)).iloc[full]    
-    peakmin= (np.degrees(pandas.rolling_min(gain_ts,windowtime,minsamples))).iloc[full]
-    peakmax= (np.degrees(pandas.rolling_max(gain_ts,windowtime,minsamples))).iloc[full]
-    peak = peakmax-peakmin
-    dtrend_std = (pandas.rolling_apply(gain_ts,windowtime,detrend,minsamples)).iloc[full]
+    std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))    
+    peakmin= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemin,min_periods=minsamples)))
+    peakmax= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemax,min_periods=minsamples)))
+    gain_val_corr = ((pandas.rolling_apply(gain_ts,window=windowtime,func=angle_mean,min_periods=minsamples)))
+    #gain_val = pandas.Series(gain_ts-gain_val_corr, pandas.to_datetime(timestamps, unit='s') )
+    gain_val = pandas.Series(np.angle(np.exp(1j*gain_ts)/np.exp(1j*gain_val_corr)), pandas.to_datetime(timestamps, unit='s'))
+
+    peak =  ((pandas.rolling_apply(gain_ts,window=windowtime,func=peak2peak,min_periods=minsamples)))
+    dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     timeval = timestamps.max()-timestamps.min()
     
@@ -281,39 +461,53 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,peak.mean()))
-    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,peak.max()))
-    returntext.append("The mean variation over %i seconds of %s is: %.5f    "%(windowtime,pol,std.mean()))
-    returntext.append("The Max  variation over %i seconds of %s is: %.5f    "%(windowtime,pol,std.max()))
-    returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,dtrend_std.mean()))
-    returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,dtrend_std.max()))
-    #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
-    
-    pltobj = plt.figure(figsize=[8,11])
+    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,np.degrees(peak.mean())))
+    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,np.degrees(peak.max())) )
+    returntext.append("The mean variation over %i seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.mean())) )
+    returntext.append("The Max  variation over %i seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.max())) )
+    returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.mean())))
+    returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
+    pltobj = plt.figure(figsize=[11,20])
+
     plt.suptitle(h5.name)
     plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
-    ax1 = plt.subplot(311)
-    plt.title('Original unwrapped phases for '+pol)
-    np.degrees(gain_ts).plot(label='gain phase')
-    peakmax.plot(label='rolling max')
-    peakmin.plot(label='rolling min')
+    plt.subplot(311)
+    plt.title('phases for '+pol)
+    (gain_val* 180./np.pi).plot(label='phase( - rolling mean)')
+    (peakmax * 180./np.pi).plot(label='rolling max')
+    (peakmin * 180./np.pi).plot(label='rolling min')
     plt.legend(loc='best')
     plt.ylabel('Gain phase (deg)') 
+    
     ax2 = plt.subplot(312)
     plt.title('Peak to peak variation of %s, %i Second sliding Window'%(pol,windowtime,))
-    peak.plot(color='blue')
+    (peak* 180./np.pi).plot(color='blue')
     ax2.axhline(13,ls='--', color='red')
+    #plt.legend(loc='best')
     plt.ylabel('Variation (deg)')
 
-    ax3  = plt.subplot(313)
-    plt.title('Variation of %s, %i Second sliding Window'%(pol,windowtime,))
-    dtrend_std.plot(label='Detrended std')
-    ax3.axhline(2.3,ls='--', color='red')
+    ax3 = plt.subplot(313)
+    plt.title('Detrended Std of %s, %i Second sliding Window'%(pol,windowtime,))
+    (std* 180./np.pi).plot(color='blue',label='Std')
+    (dtrend_std* 180./np.pi).plot(color='green',label='Detrended Std')
+    ax3.axhline(2.2,ls='--', color='red')
+    plt.legend(loc='best')
     plt.ylabel('Variation (deg)')
+    plt.xlabel('Date/Time')
+    
+    pltobj2 = plt.figure(figsize=[11,11])
+    plt.suptitle(h5.name)
+    plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
+    plt.subplot(111)
+    plt.title('Raw phases for '+pol)
+    (gain_ts* 180./np.pi).plot(label='Raw phase')
+    plt.legend(loc='best')
+    plt.ylabel('Phase (deg)') 
     plt.xlabel('Date/Time')
     plt.legend(loc='best')
     plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
-    return returntext,pltobj  # a plot would be cool
+    
+    return returntext,pltobj,pltobj2  # a plot would be cool
 
 
 
@@ -339,7 +533,7 @@ if len(args) ==0:
 start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
 
-h5 = katdal.open(args)
+h5 = katdal.open(args[0])
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
     start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -370,28 +564,28 @@ for pol in ('h','v'):
         vis = fringe_stopping(h5)
     else:
         print "Fringe stopping done in the correlator"
-        vis = h5.vis[:,:,:]
+        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
 
     #flaglist[0:start_freq_channel] = False
     #flaglist[end_freq_channel:] = False
-    antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
-    antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
+    #antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
+    #antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
 
-    N_ants = len(h5.ants)
+    #N_ants = len(h5.ants)
     #full_vis = np.concatenate((vis, vis.conj()), axis=-1)
-    full_antA = np.r_[antA, antB]
-    full_antB = np.r_[antB, antA]
+    #full_antA = np.r_[antA, antB]
+    #full_antB = np.r_[antB, antA]
 
-    weights= np.abs(1./np.angle(absstd(vis[:,:,:],axis=0)))
-    weights= np.concatenate((weights, weights), axis=-1)
+    #weights= np.abs(1./np.angle(absstd(vis[:,:,:],axis=0)))
+    #weights= np.concatenate((weights, weights), axis=-1)
 
     # use vector mean == np.mean  on visabilitys
     # but use angle mean on solutions/phase change.
-    gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
-    calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
-
+   # gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
+    #calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
+    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:,:,:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
-    data = np.zeros((h5.shape[0:3:2]),dtype=np.complex)
+    data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0
     for scan in h5.scans():
         print scan
@@ -400,17 +594,18 @@ for pol in ('h','v'):
             vis = fringe_stopping(h5)
         else:
             vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
-            
-        data[i:i+h5.shape[0]] = mean((vis*calfac[:,:,:h5.shape[-1]]),axis=1)
+            #vis = fringe_correction(h5)
+        data[i:i+h5.shape[0]] = mean((vis*fit_gains),axis=1)
         i += h5.shape[0]
     figlist = []
-    figlist += plot_AntennaGain(gains,h5.channel_freqs,h5.inputs)
+    figlist += plot_AntennaGain(fit_gains,h5.channel_freqs,h5.inputs)
+    for tmpfig in figlist : 
+        tmpfig.savefig(pp,format='pdf')
+        plt.close(tmpfig)
     fig = plt.figure()
     plt.suptitle(h5.name)
     plt.title('Phase angle in Baseline vs. Time for %s pol baselines '%(pol))
     plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='nearest')
-    #ax = plt.subplot(111)
-    #ax.yaxis_date()
     plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Baseline Number')
     plt.colorbar()
     fig.savefig(pp,format='pdf')
@@ -418,32 +613,18 @@ for pol in ('h','v'):
     
     for i,(ant1,ant2) in  enumerate(h5.corr_products):
         print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
-        returntext,pltfig = calc_stats(h5.timestamps[:],np.unwrap(np.angle(data[:,i])) ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1)
+        mask = ~data.mask[:,i]
+        returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1200)
         pltfig.savefig(pp,format='pdf') 
         plt.close(pltfig)
+        pltfig2.savefig(pp,format='pdf') 
+        plt.close(pltfig2)
         fig = plt.figure(None,figsize = (10,10))
         plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
-#figlist += plot_DataStd(gains,freq,h5.inputs)
-#figlist += plot_DataStd(vis,freq,h5.corr_products)
-#returntext = calc_stats(d.timestamps,g_hh,d.freqs,'HH',1200)+calc_stats(d.timestamps,g_vv,d.freqs,'VV',1200)
-#fig = plt.figure(None,figsize = (10,16))
-#plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
-#fig.savefig(pp,format='pdf')
 pp.close()
 plt.close('all')
-
-
-#data = mean(rolling_window(mean(vis[:,flaglist,:]*calfac[:,flaglist,:calfac.shape[-1]//2],axis=1),50,axis=0),axis=-1)
-
-
-
-#for i in xrange(h5.shape[0]) :plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[i,200:800,0][0,:,0]),'b.',alpha=0.1)
-#plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0)),'g',)
-#plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0))+3*np.abs(h5.vis[:,200:800,0].std(axis=0)),'r')
-#plot(h5.channel_freqs[200:800]/1e6,np.abs(h5.vis[:,200:800,0].mean(axis=0))-3*np.abs(h5.vis[:,200:800,0].std(axis=0)),'r')
-
 
 
