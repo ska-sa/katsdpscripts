@@ -272,7 +272,7 @@ def anglestd(a,axis=None):
     return np.angle(np.exp(1j*np.sqrt(-2.*np.log(1.-S0))))
 
 
-def plot_AntennaGain(gains,freq,inputs):
+def plot_BaselineGain(gains,freq,inputs):
     """ This plots the Amplitude and Phase across the bandpass
     gains   : complex array shape (time,frequency,antenna) or (frequency,antenna)  
     freq    : array shape (frequency) in Herts
@@ -283,8 +283,8 @@ def plot_AntennaGain(gains,freq,inputs):
     if len(gains.shape) == 2 : gains =gains[np.newaxis,:,:]
     for i in xrange(gains.shape[-1]):
         fig, ax = plt.subplots(nrows=1, sharex=True)
-        ax.set_title('Correction Phase %s'%(inputs[i]))
-        #ax[1].set_title('Correction Amplitude %s'%(inputs[i]))
+        ax.set_title('Baseline  Phase Correction %s'%(inputs[i]))
+        #ax[1].set_title('Baseline Amplitude Correction  %s'%(inputs[i]))
         ax.set_ylabel('Degrees')
         #ax[1].set_ylim(0,20)
         ax.set_xlabel("Frequency (MHz)")
@@ -292,6 +292,7 @@ def plot_AntennaGain(gains,freq,inputs):
         #ax[1].plot(freq/1e6,np.abs(gains[:,:,i].T))
         returned_plots.append(fig)
     return returned_plots
+
 
 
 
@@ -598,7 +599,7 @@ for pol in ('h','v'):
         data[i:i+h5.shape[0]] = mean((vis*fit_gains),axis=1)
         i += h5.shape[0]
     figlist = []
-    figlist += plot_AntennaGain(fit_gains,h5.channel_freqs,h5.inputs)
+    figlist += plot_BaselineGain(fit_gains,h5.channel_freqs,h5.corr_products)
     for tmpfig in figlist : 
         tmpfig.savefig(pp,format='pdf')
         plt.close(tmpfig)
