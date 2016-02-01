@@ -35,7 +35,7 @@ with verify_and_connect(opts) as kat:
     print "_______________________"
     try:
         cam = None
-        cont = False
+        done = False
         count = 1
 
         if not kat.dry_run:
@@ -68,22 +68,28 @@ with verify_and_connect(opts) as kat:
 	        corrprod = 'c856M4k'
 	        print('No correlation product specified. Using %s' % corrprod)
 
-            while not cont:
+            while not done:
+		cam.subarray_1.req.free_subarray(timeout=30)
+		print('Waiting 5 seconds for things to settle')
+		time.sleep(10)
 		print('Building new subarray, this may take a little time....')
  		cam.subarray_1.req.set_band('l')
+		time.sleep(1)
                 cam.subarray_1.req.set_product(corrprod)
+		time.sleep(1)
  		cam.subarray_1.req.assign_resources('data_1,'+antlist)
+		time.sleep(1)
 		response=cam.subarray_1.req.activate_subarray(timeout=300)
 # RvR -- For the moment assume always subarray_1 -- need to follow up with cam about knowing which is active
 
 		if 'ok' in str(response):
-                    cont = True
+                    done = True
                     print('Programming correlator successful!')
                     print('Subarray 1 active!')
                 else:
                     count = count + 1
                     print('Failure to program correlator!!!  Trying again.....')
-	        time.sleep(2)
+	        time.sleep(10)
 
                 if count > 5:
 		    print('Cannot auto-activate subarray, giving up.....')
