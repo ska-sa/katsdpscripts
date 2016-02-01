@@ -58,6 +58,7 @@ def plot_data(x,y,yLabel):
 parser = OptionParser(usage="%prog <options>", description='Print/plot sensor information for hdf5 data.')
 parser.add_option("-d", "--dir", default=None, type='string', help="Directory to look into for data.")
 parser.add_option("-f", "--files", default=None, type='string', help="Input file override (default = ./*h5).")
+parser.add_option("-o", "--outfile", default=None, type='string', help="Ouput file override (default = None.)")
 parser.add_option("-p", "--plot", default=False, action='store_true', help="Plot sensor data (default = False).")
 parser.add_option("-r", "--recursive", default=False, action='store_true', help="Recursively search list of directories (default = False.)")
 parser.add_option("-s", "--sensor", default=False, action='store_true', help="Retrieve sensor information (default = False.)")
@@ -101,6 +102,7 @@ else:
 ####################################
 index = 0 
 badFiles = np.array([],dtype=str)
+if ( opts.outfile != None ): f_handle = open(opts.outfile,'wa+')
 for file in files:
     try:
         h5, obs, tvals, sensors = get_data(file,opts.verbose)
@@ -121,7 +123,11 @@ for file in files:
         pass
     
     if ( opts.verbose is False ):
-        print ' %s -> %s' %(file.split('/')[-1],obs)
+        if ( opts.outfile != None ):
+            f_handle.write(('%s -> %s\n') %(file,obs))
+            #np.savetxt(f_handle,np.c_[file,obs],fmt='%s -> %s')
+        else:
+            print ' %s -> %s' %(file,obs)
     if ( index == 0 ) and ( opts.sensor is True ):
         print '\n Full list of sensor information:\n',  ' \n'.join(sensors), '\n'
         sensor = raw_input()
@@ -138,5 +144,12 @@ for file in files:
             badFiles = np.append(badFiles,file)
     index += 1
 
-print '\n List of files with broken script logs/ IOErrors:\n', badFiles, '\n'
+if ( opts.outfile != None ):
+    f_handle.write(('\n List of files with broken script logs/IOerrors:\n%s') %('\n'.join(badFiles.tolist())))
+    f_handle.close()
+else:
+    print '\n List of files with broken script logs/ IOErrors:\n', badFiles, '\n'
 
+#*********************************#
+t1 = time.time() # record script finish time
+print ' Total elapsed time: %.2f s (%.2f mins)\n' %(t1-t0,(t1-t0)/60.)
