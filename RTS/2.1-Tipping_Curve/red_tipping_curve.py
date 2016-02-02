@@ -461,7 +461,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         plt.hlines(recLim_apEff_V,elevation.min(), elevation.max(), colors='b',linestyle='-')
         for error_margin in [-1.1,1.1]:
             plt.hlines(recLim_apEff_H*error_margin,elevation.min(), elevation.max(), colors='b',linestyle=':')
-            plt.hlines(recLim_apEff_H*error_margin,elevation.min(), elevation.max(), colors='b',linestyle=':')
+            plt.hlines(recLim_apEff_V*error_margin,elevation.min(), elevation.max(), colors='b',linestyle=':')
         
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
@@ -506,7 +506,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
         plt.hlines(frequency,recLim_apEff_V, colors='b',linestyle='-')
         for error_margin in [-1.1,1.1]:
             plt.hlines(frequency,recLim_apEff_H*error_margin, colors='b',linestyle=':')
-            plt.hlines(frequency,recLim_apEff_H*error_margin, colors='b',linestyle=':')
+            plt.hlines(frequency,recLim_apEff_V*error_margin, colors='b',linestyle=':')
 
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
