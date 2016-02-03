@@ -108,6 +108,42 @@ def present_results(pdf, temperatures, freq, targnames, antenna, channelwidth):
     plt.close(fig)
     return temps
 
+def present_difference_results(pdf,temperatures, freq, antenna, channelwidth):
+
+    #Set up the figure
+    fig = plt.figure(figsize=(8.3,8.3))
+
+    flagger=rfilib.sumthreshold_flagger(spike_width_time=1,spike_width_freq=5)
+
+    ax = [plt.subplot(211),plt.subplot(212)]
+    #ASSUMPTION: before scan is element 0 and after scan is element 1
+    temperature_before = temperatures[0]
+    temperature_after = temperatures[1]
+    #Flag the data
+    flags_before = flagger.get_flags(np.abs(np.expand_dims(temperature_before,0))).squeeze()
+    flags_after = flagger.get_flags(np.abs(np.expand_dims(temperature_after,0))).squeeze()
+
+    difference = temperature_before-temperature_after
+    flags = flags_before | flags_after
+    #Loop over polarisations
+    temps=[]
+    for polnum,thispol in enumerate(['HH','VV']):
+        thisdata = difference[:,polnum]
+        thisflags = flags[:,polnum]
+        systemp, err = robust_mu_sigma(thisdata[np.where(thisflags==False)])
+        temps.append(systemp)
+        ax[polnum].set_title('Antenna: ' + antenna + ', ' + thispol + ' pol')
+        ax[polnum].plot(freq[np.where(thisflags==False)],thisdata[np.where(thisflags==False)],label='track_before - track_after, Mean: %5.2f'%(systemp))
+        ax[polnum].set_xlabel('Frequency (MHz)')
+        ax[polnum].set_ylabel('System Temperature Difference (K)')
+        ax[polnum].set_xlim(min(freq), max(freq))
+        #ax[polnum].set_ylim(min(thisdata[np.where(thisflags==False)]), max(thisdata[np.where(thisflags==False)]))
+    ax[0].legend(loc=3)
+    ax[1].legend(loc=3)
+    pdf.savefig()
+    plt.close(fig)
+    return temps   
+
 def plot_temps_time(pdf,alltimes,alltempshh,alltempsvv,antenna):
 
     fig=plt.figure(figsize=(8.3,8.3))
@@ -152,9 +188,7 @@ def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',fre
     systemp = present_results(pdf, average_specs, data.freqs, plottitles, data.antenna.name, data.bandwidths[0])
     #Plot the (before - after) spectrum
     #Assum before is first and after second
-    diff_spec = [average_specs[0] - average_specs[1]]
-    plottitle = ['track_before - track_after']
-    difftemp = present_results(pdf, diff_spec, data.freqs, plottitle, data.antenna.name, data.bandwidths[0])
+    difftemp = present_difference_results(pdf, average_specs, data.freqs, data.antenna.name, data.bandwidths[0])
 
     #Plot the scan track strong scans
     average_specs=[]
