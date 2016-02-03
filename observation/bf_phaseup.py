@@ -1,12 +1,13 @@
 #!/usr/bin/python
 # Track target(s) for a specified time.
-# Also set the dbe7 gains before and after the track
+# Also set the data gains before and after the track
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
 import time
-from katcorelib import ant_array,standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+from katcorelib.observe import standard_script_options, verify_and_connect, collect_targets, user_logger,start_session
+#from katcorelib import ant_array,standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import katpoint
 import pickle
 import numpy as np
@@ -54,11 +55,11 @@ with verify_and_connect(opts) as kat:
     obs_ants = [ant.name for ant in ants]
     observation_sources = collect_targets(kat,args)
     # Find out what inputs are curremtly active
-    reply = kat.dbe7.req.dbe_label_input()
+    reply = kat.data.req.dbe_label_input()
     inputs = [m.arguments[0] for m in reply.messages[3:]]
     user_logger.info("Resetting f-engine gains to 160 to allow phasing up")
     for inp in inputs:
-       kat.dbe7.req.dbe_k7_gain(inp,160)
+       kat.data.req.dbe_k7_gain(inp,160)
 
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -110,10 +111,10 @@ with verify_and_connect(opts) as kat:
                         else:
                             gains = bpass_h[inp[:-1]]
                         gains = np.hstack((np.zeros(1),gains))
-                        weights = getattr(kat.dbe7.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_stored_history()[1][-1]
+                        weights = getattr(kat.data.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_reading().value
 			# added print statement - weigths empty?
-                        update = getattr(kat.dbe7.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_stored_history()[0][-1]
-                        print katpoint.Timestamp(update).local()
+                        update = getattr(kat.data.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_reading().timestamp
+                        user_logger.info("Gain sensors updated at %s"%katpoint.Timestamp(update).local())
                         f = StringIO.StringIO(weights)
                         orig_weights = np.loadtxt(f, dtype=np.complex,delimiter=' ')
                         amp_weights = np.abs(orig_weights)
@@ -131,18 +132,17 @@ with verify_and_connect(opts) as kat:
                         phase[ind] = z[0]*np.arange(N)+z[1]
                         new_weights = (160.0 / gains ) * np.exp(1j * phase)
                         weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real,w.imag)) for w in new_weights])
-                        kat.dbe7.req.dbe_k7_gain(inp,weights_str)
+                        kat.data.req.dbe_k7_gain(inp,weights_str)
                         #because we are phasing in the f-engine set the b-engine weights to 1
                         bf_weights_str = ' '.join(1024 * ['1'])
                         if pol == 'v':
-                            kat.dbe7.req.dbe_k7_beam_weights('bf1',inp,bf_weights_str)
+                            kat.data.req.dbe_k7_beam_weights('bf1',inp,bf_weights_str)
                         else:
-                            kat.dbe7.req.dbe_k7_beam_weights('bf0',inp,bf_weights_str)
+                            kat.data.req.dbe_k7_beam_weights('bf0',inp,bf_weights_str)
                     user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
                     session.track(target, duration=60, announce=False)
                 keep_going = False
             if opts.reset:
                 user_logger.info("Resetting f-engine gains to 160")
                 for inp in inputs:
-                    kat.dbe7.req.dbe_k7_gain(inp,160)
-
+                    kat.data.req.dbe_k7_gain(inp,160)
