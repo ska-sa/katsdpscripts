@@ -97,11 +97,11 @@ def present_results(pdf, temperatures, freq, targnames, antenna, channelwidth):
             thisflags = flags[:,polnum]
             systemp, err = robust_mu_sigma(thisdata[np.where(thisflags==False)])
             temps.append(systemp)
-            plt.title(targname + ', Antenna: ' + antenna + ', ' + thispol + ' pol')
+            ax[polnum].set_title(targname + ', Antenna: ' + antenna + ', ' + thispol + ' pol')
             ax[polnum].plot(freq,thisdata,label=targname + ' Tsys: %5.2f'%(systemp))
-            plt.xlabel('Frequency (MHz)')
-            plt.ylabel('System Temperature (K)')
-            plt.xlim(min(freq), max(freq))
+            ax[polnum].set_xlabel('Frequency (MHz)')
+            ax[polnum].set_ylabel('System Temperature (K)')
+            ax[polnum].set_xlim(min(freq), max(freq))
     ax[0].legend(loc=3)
     ax[1].legend(loc=3)
     pdf.savefig()
@@ -148,7 +148,7 @@ def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',fre
                 compscan_data = np.append(compscan_data,scan_data,axis=0)
             average_spec, sigma_spec = robust_mu_sigma(compscan_data, axis=0)
             average_specs.append(average_spec[:,:2])
-            plottitles.append(compscan.target.name + ' ' + compscan_labels[num])
+            plottitles.append(compscan.target.name)
     systemp = present_results(pdf, average_specs, data.freqs, plottitles, data.antenna.name, data.bandwidths[0])
     #Plot the scan track strong scans
     average_specs=[]
@@ -163,7 +163,7 @@ def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',fre
                 compscan_data = np.append(compscan_data,scan_data,axis=0)
             average_spec, sigma_spec = robust_mu_sigma(compscan_data, axis=0)
             average_specs.append(average_spec[:,:2])
-            plottitles.append(compscan.target.name + ' ' + compscan_labels[num])
+            plottitles.append(compscan.target.name)
         systemp = present_results(pdf, average_specs, data.freqs, plottitles, data.antenna.name, data.bandwidths[0])
     #Get the system temperature in each scan and plot it
     alltempshh,alltempsvv,alltimes=[],[],[]
