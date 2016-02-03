@@ -150,6 +150,12 @@ def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',fre
             average_specs.append(average_spec[:,:2])
             plottitles.append(compscan.target.name + ' ' + compscan_labels[num])
     systemp = present_results(pdf, average_specs, data.freqs, plottitles, data.antenna.name, data.bandwidths[0])
+    #Plot the (before - after) spectrum
+    #Assum before is first and after second
+    diff_spec = [average_specs[0] - average_specs[1]]
+    plottitle = ['track_before - track_after']
+    difftemp = present_results(pdf, diff_spec, data.freqs, plottitle, data.antenna.name, data.bandwidths[0])
+
     #Plot the scan track strong scans
     average_specs=[]
     plottitles=[]
