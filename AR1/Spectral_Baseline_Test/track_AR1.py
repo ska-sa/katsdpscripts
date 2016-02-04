@@ -67,6 +67,10 @@ with verify_and_connect(opts) as kat:
 
             session.standard_setup(**vars(opts))
             session.capture_start()
+# RvR -- this seem to have been fixed, but I will leave it commented out just in case
+# 	    user_logger.info('Start metadata capture')
+# 	    time.sleep(2) # give time to issue cmd: cam.data_1.req.cbf_capture_meta('c856M4k')
+# RvR -- this seem to have been fixed, but I will leave it commented out just in case
 
             start_time = time.time()
             targets_observed = []
