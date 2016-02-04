@@ -18,13 +18,14 @@ import scipy.interpolate as interpolate
 import scipy.signal as signal
 import math
 import os
+import pickle
 
 import scape
 from scape.stats import robust_mu_sigma
 
 import rfilib
 
-def read_and_select_file(file, bline=None, channels=None, **kwargs):
+def read_and_select_file(file, bline=None, channels=None, rfi_mask=None, nd_models=None, **kwargs):
     """
     Read in the input h5 file using scape and make a selection.
 
@@ -34,11 +35,12 @@ def read_and_select_file(file, bline=None, channels=None, **kwargs):
         the visibility data to plot, the frequency array to plot, the flags to plot
     """
 
-    data = scape.DataSet(file, baseline=bline, katfile=True)
+    data = scape.DataSet(file, baseline=bline, nd_models=nd_models, katfile=True)
     compscan_labels=[]
     # Get compscan names (workaround for broken labelling after selection in scape)
     for compscan in data.compscans:
         compscan_labels.append(compscan.label)
+    compscan_labels=np.array(compscan_labels)
     # Secect desired channel range and tracks
     # Select frequency channels and setup defaults if not specified
     num_channels = len(data.channel_select)
@@ -49,16 +51,24 @@ def read_and_select_file(file, bline=None, channels=None, **kwargs):
     else:
         start_chan = int(channels.split(',')[0])
         end_chan = int(channels.split(',')[1])
-    chan_range = range(start_chan,end_chan+1)
-    data = data.select(freqkeep=chan_range,labelkeep='track')
+    chan_select = range(start_chan,end_chan+1)
+    if rfi_mask:
+        mask_file = open(rfi_mask)
+        chan_select = ~(pickle.load(mask_file))
+        mask_file.close()
+        if len(chan_select) != num_channels:
+            raise ValueError('Number of channels in provided mask does not match number of channels in data')
+        chan_select[:start_chan] = False
+        chan_select[end_chan:] = False
+    data = data.select(freqkeep=chan_select,labelkeep='track')
 
     #return the selected data
     return data,compscan_labels
 
 
 def get_system_temp(temperature):
-    
-    flags = rfilib.detect_spikes_sumthreshold(temperature)
+    flagger=rfilib.sumthreshold_flagger(spike_width_time=1,spike_width_freq=5)
+    flags = flagger.get_flags(np.expand_dims(temperature,0)).squeeze()
     temps=[]
     for polnum,thispol in enumerate(['HH','VV']):
         thisdata= temperature[:,polnum]
@@ -68,29 +78,32 @@ def get_system_temp(temperature):
     return temps
 
 
-def present_results(pdf, temperature, freq, targname, antenna, channelwidth):
+def present_results(pdf, temperatures, freq, targnames, antenna, channelwidth):
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,8.3))
 
-    #Flag the data
-    flags = rfilib.detect_spikes_sumthreshold(temperature)
+    flagger=rfilib.sumthreshold_flagger(spike_width_time=1,spike_width_freq=5)
 
-    #Loop over polarisations
-    temps=[]
-    for polnum,thispol in enumerate(['HH','VV']):
-        thisdata = temperature[:,polnum]
-        thisflags = flags[:,polnum]
-        systemp, err = robust_mu_sigma(thisdata[np.where(thisflags==False)])
-        temps.append(systemp)
-        ax = plt.subplot(211 + polnum)
-        plt.title(targname + ', Antenna: ' + antenna + ', ' + thispol + ' pol')
-        ax.text(0.05,0.8,'Tsys: %5.2f'%(systemp),transform=ax.transAxes)
-        ax.plot(freq,thisdata)
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('System Temperature (K)')
-        rfilib.plot_RFI_mask(ax, extra=freq[np.where(thisflags)], channelwidth=channelwidth)
-        plt.xlim(freq[-1], freq[0])
+    ax = [plt.subplot(211),plt.subplot(212)]
+    for num,targname in enumerate(targnames):
+        temperature = temperatures[num]
+        #Flag the data
+        flags = flagger.get_flags(np.abs(np.expand_dims(temperature,0))).squeeze()
+        #Loop over polarisations
+        temps=[]
+        for polnum,thispol in enumerate(['HH','VV']):
+            thisdata = temperature[:,polnum]
+            thisflags = flags[:,polnum]
+            systemp, err = robust_mu_sigma(thisdata[np.where(thisflags==False)])
+            temps.append(systemp)
+            plt.title(targname + ', Antenna: ' + antenna + ', ' + thispol + ' pol')
+            ax[polnum].plot(freq,thisdata,label=targname + ' Tsys: %5.2f'%(systemp))
+            plt.xlabel('Frequency (MHz)')
+            plt.ylabel('System Temperature (K)')
+            plt.xlim(min(freq), max(freq))
+    ax[0].legend(loc=3)
+    ax[1].legend(loc=3)
     pdf.savefig()
     plt.close(fig)
     return temps
@@ -98,45 +111,60 @@ def present_results(pdf, temperature, freq, targname, antenna, channelwidth):
 def plot_temps_time(pdf,alltimes,alltempshh,alltempsvv,antenna):
 
     fig=plt.figure(figsize=(8.3,8.3))
-
     ax = plt.subplot(211)
     plt.title("Tsys vs Time, Antenna: " + antenna + ", HH polarisation")
     ax.plot(alltimes,alltempshh,'ro')
     plt.xlabel("Time since observation start (hours)")
     plt.ylabel("Tsys")
-    plt.xlim(alltimes[0], alltimes[-1])
+    plt.xlim(alltimes[0]-0.1, alltimes[-1]+0.1)
+    plt.axhline(alltempshh[0],linestyle='--')
     ax = plt.subplot(212)
     plt.title("VV polarisation")
     ax.plot(alltimes,alltempsvv,'ro')
     plt.xlabel("Time since observation start (hours)")
     plt.ylabel("Tsys")
-    plt.xlim(alltimes[0], alltimes[-1])
-
+    plt.xlim(alltimes[0]-0.1, alltimes[-1]+0.1)
+    plt.axhline(alltempsvv[0],linestyle='--')
     pdf.savefig()
     plt.close(fig)
 
-def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',freq_chans=None):
+def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',freq_chans=None,rfi_mask=None, nd_models=None):
 
     # Get data from h5 file and use 'select' to obtain a useable subset of it.
-    data,compscan_labels = read_and_select_file(input_file, bline=antenna, channels=freq_chans)
+    data,compscan_labels = read_and_select_file(input_file, bline=antenna, channels=freq_chans, rfi_mask=rfi_mask, nd_models=nd_models)
     pdf = PdfPages(os.path.join(output_dir,os.path.splitext(os.path.basename(input_file))[0] +'_SystemTemp_'+data.antenna.name+'.pdf'))
-    # loop through compscans in file and get noise diode firings
-    #nd_data = extract_cal_dataset(data)
-
     #Convert the data to kelvin using the noise diode firings
     data.convert_power_to_temperature()
-
-    #average each required scan in time sensibly and plot the data
-    for num,compscan in enumerate(data.compscans):
+    #average each required scan in time sensibly and plot the data for the before and after scans
+    average_specs=[]
+    plottitles=[]
+    ba_compscans = np.concatenate((np.where(compscan_labels == 'track_before')[0], np.where(compscan_labels == 'track_after')[0],))
+    for num in ba_compscans:
+        compscan = data.compscans[num]
         compscan_data = np.empty((0,len(data.channel_select),4))
         if (targets == 'all') or (compscan.target.name in targets):
             for scan in compscan.scans:
                 scan_data = scan.data[np.where(scan.flags['nd_on']==False)]
-                compscan_data=np.append(compscan_data,scan_data,axis=0)
+                compscan_data = np.append(compscan_data,scan_data,axis=0)
             average_spec, sigma_spec = robust_mu_sigma(compscan_data, axis=0)
-            plottitle = compscan.target.name + ' ' + compscan_labels[num]
-            systemp=present_results(pdf, average_spec[:,:2], data.freqs*1.e6, plottitle, data.antenna.name, data.bandwidths[0]*1e6)
-
+            average_specs.append(average_spec[:,:2])
+            plottitles.append(compscan.target.name + ' ' + compscan_labels[num])
+    systemp = present_results(pdf, average_specs, data.freqs, plottitles, data.antenna.name, data.bandwidths[0])
+    #Plot the scan track strong scans
+    average_specs=[]
+    plottitles=[]
+    strong_compscans = np.where(compscan_labels == 'track_strong')[0]
+    for num in strong_compscans:
+        compscan = data.compscans[num]
+        compscan_data = np.empty((0,len(data.channel_select),4))
+        if (targets == 'all') or (compscan.target.name in targets):
+            for scan in compscan.scans:
+                scan_data = scan.data[np.where(scan.flags['nd_on']==False)]
+                compscan_data = np.append(compscan_data,scan_data,axis=0)
+            average_spec, sigma_spec = robust_mu_sigma(compscan_data, axis=0)
+            average_specs.append(average_spec[:,:2])
+            plottitles.append(compscan.target.name + ' ' + compscan_labels[num])
+        systemp = present_results(pdf, average_specs, data.freqs, plottitles, data.antenna.name, data.bandwidths[0])
     #Get the system temperature in each scan and plot it
     alltempshh,alltempsvv,alltimes=[],[],[]
     zerotime = data.scans[0].timestamps[0]
@@ -147,8 +175,6 @@ def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',fre
             systemp=get_system_temp(average_spec[:,:2])
             alltempshh.append(systemp[0])
             alltempsvv.append(systemp[1])
-            alltimes.append((np.mean(scan.timestamps[np.where(scan.flags['nd_on']==False)])-zerotime)/(60*60))      
-
+            alltimes.append((np.mean(scan.timestamps[np.where(scan.flags['nd_on']==False)])-zerotime)/(60*60))
     plot_temps_time(pdf,alltimes,alltempshh,alltempsvv,data.antenna.name)
-
     pdf.close()
