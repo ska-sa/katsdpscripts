@@ -490,7 +490,7 @@ def scale_gain(g, nu_0, nu, el):
     scale = (nu**2/nu_0**2)-1
     return (g(el)**scale)*g(el), (g(15)**scale)*g(15), (g(90)**scale)*g(90)
 
-def make_result_report_ku_band(gain, tau):
+def make_result_report_ku_band(gain, tau, opts):
     """
        No noise diode present at ku-band.  
        Gains will always have to be normalised.  
@@ -501,7 +501,7 @@ def make_result_report_ku_band(gain, tau):
     #if opts.targets:
      #   targets = opts.targets.split(',')
     if opts.targets:
-        targets = opts.targets[0].split(',')
+        targets = opts.targets.split(',')
     else:
         #Plot all targets 
         targets = list(set(data['target']))
@@ -509,7 +509,6 @@ def make_result_report_ku_band(gain, tau):
     targetmask={}
     for targ in targets:
         targetmask[targ] = np.array([test_targ==targ.strip() for test_targ in data['target']])
-
     #Set up range of elevations for plotting fits
     fit_elev = np.linspace(5, 90, 85, endpoint=False)
     
@@ -650,7 +649,7 @@ for opts.polarisation in pol:
 
     # Make a report describing the results (no Tsys data if interferometric)
     if opts.ku_band:
-        make_result_report_ku_band(gain, tau)
+        make_result_report_ku_band(gain, tau, opts)
     else:
         make_result_report_L_band(data, good, opts, pdf, gain, e, Tsys, SEFD)
 
