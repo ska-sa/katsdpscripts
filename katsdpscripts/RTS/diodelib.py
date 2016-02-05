@@ -6,8 +6,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import pickle
 from katsdpscripts.RTS import git_info 
+from scipy.signal import medfilt
 
-def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1'):
+def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False):
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
     if pdf: pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
@@ -122,11 +123,12 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 if p ==ant_num * 2-1: plt.ylabel(ant)
                 plt.axhspan(14, 35, facecolor='g', alpha=0.5)
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
-                #outfile = file('%s/%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower()), 'w')
-                #outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
-                # Write CSV part of file
-                #outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(f[((fs>1.2e9) & (fs < 1.95e9))],d[((fs>1.2e9) & (fs < 1.95e9))])]))
-                #outfile.close()
+                if write_nd:
+                    outfile = file('%s/%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower()), 'w')
+                    outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
+                    # Write CSV part of file
+                    outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode))]))
+                    outfile.close()
                 plt.plot(freq/1e6,nd_temp,'k.',label='Model: EMSS')
                 plt.grid()
                 plt.legend()
@@ -190,5 +192,6 @@ if __name__ == "__main__":
     out = '.'
     error_bars = False
     target = 'off1'
+    write_nd = False
     print 'Performing test run with: ' + filename
-    read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target)
+    read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)
