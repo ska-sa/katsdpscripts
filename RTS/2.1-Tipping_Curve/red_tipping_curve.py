@@ -457,11 +457,11 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     if aperture_efficiency is not None:
         recLim_apEff_H = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
         recLim_apEff_V = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
-        plt.hlines(recLim_apEff_H,elevation.min(), elevation.max(), colors='b',linestyle='-')
-        plt.hlines(recLim_apEff_V,elevation.min(), elevation.max(), colors='b',linestyle='-')
-        for error_margin in [-1.1,1.1]:
-            plt.hlines(recLim_apEff_H*error_margin,elevation.min(), elevation.max(), colors='b',linestyle=':')
-            plt.hlines(recLim_apEff_V*error_margin,elevation.min(), elevation.max(), colors='b',linestyle=':')
+        plt.hlines(recLim_apEff_H,elevation.min(), elevation.max(), colors='g',linestyle='-')
+        plt.hlines(recLim_apEff_V,elevation.min(), elevation.max(), colors='g',linestyle='-')
+        for error_margin in [0.9,1.1]:
+            plt.hlines(recLim_apEff_H*error_margin,elevation.min(), elevation.max(), colors='g',linestyle=':')
+            plt.hlines(recLim_apEff_V*error_margin,elevation.min(), elevation.max(), colors='g',linestyle=':')
         
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
@@ -500,13 +500,13 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
     if aperture_efficiency is not None:
-        recLim_apEff_H = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
-        recLim_apEff_V = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
-        plt.hlines(frequency,recLim_apEff_H, colors='b',linestyle='-')
-        plt.hlines(frequency,recLim_apEff_V, colors='b',linestyle='-')
-        for error_margin in [-1.1,1.1]:
-            plt.hlines(frequency,recLim_apEff_H*error_margin, colors='b',linestyle=':')
-            plt.hlines(frequency,recLim_apEff_V*error_margin, colors='b',linestyle=':')
+        recLim_apEffH = frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
+        plt.plot(frequency,recLim_apEffH, color='g',linestyle='-')
+        plt.plot(frequency,recLim_apEffV, color='g',linestyle='-')
+        for error_margin in [0.9,1.1]:
+            plt.plot(frequency,recLim_apEffH*error_margin, color='g',linestyle=':')
+            plt.plot(frequency,recLim_apEffV*error_margin, color='g',linestyle=':')   
 
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
@@ -524,8 +524,6 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
-
-
 
 
 # Parse command-line options and arguments
