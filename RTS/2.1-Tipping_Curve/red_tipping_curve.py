@@ -457,11 +457,11 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     if aperture_efficiency is not None:
         recLim_apEff_H = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
         recLim_apEff_V = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
-        plt.hlines(recLim_apEff_H,elevation.min(), elevation.max(), colors='limegreen',linestyle='-')
-        plt.hlines(recLim_apEff_V,elevation.min(), elevation.max(), colors='limegreen',linestyle='-')
+        plt.hlines(recLim_apEffH,elevation.min(), elevation.max(), colors='limegreen',linestyle='-')
+        plt.hlines(recLim_apEffV,elevation.min(), elevation.max(), colors='limegreen',linestyle='-')
         for error_margin in [0.9,1.1]:
-            plt.hlines(recLim_apEff_H*error_margin,elevation.min(), elevation.max(), colors='limegreen',linestyle=':')
-            plt.hlines(recLim_apEff_V*error_margin,elevation.min(), elevation.max(), colors='limegreen',linestyle=':')
+            plt.hlines(recLim_apEffH*error_margin,elevation.min(), elevation.max(), colors='limegreen',linestyle=':')
+            plt.hlines(recLim_apEffV*error_margin,elevation.min(), elevation.max(), colors='limegreen',linestyle=':')
         
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
@@ -500,8 +500,8 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
     if aperture_efficiency is not None:
-        recLim_apEffH = frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
-        recLim_apEffV = frequency,receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
+        recLim_apEffH = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
         plt.plot(frequency,recLim_apEffH, color='limegreen',linestyle='-')
         plt.plot(frequency,recLim_apEffV, color='limegreen',linestyle='-')
         for error_margin in [0.9,1.1]:
