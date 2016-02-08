@@ -113,7 +113,7 @@ with verify_and_connect(opts) as kat:
                     raise ValueError("Please ensure all antennas are in L-band), "
                                      "Antenna %s is in %s"%(ant.name,band))
                 #TODO   change the staments to use band infomation
-            	attenuation_old[ant.name+'v']= ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() 
+                attenuation_old[ant.name+'v']= ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() 
                 attenuation_old[ant.name+'h']= ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value()
                 user_logger.info("%s v pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'v']))
                 user_logger.info("%s h pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'h']))
