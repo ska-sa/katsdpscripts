@@ -72,7 +72,7 @@ with verify_and_connect(opts) as kat:
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray
-        track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
+        #track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
