@@ -36,8 +36,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     diode= 'coupler'
     for a,col,a_i in zip(ants,colour,ant_ind):    
         if not(Ku): 
-            fig1 = plt.figure(a_i*2-1)
-        fig2 = plt.figure(a_i*2)
+            fig1 = plt.figure(a_i*2-1,figsize=(20,5))
+        fig2 = plt.figure(a_i*2,figsize=(20,5))
         for pol in pols:
             ant = a.name
             ant_num = int(ant[3])
