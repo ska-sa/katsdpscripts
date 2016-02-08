@@ -150,3 +150,10 @@ with verify_and_connect(opts) as kat:
                             break
                     if endobs : break
                 if endobs : break
+    for ant in kat.ants:
+        attenuation = attenuation_old[ant.name+'h']                   
+        ant.req.dig_attenuation('v', attenuation, timeout=30)
+        user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() ))
+        ant.req.dig_attenuation('h', attenuation, timeout=30)
+        user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value() ))
+                    
