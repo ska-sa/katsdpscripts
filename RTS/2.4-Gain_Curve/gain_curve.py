@@ -496,6 +496,42 @@ def scale_gain(g, nu_0, nu, el):
     g_90 = g(0.) + 1.
     return (g_el**scale)*g_el, (g_15**scale)*g_15, (g_90**scale)*g_90
 
+def parabolic_func(x,a,b,c):
+    """
+    Return the y value of a parabola at x
+    """
+    return a*(x-b)**2 + c
+
+def fit_parabola(data_x,data_y,pos=60):
+    """
+    Fit a parabola to multiple datasets where the height can vary for each datset 
+    but the shape is fitted across all datsets. The position of the peak is held constant. 
+    """
+    def chi_squared(x,y,a,b,c):
+        """
+        Get chi-squared for a set of data points, x,y for parabola with parameter a,b,c
+        """
+        return np.sum((y-parabolic_func(x,a,b,c))**2)
+
+    def residual(deps,data_x,data_y,pos):
+        """
+        Residual function, with different height parameter for each datset in (2d) arrays data_x and data_y
+        """
+        shape=deps[0]
+        height=deps[1:]
+        total_residual=0.0
+        for num,this_height in enumerate(height):
+            #print num,chi_squared(data_x[num],data_y[num],shape,pos,this_height)
+            total_residual+=chi_squared(data_x[num],data_y[num],shape,pos,this_height)
+        return total_residual
+
+    height_guess=[np.mean(y) for y in data_y]
+    init_guess=[-0.00001] + height_guess
+    bounds_height =[(0.0,None) for y in data_y]
+    bounds_all = [(None,0.0)] + bounds_height
+    test=optimize.minimize(residual,init_guess,(data_x,data_y,pos,),bounds=bounds_all)
+    return test
+        
 def make_result_report_ku_band(gain, opts, targets, pdf):
     """
        No noise diode present at ku-band.  
@@ -522,22 +558,34 @@ def make_result_report_ku_band(gain, opts, targets, pdf):
     #get ready to collect normalised gains for each target.
     norm_gain = list()
     norm_elev = list()
+    all_elev=[]
+    all_gain=[]
     for targ in targets:
         # Normalise the data by fit of line to it
         if not opts.no_normalise_gain:
             use_elev = data['elevation']>opts.min_elevation
             fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
             fit_gain = gain[good & targetmask[targ] & use_elev]
-            fit, cov = optimize.curve_fit(fit_func, fit_elev, fit_gain)
-            g90=np.abs(fit[0])*90.0 + fit[1]
-            #if fit[0]<0.0:
-            #    print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
-            #    g90=max(fit_gain)
-            plot_gain = gain[good & targetmask[targ]]/g90
-            plot_elevation = data['elevation'][good & targetmask[targ]]
-            plt.plot(plot_elevation, plot_gain, 'o', label=targ)
-            norm_gain.append(plot_gain)
-            norm_elev.append(plot_elevation)
+            all_elev.append(fit_elev)
+            all_gain.append(fit_gain)
+    test=fit_parabola(all_elev,all_gain)
+    for n,dat in enumerate(zip(all_elev,all_gain)):
+        plt.plot(dat[0],dat[1]/test['x'][n+1],'.')
+    print test
+    print np.std(dat[1]/test['x'][n+1])
+    plt.plot(np.arange(0,90,1),parabolic_func(np.arange(0,90,1),test['x'][0],60,1))
+    plt.show()
+    sys.exit()
+    fit, cov = optimize.curve_fit(fit_func,fit_elev, fit_gain)
+    g90=np.abs(fit[0])*90.0 + fit[1]
+    #if fit[0]<0.0:
+    #    print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
+    #    g90=max(fit_gain)
+    plot_gain = gain[good & targetmask[targ]]/g90
+    plot_elevation = data['elevation'][good & targetmask[targ]]
+    plt.plot(plot_elevation, plot_gain, 'o', label=targ)
+    norm_gain.append(plot_gain)
+    norm_elev.append(plot_elevation)
     plt.ylabel('Normalised gain')
     plt.xlabel('Elevation (deg)')
     norm_gain_90 = np.hstack(norm_gain) - 1.
@@ -597,7 +645,7 @@ else:
     file_basename = os.path.splitext(os.path.basename(filename))[0]
     prep_basename = file_basename + '_' + opts.bline.translate(None,',') + '_point_source_scans'
     antenna, data = batch_mode_analyse_point_source_scans(filename,outfilebase=os.path.abspath(prep_basename),baseline=opts.bline,
-                                                            ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
+                                                            ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range,remove_spikes=True)
 #Check we've some data to process
 if len(data['data_unit'])==0:
     sys.exit()

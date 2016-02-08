@@ -509,7 +509,7 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
         batch = True #always batch
         plot_spectrum = False #never plot
         def __init__(self, outfilebase, keepfilename, baseline, 
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all):
+                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all,remove_spikes):
             self.outfilebase=outfilebase
             self.keepfilename=keepfilename
             self.baseline=baseline
