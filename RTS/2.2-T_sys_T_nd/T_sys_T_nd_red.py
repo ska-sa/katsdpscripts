@@ -11,6 +11,7 @@ def parse_arguments():
     parser.add_option("-v","--verbose", action='store_true',default=False, help="Print some debugging information")
     parser.add_option("--error_bars", action='store_true',default=False, help="Include error bars - Still in development")
     parser.add_option("--off_target", default='off1', help="which of the two off targets to use")
+    parser.add_option("--write_nd", action='store_true', default=False, help="Write the Noise Diode temp to a file")
 
     (opts, args) = parser.parse_args()
     if len(args) ==0:
@@ -21,7 +22,7 @@ def parse_arguments():
 
 if __name__ == "__main__":
     opts, args = parse_arguments()
-    diodelib.read_and_plot_data(args[0],opts.output_dir,opts.pdf,opts.Ku,opts.verbose,opts.error_bars)
+    diodelib.read_and_plot_data(args[0],opts.output_dir,opts.pdf,opts.Ku,opts.verbose,opts.error_bars,opts.off_target,opts.write_nd)
 
 
 
