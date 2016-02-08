@@ -102,7 +102,7 @@ with verify_and_connect(opts) as kat:
                     session.scan(target, duration=opts.scan_duration, start=-offset, end=offset, index=scan_index,
                                  projection=opts.projection, announce=False)
                     # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
-                    session.ants = track_ants
+                    session.ants = all_ants
                     user_logger.info("Using track antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                     session.track(target, duration=0, announce=False)
                     # Provide opportunity for noise diode to fire on all antennas
