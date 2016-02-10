@@ -373,7 +373,7 @@ def analyse_point_source_scans(filename, opts):
     if opts.pointing_model:
         pm = file(opts.pointing_model).readline().strip()
         logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pointing_model))
-        dataset.antenna.pointing_model = katpoint.PointingModel(pm, strict=False)
+        dataset.antenna.pointing_model = katpoint.PointingModel(pm)
 
     # Remove any noise diode models if the ku band option is set and flag for spikes
     if opts.ku_band :

@@ -102,11 +102,34 @@ with verify_and_connect(opts) as kat:
             session.standard_setup(**vars(opts))
             session.capture_start()
             target_list = []
-            target_list.append((cold_sources,opts.cold_duration,"track_before")) 
-            target_list.append((strong_sources,opts.track_duration,"track_strong"))
-            target_list.append((cold_sources,opts.cold_duration,"track_after"))
-            for observation_sources,track_duration,label in target_list:
+            target_list.append((cold_sources,opts.cold_duration,"track_before",-1))  # -1 means to use the old attenuation
+            target_list.append((strong_sources,opts.track_duration,"track_strong",39))
+            target_list.append((cold_sources,opts.cold_duration,"track_after"),-1)  # -1 means to use the old attenuation
+            attenuation_old = {}
+            for ant in kat.ants:
+                
+                band = kat.ant.sensor.ap_indexer_position.get_value()
+                if not band=='l' :
+                    raise ValueError("Please ensure all antennas are in L-band), "
+                                     "Antenna %s is in %s"%(ant.name,band))
+                #TODO   change the staments to use band infomation
+                attenuation_old[ant.name+'v']= ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() 
+                attenuation_old[ant.name+'h']= ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value()
+                user_logger.info("%s v pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'v']))
+                user_logger.info("%s h pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'h']))
+            
+            for observation_sources,track_duration,label,attenuation in target_list:
                 if endobs : break
+                for ant in kat.ants:
+                    if attenuation== -1 :
+                        attenuation = attenuation_old[ant.name+'v']                   
+                    ant.req.dig_attenuation('v', attenuation, timeout=30)
+                    user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() ))
+                    if attenuation== -1 :
+                        attenuation = attenuation_old[ant.name+'h']                   
+                    ant.req.dig_attenuation('h', attenuation, timeout=30)
+                    user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value() ))
+                    
                 # Iterate through source list, picking the first one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label(label)
@@ -129,3 +152,11 @@ with verify_and_connect(opts) as kat:
                             break
                     if endobs : break
                 if endobs : break
+    for ant in kat.ants:
+        attenuation = attenuation_old[ant.name+'v']                   
+        ant.req.dig_attenuation('v', attenuation, timeout=30)
+        user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() ))
+        attenuation = attenuation_old[ant.name+'h']                   
+        ant.req.dig_attenuation('h', attenuation, timeout=30)
+        user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value() ))
+                    

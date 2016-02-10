@@ -36,8 +36,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     diode= 'coupler'
     for a,col,a_i in zip(ants,colour,ant_ind):    
         if not(Ku): 
-            fig1 = plt.figure(a_i*2-1,figsize = (20,5))
-        fig2 = plt.figure(a_i*2,figsize = (20,5))
+            fig1 = plt.figure(a_i*2-1,figsize=(20,5))
+        fig2 = plt.figure(a_i*2,figsize=(20,5))
         for pol in pols:
             ant = a.name
             ant_num = int(ant[3])
@@ -124,8 +124,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.axhspan(14, 35, facecolor='g', alpha=0.5)
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 if write_nd:
-                    outfile = file('%s/%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower()), 'w')
-                    outfile.write('#\n# Frequency [Hz], Temperature [K]\n')
+                    outfile = file('%s/%s.%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower(),file_base), 'w')
+                    outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
                     # Write CSV part of file
                     outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode))]))
                     outfile.close()
