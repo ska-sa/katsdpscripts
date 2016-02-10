@@ -455,13 +455,13 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.ylim(lim_min,lim_max)
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
-        recLim_apEff_H = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
-        recLim_apEff_V = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
-        plt.hlines(recLim_apEffH,elevation.min(), elevation.max(), colors='limegreen',linestyle='-')
-        plt.hlines(recLim_apEffV,elevation.min(), elevation.max(), colors='limegreen',linestyle='-')
+        recLim_apEffH = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
+        plt.hlines(recLim_apEffH,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='-')
+        plt.hlines(recLim_apEffV,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='-')
         for error_margin in [0.9,1.1]:
-            plt.hlines(recLim_apEffH*error_margin,elevation.min(), elevation.max(), colors='limegreen',linestyle=':')
-            plt.hlines(recLim_apEffV*error_margin,elevation.min(), elevation.max(), colors='limegreen',linestyle=':')
+            plt.hlines(recLim_apEffH*error_margin,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='--')
+            plt.hlines(recLim_apEffV*error_margin,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='--')
         
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
@@ -502,11 +502,11 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     if aperture_efficiency is not None:
         recLim_apEffH = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
         recLim_apEffV = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
-        plt.plot(frequency,recLim_apEffH, color='limegreen',linestyle='-')
-        plt.plot(frequency,recLim_apEffV, color='limegreen',linestyle='-')
+        plt.plot(frequency,recLim_apEffH,lw=1.1,color='limegreen',linestyle='-')
+        plt.plot(frequency,recLim_apEffV,lw=1.1,color='limegreen',linestyle='-')
         for error_margin in [0.9,1.1]:
-            plt.plot(frequency,recLim_apEffH*error_margin, color='limegreen',linestyle=':')
-            plt.plot(frequency,recLim_apEffV*error_margin, color='limegreen',linestyle=':')   
+            plt.plot(frequency,recLim_apEffH*error_margin, lw=1.1,color='g',linestyle='--')
+            plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')   
 
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
@@ -517,8 +517,8 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     high_lim = np.max(high_lim)
     high_lim = np.max((high_lim , 46*1.3))
     plt.ylim(low_lim,high_lim)
-    plt.vlines(900,low_lim,high_lim,color='darkviolet',linestyle='-')
-    plt.vlines(1680,low_lim,high_lim,color='darkviolet',linestyle='-')    
+    plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')    
     if np.min(frequency) <= 1420 :
         plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
     if np.max(frequency) >=1420 :
@@ -533,7 +533,7 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='900,1430,1670,1840',
+parser.add_option("-r", "--select-freq", default='900,1440,1670,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
@@ -669,36 +669,33 @@ for ant in h5.ants:
                 #break
 
     fig = plt.figure(None,figsize = (8,8))
-    text =r"""The 'tipping curve' is calculated according to the expression below,
-with the the parameters of $T_{ant}$ and $\tau_{0}$,
-the Antenna temperature and the atmospheric opacity respectivly.
-All the varables are also functions of frequency.
+    text =r"""The 'tipping curve' is calculated according to the expression below, with the parameters 
+of $T_{\mathrm{ant}}$ and $\tau_{0}$, the Antenna temperature and the atmospheric opacity respectively. All the 
+variables are also functions of frequency.
 
-$T_{sys}(el) = T_{cmb}(ra,dec) + T_{gal}(ra,dec) + T_{atm}*(1-\exp(\frac{-\tau_{0}}{\sin(el)})) + T_{spill}(el) + T_{ant} + T_{rx}$
+$T_{\mathrm{sys}}(\mathrm{el}) = T_{\mathrm{cmb}}(\mathrm{ra,dec}) + T_{\mathrm{gal}}(\mathrm{ra,dec}) + T_{\mathrm{atm}}*(1-\exp\left(\frac{-\tau_{0}}{\sin(\mathrm{el})}\right)) + T_{\mathrm{spill}}(\mathrm{el}) + T_{\mathrm{ant}} + T_{\mathrm{rx}}$
 
-$T_{sys}(el)$ is determined from the noise diode calibration
-so it is $\frac{T_{sys}(el)}{\eta_{illum}}$.
-We assume the opacity and $T_{ant}$ is the residual after
-the tipping curve function is calculated. T_cmb + T_gal is
-obtained from the Sky model. """
+$T_{\mathrm{sys}}(\mathrm{el})$ is determined from the noise diode calibration so it is $\frac{T_{\mathrm{sys}}(\mathrm{el})}{\eta_{_{\mathrm{illum}}}}$
+
+We assume the opacity and $T_{\mathrm{ant}}$ is the residual after the tipping curve function is calculated. 
+$T_{\mathrm{cmb}}$ + $T_{\mathrm{gal}}$ is obtained from the Sky model. """
     if fix_opacity :
-        text += """$\tau_{0}$, the zenith opacity,
-is set to 0.01078 (Van Zee et al.,1997). $T_{ant}$ is the excess
-tempreture since the other components are known."""
+        text += r"""$\tau_{0}$, the zenith opacity, is set to 0.01078 
+(Van Zee et al., 1997). $T_{\mathrm{ant}}$ is the excess temperature since the other components are 
+known. """
     else:
-        text += """$\tau_{0}$, the zenith opacity,
- is calculated opacity according to ITU-R P.676-9. $T_{ant}$ is the excess
-tempreture since the other components are known."""
+        text += r"""$\tau_{0}$, the zenith opacity, is the calculated opacity 
+according to ITU-R P.676-9. $T_{\mathrm{ant}}$ is the excess temperature since the other components are 
+known. """
+
+    text += r"""The green solid lines in the figures reflect the modelled $T_{\mathrm{sys}}(\mathrm{el})$ or $T_{\mathrm{sys}}(\mathrm{freq})$, with the 
+broken green lines indicating a $\pm10\%$ margin."""
 
     plt.figtext(0.1,0.1,text,fontsize=10)
     fig.savefig(pp,format='pdf')
     pp.close()
     plt.close(fig)
     plt.close('all')
-
-
-
-
 
 #
 # Save option to be added
