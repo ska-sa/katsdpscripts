@@ -1,0 +1,9 @@
+./analyse_point_source_scans.py
+/var/kat/archive/data/MeerKATAR1/telescope_products/YYYY/MM/DD/<filename>.h5
+-b
+-a m0XX -c 'katsdpscripts/RTS/rfi_mask.pickle'
+-m 20
+-n '/var/kat/katconfig/user/noise-diode-models/mkat/'
+-p '/var/kat/katconfig/user/pointing-models/mkat/m0XX.l.pm.csv'
+
+./fit_pointing_model.py -m 3.0 1454365764_m063_point_source_scans.csv
