@@ -1,2 +1,3 @@
-Usage example:
-python quick_analyse_point_source_scan.py -m 20 -v /var/kat/archive/data/comm/2015/08/05/1438762778.h5
+Identified by description: obs.sb.description = 'AR1: MKAIV-85 Tipping_Curve'
+
+python analyse_quick_point_source_scan.py -a m063 --keep-all -m 20 -s /var/kat/archive/data/MeerKATAR1/telescope_products/2016/01/27/1453883060.h5
