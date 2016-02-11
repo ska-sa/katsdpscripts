@@ -1,3 +1,8 @@
+Copied from RTS commissioning tests
+Updated to compensate for slight differences between RTS and AR1 system
+
+Identified by description: obs.sb.description = 'AR1: MKAIV-111 L-band Pointing L Band'
+
 ./analyse_point_source_scans.py
 /var/kat/archive/data/MeerKATAR1/telescope_products/YYYY/MM/DD/<filename>.h5
 -b
@@ -6,4 +11,5 @@
 -n '/var/kat/katconfig/user/noise-diode-models/mkat/'
 -p '/var/kat/katconfig/user/pointing-models/mkat/m0XX.l.pm.csv'
 
-./fit_pointing_model.py -m 3.0 1454365764_m063_point_source_scans.csv
+
+python fit_pointing_model_AR1.py -o m062.pm -p /var/kat/katconfig/user/pointing-models/mkat/m062.pm.csv 1454365764_m062_point_source_scans.csv
