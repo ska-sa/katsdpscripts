@@ -1,4 +1,7 @@
 Copied from RTS commissioning tests
 Updated to compensate for slight differences between RTS and AR1 system
 
+Identified by description: obs.sb.description = 'AR1: MKAIV-85 Tipping_Curve'
+
+python red_tipping_curve_AR1.py /var/kat/archive/data/MeerKATAR1/telescope_products/2015/12/03/1449138235.h5
 
