@@ -66,23 +66,22 @@ with verify_and_connect(opts) as kat:
 		    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s' % opts.mcpsetband)
 # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
 
-            while not done:
-		ant_active = [ant for ant in cam.ants if ant.name not in cam.katpool.sensor.resources_in_maintenance.get_value()]
-		print('Set PPS delay compensation for digitisers')
-		for ant in ant_active:
-                    #look at current delay and program in delay specified in CSV
-                    if ant.name in delay_list:
-            	        # set the delay compensations for a digitiser (assuming L band)
-                        response = ant.req.dig_digitiser_offset('l')
-                        curr_delay_l = int(str(response).split(' ')[2])
-                        if curr_delay_l == delay_list[ant.name]:
-                            print(ant.name + ': no change to PPS delay offset')
-                        else:
-                            # determine if we are on X or L band
-                            indexer_pos_raw = int(ant.sensor.ap_indexer_position_raw.get_value())
-                            if (indexer_pos_raw < 20) or (indexer_pos_raw > 60):
+            ant_active = [ant for ant in cam.ants if ant.name not in cam.katpool.sensor.resources_in_maintenance.get_value()]
+            print('Set PPS delay compensation for digitisers')
+            for ant in ant_active:
+                #look at current delay and program in delay specified in CSV
+                if ant.name in delay_list:
+                    # set the delay compensations for a digitiser (assuming L band)
+                    response = ant.req.dig_digitiser_offset('l')
+                    curr_delay_l = int(str(response).split(' ')[2])
+                    if curr_delay_l == delay_list[ant.name]:
+                        print(ant.name + ': no change to PPS delay offset')
+                    else:
+                        # determine if we are on X or L band
+                        indexer_pos_raw = int(ant.sensor.ap_indexer_position_raw.get_value())
+                        if (indexer_pos_raw < 20) or (indexer_pos_raw > 60):
 # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
-                                raise RuntimeError(ant.name + " is on X band")
+                            raise RuntimeError(ant.name + " is on X band")
 # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
 #                                 print(ant.name + " is on X band")
 #                                 #look at current delay and program in delay specified in CSV
@@ -92,28 +91,29 @@ with verify_and_connect(opts) as kat:
 #                                 print(ant.name + ' X-band current delay : ' + str(curr_delay_x))
 #                                 response = ant.req.dig_digitiser_offset('x', delay_list[ant.name])
 #                                 print(ant.name + ' X-band PPS delay offset : ' + str(response))
-                            else:
-                                print(ant.name + " is on L band")
-                                print(ant.name + ' L-band current delay : ' + str(curr_delay_l))
-                                response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
-                                print(ant.name + ' L-band PPS delay offset : ' + str(response))
+                        else:
+                            print(ant.name + " is on L band")
+                            print(ant.name + ' L-band current delay : ' + str(curr_delay_l))
+                            response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
+                            print(ant.name + ' L-band PPS delay offset : ' + str(response))
 
-		print('Performing global sync on AR1 ...')
-		cam.mcp.req.dmc_global_synchronise(timeout=30)
-		time.sleep(5)
-		# doing it twice just for good measure
-		cam.mcp.req.dmc_global_synchronise(timeout=30)
-		time.sleep(5)
+            print('Performing global sync on AR1 ...')
+            cam.mcp.req.dmc_global_synchronise(timeout=30)
+            time.sleep(5)
+            # doing it twice just for good measure
+            cam.mcp.req.dmc_global_synchronise(timeout=30)
+            time.sleep(5)
 
-		print('Reiniting all digitisers ...')
-		antlist=''
-		for ant in ant_active:
-		    if antlist: antlist=','.join((antlist,ant.name))
-		    else: antlist=ant.name
-		    response = ant.req.dig_capture_start('hv')
-		    print(ant.name + ': ' + str(response))
-		    time.sleep(1)
+            print('Reiniting all digitisers ...')
+            antlist=''
+            for ant in ant_active:
+                if antlist: antlist=','.join((antlist,ant.name))
+                else: antlist=ant.name
+                response = ant.req.dig_capture_start('hv')
+                print(ant.name + ': ' + str(response))
+                time.sleep(1)
 
+            while not done:
 # RvR -- For the moment assume always subarray_1 -- need to follow up with cam about knowing which is active
 		print('Halting ar1 array...')
 		cam.subarray_1.req.free_subarray(timeout=30)
