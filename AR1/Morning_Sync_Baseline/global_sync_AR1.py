@@ -4,6 +4,7 @@
 # Initial script by Benjamin for RTS
 # Updated for AR1 by Ruby
 # Benjamin added PPS offsets
+# Added timestamp of sync output for easier use
 
 from __future__ import with_statement
 import time, string
@@ -147,15 +148,23 @@ with verify_and_connect(opts) as kat:
                     print('Failure to program correlator!!!  Trying again.....')
 	        time.sleep(10)
 
-                if count > 5:
+                if count > 3:
 		    print('Cannot auto-activate subarray, giving up.....')
 		    break
 
             time.sleep(5)
+	    etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
+	    for ant in ant_active:
+		if int(ant.sensor.dig_synchronisation_epoch.get_value()) != int(etime):
+		    raise RuntimeError('System not synced, investigation is required...')
+
+	    import time
             print("Script complete")
     finally:
         if cam:
 	    print("Cleaning up cam object")
             cam.disconnect()
+
+    print("\nGlobal Sync Date %s" % time.ctime(etime))
 
 # -fin-
