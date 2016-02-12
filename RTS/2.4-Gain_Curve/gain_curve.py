@@ -488,13 +488,10 @@ def scale_gain(g, nu_0, nu, el):
     """ 
     Scale gain to higher frequency using scaling law of Ruze equation
     Returns predicted gain over elevation range for plotting purposes,
-    and predicted gain at 15 and 90 degree elevation per SE requirement
+    per SE requirement
     """
-    scale = (nu**2/nu_0**2)-1
-    g_el = g(el-90.) + 1.
-    g_15 = g(15-90.) + 1.
-    g_90 = g(0.) + 1.
-    return (g_el**scale)*g_el, (g_15**scale)*g_15, (g_90**scale)*g_90
+    scale = (nu**2/nu_0**2)-1.
+    return (g(el)**scale)*g(el)
 
 def parabolic_func(x,a,b,c):
     """
@@ -505,7 +502,8 @@ def parabolic_func(x,a,b,c):
 def fit_parabola(data_x,data_y,pos=60):
     """
     Fit a parabola to multiple datasets where the height can vary for each datset 
-    but the shape is fitted across all datsets. The position of the peak is held constant. 
+    but the shape is fitted across all datsets. The position of the peak is held constant.
+    The parabola is bounded to have negative slope (ie 'a' must be negative in parabolic_func).
     """
     def chi_squared(x,y,a,b,c):
         """
@@ -526,11 +524,11 @@ def fit_parabola(data_x,data_y,pos=60):
         return total_residual
 
     height_guess=[np.mean(y) for y in data_y]
-    init_guess=[-0.00001] + height_guess
+    init_guess=[-1.e-5] + height_guess
     bounds_height =[(0.0,None) for y in data_y]
     bounds_all = [(None,0.0)] + bounds_height
-    test=optimize.minimize(residual,init_guess,(data_x,data_y,pos,),bounds=bounds_all)
-    return test
+    fit=optimize.minimize(residual,init_guess,(data_x,data_y,pos,), method='TNC', bounds=bounds_all, options={'eps': 1.e-6, 'gtol': 1e-12, 'ftol': 1e-12})
+    return fit
         
 def make_result_report_ku_band(gain, opts, targets, pdf):
     """
@@ -556,46 +554,29 @@ def make_result_report_ku_band(gain, opts, targets, pdf):
     #Plot the gain vs elevation for each target
     ax1 = plt.subplot(511)
     #get ready to collect normalised gains for each target.
-    norm_gain = list()
-    norm_elev = list()
-    all_elev=[]
-    all_gain=[]
+    norm_gain = np.array([])
+    norm_elev = np.array([])
+    all_fit_elev=[]
+    all_fit_gain=[]
     for targ in targets:
-        # Normalise the data by fit of line to it
-        if not opts.no_normalise_gain:
-            use_elev = data['elevation']>opts.min_elevation
-            fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
-            fit_gain = gain[good & targetmask[targ] & use_elev]
-            all_elev.append(fit_elev)
-            all_gain.append(fit_gain)
-    test=fit_parabola(all_elev,all_gain)
-    for n,dat in enumerate(zip(all_elev,all_gain)):
-        plt.plot(dat[0],dat[1]/test['x'][n+1],'.')
-    print test
-    print np.std(dat[1]/test['x'][n+1])
-    plt.plot(np.arange(0,90,1),parabolic_func(np.arange(0,90,1),test['x'][0],60,1))
-    plt.show()
-    sys.exit()
-    fit, cov = optimize.curve_fit(fit_func,fit_elev, fit_gain)
-    g90=np.abs(fit[0])*90.0 + fit[1]
-    #if fit[0]<0.0:
-    #    print "WARNING: Fit to gain on %s has negative slope, normalising to maximum of data"%(targ)
-    #    g90=max(fit_gain)
-    plot_gain = gain[good & targetmask[targ]]/g90
-    plot_elevation = data['elevation'][good & targetmask[targ]]
-    plt.plot(plot_elevation, plot_gain, 'o', label=targ)
-    norm_gain.append(plot_gain)
-    norm_elev.append(plot_elevation)
+        use_elev = data['elevation']>opts.min_elevation
+        fit_elev = data['elevation'][good & targetmask[targ] & use_elev]
+        fit_gain = gain[good & targetmask[targ] & use_elev]
+        all_fit_elev.append(fit_elev)
+        all_fit_gain.append(fit_gain)
+    #Fit the parabola with a peak at 60deg. elevation.
+    fit=fit_parabola(all_fit_elev,all_fit_gain,pos=61.)['x']
+    for targnum,targ in enumerate(targets):
+        plot_gain = gain[good & targetmask[targ]]/fit[targnum+1]
+        plot_elev = data['elevation'][good & targetmask[targ]]
+        norm_gain=np.append(norm_gain,plot_gain)
+        norm_elev=np.append(norm_elev,plot_elev)
+        plt.plot(plot_elev, plot_gain, 'o', label=targ)
     plt.ylabel('Normalised gain')
     plt.xlabel('Elevation (deg)')
-    norm_gain_90 = np.hstack(norm_gain) - 1.
-    norm_elev_90 = np.hstack(norm_elev) - 90.
 
-    fit, cov = optimize.curve_fit(fit_func90, norm_elev_90, norm_gain_90)
-    fit[0] = np.abs(fit[0])
-    g = np.poly1d([fit[0],0.])
-    fit_elev = np.linspace(20, 90, 85, endpoint=False)
-    plt.plot(fit_elev, g(fit_elev-90.)+1., label='12.5 GHz fit')
+    fit_elev = np.arange(15.,90.,0.1)
+    plt.plot(fit_elev,parabolic_func(fit_elev,fit[0],61.,1.), label='12.5 GHz fit')
 
     #Get a title string
     if opts.condition_select not in ['ideal','optimum','normal']:
@@ -609,18 +590,30 @@ def make_result_report_ku_band(gain, opts, targets, pdf):
     title += ' ' + '%s conditions'%(condition)
     plt.title(title)
     plt.grid()
-    
+    plt.xlim(15.,90.)
     nu = 14.5e9
     nu_0 = 12.5e9
-    g14, g14_15, g14_90 = scale_gain(g, nu_0, nu, fit_elev)
-    loss_12 = (g(0.) - g(15.-90.))/(g(0.)+1.)*100
-    loss_14 = (g14_90 - g14_15)/g14_90*100
-    
-    plt.plot(fit_elev, g14, label = '14.5 GHz fit')
+    g=lambda x: parabolic_func(x,fit[0],61.,1.)
+    g14 =lambda x: scale_gain(g, nu_0, nu, x)
+    loss_12 = (g(61.) - g(15.))/(g(61.))*100
+    loss_14 = (g14(61.) - g14(15.))/g14(61.)*100
+
+    detrend = norm_gain-g(norm_elev)
+    med_detrend = np.median(detrend)
+    #Get SD of detrended normalised gain data
+    #sd_normgain = np.std(detrend)
+
+    sd_normgain = 1.4826*np.median(np.abs(med_detrend - detrend))
+
+    plt.fill_between(fit_elev,parabolic_func(fit_elev,fit[0],60.,1-sd_normgain),parabolic_func(fit_elev,fit[0],60.,1+sd_normgain),alpha=0.5,color='lightcoral')
+    plt.axhline(0.95,linestyle='--',color='r')
+
+    plt.plot(fit_elev, g14(fit_elev), label = '14.5 GHz fit')
     legend = plt.legend(bbox_to_anchor=(1, -0.1))
     plt.setp(legend.get_texts(), fontsize='small')
     outputtext = 'Relative loss in gain at 12.5 GHz is %.2f %%\n'%loss_12
-    outputtext +='Relative loss in gain at 14.5 GHz is %.2f %%'%loss_14
+    outputtext +='Relative loss in gain at 14.5 GHz is %.2f %%\n'%loss_14
+    outputtext +='Standard deviation of normalised gain is %.2f %%'%(sd_normgain*100.,)
     plt.figtext(0.1,0.55, outputtext,fontsize=11)
     plt.figtext(0.89, 0.5, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pdf,format='pdf')
@@ -656,7 +649,7 @@ if opts.units == None:
 #Get available polarisations to loop over or make a list out of options if available
 if opts.polarisation == None:
     keys = np.array(data.dtype.names)
-    pol = np.unique([key.split('_')[-1] for key in keys if key.split('_')[-1] in ['HH','VV','I']])
+    pol = np.unique([key.split('_')[-1] for key in keys if key.split('_')[-1] in ['HH','VV']])
 else:
     pol = opts.polarisation.split(',')
 
