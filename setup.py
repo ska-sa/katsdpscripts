@@ -4,7 +4,7 @@ from numpy.distutils.core import  setup, Extension
 
 setup (
     name = "katsdpscripts",
-    description = "KAT observation scripting framework and SDP scripts",
+    description = "Karoo Array Telescope observation and reduction scripts",
     author = "MeerKAT SDP, CAM and Commissioning Teams",
     author_email = "spt@ska.ac.za",
     packages = find_packages(),
@@ -16,7 +16,7 @@ setup (
         "RTS/2.8-Strong_Sources/analyse_noise_diode.py",
 	"RTS/2.10-Receptor_Spectral_Baseline/analyse_spectrum.py"
     ],
-    url = 'http://ska.ac.za/',
+    url = 'https://github.com/ska-sa/katsdpscripts',
     classifiers = [
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -28,7 +28,7 @@ setup (
     ],
     platforms = [ "OS Independent" ],
     install_requires = ['numpy', 'katpoint', 'katcp'],
-    keywords = "meerkat kat ska",
+    keywords = "meerkat ska",
     zip_safe = False,
     ext_modules = [Extension(name='gsm', sources=['RTS/gsm/gsm.f', ],
                              extra_f77_compile_args=['-std=legacy -ffixed-line-length-0'])],
