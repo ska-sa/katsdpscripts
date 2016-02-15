@@ -4,7 +4,6 @@ from numpy.distutils.core import  setup, Extension
 
 setup (
     name = "katsdpscripts",
-    version = "trunk",
     description = "KAT observation scripting framework and SDP scripts",
     author = "MeerKAT SDP, CAM and Commissioning Teams",
     author_email = "spt@ska.ac.za",
@@ -34,4 +33,6 @@ setup (
     ext_modules = [Extension(name='gsm', sources=['RTS/gsm/gsm.f', ],
                              extra_f77_compile_args=['-std=legacy -ffixed-line-length-0'])],
     package_data = {'': ['RTS/gsm/gsm.f']}, 
+    setup_requires=['katversion'],
+    use_katversion=True,
 )
