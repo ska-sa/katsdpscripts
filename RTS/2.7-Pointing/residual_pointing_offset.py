@@ -11,13 +11,34 @@ from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
 from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS.weatherlib import select_and_average, select_environment, rolling_window
 
+def get_condition(data,source):
+    """Get condition for grouped target scan."""
+    # Set up limits on environmental conditions
+    ideal = {'wind_speed':1.,'temp_low':19.,'temp_high':21.,'sun_el':-5.}
+    optimal = {'wind_speed':2.9,'temp_low':-5.,'temp_high':35.,'sun_el':-5.}
+    normal = {'wind_speed':9.8,'temp_low':-5.,'temp_high':40.,'sun_el':100.}
+
+    condArray = np.ones(3,dtype=bool)
+    indices = np.where(data['target']==source)[0]
+    for key in ['wind_speed','sun_el']:
+        reqLims = np.array([normal[key],optimal[key],ideal[key]])
+        condArray = condArray & (data[key][indices].mean() < reqLims)
+
+    lowLims = np.array([normal['temp_low'],optimal['temp_low'],ideal['temp_low']])
+    highLims = np.array([normal['temp_high'],optimal['temp_high'],ideal['temp_high']])
+    condArray = condArray & (data['temperature'][indices].mean() > lowLims) & (data['temperature'][indices].mean() < highLims)
+    try:
+        condIndex = np.where(condArray==True)[0][-1]
+        condition = ['normal','optimal','ideal'][condIndex]
+    except(IndexError):
+        condition = 'bad'
+    return condition
 
 def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
     return (angle + 0.5 * period) % period - 0.5 * period
-
-
 
 def save_pointingmodel(filebase,model):
     # Save pointing model to file
@@ -25,8 +46,6 @@ def save_pointingmodel(filebase,model):
     outfile.write(model.description)
     outfile.close()
     logger.debug("Saved %d-parameter pointing model to '%s'" % (len(model.params), filebase + '.csv'))
-
-
 
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
@@ -65,19 +84,20 @@ def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimu
     delta_xel_std = delta_azimuth_std * np.cos(el)
     abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + delta_azimuth_std**2))*3600
     
-    for target in set(offsetdata['target']):
+    for target in set(offsetdata['target']):  # ascertain target group condition
         keep = np.ones((len(offsetdata)),dtype=np.bool)
         for key,targetv in enumerate(offsetdata['target']):
             keep[key] = target == targetv
             if keep[key] : 
-                print ("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key])) 
+                print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key])) 
         
         #abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) *3600
         abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]) ** 2 + (residual_el[keep])** 2)) *3600
         #abs_sky_error.mask[ keep.nonzero()[0][0]] = True # Mask the reference element
         if keep.sum() > num_samples_limit :
-            #text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" {fit-accurecy=%.3f\"}  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.sqrt((abs_sky_error[keep] ** 2).mean()),np.mean(abs_sky_delta_std[keep]), np.ma.median(abs_sky_error[keep]) * np.sqrt(2. / np.log(4.)),keep.sum()-1))
-            text.append("Dataset:%s  Test Target: '%s'  Reference RMS = %.3f\" {fit-accurecy=%.3f\"}  (robust %.3f\")  (N=%i Data Points)" % (offsetdata['dataset'][0],target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]), np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum()))
+            condition = get_condition(offsetdata,target)
+            text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
+                target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
         else : 
             abs_sky_error.mask[keep] = True # Remove Samples from the catalogue if there are not enough mesuments
     ###### On the calculation of all-sky RMS #####
@@ -105,7 +125,7 @@ parser.add_option('-o', '--output', dest='outfilebase', default='pointing_model_
                   help="Base name of output files (*.csv for new pointing model and *_data.csv for residuals, "
                   "default is 'pointing_model_<time>')")
 parser.add_option('--num-samples-limit', default=3,
-                  help="The number of valid offset mesurments needed , in order to have a valid sample." )
+                  help="The number of valid offset measurements needed, in order to have a valid sample." )
 
 
 parser.add_option('--no-plot', default=False ,help="Produce a pdf output")
@@ -117,7 +137,6 @@ parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e
 
 #if len(args) != 1 or not args[0].endswith('.csv'):
 #    raise RuntimeError('Please specify a single CSV data file as argument to the script')
-
 
 text = []
 text.append("")
@@ -134,7 +153,7 @@ ant = None
 for filename in args:
     if data is None:
         data,ant = read_offsetfile(filename)
-        offsetdata= data
+        offsetdata = data
     else:
         tmp_offsets,tmp_ant = read_offsetfile(filename)
         if ant == tmp_ant :
@@ -151,10 +170,6 @@ for filename in args:
     text.append("")
 
 #print new_model.description
-
-
-
-
 
 text.append("")
 for line in text: print line
