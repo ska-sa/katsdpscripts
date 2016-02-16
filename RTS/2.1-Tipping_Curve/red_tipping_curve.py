@@ -25,6 +25,7 @@ import healpy as hp
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from katsdpscripts.RTS import git_info,get_git_path
+from matplotlib.offsetbox import AnchoredText
 
 class Sky_temp:
     import gsm
@@ -691,7 +692,15 @@ known. """
     text += r"""The green solid lines in the figures reflect the modelled $T_{\mathrm{sys}}(\mathrm{el})$ or $T_{\mathrm{sys}}(\mathrm{freq})$, with the 
 broken green lines indicating a $\pm10\%$ margin."""
 
-    plt.figtext(0.1,0.1,text,fontsize=10)
+    params = {'font.size': 10}
+    plt.rcParams.update(params)
+    ax = fig.add_subplot(111)
+    anchored_text = AnchoredText(text, loc=2, frameon=False)
+    ax.add_artist(anchored_text)
+    ax.set_axis_off()
+    plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
+    #plt.figtext(0.1,0.1,text,fontsizie=10)
+    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     pp.close()
     plt.close(fig)

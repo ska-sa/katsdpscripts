@@ -11,6 +11,7 @@ from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
 from katsdpscripts.RTS import git_info,get_git_path
+from matplotlib.offsetbox import AnchoredText
 
 def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
@@ -481,8 +482,15 @@ if opts.compare:
 
 if True:
     fig = plt.figure(None,figsize = (10,16))
-    plt.figtext(0.08,0.9,'\n'.join(text),fontsize=12)
+    params = {'font.size': 12}
+    plt.rcParams.update(params)
+    ax = fig.add_subplot(111)
+    anchored_text = AnchoredText('\n'.join(text), loc=2, frameon=False)
+    ax.add_artist(anchored_text)
+    ax.set_axis_off()
+    #plt.figtext(0.08,0.7,'\n'.join(text),fontsize=12)
     plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
     fig.savefig(pp,format='pdf')
     pp.close()
     plt.close(fig)

@@ -12,6 +12,7 @@ import katpoint
 from katpoint import rad2deg, deg2rad
 from katsdpscripts.RTS import git_info,get_git_path
 from katsdpscripts.RTS.weatherlib import select_and_average, select_environment, rolling_window
+from matplotlib.offsetbox import AnchoredText
 
 def get_condition(data,source):
     """Get condition for grouped target scan."""
@@ -180,11 +181,13 @@ if not opts.no_plot :
     if len(args) > 1 : nice_filename =  args[0].split('/')[-1]+'_Multiple_files' + '_residual_pointing_offset'
     pp = PdfPages(nice_filename+'.pdf')
     fig = plt.figure(None,figsize = (10,16))
-    plt.figtext(0.08,0.9,'\n'.join(text),fontsize=9)
-    #plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    params = {'font.size': 9}
+    plt.rcParams.update(params)
+    ax = fig.add_subplot(111)
+    anchored_text = AnchoredText('\n'.join(text), loc=2, frameon=False)
+    ax.add_artist(anchored_text)
+    ax.set_axis_off()
+    plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
     pp.close()
-
-
-
