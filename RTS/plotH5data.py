@@ -116,7 +116,7 @@ def plot_waterfall(fig,h5,Z,title,coords):
 # Initialise parameters from command line.
 ##############################################
 parser = OptionParser(usage="%prog <options>", description='Plots the polarisation properties of SP data.')
-parser.add_option("-a", "--autoOnly", default=False, action='store_true', help="Only use auto-corr data (default = False).")
+parser.add_option("-a", "--autoOnly", default=True, action='store_false', help="Only use auto-corr data (default = %default).")
 parser.add_option("-c", "--chans", default='2100 2800', type='string', help="Frequency channels to use (default = '2100 2800').")
 parser.add_option("-d", "--dir", default=None, type='string', help="Directory to look into for data.")
 parser.add_option("-f", "--file", default=None, type='string', help="Input file override.")
@@ -127,7 +127,7 @@ parser.add_option("-r", "--recDir", default='/var/kat/katconfig/user/receiver-mo
 parser.add_option("-s", "--scans", default=None, type='string', help="Space-delimited scans to use (default = all.")
 parser.add_option("-t", "--trackOnly", default=False, action='store_true', help="Only use source tracks (default = False.")
 parser.add_option("-v", "--verbose", default=False, action='store_true', help="Print verbose information (default = False.")
-parser.add_option("-w", "--waterfall", default=False, action='store_true', help="Plot dynamic spectra for autocorr data (default = False.")
+parser.add_option("-w", "--waterfall", default=True, action='store_false', help="Plot dynamic spectra for autocorr data (default = %default.")
 (opts, args) = parser.parse_args()
 t0 = time.time()  # record script start time
 
