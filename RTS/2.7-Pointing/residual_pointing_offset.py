@@ -180,7 +180,7 @@ if not opts.no_plot :
     if len(args) > 1 : nice_filename =  args[0].split('/')[-1]+'_Multiple_files' + '_residual_pointing_offset'
     pp = PdfPages(nice_filename+'.pdf')
     fig = plt.figure(None,figsize = (10,16))
-    plt.figtext(0.1,0.1,'\n'.join(text),fontsize=9)
+    plt.figtext(0.08,0.9,'\n'.join(text),fontsize=9)
     #plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     plt.close(fig)

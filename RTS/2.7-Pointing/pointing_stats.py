@@ -481,7 +481,7 @@ if opts.compare:
 
 if True:
     fig = plt.figure(None,figsize = (10,16))
-    plt.figtext(0.1,0.1,'\n'.join(text),fontsize=12)
+    plt.figtext(0.08,0.9,'\n'.join(text),fontsize=12)
     plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     pp.close()
