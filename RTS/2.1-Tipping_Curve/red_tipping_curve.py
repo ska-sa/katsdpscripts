@@ -24,7 +24,7 @@ import gsm
 import healpy as hp
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 from matplotlib.offsetbox import AnchoredText
 
 class Sky_temp:
@@ -657,14 +657,14 @@ for ant in h5.ants:
             lineval = 42
             if freq > 1420 : lineval = 46
             fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
-            plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+            plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
             plt.close(fig)
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
         fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
-        plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+        plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
                 #break
@@ -700,7 +700,7 @@ broken green lines indicating a $\pm10\%$ margin."""
     ax.set_axis_off()
     plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
     #plt.figtext(0.1,0.1,text,fontsizie=10)
-    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     pp.close()
     plt.close(fig)

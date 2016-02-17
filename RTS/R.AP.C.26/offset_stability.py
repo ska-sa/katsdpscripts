@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 #import os
 import katpoint
 from katpoint import  deg2rad #,rad2deg,
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 import pandas
 from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
 
@@ -139,7 +139,7 @@ target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
 plt.title("Raw Offsets :   Antenna:%s Dataset:%s Target(s): %s " %(ant.name,dataset_str ,target_str ),fontsize=10)
 plt.ylabel('Offset  (arc-seconds)')
 plt.xlabel('Time (UTC)',fontsize=8)
-plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
 
 fig.savefig(pp,format='pdf')
 plt.close(fig)
@@ -160,7 +160,7 @@ target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
 plt.title("4 Hour Range  :   Antenna:%s Dataset: %s  Target(s): %s " %(ant.name,dataset_str ,target_str ),fontsize=10)
 plt.ylabel('4 Hour Change  (arc-seconds)')
 plt.xlabel('Time (UTC)',fontsize=10)
-plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
 
 fig.savefig(pp,format='pdf')
 plt.close(fig)
@@ -179,7 +179,7 @@ plt.title("4 hour RMS :   Antenna:%s Dataset: %s  Target(s): %s " %(ant.name,dat
 plt.ylabel('4 Hour RMS Error (arc-seconds)')
 plt.xlabel('Time (UTC)',fontsize=10)
 plt.hlines(25,plt.xlim()[0],plt.xlim()[1])
-plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
 minv,maxv = plt.ylim()
 if maxv < 26 : maxv = 26
 plt.ylim(minv,maxv)
@@ -198,7 +198,7 @@ target_str = ' ,'.join(np.unique(offsetdata['target']).tolist() )
 plt.title("Wind Speed & Temperature : Dataset: %s  " %(dataset_str))
 plt.ylabel('')
 plt.xlabel('Time (UTC)',fontsize=8)
-plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
 
 fig.savefig(pp,format='pdf')
 plt.close(fig)

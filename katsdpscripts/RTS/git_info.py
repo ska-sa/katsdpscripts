@@ -15,5 +15,3 @@ def git_info():
     """
     return "scape: %s\nkatpoint: %s\nkatdal: %s\nkatsdpscripts: %s\nkatholog: %s"%(scape.__version__,katpoint.__version__,katdal.__version__,katsdpscripts.__version__,katholog.__version__)
 
-def get_git_path():
-    return ''
