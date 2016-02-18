@@ -7,14 +7,27 @@ import matplotlib.pyplot as plt
 import pickle
 from katsdpscripts.RTS import git_info 
 from scipy.signal import medfilt
+import logging
 
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False):
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
-    if pdf: pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
+
+    # Set up logging: logging everything (DEBUG & above), both to console and file
+    logger = logging.root
+    logger.setLevel(logging.DEBUG)
+    fh = logging.FileHandler(nice_filename + '.log', 'w')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    logger.addHandler(fh)
+    logger.info('Beginning data processing with:\n%s'%git_info())
+    
+    if pdf: 
+        pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
+        logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.pdf')
 
     h5 = katfile.open(filename)
-    if verbose: print h5 
+    if verbose: logger.debug(h5.__str__()) 
     
     pickle_file = open('/var/kat/katsdpscripts/RTS/rfi_mask.pickle')
     rfi_static_flags = pickle.load(pickle_file)
@@ -23,6 +36,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     edge[slice(211,3896)] = False
     static_flags = np.logical_or(edge,rfi_static_flags)
     if Ku:
+        logger.debug("Using Ku band ... unsetting L band RFI flags")
         h5.spectral_windows[0].centre_freq = 12500.5e6
         # Don't subtract half a channel width as channel 0 is centred on 0 Hz in baseband
         h5.spectral_windows[0].channel_freqs = h5.spectral_windows[0].centre_freq +  h5.spectral_windows[0].channel_width * (np.arange(h5.spectral_windows[0].num_chans) - h5.spectral_windows[0].num_chans / 2)
@@ -34,31 +48,37 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
     diode= 'coupler'
-    for a,col,a_i in zip(ants,colour,ant_ind):    
+    for a,col,a_i in zip(ants,colour,ant_ind):
         if not(Ku): 
             fig1 = plt.figure(a_i*2-1,figsize=(20,5))
         fig2 = plt.figure(a_i*2,figsize=(20,5))
         for pol in pols:
+            logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name
             ant_num = int(ant[3])
             
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+h5.receivers[ant]+'.'+pol+'.csv'
+                logger.info('Loading noise diode file %s from config'%diode_filename)
                 try:
                     nd = scape.gaincal.NoiseDiodeModel(diode_filename)
                 except:
-                    print "Error reading the noise diode file ... using a constant value of 20k"
+                    logger.error("Error reading the noise diode file ... using a constant value of 20k")
+                    logger.error("Be sure to reprocess the data once the file is in the config")
                     nd = scape.gaincal.NoiseDiodeModel(freq=[856,1712],temp=[20,20])
             
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
             #cold data
+            logger.debug('Using off target %s'%target)
             h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
             freq = h5.channel_freqs
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
+            if not any(on):
+                logger.critical('No noise diode fired during track of %s'%target)
             buff = 1
             n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
             n_on = np.roll(on,buff) & np.roll(on,-buff)
@@ -68,6 +88,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             h5.select(ants=a.name,pol=pol,channels=~static_flags,targets = 'Moon',scans='track')
             hot_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
+            if not any(on):
+                logger.critical('No noise diode fired during track of Moon')
             buff = 1
             n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
             n_on = np.roll(on,buff) & np.roll(on,-buff)
@@ -124,11 +146,13 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.axhspan(14, 35, facecolor='g', alpha=0.5)
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 if write_nd:
-                    outfile = file('%s/%s.%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower(),file_base), 'w')
+                    outfilename = '%s/%s.%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower(),file_base)
+                    outfile = file(outfilename, 'w')
                     outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
                     # Write CSV part of file
                     outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode))]))
                     outfile.close()
+                    logger.info('Noise temp data written to file %s'%outfilename)
                 plt.plot(freq/1e6,nd_temp,'k.',label='Model: EMSS')
                 plt.grid()
                 plt.legend()
@@ -179,6 +203,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             fig2.savefig(pp,format='pdf')
     pp.close() # close the pdf file
     plt.close("all")
+    logger.info('Processing complete')
 
 
 
