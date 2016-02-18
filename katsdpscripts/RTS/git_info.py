@@ -1,17 +1,16 @@
-import os
 import sys
-import warnings
-
-import katdal
-import katholog
-import katpoint
-import katsdpscripts
-import scape
 
 def git_info():
     """
     Helper function to get information about a github commit
     that was used to build the default KAT reduction packages.
     """
-    return "scape: %s\nkatpoint: %s\nkatdal: %s\nkatsdpscripts: %s\nkatholog: %s"%(scape.__version__,katpoint.__version__,katdal.__version__,katsdpscripts.__version__,katholog.__version__)
+    mods = ['katholog','katpoint','scape','katdal','katsdpscripts']
+    git_info_str = ''
+    for m in mods:
+        try:
+            git_info_str += "%s: %s\n"%(sys.modules[m].__name__,sys.modules[m].__version__)
+        except KeyError:
+            git_info_str += "Module %s not imported\n"%m
+    return git_info_str
 
