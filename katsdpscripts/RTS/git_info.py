@@ -18,7 +18,7 @@ def git_info(mods='short'):
     git_info('standard')
         This will return the versions of the five standard KAT reduction packages.
 
-    git_info(['numpy','scape','katpoint','matplotlib']
+    git_info(['numpy','scape','katpoint','matplotlib'])
         This will return the versions of the packages specified in the list.
 
     """
