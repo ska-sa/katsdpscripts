@@ -10,7 +10,7 @@ from matplotlib.projections import PolarAxes
 from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 from katsdpscripts.RTS.weatherlib import select_and_average, select_environment, rolling_window
 from matplotlib.offsetbox import AnchoredText
 
@@ -174,7 +174,7 @@ for filename in args:
 
 text.append("")
 for line in text: print line
-text.append(git_info(get_git_path()) )
+text.append(git_info() )
 
 if not opts.no_plot :
     nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'

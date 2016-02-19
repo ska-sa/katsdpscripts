@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from matplotlib.backends.backend_pdf import PdfPages
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 import pickle
 import optparse
 
@@ -46,7 +46,7 @@ def plot_phase_freq(channel_freqs,a123,title=''):
     plt.grid(True)
     plt.ylabel('Mean Phase Closure angle(degrees)')
     plt.xlabel('Frequency (MHz)')
-    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     return fig 
 
 def plot_amp_freq(channel_freqs,a1234,title=''):
@@ -60,7 +60,7 @@ def plot_amp_freq(channel_freqs,a1234,title=''):
     plt.grid(True)
     plt.ylabel('Mean Amplitude Closure ')
     plt.xlabel('Frequency (MHz)')
-    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     return fig 
 
 # Parse command-line options and arguments

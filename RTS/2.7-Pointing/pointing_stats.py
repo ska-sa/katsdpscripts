@@ -10,7 +10,7 @@ from matplotlib.projections import PolarAxes
 from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 from matplotlib.offsetbox import AnchoredText
 
 def angle_wrap(angle, period=2.0 * np.pi):
@@ -463,7 +463,7 @@ if opts.compare:
 
     # Add old pointing model and labels
     list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )
-    fig.text(0.405, 0.98,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    fig.text(0.405, 0.98,git_info(), horizontalalignment='right',fontsize=10)
     fig.text(0.905, 0.98,list_o_names, horizontalalignment='right',fontsize=10)
     fig.text(0.053, 0.95, 'OLD', ha='center', va='bottom', size='large')
     fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
@@ -489,7 +489,7 @@ if True:
     ax.add_artist(anchored_text)
     ax.set_axis_off()
     #plt.figtext(0.08,0.7,'\n'.join(text),fontsize=12)
-    plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
     fig.savefig(pp,format='pdf')
     pp.close()
