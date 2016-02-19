@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import optparse
 import katsdpscripts.RTS.rfilib as rfi
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 
 
 def Ang_Separation(pos1,pos2):
@@ -163,7 +163,7 @@ for ant in ant_list :
             #plt.plot(thetav,upper,'bo')
             plt.errorbar(thetav,mean, yerr=(mean-lower,upper-mean) )
             # the formulate is valid in these ranges 0.25 -> 0.55  
-            plt.figtext(0.89, 0.11,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+            plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf') 
             plt.close(fig)
 

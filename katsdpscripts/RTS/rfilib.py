@@ -708,10 +708,9 @@ def plot_flag_data(label,spectrum,flagfrac,h5data,pdf):
     after flagging and attach it to the pdf output.
     Also show fraction of times flagged per channel.
     """
-    from git_info import git_info, get_git_path
+    from git_info import git_info
 
-    repo_path=get_git_path()
-    repo_info = git_info() if repo_path=='' else git_info(repo_path)
+    repo_info = git_info() 
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
@@ -760,10 +759,9 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300)
     """
     Make a waterfall plot from visdata with flags overplotted. 
     """
-    from git_info import git_info, get_git_path
+    from git_info import git_info
 
-    repo_path=get_git_path()
-    repo_info = git_info() if repo_path=='' else git_info(repo_path)
+    repo_info = git_info()
 
     fig = plt.figure(figsize=(8.3,11.7))
     ax = plt.subplot(111)

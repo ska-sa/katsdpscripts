@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 #import os
 import katpoint
 from katpoint import  deg2rad ,rad2deg
-from katsdpscripts.RTS import git_info,get_git_path
+from katsdpscripts.RTS import git_info
 import pandas
 from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
 
@@ -84,7 +84,7 @@ def metrics(model,az,el,measured_delta_az, measured_delta_el ,std_delta_az ,std_
     plt.title("Offset for Antenna:%s Dataset:%s  \n   %s " %(ant.name,dataset_str ,text),fontsize=10)
     plt.ylabel('Offset  (arc-seconds)')
     plt.xlabel('Time (UTC)',fontsize=8)
-    plt.figtext(0.89, 0.18,git_info(get_git_path()), horizontalalignment='right',fontsize=10)
+    plt.figtext(0.89, 0.18,git_info(), horizontalalignment='right',fontsize=10)
     return fig
     
     
