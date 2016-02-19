@@ -4,6 +4,23 @@ def git_info(mods='short'):
     """
     Helper function to get information about a github commit
     that was used to build the default KAT reduction packages.
+    
+    Keywords:
+    --------
+    mods -- determines which modules to report.
+        Valid options are 'short', 'standard' or a list of module names.
+
+    Examples:
+    --------
+    git_info()
+        This will return the current version of katsdpscripts.
+
+    git_info('standard')
+        This will return the versions of the five standard KAT reduction packages.
+
+    git_info(['numpy','scape','katpoint','matplotlib']
+        This will return the versions of the packages specified in the list.
+
     """
     standard_mods = ['katholog','katpoint','scape','katdal','katsdpscripts']
     git_info_str = ''
