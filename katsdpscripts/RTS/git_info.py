@@ -23,25 +23,25 @@ def git_info(mods='short'):
 
     """
     standard_mods = ['katholog','katpoint','scape','katdal','katsdpscripts']
-    git_info_str = ''
+    git_info_str = []
 
     if mods == 'short':
         try:
-            git_info_str += "katsdpscripts: %s\n"%(sys.modules['katsdpscripts'].__version__)
+            git_info_str.append("katsdpscripts: %s"%(sys.modules['katsdpscripts'].__version__))
         except KeyError:
-            git_info_str += "Module katsdpscripts is not imported\n"
+            git_info_str.append("Module katsdpscripts is not imported")
     elif mods == 'standard':
         for m in standard_mods:
             try:
-                git_info_str += "%s: %s\n"%(sys.modules[m].__name__,sys.modules[m].__version__)
+                git_info_str.append("%s: %s"%(sys.modules[m].__name__,sys.modules[m].__version__))
             except KeyError:
-                git_info_str += "Module %s is not imported\n"%m
+                git_info_str.append("Module %s is not imported"%m)
     elif isinstance(mods,list):
         for m in mods:
             try:
-                git_info_str += "%s: %s\n"%(sys.modules[m].__name__,sys.modules[m].__version__)
+                git_info_str.append("%s: %s"%(sys.modules[m].__name__,sys.modules[m].__version__))
             except KeyError:
-                git_info_str += "Module %s is not imported\n"%m 
+                git_info_str.append("Module %s is not imported"%m) 
 
-    return git_info_str
+    return '\n'.join(git_info_str)
 
