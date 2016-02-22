@@ -127,19 +127,19 @@ with verify_and_connect(opts) as kat:
 
 		if not ant.sensor.rsc_rxl_amp2_h_power_enabled.get_value():
 		    print 'Switching on L-band Amp2 H'
-		    ant.req.rsc_rxl_amp2_h_power_enabled('enable')
+		    ant.req.rsc_rxl_amp2_h_power('enable')
 		    time.sleep(1)
 		if not ant.sensor.rsc_rxl_amp2_v_power_enabled.get_value():
 		    print 'Switching on L-band Amp2 V'
-		    ant.req.rsc_rxl_amp2_v_power_enabled('enable')
+		    ant.req.rsc_rxl_amp2_v_power('enable')
 		    time.sleep(1)
 		if not ant.sensor.rsc_rxl_lna_h_power_enabled.get_value():
 		    print 'Switching on L-band LNA H'
-		    ant.req.rsc_rxl_lna_h_power_enabled('enable')
+		    ant.req.rsc_rxl_lna_h_power('enable')
 		    time.sleep(1)
 		if not ant.sensor.rsc_rxl_lna_v_power_enabled.get_value():
 		    print 'Switching on L-band LNA V'
-		    ant.req.rsc_rxl_lna_v_power_enabled('enable')
+		    ant.req.rsc_rxl_lna_v_power('enable')
 		    time.sleep(1)
 		if ant.sensor.rsc_rxl_startup_state.get_value() != 'cold-operational':
 		    raise RuntimeError('rsc_rxl_startup_state is %s, cold-operational expected'% ant.sensor.rsc_rxl_startup_state.get_value())
