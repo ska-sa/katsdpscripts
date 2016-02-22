@@ -8,6 +8,7 @@ import pickle
 from katsdpscripts.RTS import git_info 
 from scipy.signal import medfilt
 import logging
+import scape
 
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False):
     file_base = filename.split('/')[-1].split('.')[0]
@@ -52,6 +53,17 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         if not(Ku): 
             fig1 = plt.figure(2,figsize=(20,5))
         fig2 = plt.figure(1,figsize=(20,5))
+        
+        fig0 = plt.figure(0,figsize=(20,5))
+        h5.select()
+        h5.select(ants = a.name)
+        d = scape.DataSet(h5)
+        scape.plot_xyz(d,'time','amp',label='Average of the data')
+        on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
+        ts = h5.timestamps - h5.timestamps[0]
+        plt.plot(ts,on*4000,'g',label='katdal ND sensor')
+        plt.title("Timeseries for antenna %s - %s"%(a.name,git_info()))
+        plt.legend()
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name
@@ -73,6 +85,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             #cold data
             logger.debug('Using off target %s'%target)
             h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
+            d = scape.DataSet(h5)
             freq = h5.channel_freqs
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
@@ -201,6 +214,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if not(Ku):
                 fig1.savefig(pp,format='pdf')
             fig2.savefig(pp,format='pdf')
+            fig0.savefig(pp,format='pdf')
             pp.close() # close the pdf file
         plt.close("all")
     logger.info('Processing complete')
