@@ -8,6 +8,14 @@ import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import katpoint
 
+# temporary hack to ensure antenna does not timeout for the moment
+def bad_ar1_alt_hack(target, duration, limit=88.):
+    import numpy
+    [az, el] = target.azel()
+    delta_transit = duration*(15./3600.)
+    if (numpy.rad2deg(float(el))+delta_transit+delta_transit) > limit: return True
+    return False
+
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='Track one or more sources for a specified time. At least one '
@@ -49,28 +57,22 @@ with verify_and_connect(opts) as kat:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
             if not opts.no_delays and not kat.dry_run :
-#                 if session.dbe.req.auto_delay('on'):
                 if session.data.req.auto_delay('on'):
                     user_logger.info("Turning on delay tracking.")
                 else:
                     user_logger.error('Unable to turn on delay tracking.')
             elif opts.no_delays and not kat.dry_run:
-#                 if session.dbe.req.auto_delay('off'):
                 if session.data.req.auto_delay('off'):
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
-                #if session.dbe.req.zero_delay():
-                #    user_logger.info("Zeroed the delay values.")
-                #else:
-                #    user_logger.error('Unable to zero delay values.')
+                if session.data.req.zero_delay():
+                    user_logger.info("Zeroed the delay values.")
+                else:
+                    user_logger.error('Unable to zero delay values.')
 
             session.standard_setup(**vars(opts))
             session.capture_start()
-# RvR -- this seem to have been fixed, but I will leave it commented out just in case
-# 	    user_logger.info('Start metadata capture')
-# 	    time.sleep(2) # give time to issue cmd: cam.data_1.req.cbf_capture_meta('c856M4k')
-# RvR -- this seem to have been fixed, but I will leave it commented out just in case
 
             start_time = time.time()
             targets_observed = []
@@ -81,6 +83,10 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
+# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
+		    if bad_ar1_alt_hack(target, opts.track_duration): continue
+# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
+
                     session.label('track')
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period

@@ -13,6 +13,14 @@ import time
 from katcorelib import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
+# temporary hack to ensure antenna does not timeout for the moment
+def bad_ar1_alt_hack(target, duration, limit=88.):
+    import numpy
+    [az, el] = target.azel()
+    delta_transit = duration*(15./3600.)
+    if (numpy.rad2deg(float(el))+delta_transit+delta_transit) > limit: return True
+    return False
+
 # Set up standard script options
 parser = standard_script_options(
     usage="%prog [options] [<'target/catalogue'> ...]",
@@ -96,10 +104,10 @@ with verify_and_connect(opts) as kat:
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
-                #if session.data.req.zero_delay():
-                #    user_logger.info("Zeroed the delay values.")
-                #else:
-                #    user_logger.error('Unable to zero delay values.')
+                if session.data.req.zero_delay():
+                    user_logger.info("Zeroed the delay values.")
+                else:
+                    user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -112,6 +120,10 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
+# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
+		    if bad_ar1_alt_hack(target, 60.): continue
+# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
+
                     session.label('raster')
                     # Do different raster scan on strong and weak targets
                     if not opts.quick and not opts.fine:
