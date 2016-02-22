@@ -73,5 +73,6 @@ with verify_and_connect(opts) as kat:
 # Quick test but wide scan if you do not know your pointing
 #         session.raster_scan(target, num_scans=7, scan_duration=15, scan_extent=7.0, scan_spacing=1, projection=opts.projection)
 #         session.raster_scan(target, num_scans=7, scan_duration=30, scan_extent=5.0, scan_spacing=1, projection=opts.projection)
+#         session.raster_scan(target, num_scans=7, scan_duration=30, scan_extent=7.0, scan_spacing=1, projection=opts.projection)
 
 # -fin-
