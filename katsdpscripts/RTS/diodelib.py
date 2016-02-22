@@ -21,14 +21,11 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
     logger.info('Beginning data processing with:\n%s'%git_info('standard'))
-    
-    if pdf: 
-        pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
-        logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.pdf')
 
     h5 = katfile.open(filename)
-    if verbose: logger.debug(h5.__str__()) 
-    
+    if verbose: logger.debug(h5.__str__())
+    ants = h5.ants
+   
     pickle_file = open('/var/kat/katsdpscripts/RTS/rfi_mask.pickle')
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
@@ -42,16 +39,19 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         h5.spectral_windows[0].channel_freqs = h5.spectral_windows[0].centre_freq +  h5.spectral_windows[0].channel_width * (np.arange(h5.spectral_windows[0].num_chans) - h5.spectral_windows[0].num_chans / 2)
         static_flags = edge    
 
-    ants = h5.ants
     n_ants = len(ants)
-    ant_ind = np.arange(n_ants) + 1
+    ant_ind = np.arange(n_ants)
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
     diode= 'coupler'
-    for a,col,a_i in zip(ants,colour,ant_ind):
+    for a,col in zip(ants,colour):
+        if pdf: 
+            pp = PdfPages(output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
+            logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
+
         if not(Ku): 
-            fig1 = plt.figure(a_i*2-1,figsize=(20,5))
-        fig2 = plt.figure(a_i*2,figsize=(20,5))
+            fig1 = plt.figure(2,figsize=(20,5))
+        fig2 = plt.figure(1,figsize=(20,5))
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name
@@ -136,7 +136,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             
             p = 1 if pol == 'v' else 2
             if not(Ku):
-                plt.figure(a_i*2-1)
+                plt.figure(2)
                 plt.subplot(1,2,p)
                 plt.ylim(0,50)
                 plt.ylabel('T_ND [K]')
@@ -157,7 +157,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.grid()
                 plt.legend()
                 
-            plt.figure(a_i*2)
+            plt.figure(1)
             plt.subplot(1,2,p)
             if not(Ku): plt.ylim(15,50)
             plt.ylabel('Tsys/eta_A [K]')
@@ -178,7 +178,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             plt.legend(loc=2,fontsize=12)
         
         if not(Ku):
-            plt.figure(a_i*2-1)
+            plt.figure(2)
             plt.subplot(1,2,1)
             ax = plt.gca()
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
@@ -188,7 +188,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
             plt.title('%s Coupler Diode: H pol: %s'%(ant,file_base))
 
-        plt.figure(a_i*2)
+        plt.figure(1)
         plt.subplot(1,2,1)
         ax = plt.gca()
         ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
@@ -201,8 +201,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if not(Ku):
                 fig1.savefig(pp,format='pdf')
             fig2.savefig(pp,format='pdf')
-    pp.close() # close the pdf file
-    plt.close("all")
+            pp.close() # close the pdf file
+        plt.close("all")
     logger.info('Processing complete')
 
 
