@@ -20,7 +20,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
-    logger.info('Beginning data processing with:\n%s'%git_info())
+    logger.info('Beginning data processing with:\n%s'%git_info('standard'))
     
     if pdf: 
         pp = PdfPages(output_dir+'/'+nice_filename+'.pdf')
