@@ -85,7 +85,6 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             #cold data
             logger.debug('Using off target %s'%target)
             h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
-            d = scape.DataSet(h5)
             freq = h5.channel_freqs
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
