@@ -2,7 +2,11 @@ clean:
 	rm -f *.log
 	rm -f *.pyc
 
-clobber: clean
+realclean: clean
+	rm -f concat_*.csv
+	rm -f *.png
+
+clobber: realclean
 	rm -f *.csv
 	rm -f *.pdf
 
