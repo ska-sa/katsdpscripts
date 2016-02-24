@@ -31,7 +31,7 @@ import katpoint
 
 # Import script helper functions from observe.py
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
-                       start_session, user_logger, ant_array
+                       start_session, user_logger #, ant_array
 import numpy as np
 import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
@@ -323,6 +323,7 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
+        '''
         if not opts.no_delays and not kat.dry_run :
             if session.dbe.req.auto_delay('on'):
                 user_logger.info("Turning on delay tracking.")
@@ -337,13 +338,13 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Zeroed the delay values.")
             else:
                 user_logger.error('Unable to zero delay values.')
-
+        '''
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
-        scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
+        scan_ants = session.ants[0] #ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray (or use given antennas)
-        track_ants = opts.track_ants if opts.track_ants else [ant for ant in all_ants if ant not in scan_ants]
-        track_ants = ant_array(kat, track_ants, 'track_ants')
+        track_ants = None #opts.track_ants if opts.track_ants else [ant for ant in all_ants if ant not in scan_ants]
+        #track_ants = ant_array(kat, track_ants, 'track_ants')
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
@@ -369,18 +370,20 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Performing scan cycle %d."%(cycle+1))
             #print("Using all antennas: %s" % (' '.join([ant  for ant in ants]),))
             user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
-            scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
-            track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
+            user_logger.info("Ants in scan object: %s" % scan_ants)
+            user_logger.info("Observer value is ... %s" % scan_ants.sensor.observer.get_value())
+            scan_observer = katpoint.Antenna(scan_ants.sensor.observer.get_value())
+            #track_observer = katpoint.Antenna(track_ants.sensor.observer.get_value())
             session.ants = all_ants
             #get both antennas to target ASAP
             session.ants = scan_ants            
             target.antenna = scan_observer
             scan_track = gen_track(np.arange(opts.slew_to_target_time)+time.time(),target)
             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-            session.ants = track_ants
-            target.antenna = track_observer
-            scan_track = gen_track(scan_track[:,0],target)
-            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+            #session.ants = track_ants
+            #target.antenna = track_observer
+            #scan_track = gen_track(scan_track[:,0],target)
+            #session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
             scan_data=scan_track
             time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
             lasttime = scan_data[-1,0]
@@ -389,13 +392,14 @@ with verify_and_connect(opts) as kat:
                 session.ants = scan_ants
                 target.antenna = scan_observer
                 scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                ##user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                user_logger.info("Using Scan antennas: %s" % session.ants)
                 session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                session.ants = track_ants
-                target.antenna = track_observer
-                scan_track = gen_track(scan_data[:,0],target)
-                user_logger.info("Using Track antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
-                session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                #session.ants = track_ants
+                #target.antenna = track_observer
+                #scan_track = gen_track(scan_data[:,0],target)
+                #user_logger.info("Using Track antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                #session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
                 time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                 lasttime = scan_data[-1,0]
         time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
