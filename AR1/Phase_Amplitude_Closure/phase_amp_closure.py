@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from matplotlib.backends.backend_pdf import PdfPages
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 import pickle
 import optparse
 

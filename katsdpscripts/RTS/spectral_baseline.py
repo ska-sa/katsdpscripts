@@ -13,7 +13,7 @@ from matplotlib import ticker
 from matplotlib.backends.backend_pdf import PdfPages
 
 from katsdpscripts.RTS import rfilib
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 
 import h5py
 

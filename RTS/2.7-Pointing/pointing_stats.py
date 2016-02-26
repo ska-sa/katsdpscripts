@@ -10,7 +10,7 @@ from matplotlib.projections import PolarAxes
 from matplotlib.ticker import MultipleLocator,FormatStrFormatter
 import katpoint
 from katpoint import rad2deg, deg2rad
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 from matplotlib.offsetbox import AnchoredText
 
 def angle_wrap(angle, period=2.0 * np.pi):

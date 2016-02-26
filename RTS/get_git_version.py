@@ -5,5 +5,5 @@
 #call which will import katsdpscripts from a new environment and correctly report the 
 #installed version.
 
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 print git_info('standard')

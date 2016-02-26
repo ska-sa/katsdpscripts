@@ -24,7 +24,7 @@ import gsm
 import healpy as hp
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 from matplotlib.offsetbox import AnchoredText
 
 class Sky_temp:

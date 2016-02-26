@@ -9,7 +9,7 @@ import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas
 import pickle
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """

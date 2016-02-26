@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import pickle
-from katsdpscripts.RTS import git_info 
+from katsdpscripts import git_info
 from scipy.signal import medfilt
 import logging
 import scape

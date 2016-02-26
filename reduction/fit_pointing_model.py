@@ -20,7 +20,7 @@ from matplotlib.projections import PolarAxes
 
 import katpoint
 from katpoint import rad2deg, deg2rad, wrap_angle
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
