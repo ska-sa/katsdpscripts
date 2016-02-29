@@ -158,7 +158,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.axhspan(14, 35, facecolor='g', alpha=0.5)
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 if write_nd:
-                    outfilename = '%s/%s.%s.%s.%s.csv' % (output_dir,ant, diode, pol.lower(),file_base)
+                    outfilename = diode_filename.split('/')[-1]
                     outfile = file(outfilename, 'w')
                     outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
                     # Write CSV part of file
