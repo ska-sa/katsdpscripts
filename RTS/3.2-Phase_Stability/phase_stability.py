@@ -7,7 +7,7 @@ import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas
 import os
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 import pickle
 import h5py
 import katpoint

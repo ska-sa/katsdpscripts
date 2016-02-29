@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import optparse
 import katsdpscripts.RTS.rfilib as rfi
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 
 
 def Ang_Separation(pos1,pos2):

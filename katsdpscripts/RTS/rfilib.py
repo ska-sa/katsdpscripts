@@ -712,7 +712,7 @@ def plot_flag_data(label,spectrum,flagfrac,h5data,pdf):
     after flagging and attach it to the pdf output.
     Also show fraction of times flagged per channel.
     """
-    from git_info import git_info
+    from katsdpscripts import git_info
 
     repo_info = git_info() 
 
@@ -763,7 +763,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300)
     """
     Make a waterfall plot from visdata with flags overplotted. 
     """
-    from git_info import git_info
+    from katsdpscripts import git_info
 
     repo_info = git_info()
 

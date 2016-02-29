@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 #import os
 import katpoint
 from katpoint import  deg2rad ,rad2deg
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 import pandas
 from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
 

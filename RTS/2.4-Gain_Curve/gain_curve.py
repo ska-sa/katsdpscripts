@@ -19,7 +19,7 @@ from scipy import optimize
 import scipy.interpolate as interpolate
 
 from katsdpscripts.reduction.analyse_point_source_scans import batch_mode_analyse_point_source_scans
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 
 import scape
 import katpoint

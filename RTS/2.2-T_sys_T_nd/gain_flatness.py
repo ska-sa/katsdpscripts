@@ -3,7 +3,7 @@
 import optparse
 import katdal
 from katsdpscripts.RTS import spectral_baseline as sb
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 from astropy.time import Time
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
