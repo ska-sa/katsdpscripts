@@ -26,6 +26,10 @@ import shutil
 import pathos.multiprocessing as mp
 import time
 
+#Supress warnings
+import warnings
+warnings.simplefilter('ignore')
+
 def running_mean(x, N, axis=None):
     #Fast implementation of a running mean (array x with width N)
     #Stolen from http://stackoverflow.com/questions/13728392/moving-average-or-running-mean
