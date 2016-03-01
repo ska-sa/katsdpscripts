@@ -286,9 +286,22 @@ def analyse_point_source_scans(filename, opts):
     plt.ylabel('Dec [deg]')
     plt.xlabel('Ra [deg]')
 
+    # Try to fit beam
+    h5file.select(reset='T')
+    N = len(h5file.compscan_indices)
+    h5file.select(ants=opts.baseline, scans='scan', channels=slice(1024,1024+2048))
+    for c in h5file.compscans():
+        d = scape.DataSet(h5file, baseline="%s" % (opts.baseline,), nd_models=opts.nd_models)
+        if not d is None:
+            d = d.select(flagkeep='~nd_on')
+        for i in range(len(d.scans)):
+            d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=1,spike_width=3,outlier_sigma=5.)
+        d.average()
+        d.fit_beams_and_baselines()
+
 
     # Generate output report
-    with PdfPages(opts.outfilebase+'.pdf') as pdf:
+    with PdfPages(opts.outfilebase+'_'+opts.baseline+'.pdf') as pdf:
         out=reduced_data[0]
         offset_az, offset_el = "%.1f" % (60. * out['delta_azimuth'],), "%.1f" % (60. * out['delta_elevation'],)
         beam_width, beam_height = "%.1f" % (60. * out['beam_width_I'],), "%.2f" % (out['beam_height_I'],)
@@ -308,17 +321,22 @@ def analyse_point_source_scans(filename, opts):
         pagetext += (u"\nVV gain = %.3f Jy/%s") % (out['flux'] / out['beam_height_VV'], out['data_unit'])
         pagetext += (u"\nBaseline height = %s %s") % (baseline_height, out['data_unit'])
         pagetext  = pagetext + "\n"
+        pagetext += (u"\nCurrent model AzEl=(%.3f, %.3f) deg" % (model_delta_az[0], model_delta_el[0]))
         pagetext += (u"\nMeasured coordinates using rough fit")
         pagetext += (u"\nMeasured AzEl=(%.3f, %.3f) deg" % (measured_delta_az[0], measured_delta_el[0]))
         pagetext  = pagetext + "\n"
-        pagetext += (u"\nDetermine new residuals from current pointing model")
-        pagetext += (u"\nCurrent model AzEl=(%.3f, %.3f) deg" % (model_delta_az[0], model_delta_el[0]))
-        # pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
+        pagetext += (u"\nDetermine residuals from current pointing model")
+        residual_az = measured_delta_az - model_delta_az
+        residual_el = measured_delta_el - model_delta_el
+        pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
+        if d.compscans[0].beam is not None:
+            if not d.compscans[0].beam.is_valid:
+                pagetext += (u"\nPossible bad fit!")
+        if (d.compscans[0].beam is not None) and (residual_az[0] < 1.) and (residual_el[0] < 1.):
+            pagetext += (u"\nResiduals withing L-band beam")
+        else:
+            pagetext += (u"\nMaximum Residual, %.2f, larger than L-band beam"%(numpy.max(residual_az[0], residual_el[0])))
         pagetext  = pagetext + "\n"
-        # pagetext += (u"\nDetermine new residuals from new fit")
-        # pagetext += (u"\nNew model AzEl=(%.3f, %.3f) deg" % (newmodel_delta_az[0], newmodel_delta_el[0]))
-        # pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
-        # pagetext  = pagetext + "\n"
         pagetext += (u"\nFitted parameters \n%s" % str(params[:5]))
 
         plt.figure(None,figsize = (16,8))
