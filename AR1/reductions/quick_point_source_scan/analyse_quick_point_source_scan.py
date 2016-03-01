@@ -142,10 +142,10 @@ def analyse_point_source_scans(filename, opts):
     # Load data set
     if opts.baseline not in [ant.name for ant in h5file.ants]:
         raise RuntimeError('Cannot find antenna %s in dataset'%opts.baseline)
-    for pol in ['h','v']:
-        noise_file=os.path.join(opts.nd_models, '%s.coupler.%s.csv' % (opts.baseline,pol))
-        if not os.path.isfile(noise_file):
-            raise RuntimeError('Cannot find file %s' %(noise_file))
+    # for pol in ['h','v']:
+    #     noise_file=os.path.join(opts.nd_models, '%s.coupler.%s.csv' % (opts.baseline,pol))
+    #     if not os.path.isfile(noise_file):
+    #         raise RuntimeError('Cannot find file %s' %(noise_file))
     print("Loading dataset '%s'" % (filename,))
     dataset = scape.DataSet(h5file, baseline=opts.baseline, nd_models=opts.nd_models,
                             time_offset=opts.time_offset, **kwargs)
@@ -313,13 +313,13 @@ def analyse_point_source_scans(filename, opts):
         pagetext  = pagetext + "\n"
         pagetext += (u"\nDetermine new residuals from current pointing model")
         pagetext += (u"\nCurrent model AzEl=(%.3f, %.3f) deg" % (model_delta_az[0], model_delta_el[0]))
-        pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
+        # pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
         pagetext  = pagetext + "\n"
-        pagetext += (u"\nDetermine new residuals from new fit")
-        pagetext += (u"\nNew model AzEl=(%.3f, %.3f) deg" % (newmodel_delta_az[0], newmodel_delta_el[0]))
-        pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
-        pagetext  = pagetext + "\n"
-        pagetext += (u"\nFitted parameters \n%s" % str(params))
+        # pagetext += (u"\nDetermine new residuals from new fit")
+        # pagetext += (u"\nNew model AzEl=(%.3f, %.3f) deg" % (newmodel_delta_az[0], newmodel_delta_el[0]))
+        # pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
+        # pagetext  = pagetext + "\n"
+        pagetext += (u"\nFitted parameters \n%s" % str(params[:5]))
 
         plt.figure(None,figsize = (16,8))
         plt.axes(frame_on=False)
