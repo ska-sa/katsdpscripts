@@ -317,7 +317,7 @@ def  fringe_stopping(data): #This will have to be updated for MKAT
     # Assemble fringe-stopped visibility data for main (bandpass) calibrator
     vis_set = None
     for compscan_no,compscan_label,target in data.compscans():
-        print "loop",compscan_no,compscan_label,target
+        #print "loop",compscan_no,compscan_label,target
         vis = data.vis[:,:,:]
         # Number of turns of phase that signal B is behind signal A due to geometric delay
         geom_delay_turns = - data.w[:, np.newaxis, :] / wavelengths[:, np.newaxis]
@@ -332,7 +332,7 @@ def  fringe_stopping(data): #This will have to be updated for MKAT
 def fringe_correction(h5):
     h5.select(corrprods='cross')
     center_freqs = h5.channel_freqs
-    print center_freqs.mean()
+    #print center_freqs.mean()
     wavelengths = 3.0e8 / center_freqs
     vis_set = None
     # Number of turns of phase that signal B is behind signal A due to cable / receiver delay
@@ -349,7 +349,7 @@ def fringe_correction(h5):
     anttmp[5] = "1258.892 2729.159 -7.029" #???
     cable_delay_turns = 0.0  #  add delays correction 
     for compscan_no,compscan_label,target in h5.compscans():
-        print compscan_no,target.description
+        #print compscan_no,target.description
         #print "loop",compscan_no,compscan_label,target,h5.shape
         vis = h5.vis[:,:,:]
         # Number of turns of phase that signal B is behind signal A due to geometric delay
@@ -561,10 +561,10 @@ for pol in ('h','v'):
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
     # loop over both polarisations
     if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
-        print "Need to do fringe stopping "
+        #print "Need to do fringe stopping "
         vis = fringe_stopping(h5)
     else:
-        print "Fringe stopping done in the correlator"
+        #print "Fringe stopping done in the correlator"
         vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
 
     #flaglist[0:start_freq_channel] = False
@@ -589,9 +589,9 @@ for pol in ('h','v'):
     data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0
     for scan in h5.scans():
-        print scan
+        #print scan
         if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
-            print "Stopping fringes for size ",h5.shape
+            #print "Stopping fringes for size ",h5.shape
             vis = fringe_stopping(h5)
         else:
             vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
@@ -613,7 +613,7 @@ for pol in ('h','v'):
     plt.close(fig)
     
     for i,(ant1,ant2) in  enumerate(h5.corr_products):
-        print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
+        #print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
         mask = ~data.mask[:,i]
         returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1200)
         pltfig.savefig(pp,format='pdf') 
