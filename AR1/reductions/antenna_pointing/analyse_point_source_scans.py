@@ -1,1 +1,0 @@
-../../reduction/analyse_point_source_scans.py
