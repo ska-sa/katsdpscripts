@@ -10,7 +10,8 @@ from scipy.signal import medfilt
 import logging
 import scape
 
-def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False):
+def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False,**kwargs):
+    print 'inside',kwargs
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
 
@@ -23,7 +24,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     logger.addHandler(fh)
     logger.info('Beginning data processing with:\n%s'%git_info('standard'))
 
-    h5 = katfile.open(filename)
+    h5 = katfile.open(filename,**kwargs)
     if verbose: logger.debug(h5.__str__())
     ants = h5.ants
    
