@@ -10,7 +10,8 @@ from scipy.signal import medfilt
 import logging
 import scape
 
-def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False):
+def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False,**kwargs):
+    print 'inside',kwargs
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
 
@@ -23,7 +24,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     logger.addHandler(fh)
     logger.info('Beginning data processing with:\n%s'%git_info('standard'))
 
-    h5 = katfile.open(filename)
+    h5 = katfile.open(filename,**kwargs)
     if verbose: logger.debug(h5.__str__())
     ants = h5.ants
    
@@ -56,7 +57,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         
         fig0 = plt.figure(0,figsize=(20,5))
         h5.select()
-        h5.select(ants = a.name)
+        h5.select(ants = a.name,channels=~static_flags)
         d = scape.DataSet(h5)
         scape.plot_xyz(d,'time','amp',label='Average of the data')
         on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
@@ -71,7 +72,12 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
-                diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+h5.receivers[ant]+'.'+pol+'.csv'
+                try:
+                    rx_sn = h5.receivers[ant]
+                except KeyError:
+                    logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
+                    rx_sn = 'SN_NOT_FOUND'
+                diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_sn+'.'+pol+'.csv'
                 logger.info('Loading noise diode file %s from config'%diode_filename)
                 try:
                     nd = scape.gaincal.NoiseDiodeModel(diode_filename)
@@ -89,22 +95,31 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
+            n_on = np.tile(False,on.shape[0])
+            n_off = np.tile(False,on.shape[0])
+            buff = 5
             if not any(on):
                 logger.critical('No noise diode fired during track of %s'%target)
-            buff = 1
-            n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
-            n_on = np.roll(on,buff) & np.roll(on,-buff)
+            else:
+                jumps = (np.diff(on).nonzero()[0] + 1).tolist()
+                n_on[slice(jumps[0]+buff,jumps[1]-buff)] = True
+                n_off[slice(jumps[1]+buff,-buff)] = True
+
             cold_off = n_off
             cold_on = n_on
             #hot data
             h5.select(ants=a.name,pol=pol,channels=~static_flags,targets = 'Moon',scans='track')
             hot_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
+            n_on = np.tile(False,on.shape[0])
+            n_off = np.tile(False,on.shape[0])
             if not any(on):
-                logger.critical('No noise diode fired during track of Moon')
-            buff = 1
-            n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
-            n_on = np.roll(on,buff) & np.roll(on,-buff)
+                logger.critical('No noise diode fired during track of %s'%target)
+            else:
+                jumps = (np.diff(on).nonzero()[0] + 1).tolist()
+                n_on[slice(jumps[0]+buff,jumps[1]-buff)] = True
+                n_off[slice(jumps[1]+buff,-buff)] = True
+
             hot_off = n_off
             hot_on = n_on
             cold_spec = np.mean(cold_data[cold_off,:,0],0)
@@ -215,7 +230,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             fig2.savefig(pp,format='pdf')
             fig0.savefig(pp,format='pdf')
             pp.close() # close the pdf file
-        plt.close("all")
+            plt.close("all")
     logger.info('Processing complete')
 
 
