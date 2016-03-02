@@ -15,8 +15,6 @@ import katdal
 import scape
 import katpoint
 
-# Array position used for fringe stopping
-array_ant = katpoint.Antenna('ref, -30:44:01.1, 21:25:43.9, 1041.568, 0.0')
 # The speed of light in the fibres is lower than in vacuum
 cable_lightspeed = 0.7 * katpoint.lightspeed
 
@@ -82,6 +80,8 @@ excluded_targets = opts.exclude.split(',')
 old_positions = np.array([ant.position_enu for ant in data.ants])
 old_cable_lengths = np.array([ant.delay_model['FIX_' + active_pol.upper()] for ant in data.ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
+# Pick reference position of first antenna as array antenna (and hope the rest are identical)
+array_ant = katpoint.Antenna('ref', *(data.ants[0].ref_position_wgs84))
 # Original delay model
 correlator_model = katpoint.DelayCorrection(data.ants, array_ant, center_freq)
 
