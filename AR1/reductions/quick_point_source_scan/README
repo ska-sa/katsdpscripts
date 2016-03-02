@@ -1,0 +1,3 @@
+Identified by description: obs.sb.description = 'AR1: MKAIV-78 Quick Check Point Source Scan'
+
+python analyse_quick_point_source_scan.py -a m063 --keep-all -s /var/kat/archive/data/MeerKATAR1/telescope_products/2016/01/27/1453883060.h5
