@@ -89,22 +89,31 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if not(Ku): nd_temp = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
+            n_on = np.tile(False,on.shape[0])
+            n_off = np.tile(False,on.shape[0])
+            buff = 5
             if not any(on):
                 logger.critical('No noise diode fired during track of %s'%target)
-            buff = 1
-            n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
-            n_on = np.roll(on,buff) & np.roll(on,-buff)
+            else:
+                jumps = (np.diff(on).nonzero()[0] + 1).tolist()
+                n_on[slice(jumps[0]+buff,jumps[1]-buff)] = True
+                n_off[slice(jumps[1]+buff,-buff)] = True
+
             cold_off = n_off
             cold_on = n_on
             #hot data
             h5.select(ants=a.name,pol=pol,channels=~static_flags,targets = 'Moon',scans='track')
             hot_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
+            n_on = np.tile(False,on.shape[0])
+            n_off = np.tile(False,on.shape[0])
             if not any(on):
-                logger.critical('No noise diode fired during track of Moon')
-            buff = 1
-            n_off = ~(np.roll(on,buff) | np.roll(on,-buff))
-            n_on = np.roll(on,buff) & np.roll(on,-buff)
+                logger.critical('No noise diode fired during track of %s'%target)
+            else:
+                jumps = (np.diff(on).nonzero()[0] + 1).tolist()
+                n_on[slice(jumps[0]+buff,jumps[1]-buff)] = True
+                n_off[slice(jumps[1]+buff,-buff)] = True
+
             hot_off = n_off
             hot_on = n_on
             cold_spec = np.mean(cold_data[cold_off,:,0],0)
