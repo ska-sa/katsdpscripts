@@ -71,7 +71,12 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
-                diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+h5.receivers[ant]+'.'+pol+'.csv'
+                try:
+                    rx_sn = h5.receivers[ant]
+                except KeyError:
+                    logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
+                    rx_sn = 'SN_NOT_FOUND'
+                diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_sn+'.'+pol+'.csv'
                 logger.info('Loading noise diode file %s from config'%diode_filename)
                 try:
                     nd = scape.gaincal.NoiseDiodeModel(diode_filename)
