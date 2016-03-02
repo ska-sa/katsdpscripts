@@ -39,7 +39,9 @@ class FBFClient(BlockingClient):
         super(FBFClient, self).__init__(host, port, tb_limit=tb_limit,timeout=timeout, logger=logger)
         self.host=host
         self._timeout = timeout
-        self.start(daemon=True)
+        #self.start(daemon=True)
+        self.start()
+        print "IT's CHRIS!"
 
     def inform_log(self,message):
         "If we get a log inform, log it."
@@ -139,3 +141,4 @@ class FBFClient(BlockingClient):
         if reply.arguments[0]=='ok': return str(informs[0]).split()[-1].replace('\_'," ")
 
 # -fin-
+
