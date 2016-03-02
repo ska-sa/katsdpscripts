@@ -221,9 +221,9 @@ class Rec_Temp:
             a800[:,1:] = receiver_v
             receiver_v = a800
         except IOError:
-            receiver_h = np.array([[800.,2000],[15.,15.]])
-            receiver_v = np.array([[800.,2000],[15.,15.]])
-            warnings.warn('Warning: Failed to load Receiver models, setting models to 15 K ')
+            receiver_h = np.array([[800.,2000],[20.,20.]])
+            receiver_v = np.array([[800.,2000],[20.,20.]])
+            warnings.warn('Warning: Failed to load Receiver models, setting models to 20 K ')
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.PiecewisePolynomial1DFit()
         T_V = fit.PiecewisePolynomial1DFit()
@@ -589,11 +589,13 @@ for ant in h5.ants:
     nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
 
     # if defined us file specs, otherwise set L-band params
-    if ( rec.split(':')[0] != 'undefined' ):
+    if ( rec.split('.')[0] != 'undefined' ):
         Band,SN = h5.receivers.get(ant.name,'l.4').split('.') # A safe Default
     else:
         Band = 'L'
-        SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0]
+        SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model 
+        
+        
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
@@ -605,7 +607,7 @@ for ant in h5.ants:
 
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
-    print "Selecting channel data to form %f MHz Channels"%(channel_bw)
+    print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)
     for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
 
