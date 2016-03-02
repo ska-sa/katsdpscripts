@@ -12,7 +12,7 @@ import logging
 import numpy as np
 
 from katcorelib import (standard_script_options, verify_and_connect,
-                        collect_targets, start_session, user_logger, ant_array)
+                        collect_targets, start_session, user_logger)
 import fbf_katcp_wrapper as fbf
 
 
@@ -282,7 +282,7 @@ if len(args) == 0:
                      "to observe as arguments")
 with verify_and_connect(opts) as kat:
     cbf = kat.data
-    ants = ant_array(kat, opts.ants)
+    ants = kat.ants
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
     target = collect_targets(kat, args[:1]).targets[0]
