@@ -56,7 +56,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         
         fig0 = plt.figure(0,figsize=(20,5))
         h5.select()
-        h5.select(ants = a.name)
+        h5.select(ants = a.name,channels=~static_flags)
         d = scape.DataSet(h5)
         scape.plot_xyz(d,'time','amp',label='Average of the data')
         on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
@@ -224,7 +224,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             fig2.savefig(pp,format='pdf')
             fig0.savefig(pp,format='pdf')
             pp.close() # close the pdf file
-        plt.close("all")
+            plt.close("all")
     logger.info('Processing complete')
 
 
