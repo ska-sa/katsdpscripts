@@ -12,7 +12,7 @@ from katsdpscripts import git_info
 for module in ['katholog','katpoint','katdal','scape']:
 	try:
 		__import__(module)
-	except:
+	except ImportError:
 		pass
 
 print git_info('standard')
