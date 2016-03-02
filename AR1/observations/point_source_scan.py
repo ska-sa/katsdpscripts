@@ -130,7 +130,7 @@ with verify_and_connect(opts) as kat:
                         if opts.source_strength == 'strong' or \
                            (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
                             user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                            session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
+                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
                         else:
@@ -141,7 +141,7 @@ with verify_and_connect(opts) as kat:
                     else:  # The branch for Quick and Fine scans
                         if opts.quick:
                             user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                            session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                            session.raster_scan(target, num_scans=3, scan_duration=30, scan_extent=5.0,
                                             scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
                         if opts.fine:
