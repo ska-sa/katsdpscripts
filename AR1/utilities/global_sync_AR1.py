@@ -145,7 +145,7 @@ with verify_and_connect(opts) as kat:
                     print('Subarray 1 active!')
                 else:
                     count = count + 1
-                    print('Failure to program correlator!!!  Trying again.....')
+                    print('Failure to program CBF or SP!!!  Trying again.....')
 	        time.sleep(10)
 
                 if count > 3:
