@@ -84,11 +84,17 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
 # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-		    if bad_ar1_alt_hack(target, opts.track_duration): continue
+		    if bad_ar1_alt_hack(target, opts.track_duration):
+		        user_looger.info('Too high elevation, skipping target %s...' % target.name)
+                        user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
+			continue
 # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
 
                     session.label('track')
                     user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
+# # RvR -- Debug output to try and track down timeout due to pointing
+#                     user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
+# # RvR -- Debug output to try and track down timeout due to pointing
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
                     total_track_time = 0.

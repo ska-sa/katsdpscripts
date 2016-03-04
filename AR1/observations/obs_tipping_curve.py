@@ -40,14 +40,20 @@ with verify_and_connect(opts) as kat:
     if opts.az is None:
         user_logger.info("No Azimuth selected , selecting clear Azimith")
         if not kat.dry_run:
-            timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(15.0,90.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
+# RvR -- Set minimum elevation to 20.0 following advise from Lance that 15.0 may be to low for some antennas
+#             timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(15.0,90.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
+            timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(20.0,89.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
+# RvR -- Set minimum elevation to 20.0 following advise from Lance that 15.0 may be to low for some antennas
             #load the standard KAT sources ... similar to the SkyPlot of the katgui
             observation_sources = kat.sources
             source_az = []
             for source in observation_sources.targets:
                 az, el = np.degrees(source.azel(timestamp=timestamp))   # was rad2deg
                 az[az > 180] = az[az > 180] - 360
-                source_az += list(set(az[el > 15]))
+# RvR -- Set minimum elevation to 20.0 following advise from Lance that 15.0 may be to low for some antennas
+#                 source_az += list(set(az[el > 15]))
+                source_az += list(set(az[el > 20.0]))
+# RvR -- Set minimum elevation to 20.0 following advise from Lance that 15.0 may be to low for some antennas
             source_az.sort()
             gap = np.diff(source_az).argmax()+1
             opts.az = (source_az[gap] + source_az[gap+1]) /2.0
@@ -80,12 +86,14 @@ with verify_and_connect(opts) as kat:
         session.capture_start()
         # Iterate through elevation angles
         # spacings = list(np.arange(15.0,90.1,opts.spacing))
+# RvR -- Set minimum elevation to 20.0 following advise from Lance that 15.0 may be to low for some antennas
 # RvR -- temporary measure for M063 until AP can handle not being able to reach # target gracefully
-        spacings = list(np.arange(15.0,89.1,opts.spacing))
+        spacings = list(np.arange(20.0,89.1,opts.spacing))
         if opts.tip_both_directions :
             # spacings += list(np.arange(90.0,19.9,-opts.spacing))
             spacings += list(np.arange(89.0,19.9,-opts.spacing))
 # RvR -- temporary measure for M063 until AP can handle not being able to reach # target gracefully
+# RvR -- Set minimum elevation to 20.0 following advise from Lance that 15.0 may be to low for some antennas
         for el in spacings:
             session.label('track')
             session.track('azel, %f, %f' % (opts.az, el), duration=on_time)
