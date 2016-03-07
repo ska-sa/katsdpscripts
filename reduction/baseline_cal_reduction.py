@@ -15,8 +15,6 @@ import katdal
 import scape
 import katpoint
 
-# Array position used for fringe stopping
-array_ant = katpoint.Antenna('ref, -30:44:01.1, 21:25:43.9, 1041.568, 0.0')
 # The speed of light in the fibres is lower than in vacuum
 cable_lightspeed = 0.7 * katpoint.lightspeed
 
@@ -82,6 +80,8 @@ excluded_targets = opts.exclude.split(',')
 old_positions = np.array([ant.position_enu for ant in data.ants])
 old_cable_lengths = np.array([ant.delay_model['FIX_' + active_pol.upper()] for ant in data.ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
+# Pick reference position of first antenna as array antenna (and hope the rest are identical)
+array_ant = katpoint.Antenna('ref', *(data.ants[0].ref_position_wgs84))
 # Original delay model
 correlator_model = katpoint.DelayCorrection(data.ants, array_ant, center_freq)
 
@@ -264,7 +264,9 @@ def extract_scan_segments(x):
 plt.figure(1)
 plt.clf()
 scan_freqinds = [np.arange(num_bls * num_chans)] * len(scan_timestamps)
-scape.plots_basic.plot_segments(scan_timestamps, scan_freqinds, scan_phase, labels=scan_targets)
+segms, labels, lines = scape.plots_basic.plot_segments(scan_timestamps, scan_freqinds, scan_phase, labels=scan_targets)
+for label in labels:
+    label.set_rotation('vertical')
 plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(data.start_time).local(),))
 plt.yticks(np.arange(num_chans // 2, num_bls * num_chans, num_chans), baseline_names)
 for yval in range(0, num_bls * num_chans, num_chans):
@@ -275,8 +277,10 @@ plt.figure(2)
 plt.clf()
 resid_ind = [np.arange(scan_start, scan_start + num_bls*scan_len)
              for scan_start, scan_len in zip(scan_bl_starts, scan_lengths)]
-scape.plots_basic.plot_segments(resid_ind, extract_scan_segments(old_resid / 1e-9),
-                                labels=scan_targets, width=sample_period, color='b')
+segms, labels, lines = scape.plots_basic.plot_segments(resid_ind, extract_scan_segments(old_resid / 1e-9),
+                                                       labels=scan_targets, width=sample_period, color='b')
+for label in labels:
+    label.set_rotation('vertical')
 scape.plots_basic.plot_segments(resid_ind, extract_scan_segments(new_resid / 1e-9), labels=[],
                                 width=sample_period, color='r')
 plt.axhline(-0.5 * delay_period / 1e-9, color='k', linestyle='--')
@@ -303,8 +307,10 @@ for n in range(num_bls):
     plt.axhline((n + 0.5) * delay_period, color='k', linestyle='--')
     scape.plots_basic.plot_segments(scan_timestamps, old_resid_range, labels=[], width=sample_period,
                                     add_breaks=False, color='b', alpha=0.5)
-    scape.plots_basic.plot_segments(scan_timestamps, bl_old_resid, labels=scan_targets,
-                                    width=sample_period, color='b')
+    segms, labels, lines = scape.plots_basic.plot_segments(scan_timestamps, bl_old_resid, labels=scan_targets,
+                                                           width=sample_period, color='b')
+    for label in labels:
+        label.set_rotation('vertical')
     scape.plots_basic.plot_segments(scan_timestamps, bl_new_resid, labels=[], width=sample_period,
                                     add_breaks=False, color='r', lw=2)
 plt.ylim(-0.5 * delay_period, (num_bls - 0.5) * delay_period)
