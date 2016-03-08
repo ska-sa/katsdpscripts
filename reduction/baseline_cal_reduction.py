@@ -69,7 +69,8 @@ data.select(channels=chan_range, corrprods='cross', pol=active_pol)
 if opts.ants is not None:
     data.select(ants=opts.ants, reset='')
 ref_ant_ind = [ant.name for ant in data.ants].index(data.ref_ant)
-baseline_inds = [(data.inputs.index(inpA), data.inputs.index(inpB)) for inpA, inpB in data.corr_products]
+inputs = [ant.name + active_pol for ant in data.ants]
+baseline_inds = [(inputs.index(inpA), inputs.index(inpB)) for inpA, inpB in data.corr_products]
 baseline_names = [('%s - %s' % (inpA[:-1], inpB[:-1])) for inpA, inpB in data.corr_products]
 num_bls = data.shape[2]
 if num_bls == 0:
