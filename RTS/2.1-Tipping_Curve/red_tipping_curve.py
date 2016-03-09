@@ -298,17 +298,17 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
 
-def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,channel_mask='',n_chan = 4096,channel_range=None):
+def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,channel_mask='',n_chan = 4096,channel_range=None,band=None):
     """ Load the dataset into memory """
     print('Loading noise diode models')
     
     try:
-        d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
+        d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models,band=band)
     except IOError:
         nd = scape.gaincal.NoiseDiodeModel(freq=[800,2000],temp=[20,20])
         warnings.warn('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         print('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
-        d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd )
+        d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd ,band=band)
         
         
     if not channel_range is None :
@@ -619,7 +619,7 @@ for ant in h5.ants:
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
-    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)    
+    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band=Band.lower())    
     
     for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
 
