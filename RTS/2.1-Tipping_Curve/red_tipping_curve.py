@@ -144,7 +144,7 @@ class Spill_Temp:
             self.spill['HH'] = T_H # The HH and VV is a scape thing
             self.spill['VV'] = T_V
             warnings.warn('Warning: Failed to load Spillover models, setting models to zeros')
-            print "error"
+            print('Warning: Failed to load Spillover models, setting models to zeros')
         # the models are in a format of theta=0  == el=90
 
 
@@ -184,6 +184,7 @@ class aperture_efficiency_models:
             aperture_eff_h = np.array([[800.,2000],[75.,75.]])
             aperture_eff_v = np.array([[800.,2000],[75.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
+            print('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.PiecewisePolynomial1DFit()
         T_V = fit.PiecewisePolynomial1DFit()
@@ -221,9 +222,10 @@ class Rec_Temp:
             a800[:,1:] = receiver_v
             receiver_v = a800
         except IOError:
-            receiver_h = np.array([[800.,2000],[15.,15.]])
-            receiver_v = np.array([[800.,2000],[15.,15.]])
-            warnings.warn('Warning: Failed to load Receiver models, setting models to 15 K ')
+            receiver_h = np.array([[800.,2000],[20.,20.]])
+            receiver_v = np.array([[800.,2000],[20.,20.]])
+            warnings.warn('Warning: Failed to load Receiver models, setting models to 20 K ')
+            print('Warning: Failed to load Receiver models, setting models to 20 K ')
         #Assume  Provided models are a function of zenith angle & frequency
         T_H = fit.PiecewisePolynomial1DFit()
         T_V = fit.PiecewisePolynomial1DFit()
@@ -296,10 +298,19 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
         d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=axis,spike_width=width,outlier_sigma=sigma)
     return d
 
-def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,channel_mask='',n_chan = 4096,channel_range=None):
+def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,channel_mask='',n_chan = 4096,channel_range=None,band_input=None):
     """ Load the dataset into memory """
     print('Loading noise diode models')
-    d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
+    
+    try:
+        d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models,band=band_input)
+    except IOError:
+        nd = scape.gaincal.NoiseDiodeModel(freq=[800,2000],temp=[20,20])
+        warnings.warn('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
+        print('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
+        d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd ,band=band_input)
+        
+        
     if not channel_range is None :
         start_freq_channel = int(channel_range.split(',')[0])
         end_freq_channel = int(channel_range.split(',')[1])
@@ -589,11 +600,13 @@ for ant in h5.ants:
     nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
 
     # if defined us file specs, otherwise set L-band params
-    if ( rec.split(':')[0] != 'undefined' ):
+    if ( rec.split('.')[0] != 'undefined' ):
         Band,SN = h5.receivers.get(ant.name,'l.4').split('.') # A safe Default
     else:
         Band = 'L'
-        SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0]
+        SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model 
+        
+        
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
@@ -605,8 +618,9 @@ for ant in h5.ants:
 
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
-    print "Selecting channel data to form %f MHz Channels"%(channel_bw)
-    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)
+    print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
+    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())    
+    
     for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
 
     tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
