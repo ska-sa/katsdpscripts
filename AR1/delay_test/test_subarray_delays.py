@@ -181,7 +181,7 @@ class SubarrayScript(AqfTestCase):
         ok = wait_sensor_excludes(
             self.cam,
             getattr(self.cam.sched.sensor, 'active_schedule_{}'.format(self.sub_nr)),
-            "%s" % (sb_id_code), 600)
+            "%s" % (sb_id_code), 3600)
         ok = wait_sensor_includes(self.cam, self.cam.exe.sensor.task_states, "%s" % (sb_id_code), 10)
         Aqf.passed('Schedule block has stopped running %s.' % sb_id_code)
 
