@@ -44,7 +44,7 @@ for i, pol in enumerate(opts.polarisation.split(',')):
         sb.read_and_select_file(h5data, bline=baseline, target=target, channels=opts.freq_chans, polarisation=pol, flags_file=opts.flags_file)
     mean_spec = 10*np.log10(visdata.mean(axis=0))
     mean_level = mean_spec.mean() 
-    ax = plt.subplot(nplots,1,i)
+    ax = plt.subplot(nplots,1,i+1)
     plt.title('Gain flatness, '+baseline+pol)
     plt.plot(h5data.channel_freqs/1e6, mean_spec)
     plt.ylabel('Power (dB)')
