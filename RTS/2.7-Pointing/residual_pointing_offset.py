@@ -122,7 +122,7 @@ def read_offsetfile(filename):
     # If the antenna has no model specified, a default null model will be used
     return data, antenna
 
-def referencemetrics(index,ant,az, el,measured_delta_az, measured_delta_el,delta_azimuth_std=0,delta_elevation_std=0,num_samples_limit=1):
+def referencemetrics(index,ant,az, el,measured_delta_az, measured_delta_el,delta_azimuth_std=0,delta_elevation_std=0,num_samples_limit=1,cal_file=None):
     """Determine and sky RMS from pointing model."""
     text = []
     danger_text = []
@@ -162,7 +162,7 @@ def referencemetrics(index,ant,az, el,measured_delta_az, measured_delta_el,delta
         if keep.sum() > num_samples_limit:
             rms = np.std(abs_sky_error[keep])
             useIndices,condition,condArray = get_condition(offsetdata,ant,target)
-            source = check_target(target,opts.cal_file)
+            source = check_target(target,cal_file)
             text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
                 target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
     
@@ -358,8 +358,8 @@ parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
                                " with the targets that are included in the the offset pointing csv file "
                                " "
                                " ")
-parser.add_option('-c', '--cal-file', default='/home/neil/soft/katsdpscripts/RTS/sources_bright_Ku.csv',
-                  help="Calibrator catalogue file to use (default = %s).")
+parser.add_option('-c', '--cal-file', default=None,
+                  help="Calibrator catalogue file to use (default = %default).")
 parser.add_option('-o', '--output', dest='outfilebase', default='pointing_model_%s' % (now,),
                   help="Base name of output files (*.csv for new pointing model and *_data.csv for residuals, "
                   "default is 'pointing_model_<time>')")
@@ -406,7 +406,7 @@ for filename in args:
     delta_azimuth_std,delta_elevation_std = deg2rad(offsetdata['delta_azimuth_std']), deg2rad(offsetdata['delta_elevation_std'])
 
     text1,index,condArray,normIndices,optIndices,idealIndices,skyRMS,sources,dangText = referencemetrics(index,ant,az,el,
-        measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std,opts.num_samples_limit)
+        measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std,opts.num_samples_limit,cal_file=opts.cal_file)
     allElevs = np.append(allElevs,condArray[0])
     allMJDs = np.append(allMJDs,condArray[1])
     allWindSpeed = np.append(allWindSpeed,condArray[2])
