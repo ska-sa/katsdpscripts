@@ -276,10 +276,6 @@ parser.add_option('--num-samples-limit', default=3,
                   help="The number of valid offset measurements needed, in order to have a valid sample." )
 
 parser.add_option('--no-plot', default=False,action='store_true',help="Produce a pdf output")
-# Minimum pointing uncertainty is arbitrarily set to 1e-12 degrees, which corresponds to a maximum error
-# of about 10 nano-arcseconds, as the least-squares solver does not like zero uncertainty
-parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e-12,
-                  help="Minimum uncertainty of data points, expressed as the sky RMS in arcminutes")
 (opts, args) = parser.parse_args()
 
 
