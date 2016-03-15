@@ -100,7 +100,20 @@ def read_offsetfile(filename):
 
 
 def referencemetrics(ant,data,num_samples_limit=1):
-    """Determine and sky RMS from pointing model."""
+    """Determine and sky RMS from the antenna pointing model."""
+    """On the calculation of all-sky RMS
+     Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
+     They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
+     standard deviation of sigma
+     The absolute sky error (== Euclidean length of 2-dim error vector) then has a Rayleigh distribution
+     The RMS sky error has a mean value of sqrt(2) * sigma, since each squared error term is the sum of
+     two squared Gaussian random values, each with an expected value of sigma^2.
+      e.g. sky_rms = np.sqrt(np.ma.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
+
+     A more robust estimate of the RMS sky error is obtained via the median of the Rayleigh distribution,
+     which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
+      e.g. robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
+    """
     text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
     measured_delta_xel  =  data['delta_azimuth']* np.cos(data['elevation']) # scale due to sky shape
     abs_sky_error = np.ma.array(data=measured_delta_xel,mask=False)
@@ -108,65 +121,34 @@ def referencemetrics(ant,data,num_samples_limit=1):
     residual_az = data['delta_azimuth']   - model_delta_az
     residual_el = data['delta_elevation'] - model_delta_el
     residual_xel = residual_az * np.cos(data['elevation'])
-    
     delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'l)
     abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + data['delta_azimuth_std']**2))*3600 # make arc seconds
     
-    for target in set(offsetdata['target']):  # ascertain target group condition
-        keep = np.ones((len(offsetdata)),dtype=np.bool)
-        for key,targetv in enumerate(offsetdata['target']):
-            keep[key] = target == targetv
-            if keep[key] and opts.no_plot: 
-                print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key])) 
+    #print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key])) 
         
-        abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]) ** 2 + (residual_el[keep])** 2)) *3600
-        if keep.sum() > num_samples_limit: # check all fitted Ipks are valid
-            boolArray,condition,condArray = get_condition(offsetdata,ant,target)
-            keep = np.copy(boolArray)
+    abs_sky_error = rad2deg(np.sqrt((residual_xel) ** 2 + (residual_el)** 2)) *3600
+    if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
+        #TODO get_condition(data,ant)
 
-        if keep.sum() > num_samples_limit:
-            rms = np.std(abs_sky_error[keep])
-            useIndices,condition,condArray = get_condition(offsetdata,ant,target)
-            source = check_target(target,cal_file)
-            text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
-                target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
-    
-            #if ( rms > 80 ):
-            #    danger_text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
-            #        target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
+    if data.shape[0]  > num_samples_limit:
+        rms = np.std(abs_sky_error)
+        #TODO get_condition(data,ant)
+        text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
+            target,np.std(abs_sky_error),np.mean(abs_sky_delta_std),np.ma.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
 
-            # get the (environmental) conditions for each grouped target scan
-            elevs = np.append(elevs,condArray['elevation'])
-            mjds = np.append(mjds,np.float128(np.float128(condArray['timestamp']/np.float128(86400.0)+40587.0)))
-            windSpeed = np.append(windSpeed,condArray['wind_speed'])
-            sunAngles = np.append(sunAngles,condArray['sun_angle'])
-            fitIpks = np.append(fitIpks, condArray['beam_height_I'])
-            temps = np.append(temps,condArray['temperature']) 
-            skyRMS = np.append(skyRMS,rms)
-            sources = np.append(sources,source)
-            if ( condition == 'normal' ):
-                normIndices = np.append(normIndices,index)
-            elif ( condition == 'optimal' ):
-                optIndices = np.append(optIndices,index)
-            elif ( condition == 'ideal' ):
-                idealIndices = np.append(idealIndices,index)
-            index += 1
-        else : 
-            abs_sky_error.mask[keep] = True # Remove Samples from the catalogue if there are not enough mesuments
-    ###### On the calculation of all-sky RMS #####
-    # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
-    # They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
-    # standard deviation of sigma
-    # The absolute sky error (== Euclidean length of 2-dim error vector) then has a Rayleigh distribution
-    # The RMS sky error has a mean value of sqrt(2) * sigma, since each squared error term is the sum of
-    # two squared Gaussian random values, each with an expected value of sigma^2.
+        # get the (environmental) conditions for each grouped target scan
+        fitIpks = np.append(fitIpks, condArray['beam_height_I'])
+        if ( condition == 'normal' ):
+            normIndices = np.append(normIndices,index)
+        elif ( condition == 'optimal' ):
+            optIndices = np.append(optIndices,index)
+        elif ( condition == 'ideal' ):
+            idealIndices = np.append(idealIndices,index)
     sky_rms = np.sqrt(np.ma.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
-    #print abs_sky_error
-    # A more robust estimate of the RMS sky error is obtained via the median of the Rayleigh distribution,
-    # which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
     robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
-    text.append("Dataset:%s  All Sky Reference RMS = %.3f\" (robust %.3f\")   (N=%i Data Points) R.T.P.4"  % (offsetdata['dataset'][0],sky_rms, robust_sky_rms,abs_sky_error.count()))
-    return text,index,[elevs,mjds,windSpeed,sunAngles,temps,fitIpks],normIndices,optIndices,idealIndices,skyRMS,sources#,danger_text
+    text.append("Dataset:%s  All Sky Reference RMS = %.3f\" (robust %.3f\")   (N=%i Data Points) R.T.P.4"  % (data['dataset'][0],sky_rms, robust_sky_rms,abs_sky_error.count()))
+    #TODO output_data
+    return text,output_data
 
 def plot_source_rms(tods,fitIpks,sunAngles,skyRMS,title):
     """Plot source pointing accuracy vs sun angles."""
