@@ -12,69 +12,23 @@ from katsdpscripts import git_info
 from katsdpscripts.RTS.weatherlib import select_and_average, select_environment, rolling_window
 from matplotlib.offsetbox import AnchoredText
 
-def get_condition(data,ant,source):
-    """Get condition for grouped target scan."""
+def get_condition(data):
+    """Get condition for grouped target scan.
+    'ideal'   = 0 , \n 'optimal' = 1, \n 'normal'  = 2, \n 'other'   = 3 """
     # Set up limits on environmental conditions
-    ideal = {'wind_speed':1.,'temp_low':19.,'temp_high':21.,'sun_el':-5.}
-    optimal = {'wind_speed':2.9,'temp_low':-5.,'temp_high':35.,'sun_el':-5.}
-    normal = {'wind_speed':9.8,'temp_low':-5.,'temp_high':40.,'sun_el':100.}
-
-    condArray = np.zeros(7,dtype=np.float32)
-    flagArray = np.ones(3,dtype=bool)
-    boolArray = np.zeros(data['target'].size,dtype=bool)
-    indices = np.where(data['target']==source)[0]
-    condArray[0] = data['elevation'][indices].mean()
-    fitIpks = data['beam_height_I'][indices]
-    medIpk = np.median(fitIpks)
-    acceptIndices = np.where((fitIpks >= medIpk*0.8)&(fitIpks<=medIpk*1.2))[0]
-    boolArray[indices[acceptIndices]] = 1
-    condArray[0] = data['elevation'][indices].mean()
-    condArray[6] = data['beam_height_I'][indices].mean()
-    keys = ['elevation','timestamp','wind_speed','sun_el','temperature','sun_angle','beam_height_I']
-    for key in keys[1:5]:
-        if ( key == 'timestamp' ):
-            try:
-                avTstamp = data[key][indices].mean()
-            except(TypeError,ValueError):
-                utcs = data['timestamp_ut'][indices]
-                mjds = Time(utcs,format='iso',scale='utc').mjd 
-                timestamps = np.float128(mjds - 40587.0)*86400.0
-                avTstamp = timestamps.mean() 
-            condArray[1] = avTstamp
-        else:
-            if ( key == 'wind_speed' ):
-                windLims = np.array([normal[key],optimal[key],ideal[key]])
-                flagArray = flagArray & (data[key][indices].mean() < windLims)
-                condArray[2] = data[key][indices].mean()
-
-            if ( key == 'sun_el' ):
-                sunLims = np.array([normal[key],optimal[key],ideal[key]])
-                source = katpoint.construct_azel_target(np.radians(data['azimuth'][indices].mean()),
-                                                    np.radians(data['elevation'][indices].mean()))
-                try:
-                    sun_az = np.radians(data['sun_az'][indices].mean())
-                    sun_el = np.radians(data['sun_el'][indices].mean())
-                    sun = katpoint.construct_azel_target(sun_az,sun_el,antenna=ant)  
-                except(TypeError,ValueError):
-                    sun = Target('Sun,special')
-                    sun_el = np.degrees(sun.azel(timestamp=avTstamp,antenna=ant))[1]
-                flagArray = flagArray & (sun_el < sunLims)
-                condArray[3] = sun_el
-                condArray[5] = np.degrees(source.separation(sun,timestamp=avTstamp,antenna=ant))
-            
-            if ( key == 'temperature' ):
-                lowLims = np.array([normal['temp_low'],optimal['temp_low'],ideal['temp_low']])
-                highLims = np.array([normal['temp_high'],optimal['temp_high'],ideal['temp_high']])
-                condArray[4] = data[key][indices].mean()
-                flagArray = flagArray & (data[key][indices].mean() > lowLims) & (data[key][indices].mean() < highLims)
-
-    # environmental condition test
-    try:
-        condIndex = np.where(flagArray==True)[0][-1]
-        condition = ['normal','optimal','ideal'][condIndex]
-    except(IndexError):
-        condition = 'bad'
-    return boolArray, condition, np.rec.fromarrays(condArray,dtype=zip(keys,np.tile(np.float,7)))
+    condition_values = np.zeros((3), dtype=dict)
+    condition_values[0] = {'wind_speed':1.,'temp_low':19.,'temp_high':21.,'sun_el':-5.} #  ideal
+    condition_values[1] = {'wind_speed':2.9,'temp_low':-5.,'temp_high':35.,'sun_el':-5.}#  optimal
+    condition_values[2] = {'wind_speed':9.8,'temp_low':-5.,'temp_high':40.,'sun_el':100.}# normal
+    condition_values[3] = {'wind_speed':9999.8,'temp_low':-273.,'temp_high':40000.,'sun_el':1000.}# other
+    for i,values in enumerate(condition_values)
+        condition = i
+        if data['sun_el'].max() < condition_values[i]['sun_el'] :
+            if data['wind_speed'].max() < condition_values[i]['wind_speed'] :
+                if data['temperature'].max() < condition_values[i]['temp_high'] :
+                    if data['temperature'].min() > condition_values[i]['temp_low'] :
+                        break # Means conditions have been met 
+    return condition
 
 def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
@@ -128,11 +82,11 @@ def referencemetrics(ant,data,num_samples_limit=1):
         
     abs_sky_error = rad2deg(np.sqrt((residual_xel) ** 2 + (residual_el)** 2)) *3600
     if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
-        #TODO get_condition(data,ant)
+        #TODO get_condition(data)
 
     if data.shape[0]  > num_samples_limit:
         rms = np.std(abs_sky_error)
-        #TODO get_condition(data,ant)
+        #TODO get_condition(data)
         text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
             target,np.std(abs_sky_error),np.mean(abs_sky_delta_std),np.ma.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
 
