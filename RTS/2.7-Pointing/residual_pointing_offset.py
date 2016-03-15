@@ -80,26 +80,6 @@ def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
     return (angle + 0.5 * period) % period - 0.5 * period
 
-def save_pointingmodel(filebase,model):
-    # Save pointing model to file
-    outfile = file(filebase + '.csv', 'w')
-    outfile.write(model.description)
-    outfile.close()
-    logger.debug("Saved %d-parameter pointing model to '%s'" % (len(model.params), filebase + '.csv'))
-
-
-def check_target(target,calFile):
-    """Check target name and modify if necessary to remove duplicates."""
-    calibrators = np.loadtxt(calFile,usecols=[0],delimiter=',',dtype=str)
-    sources = np.array([str(cal).replace('*','').split('|')[0].strip(' ') for cal in calibrators])
-    names = np.array([str(cal).replace('*','').split('|')[-1].strip(' ') for cal in calibrators])
-    index = np.where(sources==target)[0]
-    if ( len(index) == 1):
-        source = names[index][0]
-    else:
-        source = target
-    return source
-
 def read_offsetfile(filename):
     # Load data file in one shot as an array of strings
     string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
@@ -118,31 +98,20 @@ def read_offsetfile(filename):
     # If the antenna has no model specified, a default null model will be used
     return data, antenna
 
-def referencemetrics(index,ant,az, el,measured_delta_az, measured_delta_el,delta_azimuth_std=0,delta_elevation_std=0,num_samples_limit=1,cal_file=None):
+
+def referencemetrics(ant,data,num_samples_limit=1):
     """Determine and sky RMS from pointing model."""
-    text = []
-    danger_text = []
-    measured_delta_xel  =  measured_delta_az* np.cos(el) # scale due to sky shape
+    text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
+    measured_delta_xel  =  data['delta_azimuth']* np.cos(data['elevation']) # scale due to sky shape
     abs_sky_error = np.ma.array(data=measured_delta_xel,mask=False)
-    model_delta_az, model_delta_el = ant.pointing_model.offset(az, el)
-    residual_az = measured_delta_az - model_delta_az
-    residual_el = measured_delta_el - model_delta_el
-    residual_xel = residual_az * np.cos(el)
+    model_delta_az, model_delta_el = ant.pointing_model.offset(data['azimuth'], data['elevation'])
+    residual_az = data['delta_azimuth']   - model_delta_az
+    residual_el = data['delta_elevation'] - model_delta_el
+    residual_xel = residual_az * np.cos(data['elevation'])
     
-    delta_xel_std = delta_azimuth_std * np.cos(el)
-    abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + delta_azimuth_std**2))*3600
+    delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'l)
+    abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + data['delta_azimuth_std']**2))*3600 # make arc seconds
     
-    elevs = np.array([])
-    mjds = np.array([])
-    windSpeed = np.array([])
-    sunAngles = np.array([])
-    fitIpks = np.array([])
-    temps = np.array([])
-    skyRMS = np.array([])
-    sources = np.array([],dtype=str)
-    normIndices = np.array([],dtype=int)
-    optIndices = np.array([],dtype=int)
-    idealIndices = np.array([],dtype=int)
     for target in set(offsetdata['target']):  # ascertain target group condition
         keep = np.ones((len(offsetdata)),dtype=np.bool)
         for key,targetv in enumerate(offsetdata['target']):
@@ -162,9 +131,9 @@ def referencemetrics(index,ant,az, el,measured_delta_az, measured_delta_el,delta
             text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
                 target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
     
-            if ( rms > 80 ):
-                danger_text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
-                    target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
+            #if ( rms > 80 ):
+            #    danger_text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (offsetdata['dataset'][0],
+            #        target,np.std(abs_sky_error[keep]),np.mean(abs_sky_delta_std[keep]),np.ma.median(np.abs(abs_sky_error[keep]-abs_sky_error[keep].mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
 
             # get the (environmental) conditions for each grouped target scan
             elevs = np.append(elevs,condArray['elevation'])
@@ -197,7 +166,7 @@ def referencemetrics(index,ant,az, el,measured_delta_az, measured_delta_el,delta
     # which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
     robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
     text.append("Dataset:%s  All Sky Reference RMS = %.3f\" (robust %.3f\")   (N=%i Data Points) R.T.P.4"  % (offsetdata['dataset'][0],sky_rms, robust_sky_rms,abs_sky_error.count()))
-    return text,index,[elevs,mjds,windSpeed,sunAngles,temps,fitIpks],normIndices,optIndices,idealIndices,skyRMS,sources,danger_text
+    return text,index,[elevs,mjds,windSpeed,sunAngles,temps,fitIpks],normIndices,optIndices,idealIndices,skyRMS,sources#,danger_text
 
 def plot_source_rms(tods,fitIpks,sunAngles,skyRMS,title):
     """Plot source pointing accuracy vs sun angles."""
@@ -413,25 +382,14 @@ for offsetdata in group(data) :
     #New loop to provide the data in steps of test offet scans .
     text,output = referencemetrics(ant,offsetdata,opts.num_samples_limit)
     textString += text
-    textString.append("")
+    textString.append("") # new line when joined 
     #if ( dangText != [] ):
     #    dText += dangText
 
 # create source and condition-separated RMS arrays
 for targ in uniqTargets:
-    indices = np.where(allTargets==targ)[0]
-    normIndices = np.intersect1d(indices,allNormIndices)
-    optIndices = np.intersect1d(indices,allOptIndices)
-    if ( normIndices.size > 0 ): 
-        norm_sourceSepTOD[targ] = np.float32(allMJDs[normIndices])%1*24
-        norm_sourceSepIpk[targ] = np.float32(allFitIpks[normIndices])
-        norm_sourceSepSA[targ] = np.float32(allSunAngles[normIndices])
-        norm_sourceSepRMS[targ] = np.float32(allSkyRMS[normIndices])
-    if ( optIndices.size > 0 ):
-        opt_sourceSepTOD[targ] = np.float32(allMJDs[optIndices])%1*24
-        opt_sourceSepIpk[targ] = np.float32(allFitIpks[optIndices])
-        opt_sourceSepSA[targ] = np.float32(allSunAngles[optIndices])
-        opt_sourceSepRMS[targ] = np.float32(allSkyRMS[optIndices])
+    pass
+        #norm_sourceSepTOD[targ] = np.float32(allMJDs[normIndices])%1*24
 
 #print new_model.description
 textString.append("")
