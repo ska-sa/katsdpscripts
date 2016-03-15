@@ -87,10 +87,6 @@ def save_pointingmodel(filebase,model):
     outfile.close()
     logger.debug("Saved %d-parameter pointing model to '%s'" % (len(model.params), filebase + '.csv'))
 
-# These fields contain strings, while the rest of the fields are assumed to contain floats
-string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
-# Create a date/time string for current time
-now = time.strftime('%Y-%m-%d_%Hh%M')
 
 def check_target(target,calFile):
     """Check target name and modify if necessary to remove duplicates."""
@@ -353,6 +349,24 @@ def write_text(textString):
     plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
     return ax,fig
 
+
+
+class group():
+    """This is an class to make an itterater that go's through the array and returns data in chuncks"""
+    def __init__(self.obj):
+        self.data = obj
+    
+    def __iter__(self):
+        index_list = [0,1,2,3]
+        while len(index_list) > 0 :
+            yield self.data[index_list]
+
+            
+# These fields contain strings, while the rest of the fields are assumed to contain floats
+string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
+# Create a date/time string for current time
+now = time.strftime('%Y-%m-%d_%Hh%M')
+
 parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
                                description="This fits a pointing model to the given data CSV file"
                                " with the targets that are included in the the offset pointing csv file "
@@ -373,67 +387,37 @@ parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e
                   help="Minimum uncertainty of data points, expressed as the sky RMS in arcminutes")
 (opts, args) = parser.parse_args()
 
+
 textString = [""]
 dText = [r'$\bf{Exceptionally\; poor\; data\; points:}$']
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 
-index = 0
 data = None
-ant = None
-allElevs = np.array([])
-allMJDs = np.array([])
-allWindSpeed = np.array([])
-allSunAngles = np.array([])
-allTemps = np.array([])
-allFitIpks = np.array([])
-allSkyRMS = np.array([])
-allTargets = np.array([],dtype=str)
-allNormIndices = np.array([],dtype=int)
-allOptIndices = np.array([],dtype=int)
-allIdealIndices = np.array([],dtype=int)
 for filename in args:
     if data is None:
         data,ant = read_offsetfile(filename)
-        offsetdata = data
+        #offsetdata = data
     else:
         tmp_offsets,tmp_ant = read_offsetfile(filename)
         data = np.r_[data,tmp_offsets]
-        offsetdata= tmp_offsets
-    
-    az, el = angle_wrap(deg2rad(offsetdata['azimuth'])), deg2rad(offsetdata['elevation'])
-    measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
-    delta_azimuth_std,delta_elevation_std = deg2rad(offsetdata['delta_azimuth_std']), deg2rad(offsetdata['delta_elevation_std'])
+        if not ant == tmp_ant : raise RuntimeError('The antenna has changed')
+        #offsetdata = data
 
-    text1,index,condArray,normIndices,optIndices,idealIndices,skyRMS,sources,dangText = referencemetrics(index,ant,az,el,
-        measured_delta_az, measured_delta_el,delta_azimuth_std,delta_elevation_std,opts.num_samples_limit,cal_file=opts.cal_file)
-    allElevs = np.append(allElevs,condArray[0])
-    allMJDs = np.append(allMJDs,condArray[1])
-    allWindSpeed = np.append(allWindSpeed,condArray[2])
-    allSunAngles = np.append(allSunAngles,condArray[3])
-    allTemps = np.append(allTemps,condArray[4])
-    allFitIpks = np.append(allFitIpks,condArray[5])    
-    allTargets = np.append(allTargets,sources)
-    allSkyRMS = np.append(allSkyRMS,skyRMS)
+# fix units and wraps
+data['azimuth'],data['elevation']  = angle_wrap(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
+data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), deg2rad(data['delta_elevation'])
+data['delta_azimuth_std'], deg2rad(data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
 
-    allNormIndices = np.append(allNormIndices,normIndices)
-    allOptIndices = np.append(allOptIndices,optIndices)
-    allIdealIndices = np.append(allIdealIndices,idealIndices)
-    textString += text1
+for offsetdata in group(data) : 
+    #New loop to provide the data in steps of test offet scans .
+    text,output = referencemetrics(ant,offsetdata,opts.num_samples_limit)
+    textString += text
     textString.append("")
-    if ( dangText != [] ):
-        dText += dangText
+    #if ( dangText != [] ):
+    #    dText += dangText
 
 # create source and condition-separated RMS arrays
-uniqTargets = np.unique(allTargets) # sort on targets
-norm_sourceSepTOD = dict.fromkeys(uniqTargets)
-norm_sourceSepIpk = dict.fromkeys(uniqTargets)
-norm_sourceSepSA = dict.fromkeys(uniqTargets)
-norm_sourceSepRMS = dict.fromkeys(uniqTargets) 
-opt_sourceSepTOD = dict.fromkeys(uniqTargets)
-opt_sourceSepIpk = dict.fromkeys(uniqTargets)
-opt_sourceSepSA = dict.fromkeys(uniqTargets)
-opt_sourceSepRMS = dict.fromkeys(uniqTargets)
 for targ in uniqTargets:
     indices = np.where(allTargets==targ)[0]
     normIndices = np.intersect1d(indices,allNormIndices)
