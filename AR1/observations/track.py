@@ -48,7 +48,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         time.sleep(10)
     else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
 
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -118,3 +118,14 @@ with verify_and_connect(opts) as kat:
                     user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
                     keep_going = False
             user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+
+# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
+    else:
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
+# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
+
+
+
