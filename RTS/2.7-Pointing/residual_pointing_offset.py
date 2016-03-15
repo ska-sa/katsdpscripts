@@ -68,6 +68,7 @@ def referencemetrics(ant,data,num_samples_limit=1):
      which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
       e.g. robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
     """
+    condition_str = ['ideal' ,'optimal', 'normal' , 'other']
     text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
     measured_delta_xel  =  data['delta_azimuth']* np.cos(data['elevation']) # scale due to sky shape
     abs_sky_error = np.ma.array(data=measured_delta_xel,mask=False)
@@ -75,15 +76,16 @@ def referencemetrics(ant,data,num_samples_limit=1):
     residual_az = data['delta_azimuth']   - model_delta_az
     residual_el = data['delta_elevation'] - model_delta_el
     residual_xel = residual_az * np.cos(data['elevation'])
-    delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'l)
+    delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'])
     abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + data['delta_azimuth_std']**2))*3600 # make arc seconds
     print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key]))     
     abs_sky_error = rad2deg(np.sqrt((residual_xel) ** 2 + (residual_el)** 2)) *3600
     if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
         condition = get_condition(data)
         rms = np.std(abs_sky_error)
+        robust = np.ma.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.))
         text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
-            target,np.std(abs_sky_error),np.mean(abs_sky_delta_std),np.ma.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
+            target,rms,np.mean(abs_sky_delta_std),robust,data.shape[0],condition_str[condition]))
 
         # get the (environmental) conditions for each grouped target scan
         #TODO   fitIpks = np.append(fitIpks, condArray['beam_height_I']) make a condition=3 ?
@@ -96,6 +98,9 @@ def referencemetrics(ant,data,num_samples_limit=1):
         else : 
             output_data[i] =  data.field(i)[0]
     output_data = np.lib.recfunctions.append_fields(output_data, 'condition', condition, dtypes=np.float, usemask=False, asrecarray=True)
+    output_data = np.lib.recfunctions.append_fields(output_data, 'rms', rms, dtypes=np.float, usemask=False, asrecarray=True)
+    output_data = np.lib.recfunctions.append_fields(output_data, 'robust', robust, dtypes=np.float, usemask=False, asrecarray=True)
+    output_data = np.lib.recfunctions.append_fields(output_data, 'N', data.shape[0], dtypes=np.float, usemask=False, asrecarray=True)
     return text,output_data
 
 def plot_source_rms(tods,fitIpks,sunAngles,skyRMS,title):
@@ -252,7 +257,7 @@ def write_text(textString):
 
 class group():
     """This is an class to make an itterater that go's through the array and returns data in chuncks"""
-    def __init__(self.obj):
+    def __init__(self,obj):
         self.data = obj
     
     def __iter__(self):
@@ -263,19 +268,10 @@ class group():
             
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
-# Create a date/time string for current time
-now = time.strftime('%Y-%m-%d_%Hh%M')
 
 parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
                                description="This fits a pointing model to the given data CSV file"
-                               " with the targets that are included in the the offset pointing csv file "
-                               " "
-                               " ")
-parser.add_option('-c', '--cal-file', default=None,
-                  help="Calibrator catalogue file to use (default = %default).")
-parser.add_option('-o', '--output', dest='outfilebase', default='pointing_model_%s' % (now,),
-                  help="Base name of output files (*.csv for new pointing model and *_data.csv for residuals, "
-                  "default is 'pointing_model_<time>')")
+                               " with the targets that are included in the the offset pointing csv file ")
 parser.add_option('--num-samples-limit', default=3,
                   help="The number of valid offset measurements needed, in order to have a valid sample." )
 
@@ -288,7 +284,7 @@ parser.add_option('-m', '--min-rms', type='float', default=np.sqrt(2) * 60. * 1e
 
 
 textString = [""]
-dText = [r'$\bf{Exceptionally\; poor\; data\; points:}$']
+#dText = [r'$\bf{Exceptionally\; poor\; data\; points:}$']
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 
@@ -308,7 +304,8 @@ for filename in args:
 # fix units and wraps
 data['azimuth'],data['elevation']  = angle_wrap(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
 data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), deg2rad(data['delta_elevation'])
-data['delta_azimuth_std'], deg2rad(data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
+data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
+
 
 for offsetdata in group(data) : 
     #New loop to provide the data in steps of test offet scans .
