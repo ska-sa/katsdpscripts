@@ -16,12 +16,12 @@ def get_condition(data):
     """Get condition for grouped target scan.
     'ideal'   = 0 , \n 'optimal' = 1, \n 'normal'  = 2, \n 'other'   = 3 """
     # Set up limits on environmental conditions
-    condition_values = np.zeros((3), dtype=dict)
+    condition_values = np.zeros((4), dtype=dict)
     condition_values[0] = {'wind_speed':1.,'temp_low':19.,'temp_high':21.,'sun_el':-5.} #  ideal
     condition_values[1] = {'wind_speed':2.9,'temp_low':-5.,'temp_high':35.,'sun_el':-5.}#  optimal
     condition_values[2] = {'wind_speed':9.8,'temp_low':-5.,'temp_high':40.,'sun_el':100.}# normal
     condition_values[3] = {'wind_speed':9999.8,'temp_low':-273.,'temp_high':40000.,'sun_el':1000.}# other
-    for i,values in enumerate(condition_values)
+    for i,values in enumerate(condition_values) :
         condition = i
         if data['sun_el'].max() < condition_values[i]['sun_el'] :
             if data['wind_speed'].max() < condition_values[i]['wind_speed'] :
@@ -77,31 +77,25 @@ def referencemetrics(ant,data,num_samples_limit=1):
     residual_xel = residual_az * np.cos(data['elevation'])
     delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'l)
     abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + data['delta_azimuth_std']**2))*3600 # make arc seconds
-    
-    #print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key])) 
-        
+    print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key]))     
     abs_sky_error = rad2deg(np.sqrt((residual_xel) ** 2 + (residual_el)** 2)) *3600
     if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
-        #TODO get_condition(data)
-
-    if data.shape[0]  > num_samples_limit:
+        condition = get_condition(data)
         rms = np.std(abs_sky_error)
-        #TODO get_condition(data)
         text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
             target,np.std(abs_sky_error),np.mean(abs_sky_delta_std),np.ma.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.)),keep.sum(),condition))
 
         # get the (environmental) conditions for each grouped target scan
-        fitIpks = np.append(fitIpks, condArray['beam_height_I'])
-        if ( condition == 'normal' ):
-            normIndices = np.append(normIndices,index)
-        elif ( condition == 'optimal' ):
-            optIndices = np.append(optIndices,index)
-        elif ( condition == 'ideal' ):
-            idealIndices = np.append(idealIndices,index)
+        #TODO   fitIpks = np.append(fitIpks, condArray['beam_height_I']) make a condition=3 ?
     sky_rms = np.sqrt(np.ma.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
     robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
-    text.append("Dataset:%s  All Sky Reference RMS = %.3f\" (robust %.3f\")   (N=%i Data Points) R.T.P.4"  % (data['dataset'][0],sky_rms, robust_sky_rms,abs_sky_error.count()))
-    #TODO output_data
+    output_data = np.copy(data[0]) # make a copy of the rec array
+    for i,x in enumerate(data[0]) :  # make an average of data 
+        if x.dtype.kind == 'f' : # average floats
+            output_data[i] =  data.field(i).mean()
+        else : 
+            output_data[i] =  data.field(i)[0]
+    output_data = np.lib.recfunctions.append_fields(output_data, 'condition', condition, dtypes=np.float, usemask=False, asrecarray=True)
     return text,output_data
 
 def plot_source_rms(tods,fitIpks,sunAngles,skyRMS,title):
@@ -298,6 +292,8 @@ dText = [r'$\bf{Exceptionally\; poor\; data\; points:}$']
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 
+
+# read in data
 data = None
 for filename in args:
     if data is None:
@@ -316,11 +312,9 @@ data['delta_azimuth_std'], deg2rad(data['delta_elevation_std'] = deg2rad(data['d
 
 for offsetdata in group(data) : 
     #New loop to provide the data in steps of test offet scans .
-    text,output = referencemetrics(ant,offsetdata,opts.num_samples_limit)
+    text,output_data = referencemetrics(ant,offsetdata,opts.num_samples_limit)
     textString += text
     textString.append("") # new line when joined 
-    #if ( dangText != [] ):
-    #    dText += dangText
 
 # create source and condition-separated RMS arrays
 for targ in uniqTargets:
@@ -355,15 +349,10 @@ if not opts.no_plot :
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
-    # write-out fit results
-    if ( dText != [r'$\bf{Exceptionally\; poor\; data\; points:}$'] ):
-        textString.append("")
-        textString.append("")
-        textString = np.append(np.array(textString),dText)
     ax,fig = write_text('\n'.join(textString[:110]))
     fig.savefig(pp,format='pdf')
     plt.close(fig)
-    if ( len(textString) > 110 ):
+    if ( len(textString) > 110 ): # pages ?
         ax,fig = write_text('\n'.join(textString[110:]))
         fig.savefig(pp,format='pdf')
         plt.close(fig)
