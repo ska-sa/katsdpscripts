@@ -35,7 +35,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         time.sleep(3)
     else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
         user_logger.info("No Azimuth selected , selecting clear Azimith")
@@ -86,3 +86,10 @@ with verify_and_connect(opts) as kat:
             session.label('track')
             session.track('azel, %f, %f' % (opts.az, el), duration=on_time)
             session.fire_noise_diode('coupler', on=10, off=10)
+    
+    # Stop antenna after the observation because dish is not always stowed      
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(3)
+    else:
+        user_logger.error("Unable to set Antenna mode to 'STOP'.")

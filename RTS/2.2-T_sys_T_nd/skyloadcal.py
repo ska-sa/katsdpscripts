@@ -101,4 +101,9 @@ with verify_and_connect(opts) as kat:
         if opts.max_duration and time.time() > start_time + opts.max_duration:
             user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
 
-
+        # Stop antenna after the observation because dish is not always stowed      
+        if not kat.dry_run and kat.ants.req.mode('STOP') :
+            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+            time.sleep(3)
+        else:
+            user_logger.error("Unable to set Antenna mode to 'STOP'.")
