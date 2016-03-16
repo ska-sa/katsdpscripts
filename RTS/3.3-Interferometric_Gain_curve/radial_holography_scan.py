@@ -119,3 +119,10 @@ with verify_and_connect(opts) as kat:
                 keep_going = False
 
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+
+        # Stop antenna after the observation because dish is not always stowed      
+        if not kat.dry_run and kat.ants.req.mode('STOP') :
+            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+            time.sleep(3)
+        else:
+            user_logger.error("Unable to set Antenna mode to 'STOP'.")
