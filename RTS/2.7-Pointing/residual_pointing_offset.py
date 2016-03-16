@@ -103,7 +103,7 @@ def referencemetrics(ant,data,num_samples_limit=1):
             else : 
                 output_data[i] =  data.field(i)[0]
         sun = Target('Sun,special') 
-        source = Target('%s,azel, %f,%f'%(output_data['target'],output_data['azimuth'],output_data['elevation']) )
+        source = Target('%s,azel, %f,%f'%(output_data['target'],np.degrees(output_data['azimuth']),np.degrees(output_data['elevation'])) )
         sun_sep = np.degrees(source.separation(sun,timestamp=output_data['timestamp'],antenna=ant))  
         output_data =  recfunctions.append_fields(output_data, 'sun_sep', np.array([sun_sep]), dtypes=np.float, usemask=False, asrecarray=True)         
         output_data =  recfunctions.append_fields(output_data, 'condition', np.array([condition]), dtypes=np.float, usemask=False, asrecarray=True)
@@ -175,7 +175,7 @@ def plot_diagnostics(data,title):
     for i,label in enumerate(labels):
         index_list = data['condition'] == i
         if np.sum(index_list) > 0 : 
-            plt.plot(data['elevation'][index_list],data['rms'][index_list],marker=markers[i],
+            plt.plot(np.degrees(data['elevation'][index_list]),data['rms'][index_list],marker=markers[i],
                 color=colours[i],lw=0,label=label)
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel('Elevation (deg)')
