@@ -70,6 +70,10 @@ def referencemetrics(ant,data,num_samples_limit=1):
       e.g. robust_sky_rms = np.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
     """
     #print type(data.shape[0] ), type(num_samples_limit)
+    beam = data['beam_height_I'].mean()
+    good_beam = (data['beam_height_I'] > beam*.8) * (data['beam_height_I'] <  beam*1.2)
+    data = data[good_beam]
+    if not np.all(good_beam) : print "bad scan", data['target'][0]
     if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
         condition_str = ['ideal' ,'optimal', 'normal' , 'other']
         condition = 3
@@ -94,6 +98,7 @@ def referencemetrics(ant,data,num_samples_limit=1):
 
         # get the (environmental) conditions for each grouped target scan
         #TODO   fitIpks = np.append(fitIpks, condArray['beam_height_I']) make a condition=3 ?
+        
         sky_rms = np.sqrt(np.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
         robust_sky_rms = np.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
         output_data = data[0].copy() # make a copy of the rec array
@@ -282,7 +287,9 @@ class group():
         field_val = self.data[self.field][0]
         for i in xrange(self.data.shape[0]):
             if field_val == self.data[self.field][i]: # the test to see if the scan is good
-                #TODO add a number limiter like index%5 and have a rolling list 
+                if len(index_list) >= 5 :
+                    yield self.data[index_list]
+                    del(index_list[0])
                 index_list.append(i) # add valid indexes
             else:
                 field_val = self.data[self.field][i] # set a new value
