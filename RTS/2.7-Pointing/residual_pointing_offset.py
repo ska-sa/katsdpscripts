@@ -11,6 +11,7 @@ from katpoint import rad2deg, deg2rad, Target
 from katsdpscripts import git_info
 from katsdpscripts.RTS.weatherlib import select_and_average, select_environment, rolling_window
 from matplotlib.offsetbox import AnchoredText
+from numpy.lib import recfunctions  # to append fields to rec arrays 
 
 def get_condition(data):
     """Get condition for grouped target scan.
@@ -62,181 +63,196 @@ def referencemetrics(ant,data,num_samples_limit=1):
      The absolute sky error (== Euclidean length of 2-dim error vector) then has a Rayleigh distribution
      The RMS sky error has a mean value of sqrt(2) * sigma, since each squared error term is the sum of
      two squared Gaussian random values, each with an expected value of sigma^2.
-      e.g. sky_rms = np.sqrt(np.ma.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
+      e.g. sky_rms = np.sqrt(np.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
 
      A more robust estimate of the RMS sky error is obtained via the median of the Rayleigh distribution,
      which is sigma * sqrt(log(4)) -> convert this to the RMS sky error = sqrt(2) * sigma
-      e.g. robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
+      e.g. robust_sky_rms = np.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
     """
-    condition_str = ['ideal' ,'optimal', 'normal' , 'other']
-    text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
-    measured_delta_xel  =  data['delta_azimuth']* np.cos(data['elevation']) # scale due to sky shape
-    abs_sky_error = np.ma.array(data=measured_delta_xel,mask=False)
-    model_delta_az, model_delta_el = ant.pointing_model.offset(data['azimuth'], data['elevation'])
-    residual_az = data['delta_azimuth']   - model_delta_az
-    residual_el = data['delta_elevation'] - model_delta_el
-    residual_xel = residual_az * np.cos(data['elevation'])
-    delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'])
-    abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + data['delta_azimuth_std']**2))*3600 # make arc seconds
-    print ("Test Target: '%s'   fit accuracy %.3f\"  "%(target,abs_sky_delta_std[key]))     
-    abs_sky_error = rad2deg(np.sqrt((residual_xel) ** 2 + (residual_el)** 2)) *3600
+    #print type(data.shape[0] ), type(num_samples_limit)
     if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
+        condition_str = ['ideal' ,'optimal', 'normal' , 'other']
+        condition = 3
+        text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
+        measured_delta_xel  =  data['delta_azimuth']* np.cos(data['elevation']) # scale due to sky shape
+        abs_sky_error = measured_delta_xel
+        model_delta_az, model_delta_el = ant.pointing_model.offset(data['azimuth'], data['elevation'])
+        residual_az = data['delta_azimuth']   - model_delta_az
+        residual_el = data['delta_elevation'] - model_delta_el
+        residual_xel = residual_az * np.cos(data['elevation'])
+        delta_xel_std = data['delta_azimuth_std'] * np.cos(data['elevation'])
+        abs_sky_delta_std = rad2deg(np.sqrt(delta_xel_std**2 + data['delta_azimuth_std']**2))*3600 # make arc seconds
+        #for i,val in enumerate(data):
+        #    print ("Test Target: '%s'   fit accuracy %.3f\"  "%(data['target'][i],abs_sky_delta_std[i]))     
+        abs_sky_error = rad2deg(np.sqrt((residual_xel) ** 2 + (residual_el)** 2)) *3600
+    
         condition = get_condition(data)
         rms = np.std(abs_sky_error)
-        robust = np.ma.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.))
+        robust = np.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.))
         text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
-            target,rms,np.mean(abs_sky_delta_std),robust,data.shape[0],condition_str[condition]))
+            data['target'][0],rms,np.mean(abs_sky_delta_std),robust,data.shape[0],condition_str[condition]))
 
         # get the (environmental) conditions for each grouped target scan
         #TODO   fitIpks = np.append(fitIpks, condArray['beam_height_I']) make a condition=3 ?
-    sky_rms = np.sqrt(np.ma.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
-    robust_sky_rms = np.ma.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
-    output_data = np.copy(data[0]) # make a copy of the rec array
-    for i,x in enumerate(data[0]) :  # make an average of data 
-        if x.dtype.kind == 'f' : # average floats
-            output_data[i] =  data.field(i).mean()
-        else : 
-            output_data[i] =  data.field(i)[0]
-    output_data = np.lib.recfunctions.append_fields(output_data, 'condition', condition, dtypes=np.float, usemask=False, asrecarray=True)
-    output_data = np.lib.recfunctions.append_fields(output_data, 'rms', rms, dtypes=np.float, usemask=False, asrecarray=True)
-    output_data = np.lib.recfunctions.append_fields(output_data, 'robust', robust, dtypes=np.float, usemask=False, asrecarray=True)
-    output_data = np.lib.recfunctions.append_fields(output_data, 'N', data.shape[0], dtypes=np.float, usemask=False, asrecarray=True)
-    return text,output_data
+        sky_rms = np.sqrt(np.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
+        robust_sky_rms = np.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
+        output_data = data[0].copy() # make a copy of the rec array
+        for i,x in enumerate(data[0]) :  # make an average of data 
+            if x.dtype.kind == 'f' : # average floats
+                output_data[i] =  data.field(i).mean()
+            else : 
+                output_data[i] =  data.field(i)[0]
+        sun = Target('Sun,special') 
+        source = Target('%s,azel, %f,%f'%(output_data['target'],output_data['azimuth'],output_data['elevation']) )
+        sun_sep = np.degrees(source.separation(sun,timestamp=output_data['timestamp'],antenna=ant))  
+        output_data =  recfunctions.append_fields(output_data, 'sun_sep', np.array([sun_sep]), dtypes=np.float, usemask=False, asrecarray=True)         
+        output_data =  recfunctions.append_fields(output_data, 'condition', np.array([condition]), dtypes=np.float, usemask=False, asrecarray=True)
+        output_data =  recfunctions.append_fields(output_data, 'rms', np.array([rms]), dtypes=np.float, usemask=False, asrecarray=True)
+        output_data =  recfunctions.append_fields(output_data, 'robust', np.array([robust]), dtypes=np.float, usemask=False, asrecarray=True)
+        output_data =  recfunctions.append_fields(output_data, 'N', np.array([data.shape[0]]), dtypes=np.float, usemask=False, asrecarray=True)
+        return text,output_data
+    else :
+        return None,None
 
-def plot_source_rms(tods,fitIpks,sunAngles,skyRMS,title):
+def plot_source_rms(data,title):
     """Plot source pointing accuracy vs sun angles."""
     fig = plt.figure(figsize=(16,9))
     params = {'axes.labelsize': 12, 'font.size': 10, 'legend.fontsize': 9, 
     'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
     plt.rcParams.update(params)
-
-    index = 0
-    ymax = 0
-    cVals = np.array(['k','b','r','g','m']*2)
-    colours = np.r_[cVals,np.roll(cVals,-1),np.roll(cVals,-2)] # good up to 30 sources
-    mecVals = np.copy(colours)
-    fcVals = np.copy(colours)
-    fcVals[np.array([11,12,13,14,16,17,18,19])] = 'w'
-    markers = ['x','o','s','*','^','+','D','v','<','>']*3
-    targets = sunAngles.keys()
-
+    markers = []
+    colors = ['b','g','r','c','m','y','k']
+    pointtypes = ['o','*','x','^','s','p','h','+','D','d','v','H','d','v']
+    for point in  pointtypes:
+        for color in colors:
+            markers.append(str(color+point))
     # sky RMS vs sun angles
     ax = fig.add_subplot(121)
-    for targ in targets:
-        if ( skyRMS[targ] != None ):
-            plt.plot(sunAngles[targ],skyRMS[targ],mec=mecVals[index],mfc=fcVals[index],
-                            marker=markers[index],color=colours[index],lw=0,label=targ)
-            if ( skyRMS[targ].max() > ymax ):
-                ymax = skyRMS[targ].max()
-                ymax = ymax - ymax%5 + 10
-            index += 1
-
+    i = 0
+    unique_targets = np.unique(output_data['target'])
+    for target in unique_targets:
+        index_list = data['target'] == target
+        plt.plot(data['sun_sep'][index_list],data['rms'][index_list],markers[i],linewidth = 0, label=target)
+        i = i + 1
     plt.suptitle(title, fontsize=12, fontweight='bold',y=0.95)
     plt.legend(numpoints=1,loc='upper right')
     plt.axhline(y=5,color='g',lw=1,ls='--')
     plt.axhline(y=25,color='b',lw=1,ls='--')
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel('Sun Angular Distance (deg)')
-    if ( ymax > 80 ):
-        plt.ylim(0,80)  # arbitrary y-axis limit for visualisation purposes
+    if np.any( data['rms'] > 80 ):
+        plt.ylim(0,80)
     ax.yaxis.set_minor_locator(AutoMinorLocator())
     ax.xaxis.set_minor_locator(AutoMinorLocator())
 
     # fitted Gaussian peak height vs MJD
-    index = 0
+    i = 0
     ax2 = fig.add_subplot(122)
-    for targ in targets:
-        if ( fitIpks[targ] != None ):
-            plt.plot(tods[targ],fitIpks[targ],mec=mecVals[index],mfc=fcVals[index],
-                            marker=markers[index],color=colours[index],lw=0,label=targ)
-            index += 1
-    #plt.legend(numpoints=1,loc='upper right')
+    for target in unique_targets:
+        index_list = data['target'] == target
+        plt.plot((data['timestamp'][index_list]/3600.)%24,data['beam_height_I'][index_list],markers[i],linewidth = 0, label=target)
+        i = i + 1
+    plt.legend(numpoints=1,loc='upper right')
     plt.ylabel(r'Fitted $I_{\mathrm{peak}}$ (A.U.)')
     plt.xlabel('Time of Day (hr)')
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
     ax2.xaxis.set_minor_locator(AutoMinorLocator())
     return fig
 
-def plot_diagnostics(condArray,flagArray,all_skyRMS,title):
-    """Plot pointing accuracy vs environmental conditions."""
+def plot_diagnostics(data,title):
+    """Plot offset-pointing accuracy vs environmental conditions."""
     fig = plt.figure(figsize=(16,9))
     params = {'axes.labelsize': 12, 'font.size': 10, 'legend.fontsize': 9, 
     'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
     plt.rcParams.update(params)
     
-    colours = ['b', 'g', 'y']
-    markers = ['o','s','^']
-    labels = ['normal','optimal','ideal']
-    sizes = np.array([np.size(indices) for indices in flagArray])
-    indices = np.where(sizes!=0)[0]
+    colours = ['b', 'g', 'y','k']
+    markers = ['o','s','^','*']
+    labels = ['ideal','optimal','normal','other']
     
     plt.suptitle(title, fontsize=12, fontweight='bold',y=0.95)
     ax = fig.add_subplot(231)
-    for index in indices:
-        plt.plot(condArray[0][flagArray[index]],all_skyRMS[flagArray[index]],marker=markers[index],
-            color=colours[index],lw=0,label=labels[index])
+    for i,label in enumerate(labels):
+        index_list = data['condition'] == i
+        if np.sum(index_list) > 0 : 
+            plt.plot(data['elevation'][index_list],data['rms'][index_list],marker=markers[i],
+                color=colours[i],lw=0,label=label)
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel('Elevation (deg)')
     plt.legend(numpoints=1,loc='upper right')
     ax.yaxis.set_minor_locator(AutoMinorLocator())
     ax.xaxis.set_minor_locator(AutoMinorLocator())
-    if ( all_skyRMS.max() > 80 ):
+    if np.any( data['rms'] > 80 ):
         plt.ylim(0,80)
 
     ax2 = fig.add_subplot(232)
-    tod = condArray[1]%1*24
-    for index in indices:
-        plt.plot(tod[flagArray[index]],all_skyRMS[flagArray[index]],marker=markers[index],
-            color=colours[index],lw=0,label=labels[index])
+    def time_hour(x):
+        y = (x/3600.)%24 + (x/3600.)/24
+        for i in xrange(x.shape[0]) :
+            y = time.localtime(x[i]).tm_hour 
+        return y
+    for i,label in enumerate(labels):
+        index_list = data['condition'] == i
+        if np.sum(index_list) > 0 : 
+            plt.plot((data['timestamp'][index_list]/3600.)%24 ,data['rms'][index_list],marker=markers[i],
+                color=colours[i],lw=0,label=label)
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel('Hour (UTC)')
     plt.legend(numpoints=1,loc='upper right')
     plt.xlim(0,24)
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
     ax2.xaxis.set_minor_locator(AutoMinorLocator())
-    if ( all_skyRMS.max() > 80 ):
+    if np.any( data['rms'] > 80 ):
         plt.ylim(0,80)
 
     ax3 = fig.add_subplot(233)
-    for index in indices:
-        plt.plot(condArray[2][flagArray[index]],all_skyRMS[flagArray[index]],marker=markers[index],
-            color=colours[index],lw=0,label=labels[index])
+    for i,label in enumerate(labels):
+        index_list = data['condition'] == i
+        if np.sum(index_list) > 0 : 
+            plt.plot(data['wind_speed'][index_list],data['rms'][index_list],marker=markers[i],
+                color=colours[i],lw=0,label=label)
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel('Wind speed (m/s)')
     plt.legend(numpoints=1,loc='upper right')
     ax3.yaxis.set_minor_locator(AutoMinorLocator())
     ax3.xaxis.set_minor_locator(AutoMinorLocator())
-    if ( all_skyRMS.max() > 80 ):
+    if np.any( data['rms'] > 80 ):
         plt.ylim(0,80)
 
     ax4 = fig.add_subplot(234)
-    for index in indices:
-        plt.plot(condArray[3][flagArray[index]],all_skyRMS[flagArray[index]],marker=markers[index],
-            color=colours[index],lw=0,label=labels[index])
+    for i,label in enumerate(labels):
+        index_list = data['condition'] == i
+        if np.sum(index_list) > 0 : 
+            plt.plot(data['sun_sep'][index_list],data['rms'][index_list],marker=markers[i],
+                color=colours[i],lw=0,label=label)
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel('Sun Angular Distance (deg)')   
     plt.legend(numpoints=1,loc='upper right')
     ax4.yaxis.set_minor_locator(AutoMinorLocator())
     ax4.xaxis.set_minor_locator(AutoMinorLocator())
-    if ( all_skyRMS.max() > 80 ):
+    if np.any( data['rms'] > 80 ):
         plt.ylim(0,80)
 
     ax5 = fig.add_subplot(235)
-    for index in indices:
-        plt.plot(condArray[4][flagArray[index]],all_skyRMS[flagArray[index]],marker=markers[index],
-            color=colours[index],lw=0,label=labels[index])
+    for i,label in enumerate(labels):
+        index_list = data['condition'] == i
+        if np.sum(index_list) > 0 : 
+            plt.plot(data['temperature'][index_list],data['rms'][index_list],marker=markers[i],
+                color=colours[i],lw=0,label=label)
     plt.ylabel(r'$\sigma$ (arc sec)')
     plt.xlabel(r'Temperature ($^o$C)')  
     plt.legend(numpoints=1,loc='upper right')
     ax5.yaxis.set_minor_locator(AutoMinorLocator())
     ax5.xaxis.set_minor_locator(AutoMinorLocator())
-    if ( all_skyRMS.max() > 80 ):
+    if np.any( data['rms'] > 80 ):
         plt.ylim(0,80)
 
     ax6 = fig.add_subplot(236)
-    for index in indices:
-        plt.hist(all_skyRMS[flagArray[index]],bins=np.arange(0,85,5),histtype='bar',ec='w',alpha=0.5,
-            align='mid',color=colours[index],label=labels[index])
+    for i,label in enumerate(labels):
+        index_list = data['condition'] == i
+        if np.sum(index_list) > 0 : 
+            plt.hist(data['rms'][index_list],bins=np.arange(0,85,5),histtype='bar',ec='w',alpha=0.5,
+                align='mid',color=colours[i],label=label)
     plt.legend(numpoints=1,loc='upper right')
     plt.ylabel('Number')
     plt.xlabel(r'$\sigma$ (arc sec)')
@@ -257,13 +273,21 @@ def write_text(textString):
 
 class group():
     """This is an class to make an itterater that go's through the array and returns data in chuncks"""
-    def __init__(self,obj):
+    def __init__(self,obj,field='target'):
         self.data = obj
-    
+        self.field = field
+        
     def __iter__(self):
-        index_list = [0,1,2,3]
-        while len(index_list) > 0 :
-            yield self.data[index_list]
+        index_list = []
+        field_val = self.data[self.field][0]
+        for i in xrange(self.data.shape[0]):
+            if field_val == self.data[self.field][i]: # the test to see if the scan is good
+                #TODO add a number limiter like index%5 and have a rolling list 
+                index_list.append(i) # add valid indexes
+            else:
+                field_val = self.data[self.field][i] # set a new value
+                yield self.data[index_list] #return to loop
+                index_list = [] # reset index list
 
             
 # These fields contain strings, while the rest of the fields are assumed to contain floats
@@ -272,7 +296,7 @@ string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
 parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
                                description="This fits a pointing model to the given data CSV file"
                                " with the targets that are included in the the offset pointing csv file ")
-parser.add_option('--num-samples-limit', default=3,
+parser.add_option('--num-samples-limit', default=3.,
                   help="The number of valid offset measurements needed, in order to have a valid sample." )
 
 parser.add_option('--no-plot', default=False,action='store_true',help="Produce a pdf output")
@@ -280,7 +304,6 @@ parser.add_option('--no-plot', default=False,action='store_true',help="Produce a
 
 
 textString = [""]
-#dText = [r'$\bf{Exceptionally\; poor\; data\; points:}$']
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 
@@ -290,34 +313,36 @@ data = None
 for filename in args:
     if data is None:
         data,ant = read_offsetfile(filename)
-        #offsetdata = data
     else:
         tmp_offsets,tmp_ant = read_offsetfile(filename)
         data = np.r_[data,tmp_offsets]
         if not ant == tmp_ant : raise RuntimeError('The antenna has changed')
-        #offsetdata = data
 
 # fix units and wraps
 data['azimuth'],data['elevation']  = angle_wrap(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
 data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), deg2rad(data['delta_elevation'])
 data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
 
-
-for offsetdata in group(data) : 
+output_data = None
+for offsetdata in group(data) :
     #New loop to provide the data in steps of test offet scans .
-    text,output_data = referencemetrics(ant,offsetdata,opts.num_samples_limit)
-    textString += text
-    textString.append("") # new line when joined 
+    
+    text,output_data_tmp = referencemetrics(ant,offsetdata,np.float(opts.num_samples_limit))
+    #print text#,output_data_tmp
+    if not output_data_tmp is None :
+        if output_data is None :
+            output_data =output_data_tmp.copy()
+            #print "First time"
+        else:
+            #print "Next time",output_data.shape[0]+1
+            output_data.resize(output_data.shape[0]+1)
+            output_data[-1] =output_data_tmp.copy()[0]
+        textString += text
 
-# create source and condition-separated RMS arrays
-for targ in uniqTargets:
-    pass
-        #norm_sourceSepTOD[targ] = np.float32(allMJDs[normIndices])%1*24
 
-#print new_model.description
 textString.append("")
 textString.append(git_info() )
-
+for line in textString: print line
 if not opts.no_plot :
     nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
     if len(args) > 1 : nice_filename =  args[0].split('/')[-1]+'_Multiple_files' + '_residual_pointing_offset'
@@ -325,20 +350,19 @@ if not opts.no_plot :
 
     # plot diagnostic plots
     suptitle = '%s offset-pointing accuracy vs environmental conditions' %ant.name.upper()
-    fig = plot_diagnostics([allElevs,allMJDs,allWindSpeed,allSunAngles,allTemps],
-                [allNormIndices,allOptIndices,allIdealIndices],allSkyRMS,suptitle)
+    fig = plot_diagnostics(output_data,suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
     # plot norm source RMS vs sun angles
     suptitle = '%s source-separated results (normal conditions)' %ant.name.upper()
-    fig = plot_source_rms(norm_sourceSepTOD,norm_sourceSepIpk,norm_sourceSepSA,norm_sourceSepRMS,suptitle)
+    fig = plot_source_rms(output_data,suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
     # plot opt source RMS vs sun angles
     suptitle = '%s source-separated results (optimal conditions)' %ant.name.upper()
-    fig = plot_source_rms(opt_sourceSepTOD,opt_sourceSepIpk,opt_sourceSepSA,opt_sourceSepRMS,suptitle)
+    fig = plot_source_rms(output_data,suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
@@ -350,5 +374,3 @@ if not opts.no_plot :
         fig.savefig(pp,format='pdf')
         plt.close(fig)
     pp.close()
-else:
-    for line in textString: print line
