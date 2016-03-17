@@ -270,27 +270,33 @@ def write_text(textString):
     return ax,fig
 
 
-class group():
-    """This is an class to make an itterater that go's through the array and returns data in chuncks"""
-    def __init__(self,obj,field='target'):
-        self.data = obj
-        self.field = field
-        
-    def __iter__(self):
-        index_list = []
-        field_val = self.data[self.field][0]
-        for i in xrange(self.data.shape[0]):
-            if field_val == self.data[self.field][i]: # the test to see if the scan is good
-                if len(index_list) >= 5 :
-                    yield self.data[index_list]
-                    del(index_list[0])
-                index_list.append(i) # add valid indexes
-            else:
-                field_val = self.data[self.field][i] # set a new value
-                yield self.data[index_list] #return to loop
-                index_list = [] # reset index list
+def chunk_data(data, field='target', chunk_size=5):
+    """Sliding window of data sharing the same field value.
 
-            
+    This generator function returns a sliding window of *chunk_size*
+    consecutive data elements that all share the same value for the given
+    *field*. The sliding window advances one element at a time. If the field
+    value changes, the current window (potentially shorter than *chunk_size*)
+    is flushed.
+
+    """
+    index_list = []
+    field_val = data[field][0]
+    for i in xrange(len(data)):
+        if data[field][i] == field_val: # the test to see if the scan is good
+            if len(index_list) >= chunk_size:
+                yield data[index_list]
+                del(index_list[0])
+            index_list.append(i) # add valid indexes
+        else:
+            field_val = data[field][i] # set a new value
+            yield data[index_list] # flush what we have so far
+            index_list = [i] # reset index list
+    # Ensure that the last chunk is emitted
+    if index_list:
+        yield data[index_list]
+
+
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
 
@@ -323,7 +329,7 @@ data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), 
 data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
 
 output_data = None
-for offsetdata in group(data) :
+for offsetdata in chunk_data(data):
     #New loop to provide the data in steps of test offet scans
     text,output_data_tmp = referencemetrics(ant,offsetdata,np.float(opts.num_samples_limit))
     #print text#,output_data_tmp
