@@ -34,10 +34,10 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.capture_start()
-# RvR -- temporarily added to allow manual start of metadata
-        user_logger.info('Start metadata capture')
-        time.sleep(2) # give time to issue cmd: cam.data_1.req.cbf_capture_meta('c856M4k')
-# RvR -- temporarily added to allow manual start of metadata
+# # RvR -- temporarily added to allow manual start of metadata
+#         user_logger.info('Start metadata capture')
+#         time.sleep(2) # give time to issue cmd: cam.data_1.req.cbf_capture_meta('c856M4k')
+# # RvR -- temporarily added to allow manual start of metadata
         # Pick a target, either explicitly or the closest strong one
         if len(args) > 0:
             target = collect_targets(kat, [args[0]]).targets[0]

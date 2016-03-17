@@ -66,7 +66,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         time.sleep(10)
     else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
 
     if len(args) > 0:
         # Load pointing calibrator catalogues and command line targets
@@ -119,9 +119,11 @@ with verify_and_connect(opts) as kat:
             while keep_going:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
-                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+7.0):
+                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon+3.0):
 # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-		    if bad_ar1_alt_hack(target, 60.): continue
+		    if bad_ar1_alt_hack(target, 60.):
+		        print 'Too high elevation, skipping target %s...' % target.name
+			continue
 # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
 
                     session.label('raster')
@@ -170,3 +172,12 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
 
         skip_file.close()
+
+# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
+    else:
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
+# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
+

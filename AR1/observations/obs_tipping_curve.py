@@ -17,8 +17,10 @@ parser.add_option('-z', '--az', type="float", default=None,
                   help='Azimuth angle along which to do tipping curve, in degrees (default="%default")')
 parser.add_option('--spacing', type="float", default=1.0,
                   help='The Spacing along the elevation axis of the tipping curve that measuremnts are taken, in degrees (default="%default")')
-parser.add_option( '--tip-both-directions', action="store_true" , default=False,
+parser.add_option('--tip-both-directions', action="store_true" , default=False,
                   help='Do tipping curve from low to high elevation and then from high to low elevation')
+parser.add_option('--max-elevation', type='float', default=90.0,
+                  help="Maximum elevation angle, in degrees (default=%default)")
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays (default="%default")')
 
@@ -29,6 +31,11 @@ parser.set_defaults(description='Tipping Curve')
 opts, args = parser.parse_args()
 
 on_time = 15.0
+# Iterate through elevation angles
+spacings = list(np.arange(opts.horizon,opts.max_elevation+0.1,opts.spacing))
+if opts.tip_both_directions :
+    spacings += list(np.arange(opts.max_elevation,opts.horizon-0.1,-opts.spacing))
+
 with verify_and_connect(opts) as kat:
     # Start Antenna for observing
     if not kat.dry_run and kat.ants.req.mode('STOP') :
@@ -39,15 +46,16 @@ with verify_and_connect(opts) as kat:
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
         user_logger.info("No Azimuth selected , selecting clear Azimith")
+	timestamp = time.time() + np.arange(len(spacings)) * (on_time + 20.0 + 1.0)
         if not kat.dry_run:
-            timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(15.0,90.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
+#             timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(opts.horizon,opts.max_elevation+0.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
             #load the standard KAT sources ... similar to the SkyPlot of the katgui
-            observation_sources = kat.sources
+            sources_to_avoid = kat.sources
             source_az = []
-            for source in observation_sources.targets:
+            for source in sources_to_avoid.targets:
                 az, el = np.degrees(source.azel(timestamp=timestamp))   # was rad2deg
                 az[az > 180] = az[az > 180] - 360
-                source_az += list(set(az[el > 15]))
+                source_az += list(set(az[el > opts.horizon]))
             source_az.sort()
             gap = np.diff(source_az).argmax()+1
             opts.az = (source_az[gap] + source_az[gap+1]) /2.0
@@ -78,14 +86,10 @@ with verify_and_connect(opts) as kat:
                 user_logger.error('Unable to zero delay values.')
         session.standard_setup(**vars(opts))
         session.capture_start()
-        # Iterate through elevation angles
-        # spacings = list(np.arange(15.0,90.1,opts.spacing))
-# RvR -- temporary measure for M063 until AP can handle not being able to reach # target gracefully
-        spacings = list(np.arange(15.0,89.1,opts.spacing))
-        if opts.tip_both_directions :
-            # spacings += list(np.arange(90.0,19.9,-opts.spacing))
-            spacings += list(np.arange(89.0,19.9,-opts.spacing))
-# RvR -- temporary measure for M063 until AP can handle not being able to reach # target gracefully
+#         # Iterate through elevation angles
+#         spacings = list(np.arange(opts.horizon,opts.max_elevation+0.1,opts.spacing))
+#         if opts.tip_both_directions :
+#             spacings += list(np.arange(opts.max_elevation,opts.horizon-0.1,-opts.spacing))
         for el in spacings:
             session.label('track')
             session.track('azel, %f, %f' % (opts.az, el), duration=on_time)

@@ -78,25 +78,27 @@ with verify_and_connect(opts) as kat:
                     if curr_delay_l == delay_list[ant.name]:
                         print(ant.name + ': no change to PPS delay offset')
                     else:
-                        # determine if we are on X or L band
-                        indexer_pos_raw = int(ant.sensor.ap_indexer_position_raw.get_value())
-                        if (indexer_pos_raw < 20) or (indexer_pos_raw > 60):
-# RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
-                            raise RuntimeError(ant.name + " is on X band")
-# RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
-#                                 print(ant.name + " is on X band")
-#                                 #look at current delay and program in delay specified in CSV
-# 		                  # set the delay compensations for a digitiser
-#                                 response = ant.req.dig_digitiser_offset('x')
-#                                 curr_delay_x = int(str(response).split(' ')[2])
-#                                 print(ant.name + ' X-band current delay : ' + str(curr_delay_x))
-#                                 response = ant.req.dig_digitiser_offset('x', delay_list[ant.name])
-#                                 print(ant.name + ' X-band PPS delay offset : ' + str(response))
-                        else:
-                            print(ant.name + " is on L band")
-                            print(ant.name + ' L-band current delay : ' + str(curr_delay_l))
-                            response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
-                            print(ant.name + ' L-band PPS delay offset : ' + str(response))
+# RvR -- AR1 not needed to check indexer -- M063 fixed
+#                         # determine if we are on X or L band
+#                         indexer_pos_raw = int(ant.sensor.ap_indexer_position_raw.get_value())
+#                         if (indexer_pos_raw < 20) or (indexer_pos_raw > 60):
+# # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
+#                             raise RuntimeError(ant.name + " is on X band")
+# # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
+# #                                 print(ant.name + " is on X band")
+# #                                 #look at current delay and program in delay specified in CSV
+# # 		                  # set the delay compensations for a digitiser
+# #                                 response = ant.req.dig_digitiser_offset('x')
+# #                                 curr_delay_x = int(str(response).split(' ')[2])
+# #                                 print(ant.name + ' X-band current delay : ' + str(curr_delay_x))
+# #                                 response = ant.req.dig_digitiser_offset('x', delay_list[ant.name])
+# #                                 print(ant.name + ' X-band PPS delay offset : ' + str(response))
+# # RvR -- AR1 not needed to check indexer -- M063 fixed
+#                         else:
+                        print(ant.name + " is on L band")
+                        print(ant.name + ' L-band current delay : ' + str(curr_delay_l))
+                        response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
+                        print(ant.name + ' L-band PPS delay offset : ' + str(response))
 
             print('Performing global sync on AR1 ...')
             cam.mcp.req.dmc_global_synchronise(timeout=30)
@@ -136,7 +138,7 @@ with verify_and_connect(opts) as kat:
 		time.sleep(1)
  		cam.subarray_1.req.assign_resources('data_1,'+antlist)
 		time.sleep(1)
-		response=cam.subarray_1.req.activate_subarray(timeout=300)
+		response=cam.subarray_1.req.activate_subarray(timeout=600)
 # RvR -- For the moment assume always subarray_1 -- need to follow up with cam about knowing which is active
 
 		if 'ok' in str(response):
@@ -145,7 +147,7 @@ with verify_and_connect(opts) as kat:
                     print('Subarray 1 active!')
                 else:
                     count = count + 1
-                    print('Failure to program correlator!!!  Trying again.....')
+                    print('Failure to program CBF or SP!!!  Trying again.....')
 	        time.sleep(10)
 
                 if count > 3:
