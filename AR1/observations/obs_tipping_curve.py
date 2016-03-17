@@ -50,12 +50,9 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
 #             timestamp = [katpoint.Timestamp(time.time()) for i in range(int((np.arange(opts.horizon,opts.max_elevation+0.1,opts.spacing).shape[0]*(on_time+20.0+1.0))))]
             #load the standard KAT sources ... similar to the SkyPlot of the katgui
-            observation_sources = kat.sources
-            # remove some very strong sources so as not to saturate equipment deliberately.
-            observation_sources.remove('Sun')
-            observation_sources.remove('AFRISTAR')
+            sources_to_avoid = kat.sources
             source_az = []
-            for source in observation_sources.targets:
+            for source in sources_to_avoid.targets:
                 az, el = np.degrees(source.azel(timestamp=timestamp))   # was rad2deg
                 az[az > 180] = az[az > 180] - 360
                 source_az += list(set(az[el > opts.horizon]))
