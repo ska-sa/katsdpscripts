@@ -160,6 +160,8 @@ with verify_and_connect(opts) as kat:
 
 		    if ant.sensor.rsc_rxl_startup_state.get_value() != 'cold-operational':
 		        raise RuntimeError('rsc_rxl_startup_state is %s, cold-operational expected'% ant.sensor.rsc_rxl_startup_state.get_value())
+		    if ant.sensors.rsc_rxl_rfe1_temperature.get_value() > 30:
+		        raise RuntimeError('Antenna is warm -- rsc_rxl_rfe1_temperature is %.2f K'% ant.sensors.rsc_rxl_rfe1_temperature.get_value())
 
 		    if any_errors:
 		        print "Some errors detected, investigate before accepting %s\n" %ant.name
