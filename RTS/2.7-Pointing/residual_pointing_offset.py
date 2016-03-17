@@ -95,9 +95,6 @@ def referencemetrics(ant,data,num_samples_limit=1):
         robust = np.median(np.abs(abs_sky_error-abs_sky_error.mean())) * np.sqrt(2. / np.log(4.))
         text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
             data['target'][0],rms,np.mean(abs_sky_delta_std),robust,data.shape[0],condition_str[condition]))
-
-        # get the (environmental) conditions for each grouped target scan
-        #TODO   fitIpks = np.append(fitIpks, condArray['beam_height_I']) make a condition=3 ?
         
         sky_rms = np.sqrt(np.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
         robust_sky_rms = np.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
@@ -171,7 +168,7 @@ def plot_diagnostics(data,title):
     'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
     plt.rcParams.update(params)
     
-    colours = ['b', 'g', 'y','k']
+    colours = ['k','b', 'g', 'y']
     markers = ['o','s','^','*']
     labels = ['ideal','optimal','normal','other']
     
