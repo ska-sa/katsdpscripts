@@ -1,13 +1,17 @@
-import optparse, time
-from matplotlib.backends.backend_pdf import PdfPages
+import optparse
+import time
+
 import numpy as np
+from numpy.lib import recfunctions  # to append fields to rec arrays
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
-import katpoint
-from katpoint import rad2deg, deg2rad, Target
-from katsdpscripts import git_info
 from matplotlib.offsetbox import AnchoredText
-from numpy.lib import recfunctions  # to append fields to rec arrays 
+from matplotlib.backends.backend_pdf import PdfPages
+
+import katpoint
+from katpoint import rad2deg, deg2rad, Target, wrap_angle
+from katsdpscripts import git_info
+
 
 def get_condition(data):
     """Get condition for grouped target scan.
@@ -27,9 +31,6 @@ def get_condition(data):
                         break # Means conditions have been met 
     return condition
 
-def angle_wrap(angle, period=2.0 * np.pi):
-    """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
-    return (angle + 0.5 * period) % period - 0.5 * period
 
 def read_offsetfile(filename):
     # Load data file in one shot as an array of strings
@@ -110,6 +111,7 @@ def referencemetrics(ant,data,num_samples_limit=1):
     else :
         return None,None
 
+
 def plot_source_rms(data,title):
     """Plot source pointing accuracy vs sun angles."""
     fig = plt.figure(figsize=(16,9))
@@ -154,6 +156,7 @@ def plot_source_rms(data,title):
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
     ax2.xaxis.set_minor_locator(AutoMinorLocator())
     return fig
+
 
 def plot_diagnostics(data,title):
     """Plot offset-pointing accuracy vs environmental conditions."""
@@ -254,6 +257,7 @@ def plot_diagnostics(data,title):
     plt.xlabel(r'$\sigma$ (arc sec)')
     return fig
 
+
 def write_text(textString):
     """Write out pointing accuracy text."""
     fig = plt.figure(None,figsize = (10,16))
@@ -264,7 +268,6 @@ def write_text(textString):
     ax.set_axis_off()
     plt.subplots_adjust(top=0.99,bottom=0,right=0.975,left=0.01)
     return ax,fig
-
 
 
 class group():
@@ -300,11 +303,9 @@ parser.add_option('--num-samples-limit', default=3.,
 parser.add_option('--no-plot', default=False,action='store_true',help="Produce a pdf output")
 (opts, args) = parser.parse_args()
 
-
 textString = [""]
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
-
 
 # read in data
 data = None
@@ -317,14 +318,13 @@ for filename in args:
         if not ant == tmp_ant : raise RuntimeError('The antenna has changed')
 
 # fix units and wraps
-data['azimuth'],data['elevation']  = angle_wrap(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
+data['azimuth'],data['elevation']  = wrap_angle(deg2rad(data['azimuth'])), deg2rad(data['elevation'])
 data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), deg2rad(data['delta_elevation'])
 data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
 
 output_data = None
 for offsetdata in group(data) :
-    #New loop to provide the data in steps of test offet scans .
-    
+    #New loop to provide the data in steps of test offet scans
     text,output_data_tmp = referencemetrics(ant,offsetdata,np.float(opts.num_samples_limit))
     #print text#,output_data_tmp
     if not output_data_tmp is None :
@@ -336,7 +336,6 @@ for offsetdata in group(data) :
             output_data.resize(output_data.shape[0]+1)
             output_data[-1] =output_data_tmp.copy()[0]
         textString += text
-
 
 textString.append("")
 textString.append(git_info() )
