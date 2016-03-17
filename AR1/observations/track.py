@@ -127,5 +127,3 @@ with verify_and_connect(opts) as kat:
         user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
 # RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
 
-
-
