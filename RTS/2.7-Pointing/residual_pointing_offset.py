@@ -1,15 +1,11 @@
-import sys, optparse, logging, time
+import optparse, time
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.projections import PolarAxes
-from matplotlib.ticker import MultipleLocator,FormatStrFormatter,AutoMinorLocator
-from astropy.time import Time
+from matplotlib.ticker import AutoMinorLocator
 import katpoint
 from katpoint import rad2deg, deg2rad, Target
 from katsdpscripts import git_info
-from katsdpscripts.RTS.weatherlib import select_and_average, select_environment, rolling_window
 from matplotlib.offsetbox import AnchoredText
 from numpy.lib import recfunctions  # to append fields to rec arrays 
 
@@ -96,8 +92,6 @@ def referencemetrics(ant,data,num_samples_limit=1):
         text.append("Dataset:%s  Test Target: '%s' Reference RMS = %.3f\" {fit-accuracy=%.3f\"} (robust %.3f\")  (N=%i Data Points) ['%s']" % (data['dataset'][0],
             data['target'][0],rms,np.mean(abs_sky_delta_std),robust,data.shape[0],condition_str[condition]))
         
-        sky_rms = np.sqrt(np.mean((abs_sky_error-abs_sky_error.mean()) ** 2))
-        robust_sky_rms = np.median(np.sqrt((abs_sky_error-abs_sky_error.mean())**2)) * np.sqrt(2. / np.log(4.))
         output_data = data[0].copy() # make a copy of the rec array
         for i,x in enumerate(data[0]) :  # make an average of data 
             if x.dtype.kind == 'f' : # average floats
