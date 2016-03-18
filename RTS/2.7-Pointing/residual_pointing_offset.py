@@ -359,13 +359,15 @@ if not opts.no_plot :
 
     # plot norm source RMS vs sun angles
     suptitle = '%s source-separated results (normal conditions)' %ant.name.upper()
-    fig = plot_source_rms(output_data,suptitle)
+    cond_index = (output_data['condition'] == 2) + (output_data['condition'] == 3)
+    fig = plot_source_rms(output_data[cond_index],suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
     # plot opt source RMS vs sun angles
+    cond_index = (output_data['condition'] == 1) + (output_data['condition'] == 0)
     suptitle = '%s source-separated results (optimal conditions)' %ant.name.upper()
-    fig = plot_source_rms(output_data,suptitle)
+    fig = plot_source_rms(output_data[cond_index],suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
