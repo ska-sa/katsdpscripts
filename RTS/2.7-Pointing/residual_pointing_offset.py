@@ -11,7 +11,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import katpoint
 from katpoint import rad2deg, deg2rad, Target, wrap_angle
 from katsdpscripts import git_info
-
+import scipy.stats as stats
 
 def get_condition(data):
     """Get condition for grouped target scan.
@@ -68,9 +68,9 @@ def referencemetrics(ant,data,num_samples_limit=1):
     """
     #print type(data.shape[0] ), type(num_samples_limit)
     beam = data['beam_height_I'].mean()
-    good_beam = (data['beam_height_I'] > beam*.8) * (data['beam_height_I'] <  beam*1.2)
+    good_beam = (data['beam_height_I'] > beam*.8) * (data['beam_height_I'] <  beam*1.2) * (data['beam_height_I']  > 7.0)
     data = data[good_beam]
-    if not np.all(good_beam) : print "bad scan", data['target'][0]
+    if data.shape[0]  > 0 and not np.all(good_beam) : print "bad scan", data['target'][0]
     if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
         condition_str = ['ideal' ,'optimal', 'normal' , 'other']
         condition = 3
@@ -99,7 +99,7 @@ def referencemetrics(ant,data,num_samples_limit=1):
                 output_data[i] =  data.field(i).mean()
             else : 
                 output_data[i] =  data.field(i)[0]
-        sun = Target('Sun,special') 
+        sun = Target('Sun,special')
         source = Target('%s,azel, %f,%f'%(output_data['target'],np.degrees(output_data['azimuth']),np.degrees(output_data['elevation'])) )
         sun_sep = np.degrees(source.separation(sun,timestamp=output_data['timestamp'],antenna=ant))  
         output_data =  recfunctions.append_fields(output_data, 'sun_sep', np.array([sun_sep]), dtypes=np.float, usemask=False, asrecarray=True)         
@@ -107,6 +107,17 @@ def referencemetrics(ant,data,num_samples_limit=1):
         output_data =  recfunctions.append_fields(output_data, 'rms', np.array([rms]), dtypes=np.float, usemask=False, asrecarray=True)
         output_data =  recfunctions.append_fields(output_data, 'robust', np.array([robust]), dtypes=np.float, usemask=False, asrecarray=True)
         output_data =  recfunctions.append_fields(output_data, 'N', np.array([data.shape[0]]), dtypes=np.float, usemask=False, asrecarray=True)
+        
+        
+        
+        #### Debugging
+        #residual_az = data['delta_azimuth']   - model_delta_az
+        #residual_el = data['delta_elevation'] - model_delta_el
+        #residual_xel = residual_az * np.cos(data['elevation'])
+        output_data =  recfunctions.append_fields(output_data, 'residual_az', np.array([rad2deg(residual_az.std())*3600]), dtypes=np.float, usemask=False, asrecarray=True)
+        output_data =  recfunctions.append_fields(output_data, 'residual_el', np.array([rad2deg(residual_el.std())*3600]), dtypes=np.float, usemask=False, asrecarray=True)
+        output_data =  recfunctions.append_fields(output_data, 'residual_xel', np.array([rad2deg(residual_xel.std())*3600]), dtypes=np.float, usemask=False, asrecarray=True)
+        
         return text,output_data
     else :
         return None,None
@@ -115,9 +126,9 @@ def referencemetrics(ant,data,num_samples_limit=1):
 def plot_source_rms(data,title):
     """Plot source pointing accuracy vs sun angles."""
     fig = plt.figure(figsize=(16,9))
-    params = {'axes.labelsize': 12, 'font.size': 10, 'legend.fontsize': 9, 
-    'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
-    plt.rcParams.update(params)
+    #params = {'axes.labelsize': 12, 'font.size': 10, 'legend.fontsize': 9, 
+    #'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
+    #plt.rcParams.update(params)
     markers = []
     colors = ['b','g','r','c','m','y','k']
     pointtypes = ['o','*','x','^','s','p','h','+','D','d','v','H','d','v']
@@ -161,13 +172,14 @@ def plot_source_rms(data,title):
 def plot_diagnostics(data,title):
     """Plot offset-pointing accuracy vs environmental conditions."""
     fig = plt.figure(figsize=(16,9))
-    params = {'axes.labelsize': 12, 'font.size': 10, 'legend.fontsize': 9, 
-    'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
-    plt.rcParams.update(params)
+    #params = {'axes.labelsize': 12, 'font.size': 10, 'legend.fontsize': 9, 
+    #'xtick.labelsize': 10, 'ytick.labelsize': 10, 'text.usetex': False}
+    #plt.rcParams.update(params)
     
     colours = ['k','b', 'g', 'y']
     markers = ['o','s','^','*']
     labels = ['ideal','optimal','normal','other']
+    labels_sigma = [5,5,10,25]
     
     plt.suptitle(title, fontsize=12, fontweight='bold',y=0.95)
     ax = fig.add_subplot(231)
@@ -250,13 +262,50 @@ def plot_diagnostics(data,title):
     for i,label in enumerate(labels):
         index_list = data['condition'] == i
         if np.sum(index_list) > 0 : 
-            plt.hist(data['rms'][index_list],bins=np.arange(0,85,5),histtype='bar',ec='w',alpha=0.5,
+            bin_width =  1
+            plt.hist(data['rms'][index_list],bins=np.arange(0,85,bin_width),histtype='bar',ec='w',alpha=0.5,
                 align='mid',color=colours[i],label=label)
+            #x =np.arange(0,85,5)
+            #sigma = labels_sigma[i]
+            #norm = np.sum(index_list)#*bin_width
+            #print norm
+            #plt.plot(x,norm*x/np.float(sigma**2)*np.exp(-x**2/(2.0*np.float(sigma**2))),label='Exp. Dist. $\sigma$=%i \" '%(sigma))
     plt.legend(numpoints=1,loc='upper right')
     plt.ylabel('Number')
     plt.xlabel(r'$\sigma$ (arc sec)')
     return fig
 
+def plots_histogram(data,title,fit=stats.rayleigh):
+    """Plot offset-pointing accuracy with kde bins."""
+    fig = plt.figure(figsize=(16,9))
+    colours = ['k','b', 'g', 'y']
+    markers = ['o','s','^','*']
+    labels = ['ideal','optimal','normal','other']
+    labels_sigma = [5,5,10,25] 
+    gridsize = 200
+    cut =  3
+    bw = stats.gaussian_kde(data['rms']).scotts_factor() * data['rms'].std(ddof=1)
+    try:
+        import seaborn as sns
+        tmp = sns.distplot(data['rms'])
+    except ImportError:
+        tmp = ply.hist(data['rms'],bins= np.linspace(0.0, data['rms'].max() + bw * cut, 20)     )
+    #print "Tmp:",tmp
+    #
+    plt.ylabel('Number')
+    plt.xlabel(r'$\sigma$ (arc sec)')
+    plt.title(title)
+    gridsize = 200
+    cut =  3
+    bw = stats.gaussian_kde(data['rms']).scotts_factor() * data['rms'].std(ddof=1)
+    x = np.linspace(0.0, data['rms'].max() + bw * cut, gridsize)       
+    params = fit.fit(data['rms'],floc=0.0 ) # force the distrobution to start at 0.0  
+    pdf = lambda x: fit.pdf(x, *params)
+    y = pdf(x)
+    plt.plot(x,y, label=r"Fitted a '%s' with $\sigma =$ %3.3f "%(fit.name,params[1]))
+    plt.legend(numpoints=1,loc='upper right')
+    print "%s Fitted a '%s' distribution with sigma = %3.3f "%(title,fit.name,params[1])
+    return fig
 
 def write_text(textString):
     """Write out pointing accuracy text."""
@@ -297,6 +346,34 @@ def chunk_data(data, field='target', chunk_size=5):
         yield data[index_list]
 
 
+def pointing_model(antenna,data):
+    new_model = katpoint.PointingModel()
+    num_params = len(new_model)
+    default_enabled = np.array([1, 3, 4, 5, 6, 7,8]) - 1
+    enabled_params = np.tile(False, num_params)
+    enabled_params[default_enabled] = True
+    enabled_params = enabled_params.tolist()
+
+    # For display purposes, throw out unused parameters P2 and P10
+    display_params = range(num_params)
+    display_params.pop(9)
+    display_params.pop(1)
+
+    # Fit new pointing model
+    az, el  =data['azimuth'],data['elevation']
+    measured_delta_az, measured_delta_el = data['delta_azimuth'], data['delta_elevation']
+    # Uncertainties are optional
+    min_std = deg2rad((np.sqrt(2) * 60. * 1e-12)  / 60. / np.sqrt(2))
+    std_delta_az = np.clip(data['delta_azimuth_std'], min_std, np.inf) \
+        if 'delta_azimuth_std' in data.dtype.fields else np.tile(min_std, len(az))
+    std_delta_el = np.clip(data['delta_elevation_std'], min_std, np.inf) \
+        if 'delta_elevation_std' in data.dtype.fields else np.tile(min_std, len(el)) 
+    params, sigma_params = new_model.fit(az, el, measured_delta_az, measured_delta_el,
+                                         std_delta_az, std_delta_el, enabled_params)
+    antenna.pointing_model=new_model
+    return antenna
+    
+
 # These fields contain strings, while the rest of the fields are assumed to contain floats
 string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
 
@@ -328,6 +405,10 @@ data['azimuth'],data['elevation']  = wrap_angle(deg2rad(data['azimuth'])), deg2r
 data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), deg2rad(data['delta_elevation'])
 data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
 
+ 
+
+ant = pointing_model(ant,data[(data['beam_height_I']  < 7.0)])
+print ant.pointing_model
 output_data = None
 for offsetdata in chunk_data(data):
     #New loop to provide the data in steps of test offet scans
@@ -345,7 +426,7 @@ for offsetdata in chunk_data(data):
 
 textString.append("")
 textString.append(git_info() )
-for line in textString: print line
+#for line in textString: print line
 if not opts.no_plot :
     nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
     if len(args) > 1 : nice_filename =  args[0].split('/')[-1]+'_Multiple_files' + '_residual_pointing_offset'
@@ -356,26 +437,41 @@ if not opts.no_plot :
     fig = plot_diagnostics(output_data,suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
-
+    
+    
+    suptitle = '%s offset-pointing accuracy with kde  (all sources )' %ant.name.upper()
+    fig = plots_histogram(output_data,suptitle)
+    fig.savefig(pp,format='pdf')
+    plt.close(fig)
+    
+    suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
+    fig = plots_histogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
+    fig.savefig(pp,format='pdf')
+    plt.close(fig)
+    suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
+    fig = plots_histogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
+    fig.savefig(pp,format='pdf')
+    plt.close(fig)
     # plot norm source RMS vs sun angles
     suptitle = '%s source-separated results (normal conditions)' %ant.name.upper()
-    cond_index = (output_data['condition'] == 2) + (output_data['condition'] == 3)
-    fig = plot_source_rms(output_data[cond_index],suptitle)
+    fig = plot_source_rms(output_data[(output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
     # plot opt source RMS vs sun angles
-    cond_index = (output_data['condition'] == 1) + (output_data['condition'] == 0)
     suptitle = '%s source-separated results (optimal conditions)' %ant.name.upper()
-    fig = plot_source_rms(output_data[cond_index],suptitle)
+    fig = plot_source_rms(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
     fig.savefig(pp,format='pdf')
     plt.close(fig)
-
-    ax,fig = write_text('\n'.join(textString[:110]))
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
-    if ( len(textString) > 110 ): # pages ?
-        ax,fig = write_text('\n'.join(textString[110:]))
+    
+    line_step = 100    
+    for lines in range(0,len(textString),line_step) :
+        new_line = lines + line_step
+        if new_line > len(textString) : new_line = len(textString)
+        ax,fig = write_text('\n'.join(textString[lines:new_line]))
+        #print '\n'.join(textString[lines:new_line] )
         fig.savefig(pp,format='pdf')
+        print("Page  lines  %i to %i of %i "%(lines,new_line,len(textString)))
+        old_line = lines
         plt.close(fig)
     pp.close()
