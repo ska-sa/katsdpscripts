@@ -265,11 +265,6 @@ def plot_diagnostics(data,title):
             bin_width =  1
             plt.hist(data['rms'][index_list],bins=np.arange(0,85,bin_width),histtype='bar',ec='w',alpha=0.5,
                 align='mid',color=colours[i],label=label)
-            #x =np.arange(0,85,5)
-            #sigma = labels_sigma[i]
-            #norm = np.sum(index_list)#*bin_width
-            #print norm
-            #plt.plot(x,norm*x/np.float(sigma**2)*np.exp(-x**2/(2.0*np.float(sigma**2))),label='Exp. Dist. $\sigma$=%i \" '%(sigma))
     plt.legend(numpoints=1,loc='upper right')
     plt.ylabel('Number')
     plt.xlabel(r'$\sigma$ (arc sec)')
@@ -289,24 +284,24 @@ def plots_histogram(data,title,fit=stats.rayleigh):
         import seaborn as sns
         tmp = sns.distplot(data['rms'])
     except ImportError:
-        tmp = ply.hist(data['rms'],bins= np.linspace(0.0, data['rms'].max() + bw * cut, 20)     )
+        tmp = ply.hist(data['rms'],bins= np.arange(0.0, data['rms'].max() + bw * cut, bw)     )
     #print "Tmp:",tmp
     #
     plt.ylabel('Number')
     plt.xlabel(r'$\sigma$ (arc sec)')
     plt.title(title)
-    gridsize = 200
-    cut =  3
-    bw = stats.gaussian_kde(data['rms']).scotts_factor() * data['rms'].std(ddof=1)
+    #gridsize = 200
+    #cut =  3
+    #bw = stats.gaussian_kde(data['rms']).scotts_factor() * data['rms'].std(ddof=1)
     x = np.linspace(0.0, data['rms'].max() + bw * cut, gridsize)       
     params = fit.fit(data['rms'],floc=0.0 ) # force the distrobution to start at 0.0  
     pdf = lambda x: fit.pdf(x, *params)
     y = pdf(x)
-    plt.plot(x,y, label=r"Fitted a '%s' with $\sigma =$ %3.3f "%(fit.name,params[1]))
+    plt.plot(x,y, label=r"Fitted a '%s' distribution with a mean = %3.3f "%(fit.name,params[1]*np.sqrt(np.pi/2.)))
     plt.legend(numpoints=1,loc='upper right')
-    print "%s Fitted a '%s' distribution with sigma = %3.3f "%(title,fit.name,params[1])
+    print "%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.))
     return fig
-
+    
 def write_text(textString):
     """Write out pointing accuracy text."""
     fig = plt.figure(None,figsize = (10,16))
