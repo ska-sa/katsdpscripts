@@ -433,11 +433,11 @@ if not opts.no_plot :
     fig.savefig(pp,format='pdf')
     plt.close(fig)
     
-    
-    suptitle = '%s offset-pointing accuracy with kde  (all sources )' %ant.name.upper()
-    fig = plots_histogram(output_data,suptitle)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+    if len(output_data['condition']) > 0 :
+        suptitle = '%s offset-pointing accuracy with kde  (all sources )' %ant.name.upper()
+        fig = plots_histogram(output_data,suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
     
     if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
         suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
