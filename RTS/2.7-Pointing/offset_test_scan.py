@@ -140,8 +140,8 @@ with verify_and_connect(opts) as kat:
                                 scantime = 3*15*1.5
                             else: # if opts.fine:
                                 user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                                session.raster_scan(target, num_scans=16, scan_duration=16, scan_extent=16/60.,
-                                            scan_spacing=1./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                session.raster_scan(target, num_scans=16, scan_duration=16, scan_extent=(16*2)/60.,
+                                            scan_spacing=(1.*2.)/60., scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
                                 scantime = 16*16*1.5
 
