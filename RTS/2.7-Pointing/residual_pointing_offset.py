@@ -287,7 +287,7 @@ def plots_histogram(data,title,fit=stats.rayleigh):
         tmp = ply.hist(data['rms'],bins= np.arange(0.0, data['rms'].max() + bw * cut, bw)     )
     #print "Tmp:",tmp
     #
-    plt.ylabel('Number')
+    plt.ylabel('Normalised Number per bin')
     plt.xlabel(r'$\sigma$ (arc sec)')
     plt.title(title)
     #gridsize = 200
