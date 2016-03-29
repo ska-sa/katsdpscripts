@@ -439,25 +439,29 @@ if not opts.no_plot :
     fig.savefig(pp,format='pdf')
     plt.close(fig)
     
-    suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
-    fig = plots_histogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
-    suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
-    fig = plots_histogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
-    # plot norm source RMS vs sun angles
-    suptitle = '%s source-separated results (normal conditions)' %ant.name.upper()
-    fig = plot_source_rms(output_data[(output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
+        suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
+        fig = plots_histogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
+    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
+        suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
+        fig = plots_histogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
+    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
+        # plot norm source RMS vs sun angles
+        suptitle = '%s source-separated results (normal conditions)' %ant.name.upper()
+        fig = plot_source_rms(output_data[(output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
 
-    # plot opt source RMS vs sun angles
-    suptitle = '%s source-separated results (optimal conditions)' %ant.name.upper()
-    fig = plot_source_rms(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
+        # plot opt source RMS vs sun angles
+        suptitle = '%s source-separated results (optimal conditions)' %ant.name.upper()
+        fig = plot_source_rms(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
     
     line_step = 100    
     for lines in range(0,len(textString),line_step) :
