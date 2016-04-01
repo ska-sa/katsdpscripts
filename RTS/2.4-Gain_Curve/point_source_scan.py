@@ -139,8 +139,8 @@ with verify_and_connect(opts) as kat:
                                             projection=opts.projection)
                         else: #if opts.search_fine:
                             user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                            session.raster_scan(target, num_scans=22, scan_duration=22, scan_extent=(32.)/60.,
-                                            scan_spacing=(np.sqrt(2))/60., scan_in_azimuth=not opts.scan_in_elevation,
+                            session.raster_scan(target, num_scans=16, scan_duration=16, scan_extent=(32.)/60.,
+                                            scan_spacing=((2)/60., scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
                             #session.raster_scan(target, num_scans=9, scan_duration=60, scan_extent=2.0,
                             #                scan_spacing=5./60., scan_in_azimuth=not opts.scan_in_elevation,
