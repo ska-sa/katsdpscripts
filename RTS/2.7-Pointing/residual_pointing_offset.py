@@ -51,7 +51,7 @@ def read_offsetfile(filename):
     return data, antenna
 
 
-def referencemetrics(ant,data,num_samples_limit=1):
+def referencemetrics(ant,data,num_samples_limit=1,power_sample_limit=0):
     """Determine and sky RMS from the antenna pointing model."""
     """On the calculation of all-sky RMS
      Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
@@ -68,10 +68,11 @@ def referencemetrics(ant,data,num_samples_limit=1):
     """
     #print type(data.shape[0] ), type(num_samples_limit)
     beam = data['beam_height_I'].mean()
-    good_beam = (data['beam_height_I'] > beam*.8) * (data['beam_height_I'] <  beam*1.2) * (data['beam_height_I']  > 7.0)
+    good_beam = (data['beam_height_I'] > beam*.8) * (data['beam_height_I'] <  beam*1.2) * (data['beam_height_I']  > power_sample_limit)
     data = data[good_beam]
+    
     if data.shape[0]  > 0 and not np.all(good_beam) : print "bad scan", data['target'][0]
-    if data.shape[0]  > num_samples_limit: # check all fitted Ipks are valid
+    if data.shape[0]  >= num_samples_limit: # check all fitted Ipks are valid
         condition_str = ['ideal' ,'optimal', 'normal' , 'other']
         condition = 3
         text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
@@ -117,7 +118,8 @@ def referencemetrics(ant,data,num_samples_limit=1):
         output_data =  recfunctions.append_fields(output_data, 'residual_az', np.array([rad2deg(residual_az.std())*3600]), dtypes=np.float, usemask=False, asrecarray=True)
         output_data =  recfunctions.append_fields(output_data, 'residual_el', np.array([rad2deg(residual_el.std())*3600]), dtypes=np.float, usemask=False, asrecarray=True)
         output_data =  recfunctions.append_fields(output_data, 'residual_xel', np.array([rad2deg(residual_xel.std())*3600]), dtypes=np.float, usemask=False, asrecarray=True)
-        
+        #print "%10s  %i  %3.1f, %s"%(data['target'][0],data['timestamp'][-1] - data['timestamp'][0], rms, str(np.degrees(data['delta_elevation']-data['delta_elevation'].mean())*3600) )
+        output_data['wind_speed'] = data['wind_speed'].max()
         return text,output_data
     else :
         return None,None
@@ -375,8 +377,13 @@ string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
 parser = optparse.OptionParser(usage="%prog [options] <data  files > ",
                                description="This fits a pointing model to the given data CSV file"
                                " with the targets that are included in the the offset pointing csv file ")
-parser.add_option('--num-samples-limit', default=3.,
+parser.add_option('--num-samples-limit', default=4.,
                   help="The number of valid offset measurements needed, in order to have a valid sample." )
+parser.add_option('--power-sample-limit', default=7.,
+                  help="The power of valid offset measurements" )
+parser.add_option('--refit-pointing-model', action="store_true", default=False,
+                  help="The fit a pointing model to non-selected measurements" )
+
 
 parser.add_option('--no-plot', default=False,action='store_true',help="Produce a pdf output")
 (opts, args) = parser.parse_args()
@@ -401,13 +408,14 @@ data['delta_azimuth'], data['delta_elevation']= deg2rad(data['delta_azimuth']), 
 data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azimuth_std']), deg2rad(data['delta_elevation_std'])
 
  
-
-ant = pointing_model(ant,data[(data['beam_height_I']  < 7.0)])
-print ant.pointing_model
+if opts.refit_pointing_model :
+    ant = pointing_model(ant,data[(data['beam_height_I']  < np.float(opts.power_sample_limit))])
+    print ant.pointing_model
+    
 output_data = None
 for offsetdata in chunk_data(data):
     #New loop to provide the data in steps of test offet scans
-    text,output_data_tmp = referencemetrics(ant,offsetdata,np.float(opts.num_samples_limit))
+    text,output_data_tmp = referencemetrics(ant,offsetdata,np.float(opts.num_samples_limit),np.float(opts.power_sample_limit))
     #print text#,output_data_tmp
     if not output_data_tmp is None :
         if output_data is None :
@@ -428,10 +436,11 @@ if not opts.no_plot :
     pp = PdfPages(nice_filename+'.pdf')
 
     # plot diagnostic plots
-    suptitle = '%s offset-pointing accuracy vs environmental conditions' %ant.name.upper()
-    fig = plot_diagnostics(output_data,suptitle)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+    if len(output_data['condition']) > 0 :
+        suptitle = '%s offset-pointing accuracy vs environmental conditions' %ant.name.upper()
+        fig = plot_diagnostics(output_data,suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
     
     if len(output_data['condition']) > 0 :
         suptitle = '%s offset-pointing accuracy with kde  (all sources )' %ant.name.upper()
