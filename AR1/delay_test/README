@@ -3,4 +3,4 @@ Create soft link to CAM test environment
 ln -s /home/kat/scripts/integration_tests/tests/
 
 Run observation scripts
-./test-subarray.sh -a 'available' -d 'AR1: MKAIV-79 Basic Tracking of a Source' -c 2 -r " '/home/kat/AR1/catalogues/gaincal_l_5jy.csv' --repeat -t 10 -n 'off' -m 60 --horizon=20"
+./test-subarray-delays.sh -a 'available' -d 'AR1: MKAIV-79 Basic Tracking of a Source' -c 2 -r " '/home/kat/AR1/catalogues/gaincal_l_5jy.csv' --repeat -t 10 -n 'off' -m 60 --horizon=20"
