@@ -681,21 +681,21 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 ##############################
 # End of RFI detection routines
 ##############################
-def get_flag_stats(h5, flags=None, norm_spec=None):
+def get_flag_stats(h5, flags=None, flags_to_show=None, norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
     (ignoring severe spikes) then obtain an average spectrum of
     all of the scans in the data.
     Return the average spectrum with dc offset removed and the number of times
     each channel is flagged (flags come optionally from 'flags' else from the 
-    flages in the input katdal object). Optinally provide a 
+    flags in the input katdal object). Optinally provide a 
     spectrum (norm_spec) to divide into the calculated bandpass.
     """
 
     sumarray=np.zeros((h5.shape[1],4))
     weightsum=np.zeros((h5.shape[1],4),dtype=np.int)
     if flags is None:
-        flags = h5.flags()
+        flags = h5.flags(flags_to_show)
     for num,thisdata in enumerate(h5.vis):
         #Extract flags
         thisflag = flags[num][0]
@@ -794,7 +794,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300)
     image.set_cmap('Greys')
     plt.imshow(plotflags,alpha=0.5,**kwargs)
     ampsort = np.sort(data[(data>0.0) | (~flags)], axis=None)
-    arrayremove = int(len(ampsort)*(1.0 - 0.90)/2.0)
+    arrayremove = int(len(ampsort)*(1.0 - 0.80)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
@@ -838,11 +838,13 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=4.0,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
     """
-    Flag the visibility data in the h5 file ignoring the channels specified in static_flags.
+    Flag the visibility data in the h5 file ignoring the channels specified in 
+    static_flags, and the channels already flagged if use_file_flags=True.
 
-    This will write a list of flags per scan to the output h5 file.
+    This will write a list of flags per scan to the output h5 file or overwrite 
+    the flag table in the input file if write_into_input=True
     """
 
     cpu_count=mp.cpu_count()
@@ -893,12 +895,12 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=
     #Are we KAT7 or RTS
     if h5.inputs[0][0]=='m':
         #RTS
-        flagger = sumthreshold_flagger(outlier_sigma=4.5,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
         cut_chans = h5.shape[1]//20
         freq_range = slice(cut_chans,h5.shape[1]-cut_chans)
     else:
         #kat-7
-        flagger = sumthreshold_flagger(outlier_sigma=4.5,background_reject=4.0,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,background_reject=4.0,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
         cut_chans = h5.shape[1]//7
         freq_range = slice(cut_chans,h5.shape[1]-cut_chans)
     for scan, state, target in h5.scans():
@@ -911,8 +913,10 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=
         #loop over slices
         for this_slice in scan_slices:
             this_data = np.abs(h5.vis[this_slice,:,:])
-            file_flags = h5.flags('detected_rfi')[this_slice,:,:]
-
+            if use_file_flags:
+                file_flags = h5.flags('detected_rfi')[this_slice,:,:]
+            else:
+                file_flags = np.zeros(this_data.shape,dtype=np.bool)
             #Construct a masked array with flags removed
             mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
             #Broadcast the channel mask to the same shape as this_flags
@@ -931,10 +935,11 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=
             #6: 'predicted_rfi' 
             #7: 'cal_rfi' 
             #8: 'reserved7'
+            #Always copy 'detected_rfi' from file into all_flags
             all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
             all_flags[...,1] = mask_flags
             all_flags[:,freq_range,:,6] = detected_flags
-            all_flags[...,4] = file_flags
+            all_flags[...,4] = h5.flags('detected_rfi')[this_slice,:,:]
 
             all_flags=np.packbits(all_flags,axis=3).squeeze()
             final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
@@ -948,7 +953,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,width_freq=
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_root='.',antenna=None,targets=None,time_range=None,freq_chans=None,do_cross=True):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -957,9 +962,12 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
     ======
     input_file - input h5 filename
     input_flags - input h5 flags; will overwrite flags in h5 file- h5 file in format returnd from generate_flag_table
+    flags_to_show - select which flag bits to plot. (None=all flags)
     output_root - directory where output is to be placed - defailt cwd
-    antenna - which antenna to produce report on - default first in file
+    antenna - which antenna to produce report on - default all in file
     targets - which target to produce report on - default all
+    time_range - Time range of input file to report. sequence of 2 (Start_time,End_time)
+                Format: 'YYYY-MM-DD HH:MM:SS.SSS', katpoint.Target or ephem.Date object or float in UTC seconds since Unix epoch
     freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
     """
 
@@ -984,7 +992,9 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
         end_chan = int(freq_chans.split(',')[1])
     chan_range = range(start_chan,end_chan+1)
 
-    
+    if time_range is None:
+        time_range = (h5.timestamps[0], h5.timestamps[-1],)
+
     for ant in ants:
         # Set up the output file
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ant + '_RFI')
@@ -1001,13 +1011,15 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
             #Get the target name if it is a target object
             if isinstance(target, katpoint.Target):
                 target = target.name
-            #Extract target from file
-            h5.select(targets=target,scans='~slew',ants=ant)
+            #Extract target and time range from file
+            h5.select(targets=target,timerange=time_range,scans='~slew',ants=ant)
             if h5.shape[0]==0:
                 print 'No data to process for .' + target
+
             #Extract desired flags
-            data_dict[target]=get_flag_stats(h5)
+            data_dict[target]=get_flag_stats(h5,flags_to_show=flags_to_show)
             h5.select(channels=chan_range)
+
             label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
             #Get index of HH and VV data
             hh_index=np.all(h5.corr_products==ant+'h',axis=1)
@@ -1016,16 +1028,16 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
                             data_dict[target]['spectrum'][chan_range][:,vv_index],data_dict[target]['flagfrac'][chan_range][:,vv_index],h5.channel_freqs,pdf)
             for pol in ['HH','VV']:
                 h5.select(ants=ant,pol=pol)
-                fig=plot_waterfall_subsample(h5.vis,h5.flags(),h5.channel_freqs,label+'\n'+pol+' polarisation')
+                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
                 pdf.savefig(fig)
             plt.close('all')
 
         #Reset the selection
         h5.select()
-        h5.select(scans='~slew',ants=ant)
+        h5.select(timerange=time_range,scans='~slew',ants=ant)
 
         # Do calculation for all the data and store in the dictionary
-        data_dict['all_data']=get_flag_stats(h5)
+        data_dict['all_data']=get_flag_stats(h5,flags_to_show=flags_to_show)
         h5.select(channels=chan_range)
 
         #Plot the flags for all data in the file
@@ -1037,7 +1049,7 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
                         data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
         for pol in ['HH','VV']:
             h5.select(ants=ant,pol=pol)
-            fig=plot_waterfall_subsample(h5.vis,h5.flags(),h5.channel_freqs,label+'\n'+pol+' polarisation')
+            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
             pdf.savefig(fig)
         plt.close('all')
 
@@ -1073,12 +1085,12 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
             if isinstance(target, katpoint.Target):
                 target = target.name
             #Extract target from file
-            h5.select(targets=target,scans='~slew',ants=bline,corrprods='cross')
+            h5.select(targets=target,timerange=time_range,scans='~slew',ants=bline,corrprods='cross')
             if h5.shape[0]==0:
                 print 'No data to process for ' + target
                 continue
             #Extract desired flags
-            data_dict[target]=get_flag_stats(h5)
+            data_dict[target]=get_flag_stats(h5,flags_to_show=flags_to_show)
             h5.select(channels=chan_range)
             #Get HH and VV cross pol indices
             hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
@@ -1088,14 +1100,14 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
                         data_dict[target]['spectrum'][chan_range,vv_index],data_dict[target]['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
             for pol in ['HH','VV']:
                 h5.select(ants=bline,pol=pol,corrprods='cross')
-                fig=plot_waterfall_subsample(h5.vis,h5.flags(),h5.channel_freqs,label+'\n'+pol+' polarisation')
+                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
                 pdf.savefig(fig)
         #Reset the selection
         h5.select()
-        h5.select(scans='~slew',ants=bline,corrprods='cross')
+        h5.select(timerange=time_range,scans='~slew',ants=bline,corrprods='cross')
 
         # Do calculation for all the data and store in the dictionary
-        data_dict['all_data']=get_flag_stats(h5)
+        data_dict['all_data']=get_flag_stats(h5,flags_to_show=flags_to_show)
         h5.select(channels=chan_range)
 
         #Plot the flags for all data in the file
@@ -1106,7 +1118,7 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
                         data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
         for pol in ['HH','VV']:
             h5.select(ants=bline,pol=pol,corrprods='cross')
-            fig=plot_waterfall_subsample(h5.vis,h5.flags(),h5.channel_freqs,label+'\n'+pol+' polarisation')
+            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
             pdf.savefig(fig)
         
         #Output to h5 file
