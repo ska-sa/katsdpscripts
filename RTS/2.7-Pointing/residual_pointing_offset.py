@@ -72,7 +72,7 @@ def referencemetrics(ant,data,num_samples_limit=1,power_sample_limit=0):
     data = data[good_beam]
     
     if data.shape[0]  > 0 and not np.all(good_beam) : print "bad scan", data['target'][0]
-    if data.shape[0]  >= num_samples_limit: # check all fitted Ipks are valid
+    if data.shape[0]  >= num_samples_limit and (data['timestamp'][-1] - data['timestamp'][0])    < 2000: # check all fitted Ipks are valid
         condition_str = ['ideal' ,'optimal', 'normal' , 'other']
         condition = 3
         text = [] #azimuth, elevation, delta_azimuth, delta_azimuth_std, delta_elevation, delta_elevation_std,
@@ -303,6 +303,38 @@ def plots_histogram(data,title,fit=stats.rayleigh):
     plt.legend(numpoints=1,loc='upper right')
     print "%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.))
     return fig
+
+def plots_cuhistogram(data,title,fit=stats.rayleigh ,fig=None):
+    """Plot offset-pointing accuracy with kde bins."""
+    if fig is None : fig = plt.figure(figsize=(16,9))
+    colours = ['k','b', 'g', 'y']
+    markers = ['o','s','^','*']
+    labels = ['ideal','optimal','normal','other']
+    labels_sigma = [5,5,10,25] 
+    gridsize = 200
+    cut =  3
+    bw = stats.gaussian_kde(data['rms']).scotts_factor() * data['rms'].std(ddof=1)
+    tmp = plt.hist(data['rms'],bins= np.arange(0.0, data['rms'].max() + bw * cut, bw)  ,cumulative=True   ,normed=True  )
+
+    #print "Tmp:",tmp
+    #
+    plt.ylabel('Cumulative Normalised Number per bin')
+    plt.xlabel(r'$\sigma$ (arc sec)')
+    plt.title(title)
+    #gridsize = 200
+    #cut =  3
+    #bw = stats.gaussian_kde(data['rms']).scotts_factor() * data['rms'].std(ddof=1)
+    x = np.linspace(0.0, data['rms'].max() + bw * cut, gridsize)       
+    params = fit.fit(data['rms'],floc=0.0 ) # force the distrobution to start at 0.0  
+    cdf = lambda x: fit.cdf(x, *params)
+    y = cdf(x)
+    plt.plot(x,y, label=r"Fitted a '%s' distribution with a mean = %3.3f "%(fit.name,params[1]*np.sqrt(np.pi/2.)))
+    plt.axhline(y=0.95,color='r',lw=1,ls='--')
+    plt.axhline(y=0.90,color='k',lw=1,ls='--')
+    plt.legend(numpoints=1,loc='upper right')
+    print "%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.))
+    return fig
+
     
 def write_text(textString):
     """Write out pointing accuracy text."""
@@ -447,17 +479,39 @@ if not opts.no_plot :
         fig = plots_histogram(output_data,suptitle)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
+
+    if len(output_data['condition']) > 0 :
+        fig = plt.figure()
+        suptitle = '%s offset-pointing accuracy with kde  (all sources )' %ant.name.upper()
+        fig =  plots_cuhistogram(output_data,suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
+
     
     if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
         suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
         fig = plots_histogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
+
+    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
+        suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
+        fig = plots_cuhistogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
+
     if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
         suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
         fig = plots_histogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
+
+    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
+        suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
+        fig = plots_cuhistogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
+
     if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
         # plot norm source RMS vs sun angles
         suptitle = '%s source-separated results (normal conditions)' %ant.name.upper()
