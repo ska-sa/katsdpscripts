@@ -160,7 +160,7 @@ with verify_and_connect(opts) as kat:
                     print('Failure to program CBF or SP!!!  Trying again.....')
 	        time.sleep(10)
 
-                if count > 3:
+                if count > 5:
 		    print('Cannot auto-activate subarray, giving up.....')
 		    break
 
