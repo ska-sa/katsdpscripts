@@ -20,10 +20,12 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
 # parser.add_option('--repeat', action="store_true", default=False,
 #                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 
+parser.add_option('--max-elevation', type='float', default=90.0,
+                  help="Maximum elevation angle, in degrees (default=%default)")
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 parser.add_option('--drift-duration', type='float', default=300,
-                  help='Total duration of drift scan')                  
+                  help='Total duration of drift scan')
 
 # Set default value for any option (both standard and experiment-specific options)
 # RvR -- Cannot set dump rate for AR1
@@ -44,11 +46,18 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         time.sleep(5)
     else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
-        
-    observation_sources = collect_targets(kat, args)
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
+
+    observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+    try:
+        observation_sources.add_tle(file(args[0]))
+    except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string
+        args_target_obj = collect_targets(kat,args)
+        observation_sources.add(args_target_obj)
+
+#     observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
-    if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+    if len(observation_sources.filter(el_limit_deg=[opts.horizon,opts.max_elevation])) == 0:
         user_logger.warning("No targets are currently visible - please re-run the script later")
     else:
         # Start capture session, which creates HDF5 file
@@ -74,18 +83,24 @@ with verify_and_connect(opts) as kat:
 
             time.sleep(5)
             start_time = time.time()
-            target =observation_sources.filter(el_limit_deg=opts.horizon).targets[0]
-            
+            target =observation_sources.filter(el_limit_deg=[opts.horizon, opts.max_elevation]).targets[0]
+
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)
-            
+
             session.label('track')
             user_logger.info("Tracking %s for 30 seconds" % (target.name))	
             session.track(target, duration=30)
 
             session.label('raster')
             user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-            session.raster_scan(target, num_scans=5, scan_duration=50, scan_extent=2.0,
+##RvR -- Use for other targets
+#             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=7.0,
+#                                         scan_spacing=0.4, scan_in_azimuth=True,
+#                                         projection=opts.projection)
+
+#RvR -- Use for GPS scans
+            session.raster_scan(target, num_scans=3, scan_duration=20, scan_extent=5.0,
                                         scan_spacing=0.4, scan_in_azimuth=True,
                                         projection=opts.projection)
 
@@ -106,4 +121,8 @@ with verify_and_connect(opts) as kat:
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)
 
-
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(5)
+    else:
+        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
