@@ -100,12 +100,21 @@ with verify_and_connect(opts) as kat:
                         response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
                         print(ant.name + ' L-band PPS delay offset : ' + str(response))
 
+# RvR -- THIS IS A VERY BIG NOTE:
+# Currently sync is done in serial format one digitiser at a time, which means that the timeout will have to be
+# almost doubled for every 2 new antennas for the known future, until some optimization can be implemented
             print('Performing global sync on AR1 ...')
-            cam.mcp.req.dmc_global_synchronise(timeout=30)
-            time.sleep(5)
-            # doing it twice just for good measure
-            cam.mcp.req.dmc_global_synchronise(timeout=30)
-            time.sleep(5)
+	    serial_sync_timeout=60 # seconds
+            for n in xrange(2):
+                # doing it twice just for good measure
+                start_time = time.time()
+                cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
+                print("Duration of global sync: {} try number {}"
+                      .format(time.time() - start_time, n))
+                time.sleep(5)
+# RvR -- THIS IS A VERY BIG NOTE:
+# Currently sync is done in serial format one digitiser at a time, which means that the timeout will have to be
+# almost doubled for every 2 new antennas for the known future, until some optimization can be implemented
 
             print('Reiniting all digitisers ...')
             antlist=''
@@ -141,6 +150,7 @@ with verify_and_connect(opts) as kat:
 		response=cam.subarray_1.req.activate_subarray(timeout=600)
 # RvR -- For the moment assume always subarray_1 -- need to follow up with cam about knowing which is active
 
+                print("The response from array activate: =={}==".format(str(response)))
 		if 'ok' in str(response):
                     done = True
                     print('Programming correlator successful!')
