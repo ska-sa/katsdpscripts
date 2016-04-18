@@ -286,12 +286,12 @@ with verify_and_connect(opts) as kat:
     cbf = kat.data
     ants = kat.ants
     if opts.buffercap:
-      bw, cfreq = [200000000, 100000000]
+        bw, cfreq = [200000000, 100000000]
     else:
-      bw, cfreq = [400000000, 200000000]
+        bw, cfreq = [400000000, 200000000]
     
     for beam in ['bf0','bf1']:
-      cbf.req.dbe_k7_beam_passband(beam, bw, cfreq)
+        cbf.req.dbe_k7_beam_passband(beam, bw, cfreq)
     
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
