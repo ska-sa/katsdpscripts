@@ -183,7 +183,7 @@ class BeamformerSession(object):
         self.stream_stop('beam_0y')
 
 # Set up standard script options
-usage = "%prog [options] <'target'> [<'cal_target'>]"
+usage = "%prog [options] <'target'>"
 description = "Perform a beamforming run on a specified target, optionally " \
               "visiting a gain calibrator beforehand to set beamformer weights."
 parser = standard_script_options(usage, description)
@@ -192,6 +192,8 @@ parser = standard_script_options(usage, description)
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
+parser.add_option('-b', '--buffercap', action='store_true', default=False,
+                  help="Use real-time dspsr pipeline (default='%default')")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 
@@ -205,9 +207,13 @@ if len(args) == 0:
 with verify_and_connect(opts) as kat:
     cbf = kat.data
     ants = kat.ants  # set via sub-array configuration!
-    
+
+    if opts.buffercap:  # set passband w.r.t. SPEAD rx
+        bw, cfreq = [200000000, 100000000]
+    else:
+        bw, cfreq = [40000000, 920000000]
     for beam in ['beam_0x','beam_0y']:
-        cbf.req.beam_passband(beam, 40000000, 920000000)
+        cbf.req.beam_passband(beam, bw, cfreq)
 
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
