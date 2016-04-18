@@ -247,13 +247,15 @@ class BeamformerSession(object):
 
 
 # Set up standard script options
-usage = "%prog [options] <'target'> [<'cal_target'>]"
+usage = "%prog [options] <'target'>"
 description = "Perform a beamforming run on a specified target, optionally " \
               "visiting a gain calibrator beforehand to set beamformer weights."
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-a', '--ants', default='all',
                   help="Antennas to include in beamformer (default='%default')")
+parser.add_option('-b', '--buffercap', action='store_true',default=False,
+              help="Use real-time dspsr pipeline (default='%default')")
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
@@ -273,6 +275,14 @@ if len(args) == 0:
 with verify_and_connect(opts) as kat:
     cbf = kat.dbe7
     ants = kat.ants
+    if opts.buffercap:  # set passband w.r.t. SPEAD rx
+        bw, cfreq = [200000000, 100000000]
+    else:
+        bw, cfreq = [400000000, 200000000]
+        
+    for beam in ['bf0','bf1']:
+        cbf.req.dbe_k7_beam_passband(beam, bw, cfreq)
+
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
     target = collect_targets(kat, args[:1]).targets[0]
@@ -286,7 +296,6 @@ with verify_and_connect(opts) as kat:
         corr_session.standard_setup(**vars(opts))
         corr_session.dbe.req.auto_delay('on')
         corr_session.capture_start()
-
 
         # Dictionary to hold observation metadata to send over to beamformer receiver
         for beam in beams:
