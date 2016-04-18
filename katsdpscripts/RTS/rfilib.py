@@ -762,11 +762,13 @@ def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
     pdf.savefig(fig)
     plt.close('all')
 
-def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300):
+def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label='', resolution=300):
     """
     Make a waterfall plot from visdata with flags overplotted. 
     """
     from git_info import git_info, get_git_path
+    from datetime import datetime as dt
+    import matplotlib.dates as mdates
 
     repo_path=get_git_path()
     repo_info = git_info() if repo_path=='' else git_info(repo_path)
@@ -776,6 +778,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300)
     ax.set_title(label)
     ax.text(0.01, 0.02,repo_info, horizontalalignment='left',fontsize=10,transform=ax.transAxes)
     display_limits = ax.get_window_extent()
+    if freqs is None: freqs=range(0,visdata.shape[1])
     #300dpi, and one pixel per desired data-point
     #in pixels at 300dpi
     display_width = display_limits.width * resolution/72.
@@ -789,22 +792,31 @@ def plot_waterfall_subsample(visdata, flagdata, freqs, label='', resolution=300)
     plotflags = np.zeros(flags.shape[0:2]+(4,))
     plotflags[:,:,0] = 1.0
     plotflags[:,:,3] = flags
-    kwargs = {'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (freqs[0],freqs[-1], -0.5, data.shape[0] - 0.5)}
-    image = plt.imshow(data,**kwargs)
+    if times is None:
+        starttime = 0
+        endtime = visdata.shape[0]
+    else:
+        starttime = mdates.date2num(dt.fromtimestamp(times[0]))
+        endtime = mdates.date2num(dt.fromtimestamp(times[-1]))
+    kwargs = {'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (freqs[0],freqs[-1], starttime, endtime)}
+    image = ax.imshow(data,**kwargs)
     image.set_cmap('Greys')
-    plt.imshow(plotflags,alpha=0.5,**kwargs)
+    ax.imshow(plotflags,alpha=0.5,**kwargs)
     ampsort = np.sort(data[(data>0.0) | (~flags)], axis=None)
     arrayremove = int(len(ampsort)*(1.0 - 0.80)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
     plt.xlim((min(freqs),max(freqs)))
+    if times is not None:
+        ax.yaxis_date()
+        plt.gca().yaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        plt.ylabel('Time (SAST)')
+    else:
+        plt.ylabel('Time (Dumps)')
     #Convert ticks to MHZ
     ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
-    ax.xaxis.set_major_formatter(ticks)
-    ticklabels = ax.get_yticklabels()
-    plt.setp(ticklabels,visible=False)
-    plt.ylabel('Time $\longrightarrow$')
+    ax.xaxis.set_major_formatter(ticks)s
     plt.xlabel('Frequency (Hz)')
     return(fig)
 
@@ -1028,13 +1040,13 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
                             data_dict[target]['spectrum'][chan_range][:,vv_index],data_dict[target]['flagfrac'][chan_range][:,vv_index],h5.channel_freqs,pdf)
             for pol in ['HH','VV']:
                 h5.select(ants=ant,pol=pol)
-                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
+                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,None,label+'\n'+pol+' polarisation')
                 pdf.savefig(fig)
             plt.close('all')
 
         #Reset the selection
         h5.select()
-        h5.select(timerange=time_range,scans='~slew',ants=ant)
+        h5.select(timerange=time_range,ants=ant)
 
         # Do calculation for all the data and store in the dictionary
         data_dict['all_data']=get_flag_stats(h5,flags_to_show=flags_to_show)
@@ -1049,7 +1061,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
                         data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
         for pol in ['HH','VV']:
             h5.select(ants=ant,pol=pol)
-            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
+            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
             pdf.savefig(fig)
         plt.close('all')
 
@@ -1100,11 +1112,11 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
                         data_dict[target]['spectrum'][chan_range,vv_index],data_dict[target]['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
             for pol in ['HH','VV']:
                 h5.select(ants=bline,pol=pol,corrprods='cross')
-                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
+                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,None,label+'\n'+pol+' polarisation')
                 pdf.savefig(fig)
         #Reset the selection
         h5.select()
-        h5.select(timerange=time_range,scans='~slew',ants=bline,corrprods='cross')
+        h5.select(timerange=time_range,ants=bline,corrprods='cross')
 
         # Do calculation for all the data and store in the dictionary
         data_dict['all_data']=get_flag_stats(h5,flags_to_show=flags_to_show)
@@ -1118,7 +1130,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
                         data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
         for pol in ['HH','VV']:
             h5.select(ants=bline,pol=pol,corrprods='cross')
-            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,label+'\n'+pol+' polarisation')
+            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
             pdf.savefig(fig)
         
         #Output to h5 file
