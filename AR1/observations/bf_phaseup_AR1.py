@@ -1,9 +1,7 @@
-#!/usr/bin/python
-# Track target(s) for a specified time.
-# Also set the data gains before and after the track
-
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
+#!/usr/bin/env python
+#
+# Track calibrator target for a specified time.
+# Obtain calibrated gains and apply them to the F-engine afterwards.
 
 import time
 from katcorelib.observe import standard_script_options, verify_and_connect, collect_targets, user_logger,start_session
@@ -16,35 +14,25 @@ import logging
 #import fbf_katcp_wrapper as fbf
 
 
-
 # read the bandpass solutions from a pickle file
 raw_data,bpass_h,bpass_v=pickle.load(open('/home/kat/comm/scripts/bpass.pikl'))
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Track one or more sources for a specified time. At least one '
-                                             'target must be specified. Note also some **required** options below.')
+                                 description='Track one or more sources for a specified time and calibrate gains '
+                                             'based on them. At least one target must be specified.')
 # Add experiment-specific options
-#parser.add_option('--project-id',
-#                  help='Project ID code the observation (**required**) This is a required option')
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
-parser.add_option('-m', '--max-duration', type='float', default=None,
-                  help='Maximum duration of the script in seconds, after which script will end '
-                       'as soon as the current track finishes (no limit by default)')
-parser.add_option('--repeat', action="store_true", default=False,
-                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
+parser.add_option('--reset', action='store_true', default=False,
+                  help='Reset the gains to the default value afterwards')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
-parser.add_option('--reset', action="store_true", default=False,
-                          help='Reset the gains to 160.')
-parser.add_option('--half-band', action='store_true', default=True,
-                          help='Use only inner 50% of output band')
-parser.add_option('--transpose', action='store_true', default=False,
-                          help='Transpose time frequency blocks from correlator')
-
+parser.add_option('--default-gain', type='int', default=160,
+                  help='Default correlator F-engine gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(observer='comm_test',nd_params='off',project_id='COMMTEST',description='Phaseup observation setting f-engine weights',dump_rate=1.0)
+parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
+                    description='Phase-up observation that sets the F-engine weights')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -53,13 +41,13 @@ opts, args = parser.parse_args()
 with verify_and_connect(opts) as kat:
     ants = kat.ants
     obs_ants = [ant.name for ant in ants]
-    observation_sources = collect_targets(kat,args)
-    # Find out what inputs are curremtly active
-    reply = kat.data.req.dbe_label_input()
+    observation_sources = collect_targets(kat, args)
+    # Find out which inputs are currently active
+    reply = kat.data.req.cbf_label_inputs()
     inputs = [m.arguments[0] for m in reply.messages[3:]]
-    user_logger.info("Resetting f-engine gains to 160 to allow phasing up")
+    user_logger.info("Resetting F-engine gains to %g to allow phasing up" % (opts.default_gain,))
     for inp in inputs:
-       kat.data.req.dbe_k7_gain(inp,160)
+        kat.data.req.cbf_gain(inp, opts.default_gain)
 
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -67,20 +55,16 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
-                if session.dbe.req.auto_delay('on'):
+            if not opts.no_delays and not kat.dry_run:
+                if session.data.req.auto_delay('on'):
                     user_logger.info("Turning on delay tracking.")
                 else:
                     user_logger.error('Unable to turn on delay tracking.')
             elif opts.no_delays and not kat.dry_run:
-                if session.dbe.req.auto_delay('off'):
+                if session.data.req.auto_delay('off'):
                     user_logger.info("Turning off delay tracking.")
                 else:
                     user_logger.error('Unable to turn off delay tracking.')
-                if session.dbe.req.zero_delay():
-                    user_logger.info("Zeroed the delay values.")
-                else:
-                    user_logger.error('Unable to zero delay values.')
 
             session.standard_setup(**vars(opts))
             session.capture_start()
@@ -95,24 +79,21 @@ with verify_and_connect(opts) as kat:
                         user_logger.warning("Target has no flux model - stopping script")
                         keep_going=False
                         break
-                    # observe the target for 60 seconds to determine the
-                    # antenna gains
                     target.add_tags('bpcal')
                     session.label('track')
-                    user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
-                    session.track(target, duration=60, announce=False)
-                    time.sleep(5)
+                    user_logger.info("Initiating %g-second track on target '%s'" %
+                                     (opts.track_duration, target.name,))
+                    session.track(target, duration=opts.track_duration + 5, announce=False)
                     # get and set the weights
                     for inp in inputs:
                         if inp[:-1] not in obs_ants : continue
-                        pol = inp[-1]
                         if pol == 'v':
                             gains = bpass_v[inp[:-1]]
                         else:
                             gains = bpass_h[inp[:-1]]
-                        gains = np.hstack((np.zeros(1),gains))
+                        # gains = np.hstack((np.zeros(1), gains))
+                        gains = np.r_[0.0, gains]
                         weights = getattr(kat.data.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_reading().value
-			# added print statement - weigths empty?
                         update = getattr(kat.data.sensor,'k7w_'+inp+'_gain_correction_per_channel').get_reading().timestamp
                         user_logger.info("Gain sensors updated at %s"%katpoint.Timestamp(update).local())
                         f = StringIO.StringIO(weights)
@@ -128,21 +109,21 @@ with verify_and_connect(opts) as kat:
                         z = np.polyfit(np.arange(N),np.unwrap(np.angle(phase_weights)[ind]),1)
                         #print z
                         phase = np.zeros(1024)
-                        #phase[ind] = np.angle(phase_weights[ind]) 
+                        #phase[ind] = np.angle(phase_weights[ind])
                         phase[ind] = z[0]*np.arange(N)+z[1]
                         new_weights = (160.0 / gains ) * np.exp(1j * phase)
                         weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real,w.imag)) for w in new_weights])
-                        kat.data.req.dbe_k7_gain(inp,weights_str)
+                        kat.data.req.cbf_gain(inp, weights_str)
                         #because we are phasing in the f-engine set the b-engine weights to 1
                         bf_weights_str = ' '.join(1024 * ['1'])
-                        if pol == 'v':
-                            kat.data.req.dbe_k7_beam_weights('bf1',inp,bf_weights_str)
+                        if pol == 'h':
+                            kat.data.req.cbf_beam_weights('beam_0x', inp, bf_weights_str)
                         else:
-                            kat.data.req.dbe_k7_beam_weights('bf0',inp,bf_weights_str)
+                            kat.data.req.cbf_beam_weights('beam_0y', inp, bf_weights_str)
                     user_logger.info("Initiating %g-second track on target '%s'" % (60,target.name,))
                     session.track(target, duration=60, announce=False)
                 keep_going = False
             if opts.reset:
-                user_logger.info("Resetting f-engine gains to 160")
+                user_logger.info("Resetting F-engine gains to %g" % (opts.default_gain,))
                 for inp in inputs:
-                    kat.data.req.dbe_k7_gain(inp,160)
+                    kat.data.req.cbf_gain(inp, opts.default_gain)
