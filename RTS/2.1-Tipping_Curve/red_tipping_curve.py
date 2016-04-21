@@ -27,6 +27,11 @@ from astropy.coordinates import SkyCoord
 from katsdpscripts import git_info
 from matplotlib.offsetbox import AnchoredText
 
+
+def angle_wrap(angle, period=2.0 * np.pi):
+    """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
+    return (angle + 0.5 * period) % period - 0.5 * period
+
 class Sky_temp:
     import gsm
     import healpy as hp
@@ -36,6 +41,7 @@ class Sky_temp:
        T_sky = T_cont + T_cmb  from the global sky model
        Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
+
     def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm",diameter=13.5,smooth=True):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
         This takes in 1 parameter:
@@ -72,7 +78,7 @@ class Sky_temp:
         fig = plt.figure(figsize=(16,9))
         hp.cartview(self.freq_map,norm = norm,unit=unit,fig=fig.number)
         c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
-        l = np.degrees(-c.galactic.l.radian % (np.pi*2))
+        l = np.degrees(angle_wrap(-c.galactic.l.radian % (np.pi*2)) )
         b = np.degrees(c.galactic.b.radian)
         plt.plot(l,b,'ro')
         #hp.graticule()
