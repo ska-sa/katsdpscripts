@@ -251,6 +251,12 @@ for n, ant in enumerate(data.ants):
           (receiver_delays[n] * 1e9, sigma_receiver_delays[n] * 1e9, old_receiver_delays[n] * 1e9,
            ' *' if np.abs(receiver_delays[n] - old_receiver_delays[n]) > 3 * sigma_receiver_delays[n] else '')
 
+# print lines for easy incoporation into a spreadsheet
+print "\nFor spreadsheet logging"
+for n, ant in enumerate(data.ants):
+    print "%s\t%s\t%s\t%7.3f\t%7.3f\t%7.3f\t%7.3f\t%7.3f\t%7.3f\t%s"%(data.name.split('/')[-1].split('.')[0], \
+          opts.pol,ant.name,positions[n, 0],positions[n, 1],positions[n, 2],cable_lengths[n],receiver_delays[n] * 1e9,s[0] / s[-1],data.ref_ant)
+
 scan_lengths = [len(ts) for ts in scan_timestamps]
 scan_bl_starts = num_bls * np.cumsum([0] + scan_lengths)[:-1]
 def extract_bl_segments(x, n, scale=1., offset=0.):
