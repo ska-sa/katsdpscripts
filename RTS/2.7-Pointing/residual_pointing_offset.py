@@ -328,12 +328,20 @@ def plots_cuhistogram(data,title,fit=stats.rayleigh ,fig=None):
     params = fit.fit(data['rms'],floc=0.0 ) # force the distrobution to start at 0.0  
     cdf = lambda x: fit.cdf(x, *params)
     y = cdf(x)
+    ppf = lambda x: fit.ppf(x, *params)
+    
     plt.plot(x,y, label=r"Fitted a '%s' distribution with a mean = %3.3f "%(fit.name,params[1]*np.sqrt(np.pi/2.)))
     plt.axhline(y=0.95,color='r',lw=1,ls='--')
     plt.axhline(y=0.90,color='k',lw=1,ls='--')
     plt.legend(numpoints=1,loc='upper right')
-    print "%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.))
-    return fig
+    text = []
+    text.append("===========================")
+    text.append("%s Cumulative distribution %3.1f %c of samples are within %3.3f "%(title,95,'%',ppf(0.95) ) )
+    text.append("%s Cumulative distribution %3.1f %c of samples are within %3.3f "%(title,90,'%',ppf(0.90) ) )
+    text.append("%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.)) )
+    text.append("===========================")
+    for line in text : print line
+    return fig , text 
 
     
 def write_text(textString):
@@ -483,7 +491,8 @@ if not opts.no_plot :
     if len(output_data['condition']) > 0 :
         fig = plt.figure()
         suptitle = '%s offset-pointing accuracy with kde  (all sources )' %ant.name.upper()
-        fig =  plots_cuhistogram(output_data,suptitle)
+        fig ,text=  plots_cuhistogram(output_data,suptitle)
+        for line in text : textString.insert(0,line)        
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
@@ -496,7 +505,8 @@ if not opts.no_plot :
 
     if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
         suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
-        fig = plots_cuhistogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
+        fig ,text= plots_cuhistogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
+        for line in text : textString.insert(0,line)        
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
@@ -508,7 +518,8 @@ if not opts.no_plot :
 
     if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
         suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
-        fig = plots_cuhistogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
+        fig, text = plots_cuhistogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
+        for line in text : textString.insert(0,line)        
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
