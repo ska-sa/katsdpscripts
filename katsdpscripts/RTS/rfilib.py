@@ -816,7 +816,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
         plt.ylabel('Time (Dumps)')
     #Convert ticks to MHZ
     ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
-    ax.xaxis.set_major_formatter(ticks)s
+    ax.xaxis.set_major_formatter(ticks)
     plt.xlabel('Frequency (Hz)')
     return(fig)
 
