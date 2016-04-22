@@ -29,7 +29,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
         time.sleep(10)
     else:
-         user_logger.error("Unable to set Antenna mode to 'STOP'.")
+         user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
@@ -74,5 +74,12 @@ with verify_and_connect(opts) as kat:
 #         session.raster_scan(target, num_scans=7, scan_duration=15, scan_extent=7.0, scan_spacing=1, projection=opts.projection)
 #         session.raster_scan(target, num_scans=7, scan_duration=30, scan_extent=5.0, scan_spacing=1, projection=opts.projection)
 #         session.raster_scan(target, num_scans=7, scan_duration=30, scan_extent=7.0, scan_spacing=1, projection=opts.projection)
+
+    if not kat.dry_run and kat.ants.req.mode('STOP') :
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(10)
+    else:
+         user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
+
 
 # -fin-
