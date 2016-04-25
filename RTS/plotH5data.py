@@ -173,7 +173,7 @@ else:
 # Check receiver characteristics correctly reported.
 #####################################################
 antennas = np.array([ant.name for ant in h5.ants])
-receivers = np.array([h5.receivers[ant.name] for ant in ants])
+receivers = np.array([h5.receivers[ant.name] for ant in antennas])
 for index in np.arange(receivers.size):
     if ( receivers[index].split('.')[0] == 'undefined' ):
         SN = h5.sensor['Antennas/'+ants[index]+'/rsc_rxl_serial_number'][0]
