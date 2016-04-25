@@ -47,11 +47,14 @@ def get_nd_models(h5,ant,nDir):
     noiseModV = str("{}/rx.{}.{}.v.csv".format(nDir,str.lower(Band),int(SN)))
     return [noiseModH, noiseModV]
 
-def plot_data(fig,corrProds,x,y,labels,autoCorr,logSwitch,coords,waterfall):
+def plot_data(fig,corrProds,x,y,labels,autoCorr,logSwitch,coords,waterfall,ku_band):
     """Plot ND models, Rx models, time-series and bandpass data."""
     xmin = 1e9
     xmax = 0
-    ax = p.subplot2grid((2,2+Nant),coords,rowspan=1, colspan=1)  # ((Nrow, Ncol),(row,col),kwargs**)
+    if ku_band:
+        ax = p.subplot2grid((2,2+Nant),coords,rowspan=1, colspan=2)  # ((Nrow, Ncol),(row,col),kwargs**)
+    else:
+        ax = p.subplot2grid((2,2+Nant),coords,rowspan=1, colspan=1)  # ((Nrow, Ncol),(row,col),kwargs**)        
     colors = ['k','b','r','g','m','c','y']*3
     lstyles = np.r_[['-']*7,['--']*7,[':']*7]
     for index in np.arange(corrProds.shape[0]):
@@ -115,18 +118,19 @@ def plot_waterfall(fig,h5,Z,title,coords):
 #############################################
 # Initialise parameters from command line.
 ##############################################
-parser = OptionParser(usage="%prog <options>", description='Plots the polarisation properties of SP data.')
+parser = OptionParser(usage="%prog <options>", description='Plot Rx and noise-diode models, along with time-series and bandpasses for HDF5 data.')
 parser.add_option("-a", "--autoOnly", default=True, action='store_false', help="Only use auto-corr data (default = %default).")
-parser.add_option("-c", "--chans", default='2100 2800', type='string', help="Frequency channels to use (default = '2100 2800').")
+parser.add_option("-c", "--chans", default='2100 2800', type='string', help="Frequency channels to use (default = %default).")
 parser.add_option("-d", "--dir", default=None, type='string', help="Directory to look into for data.")
 parser.add_option("-f", "--file", default=None, type='string', help="Input file override.")
+parser.add_option("-k", "--ku-band", default=False, action='store_true', help="Ku-band flag override (default = %default).")
 parser.add_option("-n", "--noiseDir", default='/var/kat/katconfig/user/noise-diode-models/mkat', type='string', help="Noise-diode model directory to look in (default = %default).")
-parser.add_option("-o", "--outfile", default=False, action='store_true', help="Write to file (default = False).")
+parser.add_option("-o", "--outfile", default=False, action='store_true', help="Write to file (default = %default).")
 parser.add_option("-p", "--corrProds", default=None, type='string', help="Correlator products to use (default = all).")
 parser.add_option("-r", "--recDir", default='/var/kat/katconfig/user/receiver-models/mkat', type='string', help="Receiver-model directory to look in (default = %default).")
 parser.add_option("-s", "--scans", default=None, type='string', help="Space-delimited scans to use (default = all.")
-parser.add_option("-t", "--trackOnly", default=False, action='store_true', help="Only use source tracks (default = False.")
-parser.add_option("-v", "--verbose", default=False, action='store_true', help="Print verbose information (default = False.")
+parser.add_option("-t", "--trackOnly", default=False, action='store_true', help="Only use source tracks (default = %default.")
+parser.add_option("-v", "--verbose", default=True, action='store_false', help="Print verbose information (default = %default.")
 parser.add_option("-w", "--waterfall", default=True, action='store_false', help="Plot dynamic spectra for autocorr data (default = %default.")
 (opts, args) = parser.parse_args()
 t0 = time.time()  # record script start time
@@ -165,29 +169,42 @@ if opts.verbose:
 else:
     print ''
 
+#####################################################
+# Check receiver characteristics correctly reported.
+#####################################################
+antennas = np.array([ant.name for ant in h5.ants])
+receivers = np.array([h5.receivers[ant.name] for ant in ants])
+for index in np.arange(receivers.size):
+    if ( receivers[index].split('.')[0] == 'undefined' ):
+        SN = h5.sensor['Antennas/'+ants[index]+'/rsc_rxl_serial_number'][0]
+        receivers[index] = 'l.%i' %SN
+        print '\n Antenna %s metadata reports undefined receiver...' %antennas[index]
+        print ' Selecting L-band => %s serial number assumed from sensor information...' %SN
+
 ##################################
 # Get model data from csv files.
 ##################################
-aIndex = 0
-ants = []
-for ant in h5.ants:
-    ants.append(str.upper(ant.name))
-    rxFiles = get_rx_models(h5,ant.name,opts.recDir)
-    noiseFiles = get_nd_models(h5,ant.name,opts.noiseDir)
-    for index in np.arange(len(rxFiles)):
-        rxFreqs, rxTsys = np.loadtxt(rxFiles[index],usecols=[0,2],skiprows=1,unpack=True,delimiter=',')
-        noiseFreqs, noiseTsys = np.loadtxt(noiseFiles[index],usecols=[0,1],skiprows=2,unpack=True,delimiter=',')
-        if ( aIndex == 0 ):
-            all_rxFreqs = np.copy(rxFreqs)
-            all_rxTsys = np.copy(rxTsys)
-            all_noiseFreqs = np.copy(noiseFreqs)
-            all_noiseTsys = np.copy(noiseTsys)
-        else:
-            all_rxFreqs = np.vstack((all_rxFreqs,rxFreqs))
-            all_rxTsys = np.vstack((all_rxTsys,rxTsys))
-            all_noiseFreqs = np.vstack((all_noiseFreqs,noiseFreqs))
-            all_noiseTsys = np.vstack((all_noiseTsys,noiseTsys))
-        aIndex += 1
+if not opts.ku_band:
+    aIndex = 0
+    ants = []
+    for ant in h5.ants:
+        ants.append(str.upper(ant.name))
+        rxFiles = get_rx_models(h5,ant.name,opts.recDir)
+        noiseFiles = get_nd_models(h5,ant.name,opts.noiseDir)
+        for index in np.arange(len(rxFiles)):
+            rxFreqs, rxTsys = np.loadtxt(rxFiles[index],usecols=[0,2],skiprows=1,unpack=True,delimiter=',')
+            noiseFreqs, noiseTsys = np.loadtxt(noiseFiles[index],usecols=[0,1],skiprows=2,unpack=True,delimiter=',')
+            if ( aIndex == 0 ):
+                all_rxFreqs = np.copy(rxFreqs)
+                all_rxTsys = np.copy(rxTsys)
+                all_noiseFreqs = np.copy(noiseFreqs)
+                all_noiseTsys = np.copy(noiseTsys)
+            else:
+                all_rxFreqs = np.vstack((all_rxFreqs,rxFreqs))
+                all_rxTsys = np.vstack((all_rxTsys,rxTsys))
+                all_noiseFreqs = np.vstack((all_noiseFreqs,noiseFreqs))
+                all_noiseTsys = np.vstack((all_noiseTsys,noiseTsys))
+            aIndex += 1
 
 global Nant
 Nant = len(ants)
@@ -256,14 +273,15 @@ p.rcParams.update(params)
 # Plot all TS, BP and Tsys plots:
 #--------------------------------#
 freqs = freqs/1e6
-fig = plot_data(fig,h5.corr_products,tvals,allTS,
-    ['Time (s)','Power (A.U.)'],opts.autoOnly,1,(0,0),opts.waterfall)
-fig = plot_data(fig,h5.corr_products,freqs,allBPs,
-    ['Frequency (MHz)','Power (A.U.)'],opts.autoOnly,1,(0,1),opts.waterfall)
-fig = plot_data(fig,h5.corr_products,all_rxFreqs/1e6,all_rxTsys,
-    ['Frequency (MHz)',r'$T_{\mathrm{rx}}$ (K)'],opts.autoOnly,0,(1,0),opts.waterfall)
-fig = plot_data(fig,h5.corr_products,all_noiseFreqs/1e6,all_noiseTsys,
-    ['Frequency (MHz)',r'$T_{\mathrm{nd}}$ (K)'],opts.autoOnly,0,(1,1),opts.waterfall)
+fig = plot_data(fig,h5.corr_products,tvals,allTS,['Time (s)','Power (A.U.)'],
+        opts.autoOnly,1,(0,0),opts.waterfall,opts.ku_band)
+fig = plot_data(fig,h5.corr_products,freqs,allBPs,['Frequency (MHz)','Power (A.U.)'],
+        opts.autoOnly,1,(0,1),opts.waterfall,opts.ku_band)
+if not opts.ku_band:
+    fig = plot_data(fig,h5.corr_products,all_rxFreqs/1e6,all_rxTsys,['Frequency (MHz)',r'$T_{\mathrm{rx}}$ (K)'],
+        opts.autoOnly,0,(1,0),opts.waterfall,opts.ku_band)
+    fig = plot_data(fig,h5.corr_products,all_noiseFreqs/1e6,all_noiseTsys,['Frequency (MHz)',r'$T_{\mathrm{nd}}$ (K)'],
+        opts.autoOnly,0,(1,1),opts.waterfall)
 
 #-------------------------------#
 # Plot autocorr dynamic spectra:
