@@ -51,10 +51,11 @@ def plot_data(fig,corrProds,x,y,labels,autoCorr,logSwitch,coords,waterfall,ku_ba
     """Plot ND models, Rx models, time-series and bandpass data."""
     xmin = 1e9
     xmax = 0
+    grid = (2,4) if opts.waterfall else (2,2)
     if ku_band:
-        ax = p.subplot2grid((2,4),coords,rowspan=1, colspan=2)  # ((Nrow, Ncol),(row,col),kwargs**)
+        ax = p.subplot2grid(grid,coords,rowspan=1, colspan=2)  # ((Nrow, Ncol),(row,col),kwargs**)
     else:
-        ax = p.subplot2grid((2,4),coords,rowspan=1, colspan=1)  # ((Nrow, Ncol),(row,col),kwargs**)        
+        ax = p.subplot2grid(grid,coords,rowspan=1, colspan=1)  # ((Nrow, Ncol),(row,col),kwargs**)        
     colors = ['k','b','r','g','m','c','y']*3
     lstyles = np.r_[['-']*7,['--']*7,[':']*7]
     for index in np.arange(corrProds.shape[0]):
@@ -267,10 +268,10 @@ fig = p.figure(num=1, figsize=(13, 8.9), dpi=80)
 p.clf()
 if opts.waterfall:
     params = {'axes.labelsize': 14, 'font.size': 15, 'legend.fontsize': 7, 
-    'xtick.labelsize': 12, 'ytick.labelsize': 12, 'text.usetex': True}
+    'xtick.labelsize': 12, 'ytick.labelsize': 12, 'text.usetex': False}
 else:
     params = {'axes.labelsize': 18, 'font.size': 15, 'legend.fontsize': 8, 
-    'xtick.labelsize': 16, 'ytick.labelsize': 16, 'text.usetex': True}
+    'xtick.labelsize': 16, 'ytick.labelsize': 16, 'text.usetex': False}
 p.rcParams.update(params)
 
 #--------------------------------#
