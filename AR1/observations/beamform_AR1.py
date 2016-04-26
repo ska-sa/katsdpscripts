@@ -14,12 +14,13 @@ import numpy as np
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
 
-def bf_inputs(cbf, bf):
-    """Input labels associated with specified beamformer (*all* inputs)."""
-    reply = cbf.req.label_inputs() # do away with once get CAM sensor
-
-    return [] if not reply.succeeded else \
-           [m.arguments[0] for m in reply.messages[1:] if m.arguments[3] == bf]
+def bf_inputs(data, stream):
+    """Input labels associated with specified beamformer stream."""
+    reply = data.req.cbf_input_labels() # do away with once get CAM sensor
+    if not reply.succeeded:
+        return []
+    inputs = reply.messages[0].arguments[1:]
+    return inputs[0::2] if stream.endswith('x') else inputs[1::2]
 
 
 def select_ant(cbf, input, bf='beam_0x'):
@@ -184,19 +185,22 @@ class BeamformerSession(object):
 
 # Set up standard script options
 usage = "%prog [options] <'target'>"
-description = "Perform a beamforming run on a specified target, optionally " \
-              "visiting a gain calibrator beforehand to set beamformer weights."
+description = "Perform a beamforming run on a target. It is assumed that " \
+              "the beamformer is already phased up on a calibrator."
 parser = standard_script_options(usage, description)
-
 # Add experiment-specific options
+parser.add_option('--ants',
+                  help='Comma-separated list of antennas to use in beamformer '
+                       '(default=all antennas in subarray)')
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
-parser.add_option('-b', '--buffercap', action='store_true', default=False,
-                  help="Use real-time dspsr pipeline (default='%default')")
+parser.add_option('-b', '--bandwidth', type='float', default=40.0,
+                  help="Beamformer bandwidth, in MHz (default='%default')")
+parser.add_option('-f', '--centre-freq', type='float', default=920.0,
+                  help="Beamformer bandwidth, in MHz (default='%default')")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
-
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -205,57 +209,34 @@ if len(args) == 0:
     raise ValueError("Please specify the target")
 
 with verify_and_connect(opts) as kat:
-    cbf = kat.data
-    ants = kat.ants  # set via sub-array configuration!
-
-    if opts.buffercap:  # set passband w.r.t. SPEAD rx
-        bw, cfreq = [200000000, 100000000]
-    else:
-        bw, cfreq = [40000000, 920000000]
-    for beam in ['beam_0x','beam_0y']:
-        cbf.req.beam_passband(beam, bw, cfreq)
+    bf_ants = opts.ants.split(',') if opts.ants else [ant.name for ant in kat.ants]
+    bf_streams = ('beam_0x', 'beam_0y')
+    for stream in bf_streams:
+        kat.data.req.cbf_beam_passband(stream, int(opts.bandwidth * 1e6),
+                                               int(opts.centre_freq * 1e6))
+        for inp in bf_inputs(kat.data, stream):
+            weight = 1.0 if inp[:-1] in bf_ants else 0.0
+            kat.data.req.cbf_beam_weights(stream, inp, weight)
 
     # We are only interested in the first target
     user_logger.info('Looking up main beamformer target...')
     target = collect_targets(kat, source).targets[0] # use default catalogue if no pulsar specified
 
-    # Ensure that the target is up,.
+    # Ensure that the target is up
     target_elevation = np.degrees(target.azel()[1])
     if target_elevation < opts.horizon:
         raise ValueError("The desired target to be observed is below the horizon")
 
-    # Start correlator capture session
-    with start_session(kat, **vars(opts)) as corr_session:
-        corr_session.standard_setup(**vars(opts))
-        corr_session.data.req.auto_delay('on')
-        corr_session.capture_start()
-
-        if len(ants) > 1:
-            user_logger.info('Setting beamformer weight to 1 for %d antennas' % (len(ants),))
-            for stream in ['beam_0x','beam_0y']:
-                inputs = bf_inputs(cbf, corr_session.data(), stream) # do away with bf_inputs() once get CAM sensor
-                
-                # set the beamformer weights to 1 as the phaseing is done in the f-engine
-                weights = {}
-                bf_weights_str = ' '.join(1024 * ['1'])                
-                for inp in inputs:
-                    weights[inp] = bf_weights_str
-
-                phase_up(cbf, weights, bf=stream, style='norm') # select ant inputs via B-engine 1 and 0 weights
-                time.sleep(1)
-        else:
-            # The single-dish case does not need beamforming
-            user_logger.info('Set beamformer weights to select single dish')
-            for stream in ['beam_0x','beam_0y']:
-                inputs = bf_inputs(cbf, corr_session.data(), stream)
-                select_ant(cbf, input=inputs[0], bf=stream)
-                time.sleep(1)
-
-        # Start beamformer session
-        with BeamformerSession(cbf, stream) as bf_session:
-            # Get onto beamformer target
-            corr_session.label('track')
-            corr_session.track(target, duration=0)
-            # Only start capturing with beamformer once we are on target
-            bf_session.capture_start()
-            corr_session.track(target, duration=opts.target_duration)
+    # Start capture session
+    with start_session(kat, **vars(opts)) as session:
+        session.standard_setup(**vars(opts))
+        session.data.req.auto_delay('on')
+        # Assume correlator stream is bc product name without the 'b'
+        session.data.req.capture_start(opts.product[1:])
+        # Get onto beamformer target
+        session.label('track')
+        session.track(target, duration=0)
+        # Only start capturing with beamformer once we are on target
+        for stream in bf_streams:
+            session.data.req.capture_start(stream)
+        session.track(target, duration=opts.target_duration)
