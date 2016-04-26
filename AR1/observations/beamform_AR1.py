@@ -65,6 +65,7 @@ with verify_and_connect(opts) as kat:
         session.data.req.auto_delay('on')
         # Assume correlator stream is bc product name without the 'b'
         session.data.req.capture_start(opts.product[1:])
+        session.data.req.cbf_capture_meta(opts.product[1:])
         # Get onto beamformer target
         session.label('track')
         session.track(target, duration=0)
