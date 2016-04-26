@@ -321,10 +321,10 @@ times = get_UTCs(h5)
 suptext = 'filename = '+ file.split('/')[-1] + '; ' + r'$\mathrm{UTC}_{\mathrm{start}}$'\
  + ' = ' + times[0] + '; ants = ' + ants
 p.suptitle(suptext, fontsize=10, fontweight='normal',y=0.99)
-p.subplots_adjust(left=0.075,right=0.97,top=0.95,bottom=0.075,hspace=0.2,wspace=0.2)
+p.subplots_adjust(left=0.07,right=0.975,top=0.95,bottom=0.075,hspace=0.2,wspace=0.2)
 outfile = opts.outdir+'/'+file.split('/')[-1].split('.h5')[0]+'_miscPlots.pdf'
 if opts.waterfall: 
-    p.subplots_adjust(hspace=0.2,wspace=0.3)    
+    p.subplots_adjust(hspace=0.2,wspace=0.35)    
 t1 = time.time() # record script finish time
 if opts.x11: 
     p.show()
