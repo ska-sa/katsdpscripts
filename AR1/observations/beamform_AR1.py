@@ -195,9 +195,9 @@ parser.add_option('--ants',
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
-parser.add_option('-b', '--bandwidth', type='float', default=40.0,
+parser.add_option('-B', '--beam-bandwidth', type='float', default=40.0,
                   help="Beamformer bandwidth, in MHz (default='%default')")
-parser.add_option('-f', '--centre-freq', type='float', default=920.0,
+parser.add_option('-F', '--beam-centre-freq', type='float', default=920.0,
                   help="Beamformer bandwidth, in MHz (default='%default')")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
@@ -212,8 +212,8 @@ with verify_and_connect(opts) as kat:
     bf_ants = opts.ants.split(',') if opts.ants else [ant.name for ant in kat.ants]
     bf_streams = ('beam_0x', 'beam_0y')
     for stream in bf_streams:
-        kat.data.req.cbf_beam_passband(stream, int(opts.bandwidth * 1e6),
-                                               int(opts.centre_freq * 1e6))
+        kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
+                                               int(opts.beam_centre_freq * 1e6))
         for inp in bf_inputs(kat.data, stream):
             weight = 1.0 if inp[:-1] in bf_ants else 0.0
             kat.data.req.cbf_beam_weights(stream, inp, weight)
