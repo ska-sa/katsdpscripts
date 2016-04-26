@@ -218,9 +218,9 @@ with verify_and_connect(opts) as kat:
             weight = 1.0 if inp[:-1] in bf_ants else 0.0
             kat.data.req.cbf_beam_weights(stream, inp, weight)
 
-    # We are only interested in the first target
+    # We are only interested in first target (use default catalogue if no pulsar specified)
     user_logger.info('Looking up main beamformer target...')
-    target = collect_targets(kat, source).targets[0] # use default catalogue if no pulsar specified
+    target = collect_targets(kat, args[:1]).targets[0]
 
     # Ensure that the target is up
     target_elevation = np.degrees(target.azel()[1])
