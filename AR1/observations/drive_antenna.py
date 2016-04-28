@@ -3,9 +3,7 @@
 # recording data (mostly to keep tourists or antennas amused).
 
 import time
-from katcorelib import standard_script_options, verify_and_connect, user_logger, start_session
-import katpoint
-
+from katcorelib import standard_script_options, verify_and_connect, user_logger
 
 def track(ants, target, duration=10):
     # send this target to the antenna.
@@ -30,14 +28,14 @@ def track(ants, target, duration=10):
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
-                            description="Track sources all around the sky for a few seconds each without recording data\n"+
-                                "(mostly to keep tourists or antennas amused). Uses the standard catalogue,\n"+
-                                "but excludes the extremely strong sources (Sun, Afristar). Some options\n"+
-                                "are **required**.")
+                            description="Track sources all around the sky for a few seconds each"
+                            " without recording data\n(mostly to keep tourists or antennas "
+                            "amused). Uses the standard catalogue,\n but excludes the extremely"
+                            " strong sources (Sun, Afristar). Some options\nare **required**.")
 parser.add_option('-m', '--max-duration', type='float', default=600.0,
-                    help="Maximum time to run experiment, in seconds (default=%default)")
+                            help="Maximum time to run experiment, in seconds (default=%default)")
 parser.add_option('-t', '--target-duration', type='float', default=10.0,
-                    help="Time to spend on a target in seconds, in seconds (default=%default)")
+                            help="Time to spend on a target in seconds, in seconds (default=%default)")
 
 on_target_duration = 10
 parser.set_defaults(nd_params='off')
@@ -63,7 +61,7 @@ with verify_and_connect(opts) as kat:
         for target in cat.iterfilter(el_limit_deg=[opts.horizon,89]):
             if  not track(kat.ants, target, duration= on_target_duration):
                 break
-            else :
+            else:
                 targets_observed.append(target.name)
             if (time.time() - start_time >= opts.max_duration):
                     user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
