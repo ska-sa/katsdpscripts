@@ -21,6 +21,8 @@ parser.add_option('--delayfile', type="string", default='pps_delays.csv',
                   help='Specify the full path to the csv file containing receptor delays in the format m0xx, <delay> (default="%default")')
 parser.add_option('--mcpsetband', type="string", default='',
                   help='If specified, script will call cam.mcp.req.set_band() with given parameter (default="%default")')
+parser.add_option('--with-array', action="store_true", default=False,
+                  help='Build a new array for user after sync')
 # assume basic options passed from instruction_set
 parser.set_defaults(description = 'AR1 Global sync')
 (opts, args) = parser.parse_args()
@@ -131,6 +133,10 @@ with verify_and_connect(opts) as kat:
 		cam.subarray_1.req.free_subarray(timeout=30)
 		print('Waiting 5 seconds for things to settle')
 		time.sleep(10)
+
+		# Do not build new array by default
+		if not opts.with_array:
+		    break
 
 		corrprod = opts.product
 		if corrprod not in ('c856M4k', 'c856M32k'):
