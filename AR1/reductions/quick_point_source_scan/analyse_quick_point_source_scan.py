@@ -346,9 +346,9 @@ if __name__ == '__main__':
     parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                    description="Reduced from of analyse_point_source_scan for quick evaluation of single dish performance.")
     parser.add_option("-a", "--baseline",
-                      default='sd',
+                      default='all',
                       help="Baseline to load (e.g. 'ant1' for antenna 1 or 'ant1,ant2' for 1-2 baseline), "
-                           "default is first single-dish baseline in file")
+                           "default is all baseline in file")
     parser.add_option("-c", "--channel-mask",
                       default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                       help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
@@ -392,6 +392,10 @@ if __name__ == '__main__':
                       default=False,
                       help='Keep scans with or without a valid beam in batch mode')
     (opts, args) = parser.parse_args()
+
+    # Set defaults for pipeline workflow processing
+    opts.keep_all=True
+    opts.plot_spectrum=True
 
     if len(args) != 1 or not args[0].endswith('.h5'):
         parser.print_usage()
