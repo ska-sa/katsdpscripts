@@ -682,8 +682,8 @@ def get_flag_stats(h5, flags=None, norm_spec=None):
     spectrum (norm_spec) to divide into the calculated bandpass.
     """
 
-    sumarray=np.zeros((h5.shape[1],4))
-    weightsum=np.zeros((h5.shape[1],4),dtype=np.int)
+    sumarray=np.zeros((h5.shape[1],h5.shape[2]))
+    weightsum=np.zeros((h5.shape[1],h5.shape[2]),dtype=np.int)
     if flags is None:
         flags = h5.flags()
     for num,thisdata in enumerate(h5.vis):
@@ -703,7 +703,7 @@ def get_flag_stats(h5, flags=None, norm_spec=None):
         sumarray = sumarray + thisdata*weights.astype(np.float)
     averagespec = sumarray/(weightsum.astype(np.float))
     flagfrac = 1. - (weightsum.astype(np.float)/h5.shape[0].astype(np.float))
-    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
+    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period, 'corr_products': h5.corr_products}
 
 
 def plot_flag_data(label,spectrum,flagfrac,h5data,pdf):
