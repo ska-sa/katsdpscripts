@@ -7,6 +7,8 @@ from __future__ import with_statement
 import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
+import numpy
+
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description="Perform an imaging run of a specified target, visiting the bandpass " +
@@ -83,8 +85,11 @@ with verify_and_connect(opts) as kat:
         # If bandpass interval is specified, force the first visit to be to the bandpass calibrator(s)
         time_of_last_bpcal = 0
         loop = True
-
         while loop:
+# 	    for source in sources:
+# 	        [az, el] = source.azel()
+# 	        print source
+# 	        print numpy.rad2deg(az), numpy.rad2deg(el)
             source_observed = [False] * len(sources)
             # Loop over sources in catalogue in sequence
             for n, source in enumerate(sources):
@@ -95,13 +100,15 @@ with verify_and_connect(opts) as kat:
                         session.label('track')
                         session.track(bpcal, duration=duration['bpcal'])
                 # Visit source if it is not a bandpass calibrator (or bandpass calibrators are not treated specially)
-                if opts.bpcal_interval is None or 'bpcal' not in source.tags:
+		# If there are no targets specified, assume the calibrators are the targets, else
+                targets=[target for target in sources.filter(['~bpcal', '~gaincal'])]
+                if opts.bpcal_interval is None or 'bpcal' not in source.tags or not targets:
                     # Set the default track duration for a target with no recognised tags
                     track_duration = opts.target_duration
                     for tag in source.tags:
                         track_duration = duration.get(tag, track_duration)
-                    session.label('track')
                     source_observed[n] = session.track(source, duration=track_duration)
+                    session.track(source, duration=track_duration)
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
                     user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
                     loop = False
