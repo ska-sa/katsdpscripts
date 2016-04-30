@@ -45,7 +45,7 @@ class Sky_temp:
             self.freq_map = hp.sphtfunc.smoothing(gsm.get_freq(nu,path),fwhm=(1.17*(3e8/(nu*1e6))/diameter ) )
         else :
             self.freq_map = gsm.get_freq(nu,path)
-        self.freq_map += 2.725  # CMB tempreture not included in de Oliveira-Costa's GSM
+        self.freq_map += 2.725  # CMB temperature not included in de Oliveira-Costa's GSM
         self.nu = nu
         self.smooth=smooth
 
@@ -62,11 +62,11 @@ class Sky_temp:
 
 
     def plot_sky(self,ra=None,dec=None,norm = 'log',unit='Kelvin',heapix_array=None):
-        """ plot_sky plots the sky tempreture and overlays pointing centers as red dots
-        The sky tempreture is the data that was loaded when the class was iniitated.
+        """ plot_sky plots the sky temperature and overlays pointing centers as red dots
+        The sky temperature is the data that was loaded when the class was initiated.
         plot_sky takes in 3 optional parameters:
-                ra,dec  are list/1D-array like values of right assension and declanation
-        returns matplotlib figure object that the plot is assosated with.
+                ra,dec  are list/1D-array like values of right ascension and declanation
+        returns matplotlib figure object that the plot is associated with.
         """
         #self.freq_map
         fig = plt.figure(figsize=(16,9))
@@ -86,13 +86,13 @@ class Spill_Temp:
         The class/__init__function takes in one parameter:
         filename : (default=none) This is the filename containing
                the spillover model ,this file has 3 cols:
-               theta(Degrees, 0 at Zenith),tempreture (MHz),Frequency (MHz)
-               if there are no files zero spilover is assumed.
+               theta(Degrees, 0 at Zenith),temperature (MHz),Frequency (MHz)
+               if there are no files zero spillover is assumed.
                function save makes a file of the correct format
         returns :
                dict  spill with two elements 'HH' 'VV' that
-               are intepolation functions that take in elevation & Frequency(MHz)
-               and return tempreture in Kelven.
+               are interpolation functions that take in elevation & Frequency(MHz)
+               and return temperature in Kelvin.
         """
 #TODO Need to sort out better frequency interpolation & example
         try:
@@ -156,13 +156,13 @@ class aperture_efficiency_models:
         produces fitted functions for a frequency
         The class/__init__function takes in one parameter:
         filename : (default='') This is the filename
-               of the recever model
+               of the receiver model
                these files have 2 cols:
                 Frequency (MHz),aperture_efficiency  (fraction),
-               if there are no file 15k recever  is assumed.
+               if there are no file 15k receiver  is assumed.
         returns :
                dict  spill with two elements 'HH' 'VV' that
-               are intepolation functions that take in Frequency(MHz)
+               are interpolation functions that take in Frequency(MHz)
                and return fraction.
         """
         try:
@@ -200,14 +200,14 @@ class Rec_Temp:
         produces fitted functions for a frequency
         The class/__init__function takes in one parameter:
         filenameH : (default='') This is the filename
-               of the recever model
+               of the receiver model
                these files have 2 cols:
-                Frequency (MHz),tempreture (MHz),
-               if there are no file 15k recever  is assumed.
+                Frequency (MHz),temperature (MHz),
+               if there are no file 15k receiver  is assumed.
         returns :
                dict  spill with two elements 'HH' 'VV' that
-               are intepolation functions that take in Frequency(MHz)
-               and return tempreture in Kelven.
+               are interpolation functions that take in Frequency(MHz)
+               and return temperature in Kelvin.
         """
         try:
             receiver_h = (np.loadtxt(filenameH,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz # discard the gain col
@@ -331,7 +331,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     #    d = d.select(freqkeep=freq_channel)
     #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
-    print "Converting to Tempreture"
+    print "Converting to temperature"
     print "Plotting the number of channels in each band of the list of lists freq_channel_flagged will be usefull "
     d = d.convert_power_to_temperature(freq_width=0.0)
     if not d is None:
@@ -403,12 +403,12 @@ def calc_atmospheric_opacity(T, RH, P, h, f):
 
 def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     """The 'tipping curve' is fitted using the expression below, with the free parameters of $T_{ant}$ and $\tau_{0}$
-        the Antenna tempreture and the atmospheric opacity. All the varables are also functions of frequency .
+        the Antenna temperature and the atmospheric opacity. All the variables are also functions of frequency .
         $T_{sys}(el) = T_{cmb}(ra,dec) + T_{gal}(ra,dec) + T_{atm}*(1-\exp(\frac{-\ta   u_{0}}{\sin(el)})) + T_spill(el) + T_{ant} + T_{rx}$
         We will fit the opacity and $T_{ant}$.s
         T_cmb + T_gal is obtained from the T_sys.Tsky() function
         if fixopacity is set to true then $\tau_{0}$ is set to 0.01078 (Van Zee et al.,1997) this means that $T_{ant}$ becomes
-        The excess tempreture since the other components are known. When fixopacity is not True then it is fitted and T_ant
+        The excess temperature since the other components are known. When fixopacity is not True then it is fitted and T_ant
         is assumed to be constant with elevation
     """
 #TODO Set this up to take in RA,dec not el to avoid scp problems
@@ -463,7 +463,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         for error_margin in [0.9,1.1]:
             plt.hlines(recLim_apEffH*error_margin,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='--')
             plt.hlines(recLim_apEffV*error_margin,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='--')
-        
+
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
@@ -507,7 +507,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
         plt.plot(frequency,recLim_apEffV,lw=1.1,color='limegreen',linestyle='-')
         for error_margin in [0.9,1.1]:
             plt.plot(frequency,recLim_apEffH*error_margin, lw=1.1,color='g',linestyle='--')
-            plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')   
+            plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')
 
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
@@ -519,7 +519,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     high_lim = np.max((high_lim , 46*1.3))
     plt.ylim(low_lim,high_lim)
     plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')    
+    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
     if np.min(frequency) <= 1420 :
         plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
     if np.max(frequency) >=1420 :
@@ -539,7 +539,7 @@ def build_enviro(katstore, sensor_name):
     for i,val in enumerate(data[sensor_name]):
         timestamp.append(val.split(',')[0])
         value.append(val.split(',')[3])
-        status.append(val.split(',')[2])    
+        status.append(val.split(',')[2])
     # prepare the array with different types
     dtype=[('timestamp', '<f8'), ('value', '<f8'), ('status', 'S7')]
     # assigning value so recarr
@@ -570,7 +570,7 @@ parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aper
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
-parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', 
+parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                   help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 
 (opts, args) = parser.parse_args()
@@ -709,23 +709,23 @@ for ant in h5.ants:
                 #break
 
     fig = plt.figure(None,figsize = (8,8))
-    text =r"""The 'tipping curve' is calculated according to the expression below, with the parameters 
-of $T_{\mathrm{ant}}$ and $\tau_{0}$, the Antenna temperature and the atmospheric opacity respectively. All the 
+    text =r"""The 'tipping curve' is calculated according to the expression below, with the parameters
+of $T_{\mathrm{ant}}$ and $\tau_{0}$, the Antenna temperature and the atmospheric opacity respectively. All the
 variables are also functions of frequency.
 
 $T_{\mathrm{sys}}(\mathrm{el}) = T_{\mathrm{cmb}}(\mathrm{ra,dec}) + T_{\mathrm{gal}}(\mathrm{ra,dec}) + T_{\mathrm{atm}}*(1-\exp\left(\frac{-\tau_{0}}{\sin(\mathrm{el})}\right)) + T_{\mathrm{spill}}(\mathrm{el}) + T_{\mathrm{ant}} + T_{\mathrm{rx}}$
 
 $T_{\mathrm{sys}}(\mathrm{el})$ is determined from the noise diode calibration so it is $\frac{T_{\mathrm{sys}}(\mathrm{el})}{\eta_{_{\mathrm{illum}}}}$
 
-We assume the opacity and $T_{\mathrm{ant}}$ is the residual after the tipping curve function is calculated. 
+We assume the opacity and $T_{\mathrm{ant}}$ is the residual after the tipping curve function is calculated.
 $T_{\mathrm{cmb}}$ + $T_{\mathrm{gal}}$ is obtained from the Sky model. """
     if fix_opacity :
-        text += r"""$\tau_{0}$, the zenith opacity, is set to 0.01078 
-(Van Zee et al., 1997). $T_{\mathrm{ant}}$ is the excess temperature since the other components are 
+        text += r"""$\tau_{0}$, the zenith opacity, is set to 0.01078
+(Van Zee et al., 1997). $T_{\mathrm{ant}}$ is the excess temperature since the other components are
 known. """
     else:
-        text += r"""$\tau_{0}$, the zenith opacity, is the calculated opacity 
-according to ITU-R P.676-9. $T_{\mathrm{ant}}$ is the excess temperature since the other components are 
+        text += r"""$\tau_{0}$, the zenith opacity, is the calculated opacity
+according to ITU-R P.676-9. $T_{\mathrm{ant}}$ is the excess temperature since the other components are
 known. """
 
     text += r"""The green solid lines in the figures reflect the modelled $T_{\mathrm{sys}}(\mathrm{el})$ or $T_{\mathrm{sys}}(\mathrm{freq})$, with the 
