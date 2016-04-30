@@ -86,10 +86,6 @@ with verify_and_connect(opts) as kat:
         time_of_last_bpcal = 0
         loop = True
         while loop:
-# 	    for source in sources:
-# 	        [az, el] = source.azel()
-# 	        print source
-# 	        print numpy.rad2deg(az), numpy.rad2deg(el)
             source_observed = [False] * len(sources)
             # Loop over sources in catalogue in sequence
             for n, source in enumerate(sources):
@@ -100,7 +96,7 @@ with verify_and_connect(opts) as kat:
                         session.label('track')
                         session.track(bpcal, duration=duration['bpcal'])
                 # Visit source if it is not a bandpass calibrator (or bandpass calibrators are not treated specially)
-		# If there are no targets specified, assume the calibrators are the targets, else
+                # If there are no targets specified, assume the calibrators are the targets, else
                 targets=[target for target in sources.filter(['~bpcal', '~gaincal'])]
                 if opts.bpcal_interval is None or 'bpcal' not in source.tags or not targets:
                     # Set the default track duration for a target with no recognised tags
@@ -108,7 +104,6 @@ with verify_and_connect(opts) as kat:
                     for tag in source.tags:
                         track_duration = duration.get(tag, track_duration)
                     source_observed[n] = session.track(source, duration=track_duration)
-                    session.track(source, duration=track_duration)
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
                     user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
                     loop = False
