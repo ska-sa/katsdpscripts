@@ -30,7 +30,7 @@ parser.add_option('-t', '--target-duration', type='float', default=20,
 parser.add_option('-B', '--beam-bandwidth', type='float', default=107.0,
                   help="Beamformer bandwidth, in MHz (default=%default)")
 parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
-                  help="Beamformer bandwidth, in MHz (default=%default)")
+                  help="Beamformer centre frequency, in MHz (default=%default)")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
