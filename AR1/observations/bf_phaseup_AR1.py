@@ -113,7 +113,7 @@ with verify_and_connect(opts) as kat:
             session.track(target, duration=opts.track_duration, announce=False)
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             time.sleep(5)
-            telstate = get_telstate(session.data, session.sub)
+            telstate = get_telstate(session.data, kat.sub)
             gains = get_bpcal_solutions(telstate)
             if not gains:
                 raise NoGainsAvailableError("No bpcal gain solutions found in telstate %r" % (telstate,))
