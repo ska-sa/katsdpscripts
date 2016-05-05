@@ -112,16 +112,7 @@ def local_reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=Non
                                                                                   opts.mc_iterations, opts.batch, **kwargs)
 
 # reduced version that deals with current bug in scape
-def analyse_point_source_scans(filename, opts):
-    print ('Loading HDF5 file %s into scape and reducing the data'%filename)
-    h5file = katdal.open(filename)
-    if len(h5file.catalogue.targets) > 1:
-        print ('Removing first dummy scan caused by premature noise diode fire')
-        h5file.sensor.get('Observation/target_index').remove(1)
-        s=h5file.sensor.get('Observation/target')
-        s.remove(s.unique_values[0])
-        h5file.catalogue.remove(h5file.catalogue.targets[0].name)
-
+def analyse_point_source_scans(filename, h5file, opts):
     # Default output file names are based on input file name
     dataset_name = os.path.splitext(os.path.basename(filename))[0]
     if opts.outfilebase is None:
@@ -137,17 +128,13 @@ def analyse_point_source_scans(filename, opts):
     baseline_ants = opts.baseline.split(',')
     if len(baseline_ants) == 2 and baseline_ants[0] == baseline_ants[1]:
         opts.baseline = baseline_ants[0]
-    print opts.baseline
 
     # Load data set
     if opts.baseline not in [ant.name for ant in h5file.ants]:
         raise RuntimeError('Cannot find antenna %s in dataset'%opts.baseline)
-    # for pol in ['h','v']:
-    #     noise_file=os.path.join(opts.nd_models, '%s.coupler.%s.csv' % (opts.baseline,pol))
-    #     if not os.path.isfile(noise_file):
-    #         raise RuntimeError('Cannot find file %s' %(noise_file))
-    print("Loading dataset '%s'" % (filename,))
-    dataset = scape.DataSet(h5file, baseline=opts.baseline, nd_models=opts.nd_models,
+    # dataset = scape.DataSet(h5file, baseline=opts.baseline, nd_models=opts.nd_models,
+    #                         time_offset=opts.time_offset, **kwargs)
+    dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
                             time_offset=opts.time_offset, **kwargs)
 
     # Select frequency channels and setup defaults if not specified
@@ -287,17 +274,11 @@ def analyse_point_source_scans(filename, opts):
     plt.xlabel('Ra [deg]')
 
     # Try to fit beam
-    h5file.select(reset='T')
-    N = len(h5file.compscan_indices)
-    h5file.select(ants=opts.baseline, scans='scan', channels=slice(1024,1024+2048))
     for c in h5file.compscans():
-        d = scape.DataSet(h5file, baseline="%s" % (opts.baseline,), nd_models=opts.nd_models)
-        if not d is None:
-            d = d.select(flagkeep='~nd_on')
-        for i in range(len(d.scans)):
-            d.scans[i].data = scape.stats.remove_spikes(d.scans[i].data,axis=1,spike_width=3,outlier_sigma=5.)
-        d.average()
-        d.fit_beams_and_baselines()
+        if not dataset is None:
+            dataset = dataset.select(flagkeep='~nd_on')
+        dataset.average()
+        dataset.fit_beams_and_baselines()
 
 
     # Generate output report
@@ -329,10 +310,10 @@ def analyse_point_source_scans(filename, opts):
         residual_az = measured_delta_az - model_delta_az
         residual_el = measured_delta_el - model_delta_el
         pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
-        if d.compscans[0].beam is not None:
-            if not d.compscans[0].beam.is_valid:
+        if dataset.compscans[0].beam is not None:
+            if not dataset.compscans[0].beam.is_valid:
                 pagetext += (u"\nPossible bad fit!")
-        if (d.compscans[0].beam is not None) and (residual_az[0] < 1.) and (residual_el[0] < 1.):
+        if (residual_az[0] < 1.) and (residual_el[0] < 1.):
             pagetext += (u"\nResiduals withing L-band beam")
         else:
             pagetext += (u"\nMaximum Residual, %.2f, larger than L-band beam"%(numpy.max(residual_az[0], residual_el[0])))
@@ -365,9 +346,9 @@ if __name__ == '__main__':
     parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                    description="Reduced from of analyse_point_source_scan for quick evaluation of single dish performance.")
     parser.add_option("-a", "--baseline",
-                      default='sd',
+                      default='all',
                       help="Baseline to load (e.g. 'ant1' for antenna 1 or 'ant1,ant2' for 1-2 baseline), "
-                           "default is first single-dish baseline in file")
+                           "default is all baseline in file")
     parser.add_option("-c", "--channel-mask",
                       default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                       help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
@@ -412,11 +393,22 @@ if __name__ == '__main__':
                       help='Keep scans with or without a valid beam in batch mode')
     (opts, args) = parser.parse_args()
 
+    # Set defaults for pipeline workflow processing
+    opts.keep_all=True
+    opts.plot_spectrum=True
+
     if len(args) != 1 or not args[0].endswith('.h5'):
         parser.print_usage()
         raise RuntimeError('Please specify a single HDF5 file as argument to the script')
 
-    analyse_point_source_scans(args[0], opts)
+    print ('Loading HDF5 file %s into scape and reducing the data'%args[0])
+    h5file = katdal.open(args[0])
+    if opts.baseline == 'all': ants = [ant.name for ant in h5file.ants]
+    else: ants = [opts.baseline]
+    for ant in ants:
+        opts.baseline = ant
+        print("Loading dataset '%s'" % (opts.baseline,))
+        analyse_point_source_scans(args[0], h5file, opts)
 
     # Display plots - this should be called ONLY ONCE, at the VERY END of the script
     # The script stops here until you close the plots...
