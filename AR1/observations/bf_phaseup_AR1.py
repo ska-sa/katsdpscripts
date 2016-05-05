@@ -33,16 +33,6 @@ def get_telstate(data, sub):
     return TelescopeState(reply.messages[0].arguments[1]) if reply.succeeded else {}
 
 
-# def get_delaycal_solutions(telstate):
-#     """Retrieve delay calibration solutions from telescope state."""
-#     if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
-#         return {}
-#     ants = telstate['cal_antlist']
-#     inputs = [ant+pol for pol in ('h', 'v') for ant in ants]
-#     solutions = telstate['cal_product_K']
-#     return dict(zip(inputs, solutions.real.flat))
-
-
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
@@ -111,21 +101,26 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Initiating %g-second track on target '%s'" %
                              (opts.track_duration, target.name,))
             session.track(target, duration=opts.track_duration, announce=False)
+            # Attempt to jiggle cal pipeline to drop its gains
+            session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            time.sleep(5)
+            time.sleep(10)
             telstate = get_telstate(session.data, kat.sub)
             gains = get_bpcal_solutions(telstate)
             if not gains:
                 raise NoGainsAvailableError("No bpcal gain solutions found in telstate %r" % (telstate,))
-            # get and set the weights
+            user_logger.info("Setting F-engine gains to phase up antennas")
             for inp in set(inputs) and set(gains):
                 orig_weights = gains[inp]
                 amp_weights = np.abs(orig_weights)
                 phase_weights = orig_weights / amp_weights
                 # Cop out on the gain amplitude but at least correct the phase
-                new_weights = opts.default_gain / phase_weights
-                weights_str = ' '.join([('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights])
-                session.data.req.cbf_gain(inp, weights_str)
+                new_weights = opts.default_gain * phase_weights.conj()
+                weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
+                session.data.req.cbf_gain(inp, *weights_str)
+            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked" %
+                             (target.name, opts.track_duration))
+            session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g" % (opts.default_gain,))
             for inp in inputs:
