@@ -55,7 +55,7 @@ parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
-parser.add_option('--default-gain', type='int', default=160,
+parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
