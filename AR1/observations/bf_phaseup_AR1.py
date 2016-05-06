@@ -33,12 +33,22 @@ def get_telstate(data, sub):
     return TelescopeState(reply.messages[0].arguments[1]) if reply.succeeded else {}
 
 
+def get_delaycal_solutions(telstate):
+    """Retrieve delay calibration solutions from telescope state."""
+    if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
+        return {}
+    ants = telstate['cal_antlist']
+    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    solutions = telstate['cal_product_K']
+    return dict(zip(inputs, solutions.real.flat))
+
+
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in ('h', 'v') for ant in ants]
+    inputs = [ant+pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
 
@@ -106,6 +116,7 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             time.sleep(10)
             telstate = get_telstate(session.data, kat.sub)
+            delays = get_delaycal_solutions(telstate)
             gains = get_bpcal_solutions(telstate)
             if not gains:
                 raise NoGainsAvailableError("No bpcal gain solutions found in telstate %r" % (telstate,))
@@ -114,6 +125,16 @@ with verify_and_connect(opts) as kat:
                 orig_weights = gains[inp]
                 amp_weights = np.abs(orig_weights)
                 phase_weights = orig_weights / amp_weights
+                if inp in delays:
+                    # XXX Hacky hack
+                    centre_freq = 1284e6
+                    num_chans = 4096
+                    sideband = 1
+                    channel_width = 856e6 / num_chans
+                    channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
+                    delay_weights = np.exp(2.0j * np.pi * delays[inp] * channel_freqs)
+                    # Guess which direction to apply delays as katcal has a bug here
+                    phase_weights *= delay_weights
                 # Cop out on the gain amplitude but at least correct the phase
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
