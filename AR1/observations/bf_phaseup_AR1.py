@@ -42,7 +42,6 @@ def get_delaycal_solutions(telstate):
     solutions = telstate['cal_product_K']
     return dict(zip(inputs, solutions.real.flat))
 
-
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
@@ -51,6 +50,15 @@ def get_bpcal_solutions(telstate):
     inputs = [ant+pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
+
+def get_gaincal_solutions(telstate):
+    """Retrieve gain calibration solutions from telescope state."""
+    if 'cal_antlist' not in telstate or 'cal_product_G' not in telstate:
+        return {}
+    ants = telstate['cal_antlist']
+    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    solutions = telstate['cal_product_G']
+    return dict(zip(inputs, solutions.real.flat))
 
 
 # Set up standard script options
@@ -106,7 +114,7 @@ with verify_and_connect(opts) as kat:
                              % (opts.default_gain,))
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
-            target.add_tags('bpcal')
+            target.add_tags('bpcal gaincal')
             session.label('track')
             user_logger.info("Initiating %g-second track on target '%s'" %
                              (opts.track_duration, target.name,))
@@ -117,14 +125,15 @@ with verify_and_connect(opts) as kat:
             time.sleep(10)
             telstate = get_telstate(session.data, kat.sub)
             delays = get_delaycal_solutions(telstate)
-            gains = get_bpcal_solutions(telstate)
+            bp_gains = get_bpcal_solutions(telstate)
+            gains = get_gaincal_solutions(telstate)
             if not gains:
-                raise NoGainsAvailableError("No bpcal gain solutions found in telstate %r" % (telstate,))
+                raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             for inp in set(inputs) and set(gains):
                 orig_weights = gains[inp]
-                amp_weights = np.abs(orig_weights)
-                phase_weights = orig_weights / amp_weights
+                if inp in bp_gains:
+                    orig_weights *= bp_gains[inp]
                 if inp in delays:
                     # XXX Hacky hack
                     centre_freq = 1284e6
@@ -134,7 +143,9 @@ with verify_and_connect(opts) as kat:
                     channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
                     delay_weights = np.exp(2.0j * np.pi * delays[inp] * channel_freqs)
                     # Guess which direction to apply delays as katcal has a bug here
-                    phase_weights *= delay_weights
+                    orig_weights *= delay_weights
+                amp_weights = np.abs(orig_weights)
+                phase_weights = orig_weights / amp_weights
                 # Cop out on the gain amplitude but at least correct the phase
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
