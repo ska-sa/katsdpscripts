@@ -76,8 +76,8 @@ parser = optparse.OptionParser(usage="Please specify the input file\n\
     description="Report the frequencies of channels that have consistently been flagged.")
 parser.add_option("--antenna", "-a", default=None, help="Antenna to process. Default is first ant in file")
 parser.add_option("--threshold", "-t", default=0.8, help="Threshold above which to report contamination percentage. Default=0.8")
-parser.add_option("--ignore-mask", "-i", default=None, help="Location of rfi mask pickle for channels to ignore in the report")
-parser.add_option("--known-rfi", "-k", default=None, help="csv file containing frequencies of known RFI emitters")
+parser.add_option("--ignore-mask", "-i", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of rfi mask pickle for channels to ignore in the report")
+parser.add_option("--known-rfi", "-k", default='/var/kat/katsdpscripts/RTS/2.9-RFI/known_satellites.csv', help="csv file containing frequencies of known RFI emitters")
 opts, args = parser.parse_args()
 
 input_file=args[0]
