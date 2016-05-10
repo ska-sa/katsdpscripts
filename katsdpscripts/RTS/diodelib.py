@@ -10,7 +10,43 @@ from scipy.signal import medfilt
 import logging
 import scape
 
-def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False,**kwargs):
+def plot_nd(freq,Tdiode,nd_temp,ant = '', file_base=''): 
+    fig = plt.figure(1,figsize=(20,5))
+    pols = ['v','h']
+    for p,pol in enumerate(pols) : 
+        fig.add_subplot(1,2,p+1) # 
+        ax = plt.gca()
+        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+        plt.title('%s Coupler Diode: %s pol: %s'%(ant,str(pol).upper(),file_base))
+        plt.ylim(0,50)
+        plt.ylabel('$T_{ND}$ [K]')
+        plt.xlim(900,1670)
+        plt.xlabel('f [MHz]')
+        #plt.ylabel(ant)
+        plt.axhspan(14, 35, facecolor='g', alpha=0.5)
+        plt.plot(freq/1e6,Tdiode[pol],'b.',label='Measurement: Y-method')
+        plt.plot(freq/1e6,nd_temp[pol],'k.',label='Model: EMSS')
+        plt.grid()
+        plt.legend()
+    return fig   
+
+def plot_ts(h5,on_ts=None):
+    import scape
+    fig = plt.figure(0,figsize=(20,5))
+    a = h5.ants[0]
+    d = scape.DataSet(h5)
+    scape.plot_xyz(d,'time','amp',label='Average of the data')
+    if on_ts is not None :
+        on = on_ts
+    else :
+        on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
+    ts = h5.timestamps - h5.timestamps[0]
+    plt.plot(ts,on*4000,'g',label='katdal ND sensor')
+    plt.title("Timeseries for antenna %s - %s"%(a.name,git_info()))
+    plt.legend()
+    return fig
+
+def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False,rfi_mask='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',**kwargs):
     print 'inside',kwargs
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
@@ -27,8 +63,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     h5 = katfile.open(filename,**kwargs)
     if verbose: logger.debug(h5.__str__())
     ants = h5.ants
-   
-    pickle_file = open('/var/kat/katsdpscripts/RTS/rfi_mask.pickle')
+
+    pickle_file = open(rfi_mask)
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
     edge = np.tile(True,4096)
@@ -39,7 +75,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
         h5.spectral_windows[0].centre_freq = 12500.5e6
         # Don't subtract half a channel width as channel 0 is centred on 0 Hz in baseband
         h5.spectral_windows[0].channel_freqs = h5.spectral_windows[0].centre_freq +  h5.spectral_windows[0].channel_width * (np.arange(h5.spectral_windows[0].num_chans) - h5.spectral_windows[0].num_chans / 2)
-        static_flags = edge    
+        static_flags = edge
 
     n_ants = len(ants)
     ant_ind = np.arange(n_ants)
@@ -47,29 +83,21 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
     pols = ['v','h']
     diode= 'coupler'
     for a,col in zip(ants,colour):
-        if pdf: 
+        if pdf:
             pp = PdfPages(output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
             logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
 
-        if not(Ku): 
-            fig1 = plt.figure(2,figsize=(20,5))
-        fig2 = plt.figure(1,figsize=(20,5))
-        
-        fig0 = plt.figure(0,figsize=(20,5))
+        #fig0 = plt.figure(0,figsize=(20,5))
         h5.select()
         h5.select(ants = a.name,channels=~static_flags)
-        d = scape.DataSet(h5)
-        scape.plot_xyz(d,'time','amp',label='Average of the data')
-        on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
-        ts = h5.timestamps - h5.timestamps[0]
-        plt.plot(ts,on*4000,'g',label='katdal ND sensor')
-        plt.title("Timeseries for antenna %s - %s"%(a.name,git_info()))
-        plt.legend()
+        fig0 = plot_ts(h5)
+        Tdiode = {}
+        nd_temp = {}
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name
             ant_num = int(ant[3])
-            
+
             air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 try:
@@ -85,14 +113,14 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                     logger.error("Error reading the noise diode file ... using a constant value of 20k")
                     logger.error("Be sure to reprocess the data once the file is in the config")
                     nd = scape.gaincal.NoiseDiodeModel(freq=[856,1712],temp=[20,20])
-            
+
             s = h5.spectral_windows[0]
             f_c = s.centre_freq
             #cold data
             logger.debug('Using off target %s'%target)
             h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
             freq = h5.channel_freqs
-            if not(Ku): nd_temp = nd.temperature(freq / 1e6)
+            if not(Ku): nd_temp[pol] = nd.temperature(freq / 1e6)
             cold_data = h5.vis[:].real
             on = h5.sensor['Antennas/'+ant+'/nd_coupler']
             n_on = np.tile(False,on.shape[0])
@@ -132,10 +160,12 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 hot_spec_std = np.std(hot_data[hot_off,:,0],0)
                 cold_nd_spec_std = np.std(cold_data[cold_on,:,0],0)
                 hot_nd_spec_std = np.std(hot_data[hot_on,:,0],0)
-             
+
             if not(Ku):
-                TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp # antenna temperature on the moon (from diode calibration)
-                TAc = cold_spec/(cold_nd_spec - cold_spec) * nd_temp # antenna temperature on cold sky (from diode calibration) (Tsys)
+                TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp[pol] 
+                # antenna temperature on the moon (from diode calibration)
+                TAc = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
+                # antenna temperature on cold sky (from diode calibration) (Tsys)
             Y = hot_spec / cold_spec
             if error_bars: Y_std = Y * np.sqrt((hot_spec_std/hot_spec)**2 + (cold_spec_std/cold_spec)**2)
             D = 13.5
@@ -159,75 +189,56 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             if error_bars: Tsys_std = Tsys * np.sqrt((Thot_std/Thot)**2 + (Y_std/Y)**2 + (gamma_std/gamma)**2)
             if not(Ku):
                 Ydiode = hot_nd_spec / hot_spec
-                Tdiode = (TA_moon + Tsys)*(Ydiode/gamma-1)
-            
+                Tdiode[pol] = (TA_moon + Tsys)*(Ydiode/gamma-1)
+
             p = 1 if pol == 'v' else 2
             if not(Ku):
-                plt.figure(2)
-                plt.subplot(1,2,p)
-                plt.ylim(0,50)
-                plt.ylabel('T_ND [K]')
-                plt.xlim(900,1670)
-                plt.xlabel('f [MHz]')
-                if p ==ant_num * 2-1: plt.ylabel(ant)
-                plt.axhspan(14, 35, facecolor='g', alpha=0.5)
-                plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 if write_nd:
                     outfilename = diode_filename.split('/')[-1]
                     outfile = file(outfilename, 'w')
                     outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
                     # Write CSV part of file
-                    outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode))]))
+                    outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode[pol]))]))
                     outfile.close()
                     logger.info('Noise temp data written to file %s'%outfilename)
-                plt.plot(freq/1e6,nd_temp,'k.',label='Model: EMSS')
-                plt.grid()
-                plt.legend()
-                
-            plt.figure(1)
-            plt.subplot(1,2,p)
-            if not(Ku): plt.ylim(15,50)
-            plt.ylabel('Tsys/eta_A [K]')
-            if not(Ku): plt.xlim(900,1670)
-            plt.xlabel('f [MHz]')
-            if p == ant_num * 2 -1: plt.ylabel(ant)
-            if error_bars: plt.errorbar(freq/1e6,Tsys,Tsys_std,color = 'b',linestyle = '.',label='Measurement')
-            plt.plot(freq/1e6,Tsys/eta_A,'b.',label='Measurement: Y-method')
-            if not(Ku): plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
-            plt.axhline(np.mean(Tsys/eta_A),linewidth=2,color='k',label='Mean: Y-method')
-            spec_Tsys_eta = 0*freq
-            spec_Tsys_eta[freq<1420e6] =  42 # [R.T.P095] == 220
-            spec_Tsys_eta[freq>=1420e6] =  46 # [R.T.P.096] == 200
-            if not(Ku): plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
-            if not(Ku): plt.plot(freq/1e6,np.interp(freq/1e6,[900,1670],[(64*Ag)/275.0,(64*Ag)/410.0]),'g',linewidth=2,label="275-410 m^2/K at Receivers CDR")
+
+            #plt.figure(1)
+            #plt.subplot(1,2,p)
+            #if not(Ku): plt.ylim(15,50)
+            #plt.ylabel('Tsys/eta_A [K]')
+            #if not(Ku): plt.xlim(900,1670)
+            #plt.xlabel('f [MHz]')
+            #if p == ant_num * 2 -1: plt.ylabel(ant)
+            #if error_bars: plt.errorbar(freq/1e6,Tsys,Tsys_std,color = 'b',linestyle = '.',label='Measurement')
+            #plt.plot(freq/1e6,Tsys/eta_A,'b.',label='Measurement: Y-method')
+            #if not(Ku): plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
+            #plt.axhline(np.mean(Tsys/eta_A),linewidth=2,color='k',label='Mean: Y-method')
+            #spec_Tsys_eta = 0*freq
+            #spec_Tsys_eta[freq<1420e6] =  42 # [R.T.P095] == 220
+            #spec_Tsys_eta[freq>=1420e6] =  46 # [R.T.P.096] == 200
+            #if not(Ku): plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
+            #if not(Ku): plt.plot(freq/1e6,np.interp(freq/1e6,[900,1670],[(64*Ag)/275.0,(64*Ag)/410.0]),'g',linewidth=2,label="275-410 m^2/K at Receivers CDR")
 
             plt.grid()
             plt.legend(loc=2,fontsize=12)
-        
-        if not(Ku):
-            plt.figure(2)
-            plt.subplot(1,2,1)
-            ax = plt.gca()
-            ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-            plt.title('%s Coupler Diode: V pol: %s'%(ant,file_base))
-            plt.subplot(1,2,2)
-            ax = plt.gca()
-            ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-            plt.title('%s Coupler Diode: H pol: %s'%(ant,file_base))
 
-        plt.figure(1)
-        plt.subplot(1,2,1)
-        ax = plt.gca()
-        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('%s Tsys/eta_A: V pol: %s'%(ant,file_base))
-        plt.subplot(1,2,2)
-        ax = plt.gca()
-        ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
-        plt.title('%s Tsys/eta_A: H pol: %s'%(ant,file_base))
+    
+        print "Plotting Plot_ nd "
+        fig2 = plot_nd(freq,Tdiode,nd_temp,ant = ant, file_base=file_base)
+        
+        #plt.figure(1)
+        #plt.subplot(1,2,1)
+        #ax = plt.gca()
+        #ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+        #plt.title('%s Tsys/eta_A: V pol: %s'%(ant,file_base))
+        #plt.subplot(1,2,2)
+        #ax = plt.gca()
+        #ax.text(0.95, 0.01,git_info(), horizontalalignment='right',fontsize=10,transform=ax.transAxes)
+        #plt.title('%s Tsys/eta_A: H pol: %s'%(ant,file_base))
         if pdf:
             if not(Ku):
-                fig1.savefig(pp,format='pdf')
-            fig2.savefig(pp,format='pdf')
+                fig2.savefig(pp,format='pdf')
+            #fig1.savefig(pp,format='pdf')
             fig0.savefig(pp,format='pdf')
             pp.close() # close the pdf file
             plt.close("all")
@@ -238,13 +249,13 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
 # test main method for the library
 if __name__ == "__main__":
 #test the method with a know file
-    filename = '/var/kat/archive/data/RTS/telescope_products/2015/04/22/1429706275.h5'
+    filename = '/var/kat/archive/data/RTS/telescope_products/2016/01/19/1453216690.h5'
     pdf=True
     Ku=False
     verbose=False
     out = '.'
     error_bars = False
     target = 'off1'
-    write_nd = False
+    write_nd = True
     print 'Performing test run with: ' + filename
     read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)
