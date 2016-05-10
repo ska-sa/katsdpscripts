@@ -1,0 +1,37 @@
+900,960,GSM 900 Mobile band, With PFB ringing
+942.4,,,GSM Vodacom vanWyksVlei
+943.6,,,GSM Vodacom Carnarvon and Williston
+1030,,,SSR
+1041,,,????
+1052,,,Nelspruit ILS
+1086,,,????
+1090,,,ADSB
+1100,,,Port Elizabeth / Mafikeng
+1103,,,Kimberley
+1107,,,Sishen
+1112,,,Bloemfontein
+1113,,,????
+1123,,,ORTIA
+1128,,,CTIA
+1135,,,Welkom
+1138,,,Aggeneis
+1141,,,Langebaan
+1147,,,Robben Island
+1150,,,Pietermaritzburg
+1088,,MeerKAT UHF-band digitiser sample clock,
+1088,1092,Transponder Downlink,
+1166.22,1186.68,,GPS L5
+1191,1217,,Galileo E5b
+1217.37,1237.83,,GPS L2
+1467,1492,,WorldSpace Satelite
+1475,,,Afristar
+1526,1554,,Inmarsat
+1565.19,1585.65,,GPS L1
+1600,,,Alkantpan Met System
+1616,1626,,IRIDIUM Sat 
+1418,1422,Galactic HI,
+1592.95,1610.485,GLONASS L1,
+1242,1249,GLONASS L2,
+1260,1300,Galileo E6,
+
+

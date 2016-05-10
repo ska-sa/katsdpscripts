@@ -12,8 +12,8 @@ import pickle
 import csv
 
 
-def plot_RFI_mask(pltobj,rfi,channelwidth):
 
+def plot_RFI_mask(pltobj,rfi,channelwidth):
 	if rfi:
 		for this_rfi in rfi:
 			start_rfi=float(this_rfi[0])*1e6-channelwidth/2
@@ -105,11 +105,18 @@ chan_range = range(start_chan,end_chan+1)
 
 #Open the csv file with known rfi
 if opts.known_rfi is not None:
-	known_rfi=[]
-	known_rfi_start_freqs=[]
-	with open(opts.known_rfi) as csvfile:
-		data=csv.reader(csvfile,delimiter=',')
-		for row in data: known_rfi.append(row)
+    known_rfi=[]
+    known_rfi_start_freqs=[]
+    with open(opts.known_rfi) as csvfile:
+        data=csv.reader(csvfile,delimiter=',')
+        for row in data:
+            if len(row)==4:
+                known_rfi.append(row)
+                known_rfi_start_freqs.append(float(row[0]))
+else: known_rfi=[]
+
+#Set up a looup table for sorted known_rfi mask
+known_lookup=sorted([(freq,i) for i,freq in enumerate(known_rfi_start_freqs)])
 
 #Open a pdf
 pdf = PdfPages(os.path.splitext(os.path.basename(input_file))[0]+'_chanflags.pdf')
@@ -131,20 +138,48 @@ for i,corrprod in enumerate(report_dict['corr_products'][:2]):
 #Write the occupancies
 for i,pol in  enumerate(["HH","VV"]):
     text=[]
-    known_rfi_index=0
-    text.append("\n Flagged channels and frequencies %s, %s polarisation:"%(ant, pol))
+    known_iterator=iter(known_lookup)
+    this_known=known_iterator.next()
+    end_known=report_dict['channel_freqs'][0]
+    text.append(("\\textbf{\\large Flagged channels and frequencies %s, %s polarisation:}"%(ant, pol),'black',))
     for j,freq in enumerate(report_dict['channel_freqs']):
         if j not in chan_range: continue
+        if end_known<freq:
+            inside_known=False
+        if this_known[0]<freq/1e6 and not inside_known:
+            inside_known=True
+            known_data=known_rfi[this_known[1]]
+            this_end_known=known_data[1]
+            known_string='Known RFI: '
+            if known_data[2] is not '': known_string+=known_data[2]+', '
+            if known_data[3] is not '': known_string+=known_data[3]+', '
+            if this_end_known is not '':
+                known_string+='Start: '+known_data[0]+' MHz, End: '+known_data[1]+' MHz'
+                this_end_known=float(this_end_known)*1e6
+            else:
+                known_string+='Frequency: '+known_data[0]+' MHz'
+                this_end_known=report_dict['channel_freqs'][j+1]
+            text.append(('\\textbf{'+known_string+'}','red',))
+            end_known=max(end_known,this_end_known)
+            try:
+                this_known=known_iterator.next()
+            except StopIteration:
+                this_known=(max(report_dict['channel_freqs']),-1,)
         occupancy = report_dict['flagfrac'][j,i]
         if occupancy > opts.threshold and not ignore_mask[j]:
-            text.append('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f  ' %(j+1,freq/1e6,occupancy*100))
+            if inside_known:
+                text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f' %(j+1,freq/1e6,occupancy*100),'red',))
+            else:
+                text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f  ' %(j+1,freq/1e6,occupancy*100),'black',))
     line=0
     for page in xrange(int(np.ceil(len(text)/page_length))):
         fig = plt.figure(None,figsize = (10,16))
         lineend = line+int(np.min((page_length,len(text[line:]))))
-        factadj = 0.87*(1-(lineend-line)/page_length)
-        plt.figtext(0.1 ,0.05+factadj,'\n'.join(text[line:lineend]),fontsize=10)
+        factadj = 0.91*(1-(lineend-line)/page_length)
+        for num,pos in enumerate(np.linspace(0.95,0.05+factadj,lineend-line)):
+            plt.figtext(0.1 ,pos,text[line:lineend][num][0],fontsize=10,color=text[line:lineend][num][1])
         line = lineend
+        fig.show()
         fig.savefig(pdf,format='pdf')
         plt.close(fig)
 
