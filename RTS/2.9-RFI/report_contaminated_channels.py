@@ -146,7 +146,7 @@ for i,pol in  enumerate(["HH","VV"]):
         if j not in chan_range: continue
         if end_known<freq:
             inside_known=False
-        if this_known[0]<freq/1e6 and not inside_known:
+        if this_known[0]<freq/1e6:
             inside_known=True
             known_data=known_rfi[this_known[1]]
             this_end_known=known_data[1]
@@ -177,9 +177,8 @@ for i,pol in  enumerate(["HH","VV"]):
         lineend = line+int(np.min((page_length,len(text[line:]))))
         factadj = 0.91*(1-(lineend-line)/page_length)
         for num,pos in enumerate(np.linspace(0.95,0.05+factadj,lineend-line)):
-            plt.figtext(0.1 ,pos,text[line:lineend][num][0],fontsize=10,color=text[line:lineend][num][1])
+            plt.figtext(0.1 ,pos,text[line:lineend][num][0],fontsize=10,color=text[line:lineend][num][1],usetex=True)
         line = lineend
-        fig.show()
         fig.savefig(pdf,format='pdf')
         plt.close(fig)
 
