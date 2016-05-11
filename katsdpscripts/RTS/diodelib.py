@@ -156,10 +156,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         nd_temp = {}
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
-            ant = a.name
-            
+            ant = a.name            
             Tsys_std = None
-
             #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 try:
@@ -175,8 +173,6 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                     logger.error("Error reading the noise diode file ... using a constant value of 20k")
                     logger.error("Be sure to reprocess the data once the file is in the config")
                     nd = scape.gaincal.NoiseDiodeModel(freq=[856,1712],temp=[20,20])
-
-            
             
             #cold data
             logger.debug('Using off target %s'%target)
@@ -194,7 +190,6 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
             hot_spec = np.mean(hot_data[hot_off,:,0],0)
             cold_nd_spec = np.mean(cold_data[cold_on,:,0],0)
             hot_nd_spec = np.mean(hot_data[hot_on,:,0],0)
-
 
             if not(Ku):
                 nd_temp[pol] = nd.temperature(freq / 1e6)
@@ -228,7 +223,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 Y_std = Y * np.sqrt((hot_spec_std/hot_spec)**2 + (cold_spec_std/cold_spec)**2)
                 Thot_std = 2.25
                 gamma_std = 0.01
-                Thot = 000000000.1 # This is not definded
+                 # This is not definded
+                raise NotImplementedError("The factor Thot  has not been defined ")
                 Tsys_std = Tsys * np.sqrt((Thot_std/Thot)**2 + (Y_std/Y)**2 + (gamma_std/gamma)**2)
             else :
                 Tsys_std = None
@@ -265,3 +261,10 @@ if __name__ == "__main__":
     write_nd = True
     print 'Performing test run with: ' + filename
     read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)
+# Output checsums of the noisediode files
+#md5sum rx.* 
+#7545907bbe621f4e5937de7536be21f3  rx.l.4002.h.csv
+#532332722c8bca9714f4e2d97978ccd6  rx.l.4002.v.csv
+#66678871aeaadc4178e4420bef9861aa  rx.l.4.h.csv
+#af113bd4ab10bb61386521f61eb4d716  rx.l.4.v.csv
+
