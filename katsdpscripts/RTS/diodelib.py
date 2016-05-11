@@ -8,14 +8,27 @@ import pickle
 from katsdpscripts import git_info
 from scipy.signal import medfilt
 import logging
-import scape
 
-def get_nd_on_off(h5,buff = 5): 
+
+def save_ND(diode_filename,file_base,freq,Tdiode_pol ):
+    outfilename = diode_filename.split('/')[-1]
+    outfile = file(outfilename, 'w')
+    outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
+    # Write CSV part of file
+    outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode_pol))]))
+    outfile.close()
+    return outfilename
+    
+
+def get_nd_on_off(h5,buff = 5,log=None): 
     on = h5.sensor['Antennas/%s/nd_coupler'%(h5.ants[0].name)]
     n_on = np.tile(False,on.shape[0])
     n_off = np.tile(False,on.shape[0])
     if not any(on):
-        logger.critical('No noise diode fired during track of %s'%target)
+        if log is not None:
+            log.critical('No noise diode fired during track of %s'%target)
+        else :
+            print('No noise diode fired during track of %s'%target)
     else:
         jumps = (np.diff(on).nonzero()[0] + 1).tolist()
         n_on[slice(jumps[0]+buff,jumps[1]-buff)] = True
@@ -51,7 +64,7 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Tsys_std=None,ant = '', file_base='.'):
             plt.plot(freq/1e6,np.interp(freq/1e6,[900,1670],[(64*Ag)/275.0,
                     (64*Ag)/410.0]),'g',linewidth=2,label="275-410 m^2/K at Receivers CDR")
             plt.grid()
-            plt.legend()
+            plt.legend(loc=2,fontsize=12)
             
     return fig   
 
@@ -107,7 +120,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
     logger.info('Beginning data processing with:\n%s'%git_info('standard'))
-    if verbose: logger.debug(h5.__str__())
+    
     if Ku:
         logger.debug("Using Ku band ... unsetting L band RFI flags")
         h5 = katfile.open(filename,centre_freq = 12500.5e6 , **kwargs)
@@ -118,17 +131,18 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         pickle_file = open(rfi_mask)
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
+    if verbose: logger.debug(h5.__str__())
     edge = np.tile(True,4096)
     edge[slice(211,3896)] = False
     static_flags = np.logical_or(edge,rfi_static_flags)
     
     ants = h5.ants
 
-    n_ants = len(ants)
-    ant_ind = np.arange(n_ants)
+   
+    
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
-    diode= 'coupler'
+    
     for a,col in zip(ants,colour):
         if pdf:
             pp = PdfPages(output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
@@ -143,7 +157,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name
-            ant_num = int(ant[3])
+            
             Tsys_std = None
 
             #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
@@ -162,18 +176,18 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                     logger.error("Be sure to reprocess the data once the file is in the config")
                     nd = scape.gaincal.NoiseDiodeModel(freq=[856,1712],temp=[20,20])
 
-            s = h5.spectral_windows[0]
-            f_c = s.centre_freq
+            
+            
             #cold data
             logger.debug('Using off target %s'%target)
             h5.select(ants=a.name,pol=pol,channels=~static_flags, targets = target,scans='track')
             freq = h5.channel_freqs
             
             cold_data = h5.vis[:].real
-            cold_on,cold_off = get_nd_on_off(h5)
+            cold_on,cold_off = get_nd_on_off(h5,log=logger)
             #hot data
             h5.select(ants=a.name,pol=pol,channels=~static_flags,targets = 'Moon',scans='track')
-            hot_on,hot_off = get_nd_on_off(h5)
+            hot_on,hot_off = get_nd_on_off(h5,log=logger)
             hot_data = h5.vis[:].real
 
             cold_spec = np.mean(cold_data[cold_off,:,0],0)
@@ -184,10 +198,11 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
 
             if not(Ku):
                 nd_temp[pol] = nd.temperature(freq / 1e6)
-                TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp[pol] 
                 # antenna temperature on the moon (from diode calibration)
-                TAc = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
+                TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp[pol] 
                 # antenna temperature on cold sky (from diode calibration) (Tsys)
+                TAc = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
+                print("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc.mean()))
             Y = hot_spec / cold_spec
             D = 13.5
             lam = 3e8/freq
@@ -213,30 +228,17 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 Y_std = Y * np.sqrt((hot_spec_std/hot_spec)**2 + (cold_spec_std/cold_spec)**2)
                 Thot_std = 2.25
                 gamma_std = 0.01
+                Thot = 000000000.1 # This is not definded
                 Tsys_std = Tsys * np.sqrt((Thot_std/Thot)**2 + (Y_std/Y)**2 + (gamma_std/gamma)**2)
             else :
                 Tsys_std = None
             if not(Ku):
                 Ydiode = hot_nd_spec / hot_spec
                 Tdiode[pol] = (TA_moon + Tsys)*(Ydiode/gamma-1)
+            if write_nd:
+                outfilename = save_ND(diode_filename,file_base,freq,Tdiode[pol] )
+                logger.info('Noise temp data written to file %s'%outfilename)
 
-
-            if not(Ku):
-                
-                if write_nd:
-                    outfilename = diode_filename.split('/')[-1]
-                    outfile = file(outfilename, 'w')
-                    outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
-                    # Write CSV part of file
-                    outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode[pol]))]))
-                    outfile.close()
-                    logger.info('Noise temp data written to file %s'%outfilename)
-
-            plt.grid()
-            plt.legend(loc=2,fontsize=12)
-
-    
-        
         fig2 = plot_nd(freq,Tdiode,nd_temp,ant = ant, file_base=file_base)
         fig1 = plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Tsys_std=Tsys_std,ant = ant, file_base=file_base)
         if pdf:
