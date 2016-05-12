@@ -115,7 +115,7 @@ with verify_and_connect(opts) as kat:
                              % (opts.default_gain,))
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
-            target.add_tags('bpcal gaincal')
+            target.add_tags('bfcal')
             session.label('track')
             user_logger.info("Initiating %g-second track on target '%s'" %
                              (opts.track_duration, target.name,))
