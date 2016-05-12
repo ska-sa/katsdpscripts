@@ -104,8 +104,9 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         inputs = get_cbf_inputs(session.data)
         # Assume correlator stream is bc product name without the 'b'
-        session.data.req.capture_start(opts.product[1:])
-#        session.data.req.cbf_capture_meta(opts.product[1:])
+        product = kat.sub.sensor.product.get_value()
+        corr_stream = product if product.startswith('c') else product[1:]
+        session.data.req.capture_start(corr_stream)
 
         for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
             if target.flux_model is None:
