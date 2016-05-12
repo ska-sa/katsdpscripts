@@ -8,6 +8,8 @@ import pickle
 from katsdpscripts import git_info
 from scipy.signal import medfilt
 import logging
+import scikits.fitting as fit
+
 
 
 def save_ND(diode_filename,file_base,freq,Tdiode_pol ):
@@ -105,6 +107,15 @@ def plot_ts(h5,on_ts=None):
     plt.legend()
     return fig
 
+def get_fit(x,y,order=0,true_equals=None):
+    """true_equals is a  test that returns bool values to be fitted"""
+    if true_equals is None :
+        y = y.astype(float)
+    else :
+        y =   y==true_equals
+    return fit.PiecewisePolynomial1DFit(order).fit(x,y)#(timestamps[:])
+
+
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                         verbose = False,error_bars=False,target='off1',
                         write_nd=False,rfi_mask='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',**kwargs):
@@ -124,16 +135,27 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     if Ku:
         logger.debug("Using Ku band ... unsetting L band RFI flags")
         h5 = katfile.open(filename,centre_freq = 12500.5e6 , **kwargs)
+        length = h5.shape[1]
         # Don't subtract half a channel width as channel 0 is centred on 0 Hz in baseband
-        static_flags = np.tile(True,4096)
+        rfi_static_flags = np.tile(True,length)
     else :
         h5 = katfile.open(filename,**kwargs)
+        length = h5.shape[1]
         pickle_file = open(rfi_mask)
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
+        # Now find the edges of the mask
+        rfi_freqs_width = (856000000.0/rfi_static_flags.shape[0])
+        rfi_freqs_min = 856000000.0-rfi_freqs_width/2. # True Start of bin
+        rfi_freqs_max = rfi_freqs_min*2-rfi_freqs_width/2.  # Middle of Max-1 bin
+        rfi_freqs = np.linspace(rfi_freqs_min,rfi_freqs_max,rfi_static_flags.shape[0]) 
+        rfi_function  = get_fit(np.r_[rfi_freqs,rfi_freqs+rfi_freqs_width*0.9999] , np.r_[rfi_static_flags,rfi_static_flags])
+        rfi_static_flags = rfi_function(h5.channel_freqs)
+        #print ( (rfi_static_flags_new-rfi_static_flags)**2).sum()
     if verbose: logger.debug(h5.__str__())
-    edge = np.tile(True,4096)
-    edge[slice(211,3896)] = False
+    edge = np.tile(True,length)
+    #edge[slice(211,3896)] = False #Old
+    edge[slice(int(round(length*0.0515)),int(round(0.9512*length)))] = False###
     static_flags = np.logical_or(edge,rfi_static_flags)
     
     ants = h5.ants
