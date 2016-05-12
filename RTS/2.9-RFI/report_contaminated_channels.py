@@ -110,7 +110,7 @@ if opts.known_rfi is not None:
     with open(opts.known_rfi) as csvfile:
         data=csv.reader(csvfile,delimiter=',')
         for row in data:
-            if len(row)==4:
+            if len(row)==3:
                 known_rfi.append(row)
                 known_rfi_start_freqs.append(float(row[0]))
 else: known_rfi=[]
@@ -151,8 +151,7 @@ for i,pol in  enumerate(["HH","VV"]):
             known_data=known_rfi[this_known[1]]
             this_end_known=known_data[1]
             known_string='Known RFI: '
-            if known_data[2] is not '': known_string+=known_data[2]+', '
-            if known_data[3] is not '': known_string+=known_data[3]+', '
+            known_string+=known_data[2]+', '
             if this_end_known is not '':
                 known_string+='Start: '+known_data[0]+' MHz, End: '+known_data[1]+' MHz'
                 this_end_known=float(this_end_known)*1e6
