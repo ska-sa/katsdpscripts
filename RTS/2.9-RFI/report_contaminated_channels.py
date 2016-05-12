@@ -141,7 +141,7 @@ for i,pol in  enumerate(["HH","VV"]):
     known_iterator=iter(known_lookup)
     this_known=known_iterator.next()
     end_known=report_dict['channel_freqs'][0]
-    text.append(("\\textbf{\\large Flagged channels and frequencies %s, %s polarisation:}"%(ant, pol),'black',))
+    text.append(("Flagged channels and frequencies %s, %s polarisation:"%(ant, pol),'black','bold'))
     for j,freq in enumerate(report_dict['channel_freqs']):
         if j not in chan_range: continue
         if end_known<freq:
@@ -158,7 +158,7 @@ for i,pol in  enumerate(["HH","VV"]):
             else:
                 known_string+='Frequency: '+known_data[0]+' MHz'
                 this_end_known=report_dict['channel_freqs'][j+1]
-            text.append(('\\textbf{'+known_string+'}','red',))
+            text.append((known_string,'red','bold'))
             end_known=max(end_known,this_end_known)
             try:
                 this_known=known_iterator.next()
@@ -167,16 +167,16 @@ for i,pol in  enumerate(["HH","VV"]):
         occupancy = report_dict['flagfrac'][j,i]
         if occupancy > opts.threshold and not ignore_mask[j]:
             if inside_known:
-                text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f' %(j+1,freq/1e6,occupancy*100),'red',))
+                text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f' %(j+1,freq/1e6,occupancy*100),'red','normal'))
             else:
-                text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f  ' %(j+1,freq/1e6,occupancy*100),'black',))
+                text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f  ' %(j+1,freq/1e6,occupancy*100),'black','normal'))
     line=0
     for page in xrange(int(np.ceil(len(text)/page_length))):
         fig = plt.figure(None,figsize = (10,16))
         lineend = line+int(np.min((page_length,len(text[line:]))))
         factadj = 0.91*(1-(lineend-line)/page_length)
         for num,pos in enumerate(np.linspace(0.95,0.05+factadj,lineend-line)):
-            plt.figtext(0.1 ,pos,text[line:lineend][num][0],fontsize=10,color=text[line:lineend][num][1],usetex=True)
+            plt.figtext(0.1 ,pos,text[line:lineend][num][0],fontsize=10,color=text[line:lineend][num][1],fontweight=text[line:lineend][num][2])
         line = lineend
         fig.savefig(pdf,format='pdf')
         plt.close(fig)
