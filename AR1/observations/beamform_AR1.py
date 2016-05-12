@@ -31,6 +31,8 @@ parser.add_option('-B', '--beam-bandwidth', type='float', default=107.0,
                   help="Beamformer bandwidth, in MHz (default=%default)")
 parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
                   help="Beamformer centre frequency, in MHz (default=%default)")
+parser.add_option('--test-snr', action='store_true', default=False,
+              help="Perform SNR test by switching off inputs (default='%default')")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
@@ -68,5 +70,17 @@ with verify_and_connect(opts) as kat:
         session.track(target, duration=0)
         # Only start capturing once we are on target
         session.capture_start()
-        session.label('track')
-        session.track(target, duration=opts.target_duration)
+        if not opts.test_snr:
+            # Basic observation
+            session.label('track')
+            session.track(target, duration=opts.target_duration)
+        else:
+            # Perform SNR test by progressively shutting down the beamformer
+            for n, ant in enumerate(bf_ants):
+                session.label('snr_%d_ants' % (len(bf_ants) - n,))
+                session.track(target, duration=opts.target_duration / len(bf_ants))
+                # Switch off all inputs associated with the selected antenna
+                for stream in bf_streams:
+                    for inp in bf_inputs(session.data, stream):
+                        if inp[:-1] == ant:
+                            session.data.req.cbf_beam_weights(stream, inp, 0.0)
