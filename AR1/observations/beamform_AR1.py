@@ -42,6 +42,7 @@ if len(args) == 0:
 
 with verify_and_connect(opts) as kat:
     bf_ants = opts.ants.split(',') if opts.ants else [ant.name for ant in kat.ants]
+    # These are hardcoded for now...
     bf_streams = ('beam_0x', 'beam_0y')
     for stream in bf_streams:
         kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
@@ -63,13 +64,9 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
         session.data.req.auto_delay('on')
-        # Assume correlator stream is bc product name without the 'b'
-        session.data.req.capture_start(opts.product[1:])
-        session.data.req.cbf_capture_meta(opts.product[1:])
         # Get onto beamformer target
-        session.label('track')
         session.track(target, duration=0)
-        # Only start capturing with beamformer once we are on target
-        for stream in bf_streams:
-            session.data.req.capture_start(stream)
+        # Only start capturing once we are on target
+        session.capture_start()
+        session.label('track')
         session.track(target, duration=opts.target_duration)
