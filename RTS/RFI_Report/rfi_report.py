@@ -17,6 +17,8 @@ parser.add_option("-o", "--output_dir", default='.', help="Directory to place ou
 parser.add_option("-s", "--static_flags", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of static flags pickle file.")
 parser.add_option("--ku-band", action='store_true', help="Force ku-band observation")
 parser.add_option("--write-input", action='store_true', help="Make a copy of the input h5 file and insert flags into it.")
+parser.add_option("--flags-only", action='store_true', help="Only calculate flags (no rfi-report).")
+parser.add_option("--report-only", action='store_true', help="Only generate RFI report (use flags from file).")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
@@ -38,7 +40,9 @@ else:
 	input_flags = flags_basename+'.h5'
 	report_input=filename
 
-generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input)
-generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,freq_chans=opts.freq_chans)
+if not opts.report_only:
+	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input)
+if not opts.flags_only:
+	generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,freq_chans=opts.freq_chans)
 
 
