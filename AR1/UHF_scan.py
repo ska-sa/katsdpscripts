@@ -169,7 +169,7 @@ with verify_and_connect(opts) as kat:
                                                         user_logger.info("Signal Generator frequency is set to %7.3f MHz"%(sig.getFrequency()*1.0e-6 ))
                                                         siggen_freq = sig.getFrequency()
                                                     if change_power:
-                                                        sig.setPower(siggen_power)
+                                                        sig.setPower(power)
                                                         user_logger.info("Signal Generator Power is set to %f dBm"%(sig.getPower()))
                                                         siggen_power=sig.getPower()
                                                     if change_freq or change_power :  time.sleep(2.0)
