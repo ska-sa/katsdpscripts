@@ -38,6 +38,13 @@ parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
+# Very bad hack to circumvent SB verification issues
+# with anything other than session objects (e.g. kat.data).
+# The *near future* will be modelled CBF sessions.
+# The *distant future* will be fully simulated sessions via kattelmod.
+if opts.dry_run:
+    sys.exit(0)
+
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
     raise ValueError("Please specify the target")
