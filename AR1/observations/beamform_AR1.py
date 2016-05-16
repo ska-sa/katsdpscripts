@@ -83,12 +83,15 @@ with verify_and_connect(opts) as kat:
             session.label('track')
             session.track(target, duration=opts.target_duration)
         else:
-            # Perform SNR test by progressively shutting down the beamformer
+            duration_per_slot = opts.target_duration / (len(bf_ants) + 1)
+            session.label('snr_all_ants')
+            session.track(target, duration=duration_per_slot)
+            # Perform SNR test by cycling through all inputs to the beamformer
             for n, ant in enumerate(bf_ants):
-                session.label('snr_%d_ants' % (len(bf_ants) - n,))
-                session.track(target, duration=opts.target_duration / len(bf_ants))
-                # Switch off all inputs associated with the selected antenna
+                # Switch on selected antenna only
                 for stream in bf_streams:
                     for inp in bf_inputs(session.data, stream):
-                        if inp[:-1] == ant:
-                            session.data.req.cbf_beam_weights(stream, inp, 0.0)
+                        weight = 1.0 if inp[:-1] == ant else 0.0
+                        kat.data.req.cbf_beam_weights(stream, inp, weight)
+                session.label('snr_' + ant)
+                session.track(target, duration=duration_per_slot)
