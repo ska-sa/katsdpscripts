@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Dual polarisation beamforming: Track target and possibly calibrator for beamforming.
+# Dual polarisation beamforming: Track target for beamforming.
 
 import numpy as np
 
@@ -37,6 +37,14 @@ parser.add_option('--test-snr', action='store_true', default=False,
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
+
+# Very bad hack to circumvent SB verification issues
+# with anything other than session objects (e.g. kat.data).
+# The *near future* will be modelled CBF sessions.
+# The *distant future* will be fully simulated sessions via kattelmod.
+if opts.dry_run:
+    import sys
+    sys.exit(0)
 
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:

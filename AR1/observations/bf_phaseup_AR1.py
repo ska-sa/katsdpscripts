@@ -81,6 +81,13 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 # Parse the command line
 opts, args = parser.parse_args()
 
+# Very bad hack to circumvent SB verification issues
+# with anything other than session objects (e.g. kat.data).
+# The *near future* will be modelled CBF sessions.
+# The *distant future* will be fully simulated sessions via kattelmod.
+if opts.dry_run:
+    import sys
+    sys.exit(0)
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
