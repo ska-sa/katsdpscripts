@@ -286,7 +286,7 @@ def plots_histogram(data,title,fit=stats.rayleigh):
         import seaborn as sns
         tmp = sns.distplot(data['rms'])
     except ImportError:
-        tmp = ply.hist(data['rms'],bins= np.arange(0.0, data['rms'].max() + bw * cut, bw)     )
+        tmp = plt.hist(data['rms'],bins= np.arange(0.0, data['rms'].max() + bw * cut, bw)     )
     #print "Tmp:",tmp
     #
     plt.ylabel('Normalised Number per bin')
