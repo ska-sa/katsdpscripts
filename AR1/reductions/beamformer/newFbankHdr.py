@@ -62,7 +62,7 @@ if __name__=="__main__":
 	#--------------------------------------#
 	# Re-write data to file using chunker:
 	#--------------------------------------#
-	indices = np.arange(0,Nsamp,256)
+	indices = np.arange(0,Nsamp,2048)
 	if ( opts.decimate > 1 ): 
 		check = power_of_two(opts.decimate)
 		if not check:
@@ -75,7 +75,7 @@ if __name__=="__main__":
 	f_handle = open(outfile,"ab+")
 	for i in indices:
 		isamp = i*opts.nchan
-		fsamp = (i+256)*opts.nchan
+		fsamp = (i+2048)*opts.nchan
 		if ( opts.decimate == 1 ):
 			spec = np.copy(fil[isamp:fsamp])
 		else:
