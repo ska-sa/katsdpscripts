@@ -65,8 +65,8 @@ if __name__=="__main__":
 	indices = np.arange(0,Nsamp,1024)
 	if ( opts.decimate > 1 ): 
 		check = power_of_two(opts.decimate)
-		if not check:
-			print ' Decimation factor must be a power of two. Exiting now...\n'
+		if not check or opts.ndec > 1024:
+			print ' Decimation factor must be a power of two and <= 1024. Exiting now...\n'
 			sys.exit(1)
 		Nsamp = int(Nsamp/opts.decimate)
 		print ' Resampling data to %i samples...' %Nsamp

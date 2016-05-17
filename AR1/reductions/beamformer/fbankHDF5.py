@@ -141,8 +141,8 @@ if __name__=="__main__":
     #################################################################
     if ( opts.ndec > 1 ): 
         check = power_of_two(opts.ndec)
-        if not check:
-            print ' Decimation factor must be a power of two. Exiting now...\n'
+        if not check or opts.ndec > 256:
+            print ' Decimation factor must be a power of two and <= 256. Exiting now...\n'
             sys.exit(1)
     Nsamp = np.int_(float(Nsamp)/opts.ndec)
     tsamp *= opts.ndec
