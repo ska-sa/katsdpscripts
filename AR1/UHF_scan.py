@@ -1,4 +1,3 @@
-
 #!/usr/bin/python
 # Track target(s) for a specified time.
 
@@ -11,6 +10,18 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 import scpi as SCPI
 import numpy as np
  
+ 
+
+
+class Temp():
+    def __init__(self,):
+        pass
+    def __enter__(self):
+        pass
+    def __exit__(self, type, value, traceback):
+        pass
+
+
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='Track one or more sources for a specified time. then change the frequency of'
@@ -110,7 +121,7 @@ with verify_and_connect(opts) as kat:
                 sigconn=SCPI.SCPI(siggen_ip,siggen_port)
                 testcon = sigconn.testConnect()
             else : 
-                sigconn = file('tempsock.tmp')
+                sigconn = Temp()
                 testcon = False
             
             with sigconn as sig :
@@ -158,7 +169,7 @@ with verify_and_connect(opts) as kat:
                                                         user_logger.info("Signal Generator frequency is set to %7.3f MHz"%(sig.getFrequency()*1.0e-6 ))
                                                         siggen_freq = sig.getFrequency()
                                                     if change_power:
-                                                        sig.setPower(siggen_power)
+                                                        sig.setPower(power)
                                                         user_logger.info("Signal Generator Power is set to %f dBm"%(sig.getPower()))
                                                         siggen_power=sig.getPower()
                                                     if change_freq or change_power :  time.sleep(2.0)
