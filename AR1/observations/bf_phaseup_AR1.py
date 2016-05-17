@@ -99,21 +99,19 @@ with verify_and_connect(opts) as kat:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
     if opts.reconfigure_sdp:
         sub, data = kat.sub, kat.data
-        product = sub.sensor.product.get_value()
-        subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(), product)
+        subarray_product, streams = data.sensor.stream_addresses.get_value().split(' ')
+        product = subarray_product.split('_')[-1]
         resources = sub.sensor.pool_resources.get_value().split(',')
         receptors = ','.join([res for res in resources if not res.startswith('data_')])
         dump_rate = sub.sensor.dump_rate.get_value()
         channels = 32768 if product.endswith('32k') else 4096
         beams = 1 if product.startswith('b') else 0
-        streams = data.sensor.stream_addresses.get_value().split(' ')
-        if streams[0] == subarray_product:
-            user_logger.info("Deconfiguring SDP subsystem for subarray product %r" %
-                             (subarray_product,))
-            data.req.spmc_data_product_configure(subarray_product, 0, timeout=30)
-            user_logger.info("Reconfiguring SDP subsystem")
-            data.req.spmc_data_product_configure(subarray_product, receptors, channels,
-                                                 dump_rate, beams, streams[1], timeout=200)
+        user_logger.info("Deconfiguring SDP subsystem for subarray product %r" %
+                         (subarray_product,))
+        data.req.spmc_data_product_configure(subarray_product, 0, timeout=30)
+        user_logger.info("Reconfiguring SDP subsystem")
+        data.req.spmc_data_product_configure(subarray_product, receptors, channels,
+                                             dump_rate, beams, streams, timeout=200)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         if not opts.no_delays and not kat.dry_run:
