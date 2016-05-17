@@ -79,8 +79,11 @@ if __name__=="__main__":
 		if ( opts.decimate == 1 ):
 			spec = np.copy(fil[isamp:fsamp])
 		else:
-			spec = np.copy(fil[isamp:fsamp]).reshape((-1,opts.decimate,opts.nchan)).mean(axis=1)
-			spec = spec.flatten().astype(np.float32)
+			try:
+				spec = np.copy(fil[isamp:fsamp]).reshape((-1,opts.decimate,opts.nchan)).mean(axis=1)
+				spec = spec.flatten().astype(np.float32)
+			except ValueError:  # break from loop if run out of data
+				break
 
 		f_handle.seek(0, 2)
 		bytesSpec = spec.tobytes(order="C")

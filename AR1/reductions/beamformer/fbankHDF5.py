@@ -172,9 +172,12 @@ if __name__=="__main__":
         pow0 = (pow0 * pow0.conjugate()).real
         pow1 = (pow1 * pow1.conjugate()).real
 
-        pow0 = pow0.astype(np.float32).reshape((nchan,-1,opts.ndec)).mean(axis=2)  # re-accumulate data by a factor of ndec
-        pow1 = pow1.astype(np.float32).reshape((nchan,-1,opts.ndec)).mean(axis=2)
-        totPow = (pow0 + pow1)/2.
+        try:
+            pow0 = pow0.astype(np.float32).reshape((nchan,-1,opts.ndec)).mean(axis=2)  # re-accumulate data by a factor of ndec
+            pow1 = pow1.astype(np.float32).reshape((nchan,-1,opts.ndec)).mean(axis=2)
+            totPow = (pow0 + pow1)/2.
+        except ValueError: # break from loop if run out of data
+            break
     
         totSpec = totPow.transpose().flatten()
         bytesSpec = totSpec.tobytes(order="C")
