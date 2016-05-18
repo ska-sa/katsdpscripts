@@ -169,16 +169,17 @@ if __name__=="__main__":
         pow1 = bf1[:,i1s[index]:i1s[index]+256,:]
         pow0 = pow0[...,0] + pow0[...,1]*1j
         pow1 = pow1[...,0] + pow1[...,1]*1j
-        pow0 = (pow0 * pow0.conjugate()).real
-        pow1 = (pow1 * pow1.conjugate()).real
+        pow0 = (pow0 * pow0.conjugate()).real.astype(np.float32)
+        pow1 = (pow1 * pow1.conjugate()).real.astype(np.float32)
 
-        try:
-            pow0 = pow0.astype(np.float32).reshape((nchan,-1,opts.ndec)).mean(axis=2)  # re-accumulate data by a factor of ndec
-            pow1 = pow1.astype(np.float32).reshape((nchan,-1,opts.ndec)).mean(axis=2)
-            totPow = (pow0 + pow1)/2.
-        except ValueError: # break from loop if run out of data
-            break
-    
+        if ( opts.ndec > 1 ):
+            try:
+                pow0 = pow0.reshape((nchan,-1,opts.ndec)).mean(axis=2)  # re-accumulate data by a factor of ndec
+                pow1 = pow1.reshape((nchan,-1,opts.ndec)).mean(axis=2)
+            except ValueError: # break from loop if run out of data
+                break
+
+        totPow = (pow0 + pow1)/2.
         totSpec = totPow.transpose().flatten()
         bytesSpec = totSpec.tobytes(order="C")
         f_handle.seek(0,2)
