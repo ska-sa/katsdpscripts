@@ -144,7 +144,7 @@ if __name__=="__main__":
     #-----------------------------------------------#  
     if ( opts.tot_time != None ):
         Nsamp_use = np.int_(opts.tot_time/tsamp)
-        Nsamp_use = Nsamp_use - Nsamp_use%256 + 256 
+        Nsamp_use = Nsamp_use - Nsamp_use%256 + 256
         if ( Nsamp_use < Nend ):
             Nsamp = Nsamp_use
             Nend0 = Nsamp+index0
@@ -166,15 +166,15 @@ if __name__=="__main__":
     tsamp *= opts.ndec
 
     chBW = 1712/8192. # MHz
-    freqTop = opts.freq + (((nchan / 2) - 1) * chBW)
-    freqBottom = opts.freq - (((nchan / 2)) * chBW)
     if opts.chbw: 
         fBottom = opts.freq + (((nchan / 2) - 1) * chBW)
         fTop = opts.freq - (((nchan / 2)) * chBW)
+        freqs = np.linspace(fTop,fBottom,nchan)[::-1]
         chBW *= -1
     else:
         fTop = opts.freq + (((nchan / 2) - 1) * chBW)
         fBottom = opts.freq - (((nchan / 2)) * chBW)
+        freqs = np.linspace(fBottom,fTop,nchan)
     print ' fBottom = %.3f MHz, fTop = %.3f MHz, chBW = %.5f MHz' %(fBottom,fTop,chBW)
     print ' tsamp to be used = %.6f ms' %(tsamp*1e3)
 
@@ -184,7 +184,7 @@ if __name__=="__main__":
     RAJ = opts.ra
     DECJ = opts.dec
     outfile = opts.outfile if opts.outfile != None else opts.i0.split('.h5')[0] + '.fil'
-    f_handle = open(outfile, "ab+")
+    f_handle = open(outfile, "wab")
     headerStart = "HEADER_START"
     headerEnd = "HEADER_END"
     header = "".join([struct.pack("I", len(headerStart)), headerStart])
@@ -232,7 +232,7 @@ if __name__=="__main__":
                 break
 
         totPow = pow0 + pow1
-        totSpec = totPow.T.astype(np.float32)
+        totSpec = totPow.T.flatten().astype(np.float32)
         bytesSpec = totSpec.tobytes(order="C")
         f_handle.write(bytesSpec) # write sigproc data fmt to file
         f_handle.seek(0,2)
@@ -263,14 +263,15 @@ if __name__=="__main__":
         bp1 = bf1pows.mean(axis=1)
         bptot = totPows.mean(axis=1)
 
-        p.plot(bp0,'b-',label='H')
-        p.plot(bp1,'g-',label='V')
-        p.plot(bptot,'r-',label='cmbd')
+        p.plot(freqs,bp0,'b-',label='H')
+        p.plot(freqs,bp1,'g-',label='V')
+        p.plot(freqs,bptot,'r-',label='cmbd')
         ax1.yaxis.set_minor_locator(AutoMinorLocator(5))
         ax1.xaxis.set_minor_locator(AutoMinorLocator(10))
         p.legend(numpoints=1,loc='upper right')
         p.ylabel('Power (A.U.)')
-        p.xlabel('Nchan')
+        p.xlabel('Frequency (MHz)')
+        p.xlim([freqs[0],freqs[-1]])
 
         #------------------------#
         # Plot time-series data:
@@ -280,6 +281,7 @@ if __name__=="__main__":
         ts_tot = totPows.mean(axis=0)
         tvals = np.arange(Nsamp)*tsamp
 
+        ax2 = fig.add_subplot(212)
         p.plot(tvals,ts0,'b-',label='H')
         p.plot(tvals,ts1,'g-',label='V')
         p.plot(tvals,ts_tot,'r-',label='cmbd')
@@ -288,6 +290,7 @@ if __name__=="__main__":
         p.legend(numpoints=1,loc='upper right')
         p.ylabel('Power (A.U.)')
         p.xlabel('Time (s)')
+        p.xlim([0,tvals[-1]])
         p.subplots_adjust(hspace=0.2,bottom=0.15,left=0.15,right=0.975,top=0.975)
         p.savefig('/scratch/fbank_miscPlots.png',orientation='landscape',papertype='a4', pad_inches=0)
 
