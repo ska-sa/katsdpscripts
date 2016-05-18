@@ -87,10 +87,10 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.set_target(target) # Set the target
-                    session.track(target, duration=0, announce=False) # Set the target & mode = point
+                    session.label('pointing_cluster')
+                    session.track(target, duration=opts.track_duration, announce=False) # Set the target & mode = point
                     for direction  in   {'x','y'} :
                         for offset in np.linspace(-opts.max_extent,opts.max_extent,opts.number_of_steps//2):
-                            session.label('track')
                             if direction == 'x' :
                                 offset_target = [offset,0.0]
                             else:
@@ -98,10 +98,16 @@ with verify_and_connect(opts) as kat:
                             user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                             user_logger.info("Offset of %f,%f degrees " %(offset_target[0],offset_target[1]))
                             session.set_target(target)
-                            session.ants.req.offset_fixed(offset_target[0],offset_target[1],opts.projection)
+                            if not kat.dry_run :
+                                session.ants.req.offset_fixed(offset_target[0],offset_target[1],opts.projection)
                             nd_params = session.nd_params
                             session.fire_noise_diode(announce=True, **nd_params)
-                            time.sleep(opts.track_duration) # Snooze
+                            if not kat.dry_run :
+                                time.sleep(opts.track_duration) # Snooze
+                            else:
+                                session.track(target, duration=opts.track_duration, announce=False)
+                                # Just work out dry run time
+                                
                     targets_observed.append(target.name)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                         user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
