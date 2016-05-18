@@ -1,5 +1,5 @@
 #!/usr/bin/env/python 
-# fbankHDF5.py; last mod. NJY [17/05/2016]
+# fbankHDF5.py; last mod. NJY [18/05/2016]
 
 import os, time, h5py, struct
 import numpy as np
@@ -132,8 +132,8 @@ if __name__=="__main__":
     Nend1 = Nend+index1
     UTCstart, MJDstart = get_times(adcSync,sync_time)
     print '\n ADC sync indices for H = %i and V = %i' %(index0,index1)
-    print ' Nsamp for H = %i and V = %i\n' %(Npol0,Npol1)
-    print ' Nend for H = %i and V = %i\n' %(Nend0,Nend1)
+    print ' Nsamp for H = %i and V = %i' %(Npol0,Npol1)
+    print ' Nend for H = %i and V = %i' %(Nend0,Nend1)
     print ' Tobs for H = %i s and V = %i s\n' %(Npol0*tsamp,Npol1*tsamp) 
     print ' UTC start = %s => MJD start = %s' %(UTCstart,MJDstart)
     print ' Unique pol0 ADC offsets:', p0_diffUniq
@@ -249,6 +249,7 @@ if __name__=="__main__":
     # Plot average bandpass and time series.
     #########################################
     if opts.get_fig:
+        fig = p.figure(num=1, figsize=(13, 8.9), dpi=80)
         p.clf()
         params = {'axes.labelsize': 18, 'text.fontsize': 14, 'legend.fontsize': 11, 
                 'xtick.labelsize': 16, 'ytick.labelsize': 16, 'text.usetex': False}
