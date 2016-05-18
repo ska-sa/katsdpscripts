@@ -85,9 +85,9 @@ if __name__=="__main__":
 			except ValueError:  # break from loop if run out of data
 				break
 
-		f_handle.seek(0, 2)
 		bytesSpec = spec.tobytes(order="C")
 		f_handle.write(bytesSpec)
+		f_handle.seek(0, 2)
 	f_handle.close()
 
 	#----------------------#

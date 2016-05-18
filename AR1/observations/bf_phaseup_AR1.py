@@ -75,6 +75,8 @@ parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
+parser.add_option('--reconfigure-sdp', action="store_true", default=False,
+                  help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Phase-up observation that sets the F-engine weights')
@@ -86,6 +88,7 @@ opts, args = parser.parse_args()
 # The *near future* will be modelled CBF sessions.
 # The *distant future* will be fully simulated sessions via kattelmod.
 if opts.dry_run:
+    import sys
     sys.exit(0)
 
 # Check options and build KAT configuration, connecting to proxies and devices
@@ -94,6 +97,21 @@ with verify_and_connect(opts) as kat:
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
+    if opts.reconfigure_sdp:
+        sub, data = kat.sub, kat.data
+        subarray_product, streams = data.sensor.stream_addresses.get_value().split(' ')
+        product = subarray_product.split('_')[-1]
+        resources = sub.sensor.pool_resources.get_value().split(',')
+        receptors = ','.join([res for res in resources if not res.startswith('data_')])
+        dump_rate = sub.sensor.dump_rate.get_value()
+        channels = 32768 if product.endswith('32k') else 4096
+        beams = 1 if product.startswith('b') else 0
+        user_logger.info("Deconfiguring SDP subsystem for subarray product %r" %
+                         (subarray_product,))
+        data.req.spmc_data_product_configure(subarray_product, 0, timeout=30)
+        user_logger.info("Reconfiguring SDP subsystem")
+        data.req.spmc_data_product_configure(subarray_product, receptors, channels,
+                                             dump_rate, beams, streams, timeout=200)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         if not opts.no_delays and not kat.dry_run:
