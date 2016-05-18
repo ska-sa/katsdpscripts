@@ -13,8 +13,9 @@ import os
 import struct
 import sys
 import ephem
-import time
-import datetime
+import katpoint
+#import time
+#import datetime
 import optparse as opt
 
 # Functions used in SIGPROC header creation
@@ -57,7 +58,7 @@ if __name__=="__main__":
     cmdline.add_option("--raw0", type = "string", dest = "h5FilePol0", metavar = "<h5FilePol0>", help = "Give input pol0 filename.")
     cmdline.add_option("--raw1", type = "string", dest = "h5FilePol1", metavar = "<h5FilePol1>", help = "Give input pol1 filename.")
     cmdline.add_option("--out", type = "string", dest = "outFileName", metavar = "<outFileName>", default = "out.fil", help = "Give output filename.")
-    cmdline.add_option("--pol", dest="fullStokes", action="store_true", help="Convert full Stokes data.")
+    cmdline.add_option("--pol", dest="fullStokes", action="store_true", help="Convert to full Stokes.")
 
     (opts, args) = cmdline.parse_args() # reading cmd options
     if not opts.h5FilePol0 or not opts.h5FilePol1:
@@ -196,11 +197,8 @@ if __name__=="__main__":
     print ("obsStartTime: %.12f") % obsStartTime
     unixTime = float(syncTime) + obsStartTime
     print ("unixTime: %.12f") % unixTime
-    decimalUnixTime = (str(unixTime - int(unixTime)))[1:]
-    intUnixTime = int(unixTime)
-    unixDateTime = datetime.datetime.fromtimestamp(intUnixTime).strftime("%Y-%m-%d %H:%M:%S")
-    unixDateTime = unixDateTime + decimalUnixTime
-    startTimeMJD = ephem.julian_date(ephem.Date(unixDateTime))-2400000.5 # convert to MJD
+    startTimeMJD=katpoint.Timestamp(unixTime)
+    startTimeMJD = startTimeMJD.to_mjd()
     print ("startTimeMJD: %.12f") % startTimeMJD
     freqCent = opts.freqCent
     print ("freqCent: %f") % freqCent
@@ -215,7 +213,7 @@ if __name__=="__main__":
     declination = opts.declination
     print ("declination: %s") % declination
     # Creating and populating file header.
-    fileOut = open(outFileName, "ab+")
+    fileOut = open(outFileName, "wab")
     headerStart = "HEADER_START"
     headerEnd = "HEADER_END"
     header = "".join([struct.pack("I", len(headerStart)), headerStart])
@@ -241,7 +239,7 @@ if __name__=="__main__":
         header = "".join([header, _write_int("nifs", 1)])
     header = "".join([header, struct.pack("I", len(headerEnd)), headerEnd])
     fileOut.write(header)
-    #endIndex = 208985 # Number of Nyquist-sampled spectra in 1 second.
+    #endIndex = 208985 # Number of Nyquist-sampled spectra in 1 second, use to process only 1 second of data.
     # Extracting data from h5 files and writing to filterbank file.
     for t0 in range(0, endIndex, chunkSize):
         t1 = min(endIndex, t0 + chunkSize)
