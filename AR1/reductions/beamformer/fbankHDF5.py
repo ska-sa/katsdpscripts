@@ -1,7 +1,7 @@
 #!/usr/bin/env/python 
 # fbankHDF5.py; last mod. NJY [17/05/2016]
 
-import os, time, h5py
+import os, time, h5py, struct
 import numpy as np
 from optparse import OptionParser   # enables variables to be parsed from command line
 import matplotlib.pyplot as p
