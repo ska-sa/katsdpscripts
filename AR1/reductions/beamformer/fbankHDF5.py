@@ -206,10 +206,6 @@ if __name__=="__main__":
     header = "".join([header, struct.pack("I", len(headerEnd)), headerEnd])
     f_handle.write(header)
 
-#    hdr_cmd = '/home/kat/software/mockHeader -tel 64 -mach 64 -type 1 -raw %s -source %s -tstart %.8f -nbits 32 ' %(opts.i0,opts.source,MJDstart)
-#    hdr_cmd += '-nifs 1 -tsamp %.10f -fch1 %.6f -fo %.6f -nchans %i %s' %(tsamp,fBottom,chBW,nchan,outfile)
-#    os.system(hdr_cmd)
-
     ##############################################################
     # Power detect, re-accumulate and combine H & V pol. streams.
     ##############################################################
@@ -236,8 +232,8 @@ if __name__=="__main__":
                 break
 
         totPow = pow0 + pow1
-        totSpec = totPow.transpose().flatten()
-        bytesSpec = totSpec.astype(np.float32).tobytes(order="C")
+        totSpec = totPow.T.astype(np.float32)
+        bytesSpec = totSpec.tobytes(order="C")
         f_handle.write(bytesSpec) # write sigproc data fmt to file
         f_handle.seek(0,2)
     
