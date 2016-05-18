@@ -12,7 +12,7 @@ from matplotlib.ticker import AutoMinorLocator
 #################################################
 def get_times(adc_count,sync_time):  # calculate time info
     """Define function to get MJD time from ADC samples."""
-    sf = 1712000000.0
+    sf = 1712.0e6
     ts = np.float128(adc_count) / sf + sync_time
     utc = time.strftime('%Y-%m-%d-%H:%M:%S',time.gmtime(ts)) + str(ts-int(ts))[1:]
     mjd = np.float128(ts/np.float128(86400.0)+40587.0)
@@ -106,7 +106,7 @@ if __name__=="__main__":
     adcSync = adc0 if adc0 > adc1 else adc1
     index0 = np.where(t0s==adcSync)[0][0]
     index1 = np.where(t1s==adcSync)[0][0]
-    Nend = Nsamp = t1s.size
+    Nend = Nsamp = t1s[index1:].size if t1s[index1:].size <= t0s[index0:].size else t0s[index0:].size
 
     Npol0 = t0s.size
     Npol1 = t1s.size
@@ -116,6 +116,7 @@ if __name__=="__main__":
     UTCstart, MJDstart = get_times(adcSync,sync_time)
     print '\n ADC sync indices for H = %i and V = %i' %(index0,index1)
     print ' Nsamp for H = %i and V = %i\n' %(Npol0,Npol1)
+    print ' Nend for H = %i and V = %i\n' %(Nend0,Nend1)
     print ' Tobs for H = %i s and V = %i s\n' %(Npol0*tsamp,Npol1*tsamp) 
     print ' UTC start = %s => MJD start = %s' %(UTCstart,MJDstart)
     print ' Unique pol0 ADC offsets:', p0_diffUniq
@@ -179,11 +180,11 @@ if __name__=="__main__":
             except ValueError: # break from loop if run out of data
                 break
 
-        totPow = (pow0 + pow1)/2.
+        totPow = pow0 + pow1
         totSpec = totPow.transpose().flatten()
         bytesSpec = totSpec.tobytes(order="C")
-        f_handle.seek(0,2)
         f_handle.write(bytesSpec) # write sigproc data fmt to file
+        f_handle.seek(0,2)
     
         bf0pows[:,start:start+Nblock] = pow0
         bf1pows[:,start:start+Nblock] = pow1
