@@ -4,12 +4,12 @@
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
+import time
+
 # Import script helper functions from observe.py
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
-                       start_session, user_logger
+                       start_session, user_logger, ant_array
 import numpy as np
-from katcp.resource_client import ClientGroup
-
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
@@ -64,13 +64,9 @@ with verify_and_connect(opts) as kat:
 
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
-        if opts.scan_ants :
-            scan_ants = ClientGroup('scan_ants', [getattr(kat, ant.strip()) for ant in opts.scan_ants.split(',')])
-        else :
-            scan_ants = ClientGroup('scan_ants', [session.ants[0]])
-        
+        scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray
-        track_ants = all_ants
+        track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
