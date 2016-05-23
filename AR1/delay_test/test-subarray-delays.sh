@@ -86,7 +86,7 @@ echo
 echo "***************Initialising test for antenna(s), $ANT, on subarray_$SUB_NR...***************"
 echo
 
-CMDsync="/home/kat/AR1/utilities/global_sync_AR1.py -o ruby --delayfile /home/kat/AR1/utilities/pps_delays.csv"
+CMDsync="/home/kat/AR1/utilities/global_sync_AR1.py -o ruby --with-array --delayfile /home/kat/AR1/utilities/pps_delays.csv"
 CMDobs="/home/kat/scripts/integration_tests/run_aqf.py /home/kat/AR1/delay_test/test_subarray_delays.py --quick"
 
 for ((i=1; i<=$COUNT; i++)); do

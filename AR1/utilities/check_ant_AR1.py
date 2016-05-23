@@ -68,11 +68,15 @@ with verify_and_connect(opts) as kat:
 		        if ant.sensor.ap_e_stop_reason.get_value() != 'none':
 		            raise RuntimeError('AP e_stop %s' % ant.sensor.ap_e_stop_reason.get_value())
 
-		        print '  Checking amps'
+		        print '  Checking motion'
 		        amps=[
 		        'ap_azim_amp1_failed',
 		        'ap_azim_amp2_failed',
+                        'ap_azim_motion_error',
+                        'ap_azim_servo_failed',
 		        'ap_elev_amp_failed',
+                        'ap_elev_motion_error',
+                        'ap_elev_servo_failed',
 		        'ap_ridx_amp_failed']
 		        if check_sensors(ant.sensor, amps):
 		            any_errors = True
@@ -84,6 +88,11 @@ with verify_and_connect(opts) as kat:
 		        'ap_elev_brake_failed',
 		        'ap_ridx_brake_failed']
 		        if check_sensors(ant.sensor, breaks):
+		            any_errors = True
+		        breaks=[
+		        'ap_azim_brakes_released',
+		        'ap_elev_brakes_released']
+		        if check_sensors(ant.sensor, breaks, test_false=True):
 		            any_errors = True
 
 		        print '  Checking doors'
