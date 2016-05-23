@@ -69,6 +69,6 @@ with verify_and_connect(opts) as kat:
             session.label('raster')
 	    session.fire_noise_diode('coupler', on=10, off=10)
 	    time.sleep(10)
-            session.raster_scan(target, num_scans=3, scan_duration=60, scan_extent=5.0, scan_spacing=0.5, projection=opts.projection)
+            session.raster_scan(target, num_scans=3, scan_duration=60, scan_extent=5.0, scan_spacing=0.1, projection=opts.projection)
 
 # -fin-
