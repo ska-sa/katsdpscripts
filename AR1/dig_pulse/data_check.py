@@ -24,12 +24,12 @@ def spectrumtxt(data,pos=None,channels=2**8,num_spectra=1024):
     data is the memmap obj or the numpy array 
     channels = the number of channels in the fft"""
     if pos == None :
-        pos = np.floor((data.shape[0]-num_spectra*n)*np.random.random() ).astype(int)        
+        pos = np.floor((data.shape[0]-num_spectra*channels)*np.random.random() ).astype(int)        
     print ' Graph of average spectrum'
-    print '%i x Average spectrum in %i channels from position %i' % (num_spectra,int(n/2.),pos)
+    print '%i x Average spectrum in %i channels from position %i' % (num_spectra,int(channels/2.),pos)
     print ' Ch    Freq     dB  Graph'
-    for a,b in enumerate((np.abs(np.fft.fft(data[pos:pos+num_spectra*n].reshape(num_spectra,n),axis=1)[:,:n/2])/n).mean(axis=0)):
-      print '%3i %8.1f %5.1f %s' % (a,856+1712.0*a/n,20*np.log10(b), 'x'.rjust(np.max([1,int(40+20*np.log10(b))]),'-')  )
+    for a,b in enumerate((np.abs(np.fft.fft(data[pos:pos+num_spectra*channels].reshape(num_spectra,channels),axis=1)[:,:channels/2])/channels).mean(axis=0)):
+      print '%3i %8.1f %5.1f %s' % (a,856+1712.0*a/channels,20*np.log10(b), 'x'.rjust(np.max([1,int(40+20*np.log10(b))]),'-')  )
 
 def power_time_txt(data,pos=None,sample_size=32768,num_samples=100):
     """num_spectra = number of spectra (int)
@@ -49,12 +49,12 @@ def power_time_txt(data,pos=None,sample_size=32768,num_samples=100):
     print ' dump     us    dB  Graph'
     for a,b in enumerate(C):
       print '%4i %7.1f %6.1f %s' % (a,ts*a,10*np.log10(b), 'x'.rjust(int(80*b/gmax),'-')  )
-    print 'peak occurs at fft bin edge frequency of %8.2f Hz' % ((abs(np.fft.fft(C))[1:todo/2].argmax()+1)/(ts*todo)*1e6)
+    #print 'peak occurs at fft bin edge frequency of %8.2f Hz' % ((abs(np.fft.fft(C))[1:todo/2].argmax()+1)/(ts*todo)*1e6)
 
 
 
 # Set up standard script options
-pparser = optparse.OptionParser(usage='%prog [options] <data file>',
+parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script produces some text plots so that data can be examind')
 # Add experiment-specific options
 parser.add_option('-p', '--power-time', action="store_true", default=False,
@@ -82,7 +82,7 @@ data = np.load(args[0] , mmap_mode='r')
 if opts.power_time :
     power_time_txt(data,sample_size=32768,num_samples=int(opts.num))
 if opts.spectrum :
-    spectrumtxt(data,channels=2**np.ceil(np.log2(int(123)))*2,num_spectra=1024)
+    spectrumtxt(data,channels=2**np.ceil(np.log2(int(opts.num)))*2,num_spectra=1024)
 if opts.hist :
     histogramtxt(data,num=10000,bit_range=np.ceil(np.log2(int(opts.num)/2)).astype(int) )
     
