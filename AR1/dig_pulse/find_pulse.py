@@ -121,17 +121,22 @@ parser.set_defaults(description='UHF signal generator track',dump_rate=1.0,nd_pa
 # Parse the command line
 opts, args = parser.parse_args()
 
-
-if len(args) ==0 :
-    raise RunTimeError('No file passed to the script')
-
-data = np.load(args[0] , mmap_mode='r')
-
+# Values to be read in from Params
+sync_time = 1462780974  #Pulse100-16dB-Noise20dB-V.npy.epoch
+timestamp_value = 170765102538752 # Pulse100-16dB-Noise20dB-V.npy.timestamp
 ts=1.0e6/1712e6     # microseconds per dump
 avg_num = 256
 window_length = 256
 chunk_size = 1024*32768
 trans = slice(0,chunk_size)
+
+if len(args) ==0 :
+    raise RunTimeError('No file passed to the script')
+
+
+
+data = np.load(args[0] , mmap_mode='r')
+
    
 aaa = np.histogram(data[trans],bins=np.arange(2**6+1)-(2**5-.5) )
 plt.figure()
@@ -144,7 +149,7 @@ plt.plot(avg_data)
 rolled = rolling_window(avg_data, window=window_length)
 
 
-
+# choice of Measure  ?
 #measure = (rolled.mean(axis=-1))
 #measure = (rolled[...].std(axis=-1))
 measure = (rolled[...].std(axis=-1)/rolled.mean(axis=-1))
@@ -164,7 +169,7 @@ plt.ylim(1,None)
 
 pulse = (measure>med+8*mad) + (measure<med-8*mad)
 pulse_list = join_pulses(pulse.nonzero()[0])
-#print 'cc',pulse_list,'cc'
+
 for selection in map_to_raw_data(pulse_list,avg_num=avg_num,window_length=window_length,offset=trans.start):
     plt.figure()
     plt.plot(ts*np.arange(data[selection].shape[0]),data[selection].astype(np.float)**2)
@@ -172,9 +177,6 @@ for selection in map_to_raw_data(pulse_list,avg_num=avg_num,window_length=window
     #print data[selection].shape[0]//2
     plt.vlines(ts*data[selection].shape[0]//2,a,b)
     
-#plot(pulse.nonzero()[0][:-1],np.diff(pulse.nonzero()[0]),'.')
-#ylim(0,5)
-
 
 
 
