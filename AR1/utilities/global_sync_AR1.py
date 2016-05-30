@@ -23,6 +23,8 @@ parser.add_option('--mcpsetband', type="string", default='',
                   help='If specified, script will call cam.mcp.req.set_band() with given parameter (default="%default")')
 parser.add_option('--with-array', action="store_true", default=False,
                   help='Build a new array for user after sync')
+parser.add_option('--all', action="store_true", default=False,
+                  help='Include all antennas in the global sync')
 # assume basic options passed from instruction_set
 parser.set_defaults(description = 'AR1 Global sync')
 (opts, args) = parser.parse_args()
@@ -69,7 +71,10 @@ with verify_and_connect(opts) as kat:
 		    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s' % opts.mcpsetband)
 # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
 
-            ant_active = [ant for ant in cam.ants if ant.name not in cam.katpool.sensor.resources_in_maintenance.get_value()]
+            if opts.all:
+                ant_active = cam.ants
+            else:
+                ant_active = [ant for ant in cam.ants if ant.name not in cam.katpool.sensor.resources_in_maintenance.get_value()]
             print('Set PPS delay compensation for digitisers')
             for ant in ant_active:
                 #look at current delay and program in delay specified in CSV
@@ -106,7 +111,7 @@ with verify_and_connect(opts) as kat:
 # Currently sync is done in serial format one digitiser at a time, which means that the timeout will have to be
 # almost doubled for every 2 new antennas for the known future, until some optimization can be implemented
             print('Performing global sync on AR1 ...')
-	    serial_sync_timeout=60 # seconds
+	    serial_sync_timeout=300 # seconds
             for n in xrange(2):
                 # doing it twice just for good measure
                 start_time = time.time()
@@ -123,7 +128,7 @@ with verify_and_connect(opts) as kat:
             for ant in ant_active:
                 if antlist: antlist=','.join((antlist,ant.name))
                 else: antlist=ant.name
-                response = ant.req.dig_capture_start('hv')
+                response = ant.req.dig_capture_start('hv', timeout=60)
                 print(ant.name + ': ' + str(response))
                 time.sleep(1)
 

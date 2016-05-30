@@ -14,18 +14,22 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                  description='Special verification observation that will do a track, scan and drift obs.')
 # Add experiment-specific options
 
-# parser.add_option('-m', '--max-duration', type='float', default=None,
-#                   help='Maximum duration of the script in seconds, after which script will end '
-#                        'as soon as the current track finishes (no limit by default)')
-# parser.add_option('--repeat', action="store_true", default=False,
-#                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
-
 parser.add_option('--max-elevation', type='float', default=90.0,
                   help="Maximum elevation angle, in degrees (default=%default)")
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
+parser.add_option('--drift', action="store_true", default=False,
+                  help='Do a drift scan observation')
 parser.add_option('--drift-duration', type='float', default=300,
                   help='Total duration of drift scan')
+parser.add_option('--scan', action="store_true", default=False,
+                  help='Do a raster scan observation')
+parser.add_option('--scan-duration', type='float', default=60,
+                  help='Total duration of raster scan')
+parser.add_option('--track', action="store_true", default=False,
+                  help='Track the target for some time')
+parser.add_option('--track-duration', type='float', default=30,
+                  help='Total duration of target track')
 
 # Set default value for any option (both standard and experiment-specific options)
 # RvR -- Cannot set dump rate for AR1
@@ -88,35 +92,44 @@ with verify_and_connect(opts) as kat:
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)
 
-            session.label('track')
-            user_logger.info("Tracking %s for 30 seconds" % (target.name))	
-            session.track(target, duration=30)
+            if opts.track:
+                session.label('track')
+                session.set_target(target) # Set the target
+                user_logger.info("Tracking %s for %d seconds" % (target.name, opts.track_duration))
+                session.track(target, duration=opts.track_duration)
+            time.sleep(10)
 
-            session.label('raster')
-            user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-##RvR -- Use for other targets
-#             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=7.0,
-#                                         scan_spacing=0.4, scan_in_azimuth=True,
-#                                         projection=opts.projection)
+            if opts.scan:
+                session.label('raster')
+                session.set_target(target) # Set the target
+                user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
+                session.raster_scan(target, num_scans=3, scan_duration=opts.scan_duration, scan_extent=3.0,
+                                            scan_spacing=0.1, scan_in_azimuth=True,
+                                            projection=opts.projection)
+            time.sleep(10)
 
-#RvR -- Use for GPS scans
-            session.raster_scan(target, num_scans=3, scan_duration=20, scan_extent=5.0,
-                                        scan_spacing=0.4, scan_in_azimuth=True,
-                                        projection=opts.projection)
+            if opts.drift:
+                session.label('drift')
+                session.set_target(target) # Set the target
+                start_time = time.time()
+                az,el = target.azel(start_time + (opts.drift_duration / 2))
+                if (az*180/math.pi > 275.0):
+                    az = az - (360/180 * math.pi)
+                new_targ = katpoint.Target('Drift scan_duration of %s, azel, %10.8f, %10.8f' % (target.name, az*180/math.pi ,el*180/math.pi))
+                user_logger.info("Initiating drift scan of %s" % (target.name))
+                az,el = target.azel(start_time + (opts.drift_duration / 2))
+                session.track(new_targ, duration=opts.drift_duration)
+            time.sleep(10)
 
-            session.label('drift')
-            start_time = time.time()
-            az,el = target.azel(start_time + (opts.drift_duration / 2))
-            if (az*180/math.pi > 275.0):
-                az = az - (360/180 * math.pi)
-            new_targ = katpoint.Target('Drift scan_duration of %s, azel, %10.8f, %10.8f' % (target.name, az*180/math.pi ,el*180/math.pi))
-            user_logger.info("Initiating drift scan of %s" % (target.name))	
-            az,el = target.azel(start_time + (opts.drift_duration / 2))            
-            session.track(new_targ, duration=opts.drift_duration)
-
-            session.label('track')
-            user_logger.info("Tracking %s for 30 seconds" % (target.name))	
-            session.track(target, duration=30)
+            if opts.track:
+                session.label('track')
+                az,el = target.azel(start_time + (2 / 2))
+                new_targ = katpoint.Target('Dummy target to force session to slew to target %s, azel, %10.8f, %10.8f' % (target.name, az*180/math.pi ,el*180/math.pi))
+                session.track(new_targ, duration=0)
+                session.set_target(target) # Set the target
+                user_logger.info("Tracking %s for %d seconds" % (target.name, opts.track_duration))
+                session.track(target, duration=opts.track_duration)
+            time.sleep(10)
 
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)

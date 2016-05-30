@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Track target(s) for a specified time.
+# Drift scan on target(s) for a specified time.
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
@@ -8,21 +8,13 @@ import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 import katpoint
 
-# temporary hack to ensure antenna does not timeout for the moment
-def bad_ar1_alt_hack(target, duration, limit=88.):
-    import numpy
-    [az, el] = target.azel()
-    delta_transit = duration*(15./3600.)
-    if (numpy.rad2deg(float(el))+delta_transit+delta_transit) > limit: return True
-    return False
-
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Track one or more sources for a specified time. At least one '
+                                 description='Perfrom a drift scan on one or more sources for a specified time. At least one '
                                              'target must be specified. Note also some **required** options below.')
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
+                  help='Length of the drift scan for each source, in seconds (default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
@@ -32,8 +24,8 @@ parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
 
 # Set default value for any option (both standard and experiment-specific options)
-# parser.set_defaults(description='Target track',dump_rate=0.1)
-parser.set_defaults(description='Target track')
+# parser.set_defaults(description='Drift scan',dump_rate=0.1)
+parser.set_defaults(description='Drift scan')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -83,18 +75,10 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-#		    if bad_ar1_alt_hack(target, opts.track_duration):
-#		        user_logger.info('Too high elevation, skipping target %s...' % target.name)
-#                        user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
-#			continue
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-
+                    target_future_azel = target.azel(timestamp=time.time()+opts.track_duration/2)
+                    target = katpoint.construct_azel_target(katpoint.wrap_angle(target_future_azel[0]),katpoint.wrap_angle(target_future_azel[1]))
                     session.label('track')
-                    user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
-# # RvR -- Debug output to try and track down timeout due to pointing
-#                     user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
-# # RvR -- Debug output to try and track down timeout due to pointing
+                    user_logger.info("Initiating %g-second drift scan on target '%s'" % (opts.track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
                     total_track_time = 0.
