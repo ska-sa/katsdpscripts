@@ -98,7 +98,8 @@ with verify_and_connect(opts) as kat:
                             user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
                             user_logger.info("Offset of %f,%f degrees " %(offset_target[0],offset_target[1]))
                             session.set_target(target)
-                            session.ants.req.offset_fixed(offset_target[0],offset_target[1],opts.projection)
+                            if not kat.dry_run :
+                                session.ants.req.offset_fixed(offset_target[0],offset_target[1],opts.projection)
                             nd_params = session.nd_params
                             session.fire_noise_diode(announce=True, **nd_params)
                             if kat.dry_run :
