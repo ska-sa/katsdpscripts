@@ -5,6 +5,19 @@ import numpy as np
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
+from katsdptelstate import TelescopeState
+
+
+def get_telstate(data, sub):
+    """Get TelescopeState object associated with current data product."""
+    subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(),
+                                        sub.sensor.product.get_value())
+    reply = data.req.spmc_telstate_endpoint(subarray_product)
+    if not reply.succeeded:
+        raise ValueError("Could not access telescope state for subarray_product %r",
+                         subarray_product)
+    return TelescopeState(reply.messages[0].arguments[1])
+
 
 def bf_inputs(data, stream):
     """Input labels associated with specified beamformer stream."""
@@ -69,6 +82,12 @@ with verify_and_connect(opts) as kat:
     target_elevation = np.degrees(target.azel()[1])
     if target_elevation < opts.horizon:
         raise ValueError("The target %r is below the horizon" % (target.description,))
+
+    # Save script parameters before session capture-init's the SDP subsystem
+    telstate = get_telstate(kat.data, kat.sub)
+    script_args = vars(opts)
+    script_args['targets'] = args
+    telstate['obs_script_arguments'] = script_args
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
