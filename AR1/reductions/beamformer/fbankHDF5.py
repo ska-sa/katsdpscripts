@@ -41,6 +41,7 @@ def get_h5data(file):
 
 def check_offsets(uniqOffsets):
     """Print out locations of anomalous ADC offsets."""
+    indices = []
     for offset in uniqOffsets:
         if ( offset != 8192) :
             indices = np.where(uniqOffsets==offset)[0]
@@ -48,7 +49,8 @@ def check_offsets(uniqOffsets):
             print ' ADC mismatch of %i samples at tstamp indices...' %(sampOff), indices
     try:
         iSize = indices.size
-        return sampOff, indices[-1]
+        if iSize > 0:
+            return sampOff, indices[-1]
     except AttributeError:
         return 0,0
 
