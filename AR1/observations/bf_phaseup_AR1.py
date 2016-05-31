@@ -58,7 +58,7 @@ def get_gaincal_solutions(telstate):
     ants = telstate['cal_antlist']
     inputs = [ant+pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_G']
-    return dict(zip(inputs, solutions.real.flat))
+    return dict(zip(inputs, solutions.flat))
 
 
 # Set up standard script options
