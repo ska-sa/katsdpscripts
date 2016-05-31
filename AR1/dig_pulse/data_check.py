@@ -76,7 +76,7 @@ opts, args = parser.parse_args()
 
 
 if len(args) ==0 :
-    raise RunTimeError('No file passed to the script')
+    raise RuntimeError('No file passed to the script')
 
 data = np.load(args[0] , mmap_mode='r')
 if opts.power_time :
