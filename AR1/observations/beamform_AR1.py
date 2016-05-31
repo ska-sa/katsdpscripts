@@ -46,6 +46,10 @@ parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
                   help="Beamformer centre frequency, in MHz (default=%default)")
 parser.add_option('--test-snr', action='store_true', default=False,
               help="Perform SNR test by switching off inputs (default='%default')")
+parser.add_option('--backend', type=str, default='digifits',
+                   help="Choose backend, options are digifits, dspsr and dada_dbdisk")
+parser.add_option('--backen-args', type=str, default=None,
+                   help="arguments for backend processing")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
@@ -87,7 +91,8 @@ with verify_and_connect(opts) as kat:
     telstate = get_telstate(kat.data, kat.sub)
     script_args = vars(opts)
     script_args['targets'] = args
-    telstate['obs_script_arguments'] = script_args
+    print (dir(telstate))
+    telstate.add('obs_script_arguments',script_args)
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
