@@ -41,15 +41,15 @@ def get_h5data(file):
 
 def check_offsets(uniqOffsets):
     """Print out locations of anomalous ADC offsets."""
-    indices = []
     for offset in uniqOffsets:
         if ( offset != 8192) :
             indices = np.where(uniqOffsets==offset)[0]
             sampOff = offset/8192.
             print ' ADC mismatch of %i samples at tstamp indices...' %(sampOff), indices
-    if ( indices.size > 0 ):
+    try:
+        iSize = indices.size
         return sampOff, indices[-1]
-    else:
+    except AttributeError:
         return 0,0
 
 def power_of_two(n):
