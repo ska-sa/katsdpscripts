@@ -1,5 +1,5 @@
 #!/usr/bin/env/python 
-# fbankHDF5.py; last mod. NJY [18/05/2016]
+# fbankHDF5.py; last mod. NJY [31/05/2016]
 
 import os, time, h5py, struct
 import numpy as np
@@ -44,7 +44,12 @@ def check_offsets(uniqOffsets):
     for offset in uniqOffsets:
         if ( offset != 8192) :
             indices = np.where(uniqOffsets==offset)[0]
-            print ' ADC mismatch of %i samples at...' %(offset/8192.), indices  
+            sampOff = offset/8192.
+            print ' ADC mismatch of %i samples at tstamp indices...' %(sampOff), indices
+    if ( indices.size > 0 ):
+        return sampOff, indices[-1]
+    else:
+        return 0,0
 
 def power_of_two(n):
   """Check if value is a power of two."""
@@ -66,7 +71,9 @@ if __name__=="__main__":
     parser.add_option("-c", "--chbw", action='store_false', default=True, 
     help="Channel bandwidth inversion override (def = %default).")
     parser.add_option("-d", "--dec", type='string', default="-45:10:34.8751", 
-    help="DECJ override (def = %default).")   
+    help="DECJ override (def = %default).")
+    parser.add_option("-D", "--dual-pol", action='store_false', default=True, 
+    help="Dual-pol override switch(def = %default).")
     parser.add_option("-f", "--freq", type="float", default=1391.0, 
     help="Centre frequency override (def = %default MHz).")
     parser.add_option("-g", "--get-fig", action="store_false", default=True, 
@@ -94,50 +101,69 @@ if __name__=="__main__":
     # Read in HDF5 data using h5py.
     ################################
     pol0 = opts.i0
-    pol1 = opts.i1
     bf0, t0s, sync_time = get_h5data(pol0)
-    bf1, t1s, sync_time = get_h5data(pol1)
     nchan = bf0.shape[0]
-    if opts.sync_time != None: sync_time = opts.sync_time
-    if bf1.shape[0] != nchan:
-        print ' %i chans (pol0) != %i chans (pol1). Exiting now...\n' %(nchan,bf1.shape[0])
-        sys.exit(1)
     print bf0
-    print bf1
+
+    if opts.dual_pol:
+        pol1 = opts.i1
+        bf1, t1s, sync_time = get_h5data(pol1)
+        if bf1.shape[0] != nchan:
+            print ' %i chans (pol0) != %i chans (pol1). Exiting now...\n' %(nchan,bf1.shape[0])
+            sys.exit(0)
+        print bf1
+    if opts.sync_time != None: sync_time = opts.sync_time
 
     ##################################################
     # Determine ADC offset to synchonise pol streams
     # and poke timestamps to check for data losses.
     ##################################################
-    t0s = t0s[:]
-    t1s = t1s[:]
-    pol0_diffs = np.diff(t0s)
-    pol1_diffs = np.diff(t1s)
-    p0_diffUniq = np.unique(pol0_diffs) # check where dropouts actually occur
-    p1_diffUniq = np.unique(pol1_diffs)
-    check_offsets(p0_diffUniq)
-    check_offsets(p1_diffUniq)
-
-    adc0 = t0s[0]
-    adc1 = t1s[0]
-    adcSync = adc0 if adc0 > adc1 else adc1
-    index0 = np.where(t0s==adcSync)[0][0]
-    index1 = np.where(t1s==adcSync)[0][0]
-    Nend = Nsamp = t1s[index1:].size if t1s[index1:].size <= t0s[index0:].size else t0s[index0:].size
-
-    Npol0 = t0s.size
-    Npol1 = t1s.size
     tsamp = 1/(856e6/4096.)
-    Nend0 = Nend+index0
-    Nend1 = Nend+index1
-    UTCstart, MJDstart = get_times(adcSync,sync_time)
-    print '\n ADC sync indices for H = %i and V = %i' %(index0,index1)
-    print ' Nsamp for H = %i and V = %i' %(Npol0,Npol1)
-    print ' Nend for H = %i and V = %i' %(Nend0,Nend1)
-    print ' Tobs for H = %i s and V = %i s\n' %(Npol0*tsamp,Npol1*tsamp) 
-    print ' UTC start = %s => MJD start = %s' %(UTCstart,MJDstart)
-    print ' Unique pol0 ADC offsets:', p0_diffUniq
-    print ' Unique pol1 ADC offsets:', p1_diffUniq, '\n'
+    if opts.dual_pol:
+        t0s = t0s[:]
+        t1s = t1s[:]
+        pol0_diffs = np.diff(t0s)
+        pol1_diffs = np.diff(t1s)
+        p0_diffUniq = np.unique(pol0_diffs) # check where dropouts actually occur
+        p1_diffUniq = np.unique(pol1_diffs)
+        offSamp0, offIndex0 = check_offsets(p0_diffUniq)
+        offSamp1, offIndex1 = check_offsets(p1_diffUniq)
+
+        adc0 = t0s[0]
+        adc1 = t1s[0]
+        adcSync = adc0 if adc0 > adc1 else adc1
+        index0 = np.where(t0s==adcSync)[0][0]
+        index1 = np.where(t1s==adcSync)[0][0]
+        Nend = Nsamp = t1s[index1:].size if t1s[index1:].size <= t0s[index0:].size else t0s[index0:].size
+
+        Npol0 = t0s.size
+        Npol1 = t1s.size
+        Nend0 = Nend+index0
+        Nend1 = Nend+index1
+        UTCstart, MJDstart = get_times(adcSync,sync_time)
+        print '\n ADC sync indices for H = %i and V = %i' %(index0,index1)
+        print ' Nsamp for H = %i and V = %i' %(Npol0,Npol1)
+        print ' Nend for H = %i and V = %i' %(Nend0,Nend1)
+        print ' Tobs for H = %i s and V = %i s\n' %(Npol0*tsamp,Npol1*tsamp) 
+        print ' UTC start = %s => MJD start = %s' %(UTCstart,MJDstart)
+        print ' Unique pol0 ADC offsets:', p0_diffUniq
+        print ' Unique pol1 ADC offsets:', p1_diffUniq, '\n'
+
+    else:
+        t0s = t0s[:]
+        pol0_diffs = np.diff(t0s)
+        p0_diffUniq = np.unique(pol0_diffs) # check where dropouts actually occur
+        offSamp0, offIndex0 = check_offsets(p0_diffUniq)
+        index0 = offIndex0 + offSamp0 
+        adc0 = t0s[index0] = adcSync
+        Nend = Nsamp = t0s[index0:].size
+        Nend0 = Nend + index0
+        UTCstart, MJDstart = get_times(adcSync,sync_time)
+        print '\n Nsamp = %i and Nuse = %i' %(t0s.size,Nend)
+        print ' Unique ADC offsets:', p0_diffUniq
+        print ' Synchronise on sample %i given dropout of %i samples at sample %i...' %(index0,offSamp0,offIndex0)
+        print ' Tobs = %.3f s' %(Nsamp*tsamp) 
+        print ' UTC start = %s => MJD start = %s\n' %(UTCstart,MJDstart)
 
     #-----------------------------------------------#
     # Optionally modify Nend to reduce data read in:
@@ -148,10 +174,13 @@ if __name__=="__main__":
         if ( Nsamp_use < Nend ):
             Nsamp = Nsamp_use
             Nend0 = Nsamp+index0
-            Nend1 = Nsamp+index1
             t0s = t0s[index0:Nend0]
-            t1s = t1s[index1:Nend1]
-        print ' New Nsamp for H = %i and V = %i' %(t0s.size,t1s.size)
+            if opts.dual_pol:
+                Nend1 = Nsamp+index1
+                t1s = t1s[index1:Nend1]
+                print ' New Nsamp for H = %i and V = %i' %(t0s.size,t1s.size)
+            else:
+                print ' New Nsamp = %i' %(t0s.size)        
         print ' New Tobs = %.3f s' %(Nsamp*tsamp)    
 
     ####################################################
@@ -212,33 +241,39 @@ if __name__=="__main__":
     start = 0
     Nblock = 256/opts.ndec
     i0s = np.int_(np.arange(index0,Nend0,256)) # 256 spectra allows fast cache access c.f. 8192
-    i1s = np.int_(np.arange(index1,Nend1,256))
     bf0pows = np.zeros((nchan,Nsamp),dtype=np.float32)
-    bf1pows = np.zeros((nchan,Nsamp),dtype=np.float32)
+    if opts.dual_pol:
+        i1s = np.int_(np.arange(index1,Nend1,256))
+        bf1pows = np.zeros((nchan,Nsamp),dtype=np.float32)
     totPows = np.zeros((nchan,Nsamp),dtype=np.float32)
     for index in np.arange(i0s.size):
         pow0 = bf0[:,i0s[index]:i0s[index]+256,:]
-        pow1 = bf1[:,i1s[index]:i1s[index]+256,:]
         pow0 = pow0[...,0] + pow0[...,1]*1j
-        pow1 = pow1[...,0] + pow1[...,1]*1j
         pow0 = (pow0 * pow0.conjugate()).real
-        pow1 = (pow1 * pow1.conjugate()).real
+        if opts.dual_pol:
+            pow1 = bf1[:,i1s[index]:i1s[index]+256,:]
+            pow1 = pow1[...,0] + pow1[...,1]*1j
+            pow1 = (pow1 * pow1.conjugate()).real
 
         if ( opts.ndec > 1 ):
             try:
                 pow0 = pow0.reshape((nchan,-1,opts.ndec)).mean(axis=2)  # re-accumulate data by a factor of ndec
-                pow1 = pow1.reshape((nchan,-1,opts.ndec)).mean(axis=2)
+                if opts.dual_pol:
+                    pow1 = pow1.reshape((nchan,-1,opts.ndec)).mean(axis=2)
             except ValueError: # break from loop if run out of data
                 break
 
-        totPow = pow0 + pow1
+        if opts.dual_pol:
+            totPow = pow0 + pow1
+            bf1pows[:,start:start+Nblock] = pow1
+        else:
+            totPow = pow0
         totSpec = totPow.T.flatten().astype(np.float32)
         bytesSpec = totSpec.tobytes(order="C")
         f_handle.write(bytesSpec) # write sigproc data fmt to file
         f_handle.seek(0,2)
     
         bf0pows[:,start:start+Nblock] = pow0
-        bf1pows[:,start:start+Nblock] = pow1
         totPows[:,start:start+Nblock] = totPow
 
         start += Nblock
@@ -260,11 +295,11 @@ if __name__=="__main__":
         #-------------------------#
         ax1 = fig.add_subplot(211)
         bp0 = bf0pows.mean(axis=1)
-        bp1 = bf1pows.mean(axis=1)
         bptot = totPows.mean(axis=1)
-
         p.plot(freqs,bp0,'b-',label='H')
-        p.plot(freqs,bp1,'g-',label='V')
+        if opts.dual_pol: 
+            bp1 = bf1pows.mean(axis=1)
+            p.plot(freqs,bp1,'g-',label='V')
         p.plot(freqs,bptot,'r-',label='cmbd')
         ax1.yaxis.set_minor_locator(AutoMinorLocator(5))
         ax1.xaxis.set_minor_locator(AutoMinorLocator(10))
@@ -277,13 +312,14 @@ if __name__=="__main__":
         # Plot time-series data:
         #------------------------#
         ts0 = bf0pows.mean(axis=0)
-        ts1 = bf0pows.mean(axis=0)
         ts_tot = totPows.mean(axis=0)
         tvals = np.arange(Nsamp)*tsamp
 
         ax2 = fig.add_subplot(212)
         p.plot(tvals,ts0,'b-',label='H')
-        p.plot(tvals,ts1,'g-',label='V')
+        if opts.dual_pol: 
+            ts1 = bf1pows.mean(axis=0)
+            p.plot(tvals,ts1,'g-',label='V')
         p.plot(tvals,ts_tot,'r-',label='cmbd')
         ax2.yaxis.set_minor_locator(AutoMinorLocator(5))
         ax2.xaxis.set_minor_locator(AutoMinorLocator(10))
