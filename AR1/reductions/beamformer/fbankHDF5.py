@@ -158,13 +158,13 @@ if __name__=="__main__":
         p0_diffUniq = np.unique(pol0_diffs) # check where dropouts actually occur
         offSamp0, offIndex0 = check_offsets(p0_diffUniq)
         index0 = offIndex0 + offSamp0 
-        adc0 = t0s[index0] = adcSync
+        adc0 = adcSync = t0s[index0]
         Nend = Nsamp = t0s[index0:].size
         Nend0 = Nend + index0
         UTCstart, MJDstart = get_times(adcSync,sync_time)
         print '\n Nsamp = %i and Nuse = %i' %(t0s.size,Nend)
         print ' Unique ADC offsets:', p0_diffUniq
-        print ' Synchronise on sample %i given dropout of %i samples at sample %i...' %(index0,offSamp0,offIndex0)
+        print ' Synchronise on sample %i, given dropout of %i samples at sample %i...' %(index0,offSamp0,offIndex0)
         print ' Tobs = %.3f s' %(Nsamp*tsamp) 
         print ' UTC start = %s => MJD start = %s\n' %(UTCstart,MJDstart)
 
