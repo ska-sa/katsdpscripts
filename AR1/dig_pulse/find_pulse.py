@@ -139,8 +139,8 @@ opts, args = parser.parse_args()
 
 
 # Values to be read in from Params
-sync_time = 1462780974 # opts.sync #Pulse100-16dB-Noise20dB-V.npy.epoch
-timestamp_value = 170765102538752 #opts.first_timestamp # Pulse100-16dB-Noise20dB-V.npy.timestamp
+sync_time =  opts.sync #Pulse100-16dB-Noise20dB-V.npy.epoch
+timestamp_value = opts.first_timestamp # Pulse100-16dB-Noise20dB-V.npy.timestamp
 ts=1.0/1712e6     # seconds per data point
 avg_num = opts.num
 window_length = opts.window
