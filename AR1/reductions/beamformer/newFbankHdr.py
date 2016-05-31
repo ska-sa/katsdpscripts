@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, time
+import os, sys, time, struct
 from optparse import OptionParser   # enables variables to be parsed from command line
 import numpy as np
 from sigpyproc.Readers import FilReader
@@ -9,6 +9,18 @@ import matplotlib.pyplot as plt
 ###########################
 # Define useful routines.
 ###########################
+def _write_string(key, value):
+    return "".join([struct.pack("I", len(key)), key, struct.pack("I", len(value)), value])
+
+def _write_int(key, value):
+    return "".join([struct.pack("I",len(key)), key, struct.pack("I", value)])
+
+def _write_double(key, value):
+    return "".join([struct.pack("I",len(key)), key, struct.pack("d", value)])
+
+def _write_char(key, value):
+    return "".join([struct.pack("I",len(key)), key, struct.pack("b", value)])
+
 def power_of_two(n):
   """Check if value is a power of two."""
   if n == 2:
@@ -37,14 +49,33 @@ if __name__=="__main__":
 	(opts, args) = parser.parse_args()
 	t0 = time.time() # record script start time
 
-    ###############################
-    # Write new hdr to file.
-    ###############################
-	outfile = opts.infile.split('.fil')[0] + '_newhdr.fil' if not opts.outfile else opts.outfile
-	hdr_cmd = 'mockHeader -tel %i -mach %i -type 1 -source %s -tstart %.8f -tsamp %s -nbits %i '\
-	'-fch1 %.5f -fo %.6f -nchans %i %s' %(opts.tel,opts.mach,opts.source,opts.mjd,opts.tsamp,opts.nbits,
-		opts.fch1,opts.fo,opts.nchan,outfile)
-	os.system(hdr_cmd)
+    ########################################
+    # Write out file header to fbank file.
+    #########################################
+    RAJ = opts.ra
+    DECJ = opts.dec
+    outfile = opts.outfile if opts.outfile != None else opts.i0.split('.h5')[0] + '.fil'
+    f_handle = open(outfile, "wab")
+    headerStart = "HEADER_START"
+    headerEnd = "HEADER_END"
+    header = "".join([struct.pack("I", len(headerStart)), headerStart])
+    header = "".join([header, _write_string("source_name", opts.source)])
+    header = "".join([header, _write_int("machine_id", 64)])
+    header = "".join([header, _write_int("telescope_id", 64)])
+    src_raj = float(RAJ.replace(":", ""))
+    header = "".join([header, _write_double("src_raj", src_raj)])
+    src_dej = float(DECJ.replace(":", ""))
+    header = "".join([header, _write_double("src_dej", src_dej)])
+    header = "".join([header, _write_int("data_type", 1)])
+    header = "".join([header, _write_double("fch1", fBottom)])
+    header = "".join([header, _write_double("foff", chBW)])
+    header = "".join([header, _write_int("nchans", nchan)])
+    header = "".join([header, _write_int("nbits", 32)])
+    header = "".join([header, _write_double("tstart", MJDstart)])
+    header = "".join([header, _write_double("tsamp", tsamp)])
+    header = "".join([header, _write_int("nifs", 1)])
+    header = "".join([header, struct.pack("I", len(headerEnd)), headerEnd])
+    f_handle.write(header)
 
     ######################################
     # Read in filterbank data as mmap and
