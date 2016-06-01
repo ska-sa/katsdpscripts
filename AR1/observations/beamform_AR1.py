@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Dual polarisation beamforming: Track target for beamforming.
 
 import numpy as np
