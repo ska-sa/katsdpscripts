@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from katsdpscripts import git_info
 
-def MAD_median(data):
+def MAD_median(data,verbose=False):
     """Median absolute deviation (MAD) is a robust measure of the variability."""
     import time
     start_0 = time.time()
@@ -14,7 +14,8 @@ def MAD_median(data):
     start_1 = time.time()
     mad = np.median(np.abs(data-med) )
     end_time = time.time()
-    print("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1))
+    if verbose :
+        print("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1))
     return mad,med
 
 def join_pulses(data,pulse_gap=10):
@@ -169,7 +170,7 @@ for new_edge in xrange(chunk_size,data.shape[0],chunk_size):
     trans = slice(old_edge,new_edge)
     old_edge = new_edge
     avg_data = (np.abs(data[trans]).reshape(-1,avg_num).mean(axis=-1)).astype(np.float)**2
-    print avg_data.shape,window_length,trans
+    #print avg_data.shape,window_length,trans
     rolled = rolling_window(avg_data, window=window_length)
 
     # choice of Measure  ?
