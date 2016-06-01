@@ -73,8 +73,16 @@ with verify_and_connect(opts) as kat:
     # These are hardcoded for now...
     bf_streams = ('beam_0x', 'beam_0y')
     for stream in bf_streams:
-        kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
-                                               int(opts.beam_centre_freq * 1e6))
+        reply = kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
+                                                       int(opts.beam_centre_freq * 1e6))
+        if reply.succeeded:
+            actual_bandwidth = float(reply.messages[0].arguments[2])
+            actual_centre_freq = float(reply.messages[0].arguments[3])
+            user_logger.info("Beamformer %r has bandwidth %g Hz and centre freq %g Hz",
+                             stream, actual_bandwidth, actual_centre_freq)
+        else:
+            raise ValueError("Could not set beamformer %r passband - (%s)" %
+                             (stream, ' '.join(reply.messages[0].arguments)))
         for inp in bf_inputs(kat.data, stream):
             weight = 1.0 if inp[:-1] in bf_ants else 0.0
             kat.data.req.cbf_beam_weights(stream, inp, weight)
