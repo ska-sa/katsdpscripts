@@ -1,0 +1,12 @@
+Identified by description: obs.sb.description = 'AR1: MKAIV-78 Quick Check Point Source Scan'
+
+For a single antenna
+python analyse_quick_point_source_scan.py -a m063 --keep-all -s /var/kat/archive/data/MeerKATAR1/telescope_products/2016/01/27/1453883060.h5
+
+For all antennas
+python analyse_quick_point_source_scan.py -a all --keep-all -s /var/kat/archive/data/MeerKATAR1/telescope_products/2016/01/27/1453883060.h5
+
+For pipeline workflow using a single scan across target the default is to use
+all antennas and to keep the results, even if the beam fit failed
+python analyse_quick_point_source_scan.py /var/kat/archive/data/MeerKATAR1/telescope_products/2016/01/27/1453883060.h5
+

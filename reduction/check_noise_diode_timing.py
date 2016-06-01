@@ -12,7 +12,7 @@ import optparse
 import sys
 
 import numpy as np
-import katfile
+import katdal
 
 ################################################### Helper routines ###################################################
 
@@ -137,7 +137,7 @@ if len(args) < 1:
     print 'Please specify an HDF5 file to check'
     sys.exit(1)
 
-data = katfile.open(args[0])
+data = katdal.open(args[0])
 chan_range = slice(*[int(chan_str) for chan_str in opts.freq_chans.split(',')]) \
              if opts.freq_chans is not None else slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
 data.select(channels=chan_range)
