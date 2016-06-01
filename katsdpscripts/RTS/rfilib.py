@@ -362,7 +362,7 @@ class sumthreshold_flagger():
         #Internal parameters
         #Fraction of data flagged to extend flag to all data
         self.flag_all_time_frac = 0.5
-        self.flag_all_freq_frac = 0.6
+        self.flag_all_freq_frac = 0.8
         #Extend size of flags in time and frequency
         self.time_extend = 3
         self.freq_extend = 3
@@ -787,7 +787,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
     y_step = max(int(visdata.shape[0]/display_height), 1)
     x_slice = slice(0, -1, x_step)
     y_slice = slice(0, -1, y_step)
-    data = np.abs(visdata[y_slice,x_slice][...,0])
+    data = np.log10(np.abs(visdata[y_slice,x_slice][...,0]))
     flags = flagdata[y_slice,x_slice][...,0]
     plotflags = np.zeros(flags.shape[0:2]+(4,))
     plotflags[:,:,0] = 1.0
@@ -926,7 +926,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
         for this_slice in scan_slices:
             this_data = np.abs(h5.vis[this_slice,:,:])
             if use_file_flags:
-                file_flags = h5.flags('detected_rfi')[this_slice,:,:]
+                file_flags = h5.flags('ingest_rfi')[this_slice,:,:]
             else:
                 file_flags = np.zeros(this_data.shape,dtype=np.bool)
             #Construct a masked array with flags removed
@@ -951,7 +951,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
             all_flags[...,1] = mask_flags
             all_flags[:,freq_range,:,6] = detected_flags
-            all_flags[...,4] = h5.flags('detected_rfi')[this_slice,:,:]
+            all_flags[...,4] = h5.flags('ingest_rfi')[this_slice,:,:]
 
             all_flags=np.packbits(all_flags,axis=3).squeeze()
             final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
