@@ -46,10 +46,11 @@ parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
                   help="Beamformer centre frequency, in MHz (default=%default)")
 parser.add_option('--test-snr', action='store_true', default=False,
               help="Perform SNR test by switching off inputs (default='%default')")
-parser.add_option('--backend', type=str, default='digifits',
-                   help="Choose backend, options are digifits, dspsr and dada_dbdisk")
-parser.add_option('--backen-args', type=str, default=None,
-                   help="arguments for backend processing")
+parser.add_option('--backend', type='choice', default='digifits',
+                  choices=['digifits', 'dspsr', 'dada_dbdisk'],
+                  help="Choose backend (default=%default)")
+parser.add_option('--backend-args',
+                  help="Arguments for backend processing")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
