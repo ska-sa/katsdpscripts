@@ -54,7 +54,7 @@ opts, args = parser.parse_args()
 
 if opts.quick:
     opts.dump_rate = 2.0
-
+uniquename = 0
 with verify_and_connect(opts) as kat:
     if not kat.dry_run and kat.ants.req.mode('STOP') :
         user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
@@ -119,7 +119,7 @@ with verify_and_connect(opts) as kat:
                     while offsetloop:
                         session.label('raster')
                         # Do different raster scan on strong and weak targets
-                        if not opts.quick:
+                        if not opts.quick and not opts.fine:
                             if opts.source_strength == 'strong' or \
                                 (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
                                 session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
@@ -140,10 +140,10 @@ with verify_and_connect(opts) as kat:
                                 scantime = 3*15*1.5
                             else: # if opts.fine:
                                 user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                                session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
-                                            scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                session.raster_scan(target, num_scans=16, scan_duration=16, scan_extent=(16*2)/60.,
+                                            scan_spacing=(1.*2.)/60., scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
-                                scantime = 5*60*1.5
+                                scantime = 16*16*1.5
 
                         #session.label('slew')
                         angle = np.arange(0., 2.*np.pi, 2.*np.pi /4.)  # The four directions
@@ -151,7 +151,8 @@ with verify_and_connect(opts) as kat:
                         if anglekey < len(angle):
                             offset = np.array((np.cos(angle[anglekey]), -np.sin(angle[anglekey]))) * opts.offset * (-1) ** anglekey
                             offset_targetval = (np.degrees(target.astrometric_radec()) + offset/(np.cos(target.astrometric_radec()[1]),1.0))
-                            offsettarget = katpoint.Target('offset,radec, %s , %s'%(offset_targetval[0],offset_targetval[1])) # the ra is in decimal hours for some reason
+                            uniquename = uniquename + 1
+                            offsettarget = katpoint.Target('offset_%i,radec, %s , %s'%(uniquename,offset_targetval[0],offset_targetval[1])) # the ra is in decimal hours for some reason
                             user_logger.info("Target & offset seperation = %s "%(np.degrees(target.separation(offsettarget))))
                             session.track(offsettarget, duration=0, announce=False)
                         else :

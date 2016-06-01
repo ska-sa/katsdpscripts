@@ -29,6 +29,10 @@ import pathos.multiprocessing as mp
 import time
 import itertools
 
+#Supress warnings
+import warnings
+warnings.simplefilter('ignore')
+
 def running_mean(x, N, axis=None):
     #Fast implementation of a running mean (array x with width N)
     #Stolen from http://stackoverflow.com/questions/13728392/moving-average-or-running-mean
@@ -692,8 +696,8 @@ def get_flag_stats(h5, flags=None, flags_to_show=None, norm_spec=None):
     spectrum (norm_spec) to divide into the calculated bandpass.
     """
 
-    sumarray=np.zeros((h5.shape[1],4))
-    weightsum=np.zeros((h5.shape[1],4),dtype=np.int)
+    sumarray=np.zeros((h5.shape[1],h5.shape[2]))
+    weightsum=np.zeros((h5.shape[1],h5.shape[2]),dtype=np.int)
     if flags is None:
         flags = h5.flags(flags_to_show)
     for num,thisdata in enumerate(h5.vis):
@@ -713,7 +717,7 @@ def get_flag_stats(h5, flags=None, flags_to_show=None, norm_spec=None):
         sumarray = sumarray + thisdata*weights.astype(np.float)
     averagespec = sumarray/(weightsum.astype(np.float))
     flagfrac = 1. - (weightsum.astype(np.float)/h5.shape[0].astype(np.float))
-    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
+    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period, 'corr_products': h5.corr_products}
 
 
 def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
@@ -722,10 +726,9 @@ def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
     after flagging and attach it to the pdf output.
     Also show fraction of times flagged per channel.
     """
-    from git_info import git_info, get_git_path
+    from katsdpscripts import git_info
 
-    repo_path=get_git_path()
-    repo_info = git_info() if repo_path=='' else git_info(repo_path)
+    repo_info = git_info() 
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
@@ -766,12 +769,11 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
     """
     Make a waterfall plot from visdata with flags overplotted. 
     """
-    from git_info import git_info, get_git_path
     from datetime import datetime as dt
     import matplotlib.dates as mdates
+    from katsdpscripts import git_info
 
-    repo_path=get_git_path()
-    repo_info = git_info() if repo_path=='' else git_info(repo_path)
+    repo_info = git_info()
 
     fig = plt.figure(figsize=(8.3,11.7))
     ax = plt.subplot(111)

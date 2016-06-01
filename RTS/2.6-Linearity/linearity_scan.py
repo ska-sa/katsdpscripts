@@ -36,7 +36,6 @@ if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 
-
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     args_target_list =[]
@@ -47,14 +46,13 @@ with verify_and_connect(opts) as kat:
         user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    for catfile in args:
-        try:
-            observation_sources.add_tle(file(catfile))
-        except IOError: # If the file failed to load assume it is a target string
-            args_target_list.append(catfile)
-        if len(args_target_list) > 0 :
-            args_target_obj = collect_targets(kat,args_target_list)
-            observation_sources.add(args_target_obj)
+    
+    try:
+        observation_sources.add_tle(file(args[0]))
+    except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string
+        args_target_obj = collect_targets(kat,args)
+        observation_sources.add(args_target_obj)
+            
             #user_logger.info("Found %d targets from Command line and %d targets from %d Catalogue(s) " %
             #                         (len(args_target_obj),num_catalogue_targets,len(args)-len(args_target_list),))
     # Quit early if there are no sources to observe

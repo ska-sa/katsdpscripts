@@ -9,7 +9,7 @@ import katdal
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas
 import pickle
-from katsdpscripts.RTS import git_info
+from katsdpscripts import git_info
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -29,7 +29,7 @@ def detrend(x):
     return polyfitstd(np.arange(x.shape[0]),x,1)
 
 
-def plot_figures(d_uncal, d_cal, time, gain,pol):
+def plot_figures(d_uncal, d_cal, time, gain,pol,antname=''):
     """ This function plots the six graphs for A polarization
     This takes in two scape  data sets:
         d_uncal : scape dataset that contains the averaged uncalibrated data
@@ -41,7 +41,7 @@ def plot_figures(d_uncal, d_cal, time, gain,pol):
          matplotlib figure object of the graph produced
     """
     fig = plt.figure()
-    plt.title(pol)
+    plt.title("%s : %s "%(pol))
     plt.clf()
     F=plt.gcf() # fig ?
     F.set_size_inches(8,12)
@@ -83,7 +83,7 @@ def rolling_window(a, window):
     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
 
-def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1):
+def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=1,antname=''):
     """ calculate the Stats needed to evaluate the observation"""
     returntext = []
     gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))#.asfreq(freq='1s')
@@ -98,6 +98,7 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     full = np.where(window_occ==1)
 
     #rms = np.sqrt((gain**2).mean())
+    returntext.append("Antenna : %s:%s"%(antname,pol) )
     returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
     #returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
@@ -110,7 +111,7 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
 
     pltobj = plt.figure()
-    plt.title('Percentage Variation of %s pol, %i Second sliding Window'%(pol,windowtime,))
+    plt.title('Percentage Variation of %s:%s pol, %i Second sliding Window'%(ant,pol,windowtime,))
     windowgainchange.iloc[full].plot(label='Original')
     detrended_windowgainchange.iloc[full].plot(label='Detrended')
 
@@ -177,7 +178,7 @@ gain_hh = np.array(())
 gain_vv = np.array(())
 timestamps = np.array(())
 filename = args[0]
-nice_filename =  filename.split('/')[-1]+ '_' +opts.ant+'gain_stability'
+nice_filename =  filename.split('/')[-1]+ '_' +ant+'_gain_stability'
 pp = PdfPages(nice_filename+'.pdf')
 
 for filename in args:
@@ -208,10 +209,10 @@ for filename in args:
     if False:
         d_cal.convert_power_to_temperature(min_samples=opts.min_nd, time_width=opts.time_width)
         d_cal.average()
-        fig = plot_figures(d_uncal, d_cal, time, gain_hh, 'HH')
+        fig = plot_figures(d_uncal, d_cal, time, gain_hh, 'HH',antname=ant)
         fig.savefig(pp,format='pdf')
         plt.close()
-        fig = plot_figures(d_uncal, d_cal, time, gain_vv, 'VV')
+        fig = plot_figures(d_uncal, d_cal, time, gain_vv, 'VV',antname=ant)
         fig.savefig(pp,format='pdf')
         plt.close()
 
@@ -224,13 +225,13 @@ for filename in args:
 
 if True :
     obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
-    returntext,fig = calc_stats(timestamps,gain_hh,'HH',1200)
+    returntext,fig = calc_stats(timestamps,gain_hh,'HH',1200,antname=ant)
     fig.suptitle(obs_details)
     plt.subplots_adjust(bottom=0.3)
     plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
     fig.savefig(pp,format='pdf')
     plt.close()
-    tmp,fig = calc_stats(timestamps,gain_vv,'VV',1200)
+    tmp,fig = calc_stats(timestamps,gain_vv,'VV',1200,antname=ant)
     fig.suptitle(obs_details)
     plt.subplots_adjust(bottom=0.3)
     plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
