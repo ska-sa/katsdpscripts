@@ -1,10 +1,23 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Dual polarisation beamforming: Track target for beamforming.
 
 import numpy as np
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
+from katsdptelstate import TelescopeState
+
+
+def get_telstate(data, sub):
+    """Get TelescopeState object associated with current data product."""
+    subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(),
+                                        sub.sensor.product.get_value())
+    reply = data.req.spmc_telstate_endpoint(subarray_product)
+    if not reply.succeeded:
+        raise ValueError("Could not access telescope state for subarray_product %r",
+                         subarray_product)
+    return TelescopeState(reply.messages[0].arguments[1])
+
 
 def bf_inputs(data, stream):
     """Input labels associated with specified beamformer stream."""
@@ -33,6 +46,11 @@ parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
                   help="Beamformer centre frequency, in MHz (default=%default)")
 parser.add_option('--test-snr', action='store_true', default=False,
               help="Perform SNR test by switching off inputs (default='%default')")
+parser.add_option('--backend', type='choice', default='digifits',
+                  choices=['digifits', 'dspsr', 'dada_dbdisk'],
+                  help="Choose backend (default=%default)")
+parser.add_option('--backend-args',
+                  help="Arguments for backend processing")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
@@ -55,8 +73,16 @@ with verify_and_connect(opts) as kat:
     # These are hardcoded for now...
     bf_streams = ('beam_0x', 'beam_0y')
     for stream in bf_streams:
-        kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
-                                               int(opts.beam_centre_freq * 1e6))
+        reply = kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
+                                                       int(opts.beam_centre_freq * 1e6))
+        if reply.succeeded:
+            actual_bandwidth = float(reply.messages[0].arguments[2])
+            actual_centre_freq = float(reply.messages[0].arguments[3])
+            user_logger.info("Beamformer %r has bandwidth %g Hz and centre freq %g Hz",
+                             stream, actual_bandwidth, actual_centre_freq)
+        else:
+            raise ValueError("Could not set beamformer %r passband - (%s)" %
+                             (stream, ' '.join(reply.messages[0].arguments)))
         for inp in bf_inputs(kat.data, stream):
             weight = 1.0 if inp[:-1] in bf_ants else 0.0
             kat.data.req.cbf_beam_weights(stream, inp, weight)
@@ -69,6 +95,12 @@ with verify_and_connect(opts) as kat:
     target_elevation = np.degrees(target.azel()[1])
     if target_elevation < opts.horizon:
         raise ValueError("The target %r is below the horizon" % (target.description,))
+
+    # Save script parameters before session capture-init's the SDP subsystem
+    telstate = get_telstate(kat.data, kat.sub)
+    script_args = vars(opts)
+    script_args['targets'] = args
+    telstate.add('obs_script_arguments', script_args)
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
