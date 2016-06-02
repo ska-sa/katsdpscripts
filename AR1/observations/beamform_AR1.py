@@ -100,7 +100,7 @@ with verify_and_connect(opts) as kat:
     telstate = get_telstate(kat.data, kat.sub)
     script_args = vars(opts)
     script_args['targets'] = args
-    telstate.add('obs_script_arguments', script_args, immutable=True)
+    telstate.add('obs_script_arguments', script_args)
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
