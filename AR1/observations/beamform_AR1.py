@@ -2,7 +2,7 @@
 # Dual polarisation beamforming: Track target for beamforming.
 
 import numpy as np
-
+import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
 from katsdptelstate import TelescopeState
@@ -45,12 +45,14 @@ parser.add_option('-B', '--beam-bandwidth', type='float', default=107.0,
 parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
                   help="Beamformer centre frequency, in MHz (default=%default)")
 parser.add_option('--test-snr', action='store_true', default=False,
-              help="Perform SNR test by switching off inputs (default='%default')")
+                  help="Perform SNR test by switching off inputs (default=no)")
 parser.add_option('--backend', type='choice', default='digifits',
                   choices=['digifits', 'dspsr', 'dada_dbdisk'],
                   help="Choose backend (default=%default)")
 parser.add_option('--backend-args',
                   help="Arguments for backend processing")
+parser.add_option('--drift-scan', action='store_true', default=False,
+                  help="Perform drift scan instead of standard track (default=no)")
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
@@ -108,6 +110,14 @@ with verify_and_connect(opts) as kat:
         session.data.req.auto_delay('on')
         # Get onto beamformer target
         session.track(target, duration=0)
+        # Perform a drift scan if selected
+        if opts.drift_scan:
+            transit_time = katpoint.Timestamp() + opts.target_duration / 2.0
+            # Stationary transit point becomes new target
+            az, el = target.azel(timestamp=transit_time)
+            target = katpoint.construct_azel_target(katpoint.wrap_angle(az), el)
+            # Go to transit point so long
+            session.track(target, duration=0)
         # Only start capturing once we are on target
         session.capture_start()
         if not opts.test_snr:
