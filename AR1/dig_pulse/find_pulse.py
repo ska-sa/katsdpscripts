@@ -4,7 +4,8 @@ import numpy as np
 import optparse
 import matplotlib.pyplot as plt 
 from matplotlib.backends.backend_pdf import PdfPages
-from katsdpscripts import git_info
+import os.path
+import scipy.signal as signal # if not present use np.convolve
 
 def MAD_median(data,verbose=False):
     """Median absolute deviation (MAD) is a robust measure of the variability."""
@@ -18,7 +19,7 @@ def MAD_median(data,verbose=False):
         print("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1))
     return mad,med
 
-def join_pulses(data,pulse_gap=10):
+def join_pulses_old(data,pulse_gap=10):
     """Find all the timestamps with the pulse"""
     pulse_listtmp = []
     pulse_list = []
@@ -33,13 +34,40 @@ def join_pulses(data,pulse_gap=10):
     if len(temp) > 0 :
         pulse_listtmp.append(temp)
         temp = []
+        
     for x in pulse_listtmp :
         pulse_list.append(np.array([np.min(x),np.max(x)]))  
     return np.array(pulse_list)
+    
+def join_pulses(data,pulse_gap=10):
+    """Find all the timestamps with the pulse"""
+    pulse_listtmp = []
+    pulse_list = []
+    temp = []
+    if len(data) > 0 :
+        temp.append(data[0])
+        for x in xrange(1,data.shape[0]):
+            #print "Hell ",data[x],data[x-1],x,x-1,data.shape
+            if data[x] -data[x-1] > pulse_gap : # new pulse
+                pulse_listtmp.append(temp)
+                temp = []
+                temp.append(data[x])
+            else :
+                temp.append(data[x])
+        if len(temp) > 0 :
+            pulse_listtmp.append(temp)
+            temp = []
+
+        if len(pulse_listtmp) > 0:
+            #print pulse_listtmp,np.shape(pulse_listtmp)
+            for x in pulse_listtmp :
+                pulse_list.append(np.array([np.min(x),np.max(x)]))  
+        return np.array(pulse_list)
+    else :
+        return None
 
 def map_to_raw_data(pulselist,avg_num=256,window_length=256,offset=0):
     """Find all the timestamps with the pulse"""
-    #print pulselist
     output = np.zeros_like(pulselist)
     for i,(pmin,pmax) in enumerate(pulselist):
         pmax = pmax+window_length # rolling window forward
@@ -109,6 +137,11 @@ def real_time(file_position,sync_time,first_timestamp):
     ts=1.0/np.float128(1712e6)
     return np.float128(sync_time) + ts*(np.float128(timestamp_value)+np.float128(file_position) )
 
+
+def plot_fft_data(data,pmin,pmax,ts=1./1712e6):
+    fig = plt.figure()
+    plt.plot((np.fft.fftfreq((pmax-pmin),d=ts)[0:(pmax-pmin)//2]+(1./(2*ts)))/1e6,np.abs(np.fft.fft(data[pmin:pmax])[0:(pmax-pmin)//2]) )
+    return fig
 # Set up standard script options
 parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script produces some text plots so that data can be examind')
@@ -124,8 +157,8 @@ parser.add_option('-c','--chunk-size',  type='int', default=8192,
                   help='The size of the chunk to process as a factor of 32768,  (default=%default)')
 parser.add_option('-s','--sync',  type='int', default=0,
                   help='The sync time epoch as a unix timestamp,  (default=%default)')
-parser.add_option('-t','--first-timestamp',  type='int', default=0,
-                  help='The firsts timestamp value   ,  (default=%default)')
+parser.add_option('-t','--first-timestamp',   default=0,
+                  help='The first timestamp value  or the file name where it is stored  ,  (default=%default)')
 parser.add_option('--plot', '--plotting', action="store_true", default=False,
                   help='Plot a graphs into a pdf file (default=%default)')
 
@@ -141,7 +174,10 @@ opts, args = parser.parse_args()
 
 # Values to be read in from Params
 sync_time =  opts.sync #Pulse100-16dB-Noise20dB-V.npy.epoch
-timestamp_value = opts.first_timestamp # Pulse100-16dB-Noise20dB-V.npy.timestamp
+if os.path.isfile(opts.first_timestamp)  :
+    timestamp_value = np.loadtxt(opts.first_timestamp,dtype=np.integer)
+else :
+    timestamp_value = np.integer(opts.first_timestamp) # Pulse100-16dB-Noise20dB-V.npy.timestamp
 ts=1.0/1712e6     # seconds per data point
 avg_num = opts.num
 window_length = opts.window
@@ -156,21 +192,12 @@ data = np.load(args[0] , mmap_mode='r')
 if plotting :   
     nice_filename =  args[0].split('/')[-1]+ '_Pulse_report'
     pp = PdfPages(nice_filename+'.pdf')
-    fig = plt.figure()
-    aaa = np.histogram(data[trans],bins=np.arange(2**6+1)-(2**5-.5) )
-    plt.title('Histogram of first Chunk')
-    plt.plot(aaa[1][1:]-0.5,(aaa[0]) )
-    plt.xlim(-32,32)
-    plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
 
 old_edge = 0
 for new_edge in xrange(chunk_size,data.shape[0],chunk_size):
     trans = slice(old_edge,new_edge)
     old_edge = new_edge
     avg_data = (np.abs(data[trans]).reshape(-1,avg_num).mean(axis=-1)).astype(np.float)**2
-    #print avg_data.shape,window_length,trans
     rolled = rolling_window(avg_data, window=window_length)
 
     # choice of Measure  ?
@@ -178,57 +205,43 @@ for new_edge in xrange(chunk_size,data.shape[0],chunk_size):
     #measure = (rolled[...].std(axis=-1))
     measure = (rolled[...].std(axis=-1)/rolled.mean(axis=-1))
     mad,med =MAD_median(measure)
-    #print mad,med, med+8*mad,med-8*mad
-
-    if plotting and old_edge==chunk_size: # First chunk
-        print "First Chunk"
-        fig = plt.figure()
-        plt.plot(avg_data)
-        fig.savefig(pp,format='pdf')
-        plt.close(fig)
-        fig =plt.figure()
-        plt.plot(measure)
-        plt.hlines(med-opts.detection*mad,0,measure.shape[0])
-        plt.hlines(med+opts.detection*mad,0,measure.shape[0],'r')
-        plt.ylim(None,med+2.5*opts.detection*mad)
-        plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
-        fig.savefig(pp,format='pdf')
-        plt.close(fig)
-        fig =plt.figure()
-        plt.semilogy(np.abs(measure - med) / mad)
-        plt.grid()
-        plt.ylim(1,None)
-        plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
-        fig.savefig(pp,format='pdf')
-        plt.close(fig)
-
     pulse = (measure>med+opts.detection*mad) + (measure<med-opts.detection*mad)
     pulse_list = join_pulses(pulse.nonzero()[0])
-    raw_data = map_to_raw_data(pulse_list,avg_num=avg_num,window_length=window_length,offset=trans.start)
-    if plotting :
+    if pulse_list is not None :
+        raw_data = map_to_raw_data(pulse_list,avg_num=avg_num,window_length=window_length,offset=trans.start)
         for pmin,pmax in raw_data:
-            selection = slice(pmin,pmax)
-            plt.figure()
-            plt.plot(1e6*ts*np.arange(data[selection].shape[0]),data[selection].astype(np.float)**2)
-            a,b = plt.ylim()
-            ptime = real_time((selection.start+selection.stop)/2.,sync_time=sync_time,first_timestamp=timestamp_value)
-            plt.title("Pulse time is %33.22f seconds"%(ptime))
-            plt.vlines(1e6*ts*data[selection].shape[0]/2.,a,b)    
-            plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
-            fig.savefig(pp,format='pdf')            
-            plt.close(fig)
-            break
-    for pmin,pmax in raw_data:
-        selection1 = slice(pmin,pmin+abs(pmax-pmin)//2)
-        selection2 = slice(pmin+abs(pmin-pmax)//2,pmax)
-        pchange = (data[selection2].astype(np.float)**2).mean() - (data[selection1].astype(np.float)**2).mean()
-        ptime = real_time((pmin+pmax)/2.,sync_time=sync_time,first_timestamp=timestamp_value)
-        up_down = 'up  '
-        if np.signbit(pchange):
-            up_down = 'down'
-        print("Pulse power change %s %.2f db & time is %33.12f seconds"%(up_down,10*np.log10(np.abs(pchange)),ptime))
-    
-if plotting :
+            selection = slice(pmin,pmax) # the detection window
+            windowsize = 1024*3  
+            msig = np.zeros((windowsize)) -1.0  # make the edge signal
+            msig[windowsize//2:-1] = 1.0 # reverse window for conveolution to be the same as a correlate
+            position_of_pulse =(np.abs(signal.fftconvolve(data[selection]**2-(data[selection]**2).mean(), msig, mode='valid') ).argmax()+(msig.shape[0] - 1) // 2)
+            #position_of_pulse  = (pmin+pmax)/2. # middle of window
+            selection1 = slice(pmin,pmin+position_of_pulse) # 
+            selection2 = slice(pmin+position_of_pulse,pmax)
+            pchange = (data[selection2].astype(np.float)**2).mean() - (data[selection1].astype(np.float)**2).mean()
+            ptime = real_time(pmin+position_of_pulse,sync_time=sync_time,first_timestamp=timestamp_value)
+            up_down = 'up  '
+            if np.signbit(pchange):
+                up_down = 'down'
+            print("Pulse power change %s %.2f db & time is %33.12f seconds  %s,%s "%(up_down,10*np.log10(np.abs(pchange)),ptime,pmin,pmax))
+            if plotting :
+                fig = plt.figure()
+                plt.plot(1e6*ts*np.arange(data[selection].shape[0]),data[selection].astype(np.float)**2)
+                a,b = plt.ylim() # get limits for v-lines
+                ptime = real_time(pmin+position_of_pulse,sync_time=sync_time,first_timestamp=timestamp_value)
+                plt.title("Pulse time is %33.22f seconds"%(ptime))
+                plt.vlines(1e6*ts*data[selection].shape[0]/2.,a,b)
+                plt.vlines(1e6*ts*position_of_pulse,a,b,'r')
+                plt.xlabel("microseconds")
+                fig.savefig(pp,format='pdf')            
+                plt.close(fig)
+
+                fig = plot_fft_data(data,pmin,pmax)
+                fig.savefig(pp,format='pdf')            
+                plt.close(fig)
+
+        
+if plotting : # clean up
     pp.close()
     plt.close('all')
 
