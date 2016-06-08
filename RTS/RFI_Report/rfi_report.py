@@ -6,8 +6,7 @@ from katsdpscripts.RTS import generate_flag_table, generate_rfi_report
 import os
 
 #command-line parameters
-parser = optparse.OptionParser(usage="Please specify the input file\n\
-    USAGE: python rfi_report.py <inputfile.h5> ",
+parser = optparse.OptionParser(usage="Please specify the input file\nUSAGE: python rfi_report.py <inputfile.h5> ",
     description="Produce a report detailing RFI detected in the input dataset")
 
 parser.add_option("-a", "--antennas", type="string", default=None, help="Comma separated list of antennas to produce the report for, default is all antennas in file")
