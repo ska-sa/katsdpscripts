@@ -7,7 +7,8 @@
 #
 
 import optparse
-
+import warnings
+warnings.filterwarnings('ignore')
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -53,7 +54,7 @@ if len(args) < 1:
 
 katpoint.logger.setLevel(30)
 
-print "\nLoading and processing data...\n"
+#print "\nLoading and processing data...\n"
 data = katdal.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
 center_freq = data.freqs[data.shape[1] // 2]
 
@@ -100,8 +101,8 @@ delay_period = 1. / data.channel_width
 max_sigma_delay = delay_period / np.sqrt(12) / np.sqrt(num_chans - 1)
 
 ant_list = ', '.join([(ant.name + ' (*ref*)' if ind == ref_ant_ind else ant.name) for ind, ant in enumerate(data.ants)])
-print 'antennas (%d): %s [pol %s]' % (len(data.ants), ant_list, opts.pol)
-print 'baselines (%d): %s' % (num_bls, ' '.join([('%d-%d' % (indA, indB)) for indA, indB in baseline_inds]))
+#print 'antennas (%d): %s [pol %s]' % (len(data.ants), ant_list, opts.pol)
+#print 'baselines (%d): %s' % (num_bls, ' '.join([('%d-%d' % (indA, indB)) for indA, indB in baseline_inds]))
 
 # Create an extended baseline difference matrix mapping antenna parameters to baselines
 # This array has shape (B P, 4), where B is number of baselines and P = 4 A is total number of parameters
@@ -120,13 +121,13 @@ scan_targets, scan_mid_az, scan_mid_el, scan_timestamps, scan_phase = [], [], []
 for scan_ind, state, target in data.scans():
     num_ts = data.shape[0]
     if state != 'track':
-        print "scan %3d (%4d samples) skipped '%s'" % (scan_ind, num_ts, state)
+        #print "scan %3d (%4d samples) skipped '%s'" % (scan_ind, num_ts, state)
         continue
     if num_ts < 2:
-        print "scan %3d (%4d samples) skipped - too short" % (scan_ind, num_ts)
+        #print "scan %3d (%4d samples) skipped - too short" % (scan_ind, num_ts)
         continue
     if target.name in excluded_targets:
-        print "scan %3d (%4d samples) skipped - excluded '%s'" % (scan_ind, num_ts, target.name)
+        #print "scan %3d (%4d samples) skipped - excluded '%s'" % (scan_ind, num_ts, target.name)
         continue
     # Extract visibilities for scan as an array of shape (T, F, B)
     vis = data.vis[:]
@@ -170,8 +171,8 @@ for scan_ind, state, target in data.scans():
     # Rearrange vis phase to have shape (B F, T), which will form one column in fringe plot
     scan_phase.append(np.angle(vis).T.reshape(-1, num_ts))
     scan_rel_sigma_delay = delay_stats_sigma.mean(axis=0) / max_sigma_delay
-    print "scan %3d (%4d samples) %s '%s'" % \
-          (scan_ind, num_ts, ' '.join([('%.3f' % rel_sigma) for rel_sigma in scan_rel_sigma_delay]), target.name)
+    #print "scan %3d (%4d samples) %s '%s'" % \
+    #      (scan_ind, num_ts, ' '.join([('%.3f' % rel_sigma) for rel_sigma in scan_rel_sigma_delay]), target.name)
 if not augmented_targetdir:
     raise RuntimeError('No usable scans found (are you tracking any targets?)')
 # Concatenate per-baseline arrays into a single array for data set
@@ -199,7 +200,7 @@ b = unwrapped_group_delay / sigma_delay
 good = sigma_delay < opts.max_sigma * max_sigma_delay
 A = A[:, good]
 b = b[good]
-print '\nFitting %d parameters to %d data points (discarded %d)...' % (A.shape[0], len(b), len(sigma_delay) - len(b))
+#print '\nFitting %d parameters to %d data points (discarded %d)...' % (A.shape[0], len(b), len(sigma_delay) - len(b))
 if len(b) == 0:
     raise ValueError('No solution possible, as all data points were discarded')
 # Solve linear least-squares problem using SVD (see NRinC, 2nd ed, Eq. 15.4.17)
@@ -207,7 +208,7 @@ U, s, Vrt = np.linalg.svd(A.transpose(), full_matrices=False)
 params = np.dot(Vrt.T, np.dot(U.T, b) / s)
 # Also obtain standard errors of parameters (see NRinC, 2nd ed, Eq. 15.4.19)
 sigma_params = np.sqrt(np.sum((Vrt.T / s[np.newaxis, :]) ** 2, axis=1))
-print 'Condition number = %.3f' % (s[0] / s[-1],)
+#print 'Condition number = %.3f' % (s[0] / s[-1],)
 
 # Reshape parameters to be per antenna, also inserting a row of zeros for reference antenna
 ant_params = params.reshape(-1, 4)
@@ -232,27 +233,27 @@ new_predicted_delay = np.dot(new_delay_model, augmented_targetdir)
 new_resid = unwrapped_group_delay - new_predicted_delay
 
 # Output results
-for n, ant in enumerate(data.ants):
-    print "\nAntenna", ant.name, ' (*REFERENCE*)' if n == ref_ant_ind else ''
-    print "------------"
-    print "E (m):               %7.3f +- %.5f (was %7.3f)%s" % \
-          (positions[n, 0], sigma_positions[n, 0], old_positions[n, 0],
-           ' *' if np.abs(positions[n, 0] - old_positions[n, 0]) > 3 * sigma_positions[n, 0] else '')
-    print "N (m):               %7.3f +- %.5f (was %7.3f)%s" % \
-          (positions[n, 1], sigma_positions[n, 1], old_positions[n, 1],
-           ' *' if np.abs(positions[n, 1] - old_positions[n, 1]) > 3 * sigma_positions[n, 1] else '')
-    print "U (m):               %7.3f +- %.5f (was %7.3f)%s" % \
-          (positions[n, 2], sigma_positions[n, 2], old_positions[n, 2],
-           ' *' if np.abs(positions[n, 2] - old_positions[n, 2]) > 3 * sigma_positions[n, 2] else '')
-    print "Cable length (m):    %7.3f +- %.5f (was %7.3f)%s" % \
-          (cable_lengths[n], sigma_cable_lengths[n], old_cable_lengths[n],
-           ' *' if np.abs(cable_lengths[n] - old_cable_lengths[n]) > 3 * sigma_cable_lengths[n] else '')
-    print "Receiver delay (ns): %7.3f +- %.3f   (was %7.3f)%s" % \
-          (receiver_delays[n] * 1e9, sigma_receiver_delays[n] * 1e9, old_receiver_delays[n] * 1e9,
-           ' *' if np.abs(receiver_delays[n] - old_receiver_delays[n]) > 3 * sigma_receiver_delays[n] else '')
+#for n, ant in enumerate(data.ants):
+#    print "\nAntenna", ant.name, ' (*REFERENCE*)' if n == ref_ant_ind else ''
+#    print "------------"
+#    print "E (m):               %7.3f +- %.5f (was %7.3f)%s" % \
+#          (positions[n, 0], sigma_positions[n, 0], old_positions[n, 0],
+#           ' *' if np.abs(positions[n, 0] - old_positions[n, 0]) > 3 * sigma_positions[n, 0] else '')
+#    print "N (m):               %7.3f +- %.5f (was %7.3f)%s" % \
+#          (positions[n, 1], sigma_positions[n, 1], old_positions[n, 1],
+#           ' *' if np.abs(positions[n, 1] - old_positions[n, 1]) > 3 * sigma_positions[n, 1] else '')
+#    print "U (m):               %7.3f +- %.5f (was %7.3f)%s" % \
+#          (positions[n, 2], sigma_positions[n, 2], old_positions[n, 2],
+#           ' *' if np.abs(positions[n, 2] - old_positions[n, 2]) > 3 * sigma_positions[n, 2] else '')
+#    print "Cable length (m):    %7.3f +- %.5f (was %7.3f)%s" % \
+#          (cable_lengths[n], sigma_cable_lengths[n], old_cable_lengths[n],
+#           ' *' if np.abs(cable_lengths[n] - old_cable_lengths[n]) > 3 * sigma_cable_lengths[n] else '')
+#    print "Receiver delay (ns): %7.3f +- %.3f   (was %7.3f)%s" % \
+#          (receiver_delays[n] * 1e9, sigma_receiver_delays[n] * 1e9, old_receiver_delays[n] * 1e9,
+#           ' *' if np.abs(receiver_delays[n] - old_receiver_delays[n]) > 3 * sigma_receiver_delays[n] else '')
 
 # print lines for easy incoporation into a spreadsheet
-print "\nFor spreadsheet logging"
+#print "\nFor spreadsheet logging"
 for n, ant in enumerate(data.ants):
     print "%s\t%s\t%s\t%7.3f\t%7.3f\t%7.3f\t%7.3f\t%7.3f\t%7.3f\t%s"%(data.name.split('/')[-1].split('.')[0], \
           opts.pol,ant.name,positions[n, 0],positions[n, 1],positions[n, 2],cable_lengths[n],receiver_delays[n] * 1e9,s[0] / s[-1],data.ref_ant)
@@ -349,4 +350,4 @@ ax.set_yticks(katpoint.deg2rad(np.arange(0., 90., 10.)))
 ax.set_yticklabels([])
 plt.title('Antenna positions and source directions')
 
-plt.show()
+#plt.show()
