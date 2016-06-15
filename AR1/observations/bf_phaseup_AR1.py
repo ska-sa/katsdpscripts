@@ -147,7 +147,7 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            time.sleep(30)
+            time.sleep(120)
             telstate = get_telstate(session.data, kat.sub)
             delays = get_delaycal_solutions(telstate)
             bp_gains = get_bpcal_solutions(telstate)
@@ -162,7 +162,7 @@ with verify_and_connect(opts) as kat:
                 if inp in delays:
                     # XXX Hacky hack
                     centre_freq = 1284e6
-                    num_chans = 4096
+                    num_chans = 32768 if product.endswith('32k') else 4096
                     sideband = 1
                     channel_width = 856e6 / num_chans
                     channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
