@@ -193,8 +193,7 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                description="This processes an HDF5 dataset and extracts fitted beam parameters "
-                                           "from the compound scans in it. It runs interactively by default, "
-                                           "which allows the user to inspect results and discard bad scans.")
+                                           "from the compound scans in it.")
 
 parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-o", "--output", dest="outfilebase",default=None,
