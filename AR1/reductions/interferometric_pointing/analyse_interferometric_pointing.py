@@ -11,30 +11,6 @@ import katpoint
 import optparse
 
 
-def plot_data(x,y,z,gsize=100,scatter=False,title=''):
-    """Plotting function
-    This plots a rasterscan as an intensity image
-    the scatter parameter adds markers to indecate the data points
-    x,y,z must be the same length and z is the amplitude"""
-    from scipy.interpolate import griddata
-    import matplotlib.pyplot as plt
-    # define grid.
-    npts = z.shape[0]
-    xi = np.linspace(x.min(),x.max(),gsize)
-    yi = np.linspace(y.min(),y.max(),gsize)
-    # grid the data.
-    zi = griddata((x, y), z, (xi[None,:], yi[:,None]))
-    # contour the gridded data, plotting dots at the randomly spaced data points.
-    plt.contour(xi,yi,zi,15,linewidths=0.5,colors='k')
-    plt.contourf(xi,yi,zi,100,cmap=plt.cm.jet)
-    plt.colorbar() # draw colorbar
-    # plot data points.
-    if scatter :
-        plt.scatter(x,y,marker='o',c='b',s=5)
-    plt.xlim(x.min(),x.max())
-    plt.ylim(y.min(),y.max())
-    plt.title('%s (%d points)' %(title,npts))
-
 def activity(h5,state = 'track'):
     """Activity Sensor because some of antennas have a mind of their own, 
     others appear to have lost theirs entirely """
