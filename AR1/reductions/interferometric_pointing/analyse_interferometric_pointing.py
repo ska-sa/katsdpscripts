@@ -38,6 +38,8 @@ def Ang_Separation(pos1,pos2):
     bottom = np.sin(Dec1)*np.sin(Dec2)+np.cos(Dec1)*np.cos(Dec2)*np.cos(Ra2-Ra1)
     return np.arctan2(np.sqrt(top),(bottom))
 
+def w_average(arr,axis=None, weights=None):
+    return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
 def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
     """Break the band up into chunks"""
@@ -85,23 +87,35 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
             if data.shape[0] > 1 :
                 gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
-                pos.append( [h5.az[:,:].mean(axis=0), h5.el[:,:].mean(axis=0)] ) # time,ant
+                # Get coords in (x(time,ants),y(time,ants) coords) 
+                pos.append( [h5.target_x[:,:].mean(axis=0), h5.target_y[:,:].mean(axis=0)] ) 
         for ant in range(len(h5.ants)):
             for chunk in range(chunks):
                 if np.array(pos).shape[0] > 1 : # a good proxy for data 
                     freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
                     rfi = ~rfi_static_flags[freq]   
-                    fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1,1],1) 
+                    fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1/57.,1/57.],1) 
                     x = np.column_stack((np.array(pos)[:,0,ant],np.array(pos)[:,1,ant]))
                     y = np.abs(np.array(gains_p[pol])[:,freq,:][:,rfi,ant]).mean(axis=1)
                     y_err = 1./np.sqrt(np.array(stdv[pol])[:,freq,:][:,rfi,ant].sum(axis=1))
-                    gaussian = fitobj.fit(x.T,y,y_err )
-                    avg[chunk+i*chunk_size,0:2,ant] = gaussian.mean
-                    avg[chunk+i*chunk_size,2:4,ant] = gaussian.std_mean
-                    avg[chunk+i*chunk_size,4:6,ant] = gaussian.std
-                    avg[chunk+i*chunk_size,6:8,ant] = gaussian.std_std
-                    avg[chunk+i*chunk_size,8,ant] = gaussian.height
-                    avg[chunk+i*chunk_size,9,ant] = gaussian.std_height
+                    gaussian = fitobj.fit(x.T,y,y_err ) 
+                    #Fitted beam center is in (x, y) coordinates, in projection centred on target
+                    if np.any(gaussian.std_mean > np.pi/22.5 ) : # 2 degrees uncertainty on position
+                        avg[chunk+i*chunk_size,:,ant] =  np.nan   # flag data
+                    else:
+                        # Convert this offset back to spherical (az, el) coordinates
+                        beam_center_azel = target.plane_to_sphere(gaussian.mean[0], gaussian.mean[1], middle_time)
+                        # Now correct the measured (az, el) for refraction and then apply the old pointing model
+                        # to get a "raw" measured (az, el) at the output of the pointing model
+                        beam_center_azel = [beam_center_azel[0], rc.apply(beam_center_azel[1], temperature, pressure, humidity)]
+                        beam_center_azel = h5.ants[ant].pointing_model.apply(*beam_center_azel)
+                        beam_center_azel = np.degrees(np.array(beam_center_azel))
+                        avg[chunk+i*chunk_size,0:2,ant] = beam_center_azel
+                        avg[chunk+i*chunk_size,2:4,ant] = np.degrees(gaussian.std_mean)
+                        avg[chunk+i*chunk_size,4:6,ant] = np.degrees(gaussian.std)
+                        avg[chunk+i*chunk_size,6:8,ant] = np.degrees(gaussian.std_std)
+                        avg[chunk+i*chunk_size,8,ant] = gaussian.height
+                        avg[chunk+i*chunk_size,9,ant] = gaussian.std_height
     if return_raw :
         return avg
     else:
@@ -132,8 +146,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
                 ant_pointing[name]["sun_el"] = sun_azel.tolist()[1]
                 ant_pointing[name]["timestamp"] =middle_time.astype(int)
-                ant_pointing[name]["azimuth"] =np.average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
-                ant_pointing[name]["elevation"] =np.average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
+                ant_pointing[name]["azimuth"] =w_average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
+                ant_pointing[name]["elevation"] =w_average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
                 azel_beam = np.average(avg[pol_ind["I"],0:2,ant],axis=0,weights=1./avg[pol_ind["I"],2:4,ant]**2)
                 # Make sure the offset is a small angle around 0 degrees
                 offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
@@ -142,17 +156,17 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 ant_pointing[name]["delta_elevation_std"] =0.0#calc
                 ant_pointing[name]["delta_azimuth_std"] =0.0#calc
                 for pol in pol_ind:
-                    ant_pointing[name]["beam_height_%s"%(pol)]     = np.average(avg[pol_ind[pol],8,ant],axis=0,weights=1./avg[pol_ind[pol],9,ant]**2)
-                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.sum(1./avg[pol_ind[pol],9,ant]**2) )
-                    ant_pointing[name]["beam_width_%s"%(pol)]      = np.average(avg[pol_ind[pol],4:6,ant],axis=0,weights=1./avg[pol_ind[pol],6:8,ant]**2).mean() 
-                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.sum(1./avg[pol_ind[pol],6:8,ant]**2) )
+                    ant_pointing[name]["beam_height_%s"%(pol)]     = w_average(avg[pol_ind[pol],8,ant],axis=0,weights=1./avg[pol_ind[pol],9,ant]**2)
+                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(1./avg[pol_ind[pol],9,ant]**2) )
+                    ant_pointing[name]["beam_width_%s"%(pol)]      = w_average(avg[pol_ind[pol],4:6,ant],axis=0,weights=1./avg[pol_ind[pol],6:8,ant]**2).mean() 
+                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(1./avg[pol_ind[pol],6:8,ant]**2) )
                     ant_pointing[name]["baseline_height_%s"%(pol)] = 0.0
                     ant_pointing[name]["baseline_height_%s_std"%(pol)] = 0.0
                     ant_pointing[name]["refined_%s"%(pol)] =  5.0  # I don't know what this means 
-                    ant_pointing[name]["azimuth_%s"%(pol)]       =np.average(avg[pol_ind[pol],0,ant],axis=0,weights=1./avg[pol_ind[pol],2,ant]**2)
-                    ant_pointing[name]["elevation_%s"%(pol)]     =np.average(avg[pol_ind[pol],1,ant],axis=0,weights=1./avg[pol_ind[pol],3,ant]**2)
-                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.sum(1./avg[pol_ind[pol],0,ant]**2) )
-                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.sum(1./avg[pol_ind[pol],1,ant]**2) )
+                    ant_pointing[name]["azimuth_%s"%(pol)]       =w_average(avg[pol_ind[pol],0,ant],axis=0,weights=1./avg[pol_ind[pol],2,ant]**2)
+                    ant_pointing[name]["elevation_%s"%(pol)]     =w_average(avg[pol_ind[pol],1,ant],axis=0,weights=1./avg[pol_ind[pol],3,ant]**2)
+                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(1./avg[pol_ind[pol],0,ant]**2) )
+                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(1./avg[pol_ind[pol],1,ant]**2) )
         return ant_pointing
 
 
