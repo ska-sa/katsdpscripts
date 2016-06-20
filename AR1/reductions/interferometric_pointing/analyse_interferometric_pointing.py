@@ -49,7 +49,7 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
         pickle_file.close()
     gains_p = {}
     stdv = {}
-    
+    calibrated = False # placeholder for calibration
     if not return_raw:     # Calculate average target flux over entire band
         target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
@@ -121,8 +121,8 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
                 ant_pointing[h5.ants[ant].name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
                 ant_pointing[h5.ants[ant].name]["target"] = target.name
                 ant_pointing[h5.ants[ant].name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
-                ant_pointing[h5.ants[ant].name]["data_unit"] = 'counts'# The same as Jy ? ?
-                ant_pointing[h5.ants[ant].name]["frequency"] = h5.freqs.mean()
+                ant_pointing[h5.ants[ant].name]["data_unit"] = 'Jy' if calibrated else 'counts'
+                ant_pointing[h5.ants[ant].name]["frequency"] = h5.freqs.mean()[
                 ant_pointing[h5.ants[ant].name]["flux"] = average_flux
                 ant_pointing[h5.ants[ant].name]["temperature"] =temperature
                 ant_pointing[h5.ants[ant].name]["pressure"] =pressure
@@ -132,7 +132,6 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
                 ant_pointing[h5.ants[ant].name]["sun_az"] = sun_azel.tolist()[0]
                 ant_pointing[h5.ants[ant].name]["sun_el"] = sun_azel.tolist()[1]
                 ant_pointing[h5.ants[ant].name]["timestamp"] =middle_time.astype(int)
-
                 ant_pointing[h5.ants[ant].name]["azimuth"] =np.average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
                 ant_pointing[h5.ants[ant].name]["elevation"] =np.average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
                 azel_beam = np.average(avg[pol_ind["I"],0:2,ant],axis=0,weights=1./avg[pol_ind["I"],2:4,ant]**2)
