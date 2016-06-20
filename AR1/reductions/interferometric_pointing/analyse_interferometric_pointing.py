@@ -21,16 +21,12 @@ def activity(h5,state = 'track'):
         activityV[i,:] +=   (sensor==state)
     return np.all(activityV,axis=0)
 
-def interp_sensor(h5, quantity, default,degree=0):
-    """Interpolate environmental sensor data."""
+def interp_sensor(h5, quantity, default):
+    """Safly get environmental sensor data."""
     try:
-        sensor = h5.sensor[quantity] # Hack for incomplete katdalV3
+        return h5.sensor[quantity] 
     except KeyError:
-        return (lambda times: default)
-    else:
-        interp = fit.PiecewisePolynomial1DFit(max_degree=degree)
-        interp.fit(sensor['timestamp'],np.array(sensor['value']).astype(np.float))
-        return interp
+        return np.repeat(default, h5.shape[0])
 
 def angle_wrap(angle, period=2.0 * np.pi):
     """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
