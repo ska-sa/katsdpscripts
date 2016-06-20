@@ -39,7 +39,7 @@ def Ang_Separation(pos1,pos2):
     return np.arctan2(np.sqrt(top),(bottom))
 
 
-def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.pickle',chunks=16,return_raw=False):
+def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
     """Break the band up into chunks"""
     chunk_size = chunks
     rfi_static_flags = np.tile(False, h5.shape[0])
