@@ -116,43 +116,44 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         if np.any(np.isfinite(np.average(avg[:,0:2,:],axis=0,weights=1./avg[:,2:4,:]**2)) ) : # a bit overboard
             for ant in xrange(len(h5.ants)):
-                ant_pointing[h5.ants[ant].name] = {}
-                ant_pointing[h5.ants[ant].name]["antenna"] = h5.ants[ant].name
-                ant_pointing[h5.ants[ant].name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
-                ant_pointing[h5.ants[ant].name]["target"] = target.name
-                ant_pointing[h5.ants[ant].name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
-                ant_pointing[h5.ants[ant].name]["data_unit"] = 'Jy' if calibrated else 'counts'
-                ant_pointing[h5.ants[ant].name]["frequency"] = h5.freqs.mean()[
-                ant_pointing[h5.ants[ant].name]["flux"] = average_flux
-                ant_pointing[h5.ants[ant].name]["temperature"] =temperature
-                ant_pointing[h5.ants[ant].name]["pressure"] =pressure
-                ant_pointing[h5.ants[ant].name]["humidity"] =humidity
-                ant_pointing[h5.ants[ant].name]["wind_speed"] =wind_speed
-                ant_pointing[h5.ants[ant].name]["wind_direction"] =wind_direction
-                ant_pointing[h5.ants[ant].name]["sun_az"] = sun_azel.tolist()[0]
-                ant_pointing[h5.ants[ant].name]["sun_el"] = sun_azel.tolist()[1]
-                ant_pointing[h5.ants[ant].name]["timestamp"] =middle_time.astype(int)
-                ant_pointing[h5.ants[ant].name]["azimuth"] =np.average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
-                ant_pointing[h5.ants[ant].name]["elevation"] =np.average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
+                name = h5.ants[ant].name
+                ant_pointing[name] = {}
+                ant_pointing[name]["antenna"] = h5.ants[ant].name
+                ant_pointing[name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
+                ant_pointing[name]["target"] = target.name
+                ant_pointing[name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
+                ant_pointing[name]["data_unit"] = 'Jy' if calibrated else 'counts'
+                ant_pointing[name]["frequency"] = h5.freqs.mean()[
+                ant_pointing[name]["flux"] = average_flux
+                ant_pointing[name]["temperature"] =temperature
+                ant_pointing[name]["pressure"] =pressure
+                ant_pointing[name]["humidity"] =humidity
+                ant_pointing[name]["wind_speed"] =wind_speed
+                ant_pointing[name]["wind_direction"] =wind_direction
+                ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
+                ant_pointing[name]["sun_el"] = sun_azel.tolist()[1]
+                ant_pointing[name]["timestamp"] =middle_time.astype(int)
+                ant_pointing[name]["azimuth"] =np.average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
+                ant_pointing[name]["elevation"] =np.average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
                 azel_beam = np.average(avg[pol_ind["I"],0:2,ant],axis=0,weights=1./avg[pol_ind["I"],2:4,ant]**2)
                 # Make sure the offset is a small angle around 0 degrees
                 offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
-                ant_pointing[h5.ants[ant].name]["delta_azimuth"] =offset_azel.tolist()[0]
-                ant_pointing[h5.ants[ant].name]["delta_elevation"] =offset_azel.tolist()[1]
-                ant_pointing[h5.ants[ant].name]["delta_elevation_std"] =0.0#calc
-                ant_pointing[h5.ants[ant].name]["delta_azimuth_std"] =0.0#calc
+                ant_pointing[name]["delta_azimuth"] =offset_azel.tolist()[0]
+                ant_pointing[name]["delta_elevation"] =offset_azel.tolist()[1]
+                ant_pointing[name]["delta_elevation_std"] =0.0#calc
+                ant_pointing[name]["delta_azimuth_std"] =0.0#calc
                 for pol in pol_ind:
-                    ant_pointing[h5.ants[ant].name]["beam_height_%s"%(pol)]     = np.average(avg[pol_ind[pol],8,ant],axis=0,weights=1./avg[pol_ind[pol],9,ant]**2)
-                    ant_pointing[h5.ants[ant].name]["beam_height_%s_std"%(pol)] = np.sqrt(np.sum(1./avg[pol_ind[pol],9,ant]**2) )
-                    ant_pointing[h5.ants[ant].name]["beam_width_%s"%(pol)]      = np.average(avg[pol_ind[pol],4:6,ant],axis=0,weights=1./avg[pol_ind[pol],6:8,ant]**2).mean() 
-                    ant_pointing[h5.ants[ant].name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.sum(1./avg[pol_ind[pol],6:8,ant]**2) )
-                    ant_pointing[h5.ants[ant].name]["baseline_height_%s"%(pol)] = 0.0
-                    ant_pointing[h5.ants[ant].name]["baseline_height_%s_std"%(pol)] = 0.0
-                    ant_pointing[h5.ants[ant].name]["refined_%s"%(pol)] =  5.0  # I don't know what this means 
-                    ant_pointing[h5.ants[ant].name]["azimuth_%s"%(pol)]       =np.average(avg[pol_ind[pol],0,ant],axis=0,weights=1./avg[pol_ind[pol],2,ant]**2)
-                    ant_pointing[h5.ants[ant].name]["elevation_%s"%(pol)]     =np.average(avg[pol_ind[pol],1,ant],axis=0,weights=1./avg[pol_ind[pol],3,ant]**2)
-                    ant_pointing[h5.ants[ant].name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.sum(1./avg[pol_ind[pol],0,ant]**2) )
-                    ant_pointing[h5.ants[ant].name]["elevation_%s_std"%(pol)] =np.sqrt(np.sum(1./avg[pol_ind[pol],1,ant]**2) )
+                    ant_pointing[name]["beam_height_%s"%(pol)]     = np.average(avg[pol_ind[pol],8,ant],axis=0,weights=1./avg[pol_ind[pol],9,ant]**2)
+                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.sum(1./avg[pol_ind[pol],9,ant]**2) )
+                    ant_pointing[name]["beam_width_%s"%(pol)]      = np.average(avg[pol_ind[pol],4:6,ant],axis=0,weights=1./avg[pol_ind[pol],6:8,ant]**2).mean() 
+                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.sum(1./avg[pol_ind[pol],6:8,ant]**2) )
+                    ant_pointing[name]["baseline_height_%s"%(pol)] = 0.0
+                    ant_pointing[name]["baseline_height_%s_std"%(pol)] = 0.0
+                    ant_pointing[name]["refined_%s"%(pol)] =  5.0  # I don't know what this means 
+                    ant_pointing[name]["azimuth_%s"%(pol)]       =np.average(avg[pol_ind[pol],0,ant],axis=0,weights=1./avg[pol_ind[pol],2,ant]**2)
+                    ant_pointing[name]["elevation_%s"%(pol)]     =np.average(avg[pol_ind[pol],1,ant],axis=0,weights=1./avg[pol_ind[pol],3,ant]**2)
+                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.sum(1./avg[pol_ind[pol],0,ant]**2) )
+                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.sum(1./avg[pol_ind[pol],1,ant]**2) )
         return ant_pointing
 
 
@@ -195,9 +196,10 @@ else:
     outfilebase = opts.outfilebase
 f = {}
 for ant in xrange(len(h5.ants)):
-    f[h5.ants[ant].name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
-    f[h5.ants[ant].name].write('# antenna = %s\n' % h5.ants[ant].description)
-    f[h5.ants[ant].name].write(', '.join(output_field_names) + '\n')
+    name = h5.ants[ant].name
+    f[name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
+    f[name].write('# antenna = %s\n' % h5.ants[ant].description)
+    f[name].write(', '.join(output_field_names) + '\n')
 
 for cscan in h5.compscans() :
     avg = reduce_compscan_inf(h5,channel_mask)
@@ -207,4 +209,5 @@ for cscan in h5.compscans() :
             f[antname].write(output_fields % avg[antname]) 
       
 for ant in xrange(len(h5.ants)):
-    f[h5.ants[ant].name].close()
+    name = h5.ants[ant].name
+    f[name].close()
