@@ -28,10 +28,6 @@ def interp_sensor(h5, quantity, default):
     except KeyError:
         return np.repeat(default, h5.shape[0])
 
-def angle_wrap(angle, period=2.0 * np.pi):
-    """Wrap angle into the interval -*period* / 2 ... *period* / 2."""
-    return (angle + 0.5 * period) % period - 0.5 * period
-
 def Ang_Separation(pos1,pos2):
     """Calculate the greatest circle distance between po1 and pos2[.....] in radians  """
     Ra1 = pos1[0]
@@ -141,7 +137,7 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
                 ant_pointing[h5.ants[ant].name]["elevation"] =np.average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
                 azel_beam = np.average(avg[pol_ind["I"],0:2,ant],axis=0,weights=1./avg[pol_ind["I"],2:4,ant]**2)
                 # Make sure the offset is a small angle around 0 degrees
-                offset_azel = angle_wrap(azel_beam - requested_azel, 360.)
+                offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
                 ant_pointing[h5.ants[ant].name]["delta_azimuth"] =offset_azel.tolist()[0]
                 ant_pointing[h5.ants[ant].name]["delta_elevation"] =offset_azel.tolist()[1]
                 ant_pointing[h5.ants[ant].name]["delta_elevation_std"] =0.0#calc
