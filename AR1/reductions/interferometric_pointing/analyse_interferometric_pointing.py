@@ -129,7 +129,6 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 ant_pointing[name]["wind_direction"] =wind_direction
                 # work out the sun's angle
                 sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time,antenna=h5.ants[ant])))  
-                #TODO  Sort out the sun angle for diff ants
                 ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
                 ant_pointing[name]["sun_el"] = sun_azel.tolist()[1]
                 ant_pointing[name]["timestamp"] =middle_time.astype(int)
