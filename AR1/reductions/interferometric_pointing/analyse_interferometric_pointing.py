@@ -49,7 +49,7 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
         pickle_file.close()
     gains_p = {}
     stdv = {}
-    timestamp = h5.timestamps[:].mean().astype(int)
+    
     if not return_raw:     # Calculate average target flux over entire band
         target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
@@ -131,7 +131,7 @@ def reduce_compscan_inf(h5 ,channel_mask = '/var/kat/katsdpscripts/RTS/rfi_mask.
                 ant_pointing[h5.ants[ant].name]["wind_direction"] =wind_direction
                 ant_pointing[h5.ants[ant].name]["sun_az"] = sun_azel.tolist()[0]
                 ant_pointing[h5.ants[ant].name]["sun_el"] = sun_azel.tolist()[1]
-                ant_pointing[h5.ants[ant].name]["timestamp"] =timestamp
+                ant_pointing[h5.ants[ant].name]["timestamp"] =middle_time.astype(int)
 
                 ant_pointing[h5.ants[ant].name]["azimuth"] =np.average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
                 ant_pointing[h5.ants[ant].name]["elevation"] =np.average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
