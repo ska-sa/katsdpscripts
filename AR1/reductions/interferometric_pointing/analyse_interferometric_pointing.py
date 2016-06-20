@@ -10,7 +10,7 @@ import scikits.fitting as fit
 import katpoint
 import optparse
 
-
+#TODO Remove this function once katdal has this functionality 
 def activity(h5,state = 'track'):
     """Activity Sensor because some of antennas have a mind of their own, 
     others appear to have lost theirs entirely """
