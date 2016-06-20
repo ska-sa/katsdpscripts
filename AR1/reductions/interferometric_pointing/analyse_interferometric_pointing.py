@@ -89,8 +89,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 pos.append( [h5.az[:,:].mean(axis=0), h5.el[:,:].mean(axis=0)] ) # time,ant
-        for ant in xrange(len(h5.ants)):
-            for chunk in xrange(chunks):
+        for ant in range(len(h5.ants)):
+            for chunk in range(chunks):
                 if np.array(pos).shape[0] > 1 : # a good proxy for data 
                     freq = slice(chunk*256,(chunk+1)*256)
                     rfi = ~rfi_static_flags[freq]   
@@ -115,7 +115,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         if np.any(np.isfinite(np.average(avg[:,0:2,:],axis=0,weights=1./avg[:,2:4,:]**2)) ) : # a bit overboard
-            for ant in xrange(len(h5.ants)):
+            for ant in range(len(h5.ants)):
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
                 ant_pointing[name]["antenna"] = h5.ants[ant].name
@@ -195,7 +195,7 @@ if opts.outfilebase is None :
 else:
     outfilebase = opts.outfilebase
 f = {}
-for ant in xrange(len(h5.ants)):
+for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
     f[name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
     f[name].write('# antenna = %s\n' % h5.ants[ant].description)
@@ -208,6 +208,6 @@ for cscan in h5.compscans() :
         for antname in avg:
             f[antname].write(output_fields % avg[antname]) 
       
-for ant in xrange(len(h5.ants)):
+for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
     f[name].close()
