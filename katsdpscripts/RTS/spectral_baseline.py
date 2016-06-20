@@ -341,7 +341,10 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
     if baseline == None:
         baseline = h5data.ants[0].name+','+h5data.ants[0].name
     #Set up plotting.
-    fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
+    if type(input_file) == type(list()) :
+        fileprefix = os.path.join(output_dir,os.path.splitext(input_file[0].split('/')[-1])[0])
+    else:
+        fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
     basename = fileprefix+'_SpecBase_'+baseline.replace(',','')
     pdf = PdfPages(basename+'.pdf')
     for this_pol in polarisation.split(','):
