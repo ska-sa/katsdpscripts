@@ -123,7 +123,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 ant_pointing[name]["target"] = target.name
                 ant_pointing[name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
                 ant_pointing[name]["data_unit"] = 'Jy' if calibrated else 'counts'
-                ant_pointing[name]["frequency"] = h5.freqs.mean()[
+                ant_pointing[name]["frequency"] = h5.freqs.mean()
                 ant_pointing[name]["flux"] = average_flux
                 ant_pointing[name]["temperature"] =temperature
                 ant_pointing[name]["pressure"] =pressure
