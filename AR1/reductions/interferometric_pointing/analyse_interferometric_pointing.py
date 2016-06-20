@@ -56,11 +56,11 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
-        temperature = np.mean(defaulted_sensor(h5, 'temperature', 35.0)(h5.timestamps[:]))
-        pressure = np.mean(defaulted_sensor(h5, 'pressure', 950.0)(h5.timestamps[:]))
-        humidity = np.mean(defaulted_sensor(h5, 'humidity', 15.0)(h5.timestamps[:]))
-        wind_speed = np.mean(defaulted_sensor(h5, 'wind_speed', 0.0)(h5.timestamps[:]))
-        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(defaulted_sensor(h5, 'wind_direction', 0.0)(h5.timestamps[:]))))) )# Vector Mean
+        temperature = np.mean(defaulted_sensor(h5, 'temperature', 35.0))
+        pressure = np.mean(defaulted_sensor(h5, 'pressure', 950.0))
+        humidity = np.mean(defaulted_sensor(h5, 'humidity', 15.0))
+        wind_speed = np.mean(defaulted_sensor(h5, 'wind_speed', 0.0))
+        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(defaulted_sensor(h5, 'wind_direction', 0.0))))) )# Vector Mean
         sun = katpoint.Target('Sun, special')
         # Calculate pointing offset
         # Obtain middle timestamp of compound scan, where all pointing calculations are done
