@@ -84,7 +84,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() : 
             data = h5.vis[activity(h5,state = 'track')]
-            if data.shape[0] > 1 :
+            if data.shape[0] > 0 : # need at least one data point
                 gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
@@ -100,13 +100,12 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                     y_err = 1./np.sqrt(np.array(stdv[pol])[:,freq,:][:,rfi,ant].sum(axis=1))
                     gaussian = fitobj.fit(x.T,y,y_err ) 
                     #Fitted beam center is in (x, y) coordinates, in projection centred on target
-                    snr = np.abs(np.r_[gaussian.mean/gaussian.std_mean,gaussian.std/gaussian.std_std,gaussian.height/gaussian.std_height])
+                    snr = np.abs(np.r_[gaussian.std/gaussian.std_std])
                     valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
                     theta =  np.sqrt((gaussian.mean**2).sum())  # this is to see if the co-ord is out of range
                     #The valid fit is needed because I have no way of working out if the gain solution was ok.
-                    if  not valid_fit or np.any(snr < 5.0 ) or np.any(theta > np.pi) : # the checks to see if the fit is ok
+                    if  not valid_fit or np.any(theta > np.pi) : # the checks to see if the fit is ok
                         avg[chunk+i*chunk_size,:,ant] =  np.nan   # flag data
-                        #print("%s  %f  MHz failed"%(h5.ants[ant].name,h5.freqs[freq].mean()/1e6 ) )
                     else:
                         # Convert this offset back to spherical (az, el) coordinates
                         beam_center_azel = target.plane_to_sphere(gaussian.mean[0], gaussian.mean[1], middle_time)
@@ -130,7 +129,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         pol_ind['HH'] = np.arange(0.0*chunk_size,1.0*chunk_size,dtype=int)
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
-        if np.any(np.isfinite(np.average(avg[:,0:2,:],axis=0,weights=1./avg[:,2:4,:]**2)) ) : # a bit overboard
+        if np.any(np.isfinite(w_average(avg[:,0:2,:],axis=0,weights=1./avg[:,2:4,:]**2)) ) : # a bit overboard
             for ant in range(len(h5.ants)):
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
@@ -153,7 +152,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 ant_pointing[name]["timestamp"] =middle_time.astype(int)
                 ant_pointing[name]["azimuth"] =w_average(avg[pol_ind["I"],0,ant],axis=0,weights=1./avg[pol_ind["I"],2,ant]**2)
                 ant_pointing[name]["elevation"] =w_average(avg[pol_ind["I"],1,ant],axis=0,weights=1./avg[pol_ind["I"],3,ant]**2)
-                azel_beam = np.average(avg[pol_ind["I"],0:2,ant],axis=0,weights=1./avg[pol_ind["I"],2:4,ant]**2)
+                azel_beam = w_average(avg[pol_ind["I"],0:2,ant],axis=0,weights=1./avg[pol_ind["I"],2:4,ant]**2)
                 # Make sure the offset is a small angle around 0 degrees
                 offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
                 ant_pointing[name]["delta_azimuth"] =offset_azel.tolist()[0]
@@ -220,11 +219,13 @@ for ant in range(len(h5.ants)):
     f[name].write(', '.join(output_field_names) + '\n')
 
 for cscan in h5.compscans() :
+    print("Compound scan %i of field %s "%(cscan[0],cscan[2].name) )
     avg = reduce_compscan_inf(h5,channel_mask)
-    print "Compound scan %i of field %s "%(cscan[0],cscan[2].name)
     if len(avg) > 0 : # if not an empty set
+        print("Valid data obtained from the Compound scan")
         for antname in avg:
-            f[antname].write(output_fields % avg[antname]) 
+            f[antname].write(output_fields % avg[antname])
+            f[antname].flush() # Because I like to see stuff in the file
       
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
