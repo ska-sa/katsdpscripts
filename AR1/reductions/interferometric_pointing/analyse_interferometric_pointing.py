@@ -72,7 +72,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
         requested_azel = katpoint.rad2deg(np.array(requested_azel))
 
-    avg= np.zeros((chunk_size* 2,10,len(h5.ants)) ) # freq Chunks * pol , pos *8 , Ant     
+    avg= np.zeros((chunk_size* 2,10,len(h5.ants)) ) + np.nan # freq Chunks * pol , pos *8 , Ant
     h5.antlist = [a.name for a in h5.ants]
     h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     pols = ["H","V"] # Put in logic for Intensity
@@ -91,7 +91,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 pos.append( [h5.target_x[:,:].mean(axis=0), h5.target_y[:,:].mean(axis=0)] ) 
         for ant in range(len(h5.ants)):
             for chunk in range(chunks):
-                if np.array(pos).shape[0] > 1 : # a good proxy for data 
+                if np.array(pos).shape[0] > 4 : # Make sure there is enough data for a fit
                     freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
                     rfi = ~rfi_static_flags[freq]   
                     fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1/57.,1/57.],1) 
@@ -100,8 +100,13 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                     y_err = 1./np.sqrt(np.array(stdv[pol])[:,freq,:][:,rfi,ant].sum(axis=1))
                     gaussian = fitobj.fit(x.T,y,y_err ) 
                     #Fitted beam center is in (x, y) coordinates, in projection centred on target
-                    if np.any(gaussian.std_mean > np.pi/22.5 ) : # 2 degrees uncertainty on position
+                    snr = np.abs(np.r_[gaussian.mean/gaussian.std_mean,gaussian.std/gaussian.std_std,gaussian.height/gaussian.std_height])
+                    valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
+                    theta =  np.sqrt((gaussian.mean**2).sum())  # this is to see if the co-ord is out of range
+                    #The valid fit is needed because I have no way of working out if the gain solution was ok.
+                    if  not valid_fit or np.any(snr < 5.0 ) or np.any(theta > np.pi) : # the checks to see if the fit is ok
                         avg[chunk+i*chunk_size,:,ant] =  np.nan   # flag data
+                        #print("%s  %f  MHz failed"%(h5.ants[ant].name,h5.freqs[freq].mean()/1e6 ) )
                     else:
                         # Convert this offset back to spherical (az, el) coordinates
                         beam_center_azel = target.plane_to_sphere(gaussian.mean[0], gaussian.mean[1], middle_time)
