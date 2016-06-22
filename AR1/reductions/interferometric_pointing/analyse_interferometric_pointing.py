@@ -94,7 +94,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 if np.array(pos).shape[0] > 4 : # Make sure there is enough data for a fit
                     freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
                     rfi = ~rfi_static_flags[freq]   
-                    fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1/57.,1/57.],1) 
+                    fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1.,1.],1)
                     x = np.column_stack((np.array(pos)[:,0,ant],np.array(pos)[:,1,ant]))
                     y = np.abs(np.array(gains_p[pol])[:,freq,:][:,rfi,ant]).mean(axis=1)
                     y_err = 1./np.sqrt(np.array(stdv[pol])[:,freq,:][:,rfi,ant].sum(axis=1))
