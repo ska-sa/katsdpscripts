@@ -941,19 +941,19 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
 	
             detected_flags = flagger.get_flags(this_data[:,freq_range],this_flags[:,freq_range],blarray=h5.corr_products,num_cores=cores_to_use)
             #Flags are 8 bit:
-            #1: 'reserved0' 
-            #2: 'static' 
-            #3: 'cam' 
-            #4: 'reserved3' 
-            #5: 'detected_rfi' 
-            #6: 'predicted_rfi' 
-            #7: 'cal_rfi' 
-            #8: 'reserved7'
+            #1: 'reserved0' = 7
+            #2: 'static' = 6
+            #3: 'cam' = 5
+            #4: 'reserved3' = 4
+            #5: 'ingest_rfi' = 3 
+            #6: 'predicted_rfi' = 2
+            #7: 'cal_rfi' = 1
+            #8: 'reserved7' = 0
             #Always copy 'detected_rfi' from file into all_flags
             all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
-            all_flags[...,1] = mask_flags
-            all_flags[:,freq_range,:,6] = detected_flags
-            all_flags[...,4] = h5.flags('ingest_rfi')[this_slice,:,:]
+            all_flags[...,6] = mask_flags
+            all_flags[:,freq_range,:,1] = detected_flags
+            all_flags[...,3] = h5.flags('ingest_rfi')[this_slice,:,:]
 
             all_flags=np.packbits(all_flags,axis=3).squeeze()
             final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
