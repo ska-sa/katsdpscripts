@@ -28,15 +28,6 @@ def defaulted_sensor(h5, quantity, default):
     except KeyError:
         return np.repeat(default, h5.shape[0])
 
-def Ang_Separation(pos1,pos2):
-    """Calculate the greatest circle distance between po1 and pos2[.....] in radians  """
-    Ra1 = pos1[0]
-    Dec1 = pos1[1]
-    Ra2 = np.array(pos2[0,:])
-    Dec2 = np.array(pos2[1,:])
-    top = np.cos(Dec2)**2*np.sin(Ra2-Ra1)**2+(np.cos(Dec1)*np.sin(Dec2)-np.sin(Dec1)*np.cos(Dec2)*np.cos(Ra2-Ra1))**2
-    bottom = np.sin(Dec1)*np.sin(Dec2)+np.cos(Dec1)*np.cos(Dec2)*np.cos(Ra2-Ra1)
-    return np.arctan2(np.sqrt(top),(bottom))
 
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
