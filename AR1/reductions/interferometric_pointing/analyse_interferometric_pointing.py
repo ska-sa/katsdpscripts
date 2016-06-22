@@ -129,8 +129,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         pol_ind['HH'] = np.arange(0.0*chunk_size,1.0*chunk_size,dtype=int)
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
-        if np.any(np.isfinite(w_average(avg[:,0:2,:],axis=0,weights=1./avg[:,2:4,:]**2)) ) : # a bit overboard
-            for ant in range(len(h5.ants)):
+        for ant in range(len(h5.ants)):
+            if np.any(np.isfinite(w_average(avg[:,0:2,ant],axis=0,weights=1./avg[:,2:4,ant]**2)) ) : # a bit overboard
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
                 ant_pointing[name]["antenna"] = h5.ants[ant].name
