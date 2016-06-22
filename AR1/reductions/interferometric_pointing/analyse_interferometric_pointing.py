@@ -108,7 +108,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                         avg[chunk+i*chunk_size,:,ant] =  np.nan   # flag data
                     else:
                         # Convert this offset back to spherical (az, el) coordinates
-                        beam_center_azel = target.plane_to_sphere(gaussian.mean[0], gaussian.mean[1], middle_time)
+                        beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time)
                         # Now correct the measured (az, el) for refraction and then apply the old pointing model
                         # to get a "raw" measured (az, el) at the output of the pointing model
                         beam_center_azel = [beam_center_azel[0], rc.apply(beam_center_azel[1], temperature, pressure, humidity)]
