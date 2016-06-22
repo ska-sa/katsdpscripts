@@ -28,7 +28,6 @@ def defaulted_sensor(h5, quantity, default):
     except KeyError:
         return np.repeat(default, h5.shape[0])
 
-
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
