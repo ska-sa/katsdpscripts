@@ -6,6 +6,8 @@
 # You are free to modify and redistribute this code as long
 # as you do not remove the above attribution and reasonably
 # inform receipients that you have modified the original work.
+#
+# Modified by Bruce Merry
 
 import numpy as np
 import h5py
@@ -17,6 +19,8 @@ import katpoint
 #import time
 #import datetime
 import optparse as opt
+import numba
+from numba import jit
 
 # Functions used in SIGPROC header creation
 def _write_string(key, value):
@@ -30,6 +34,58 @@ def _write_double(key, value):
 
 def _write_char(key, value):
     return "".join([struct.pack("I",len(key)), key, struct.pack("b", value)])
+
+def _make_fapl(cache_entries, cache_size):
+    fapl = h5py.h5p.create(h5py.h5p.FILE_ACCESS)
+    cache_settings = list(fapl.get_cache())
+    fapl.set_cache(cache_settings[0], cache_entries, cache_size, cache_settings[3])
+    fapl.set_fclose_degree(h5py.h5f.CLOSE_STRONG)
+    return fapl
+
+# Opens an HDF5 file with a larger cache size
+def _open_h5(filename):
+    fapl = _make_fapl(257, 128 * 1024 * 1024)
+    return h5py.File(h5py.h5f.open(filename, h5py.h5f.ACC_RDONLY, fapl))
+
+@jit(nopython=True)
+def _to_stokesI(x, y, decimationFactor, out):
+    for i in range(out.shape[1]):
+        for j in range(out.shape[0]):
+            s = np.float32(0)
+            for k in range(j * decimationFactor, (j + 1) * decimationFactor):
+                x_r = np.float32(x[i, k, 0])
+                x_i = np.float32(x[i, k, 1])
+                y_r = np.float32(y[i, k, 0])
+                y_i = np.float32(y[i, k, 1])
+                s += x_r * x_r + x_i * x_i + y_r * y_r + y_i * y_i
+            out[j, i] = s / decimationFactor
+
+def to_stokesI(x, y, decimationFactor):
+    out = np.zeros((x.shape[1] // decimationFactor, x.shape[0]), np.float32)
+    _to_stokesI(x, y, decimationFactor, out)
+    return out
+
+@jit(nopython=True)
+def _to_stokes(x, y, out):
+    for i in range(x.shape[0]):
+        for j in range(x.shape[1]):
+            x_r = np.float32(x[i, j, 0])
+            x_i = np.float32(x[i, j, 1])
+            y_r = np.float32(y[i, j, 0])
+            y_i = np.float32(y[i, j, 1])
+            xx = x_r * x_r + x_i * x_i
+            yy = y_r * y_r + y_i * y_i
+            xy_r = x_r * y_r + x_i * y_i
+            xy_i = x_i * y_r - x_r * y_i
+            out[i, 0, j] = xx + yy
+            out[i, 1, j] = xx - yy
+            out[i, 2, j] = 2 * xy_r
+            out[i, 3, j] = 2 * xy_i
+
+def to_stokes(x, y):
+    out = np.empty((x.shape[0], 4, x.shape[1]), np.float32)
+    _to_stokes(x, y, out)
+    return out
 
 # Main body of the script
 if __name__=="__main__":
@@ -74,8 +130,8 @@ if __name__=="__main__":
     h5FilePol1 = opts.h5FilePol1
     print ("h5FilePol0: %s") % h5FilePol0
     print ("h5FilePol1: %s") % h5FilePol1
-    dataH5FilePol0 = h5py.File(h5FilePol0, "r")
-    dataH5FilePol1 = h5py.File(h5FilePol1, "r")
+    dataH5FilePol0 = _open_h5(h5FilePol0)
+    dataH5FilePol1 = _open_h5(h5FilePol1)
 
     # Getting number of channels from each file.
     channelNumberPol0 = dataH5FilePol0["Data/bf_raw"].shape[0]
@@ -240,6 +296,7 @@ if __name__=="__main__":
     header = "".join([header, struct.pack("I", len(headerEnd)), headerEnd])
     fileOut.write(header)
     #endIndex = 208985 # Number of Nyquist-sampled spectra in 1 second, use to process only 1 second of data.
+    endIndex -= endIndex % decimationFactor
     # Extracting data from h5 files and writing to filterbank file.
     for t0 in range(0, endIndex, chunkSize):
         t1 = min(endIndex, t0 + chunkSize)
@@ -248,31 +305,14 @@ if __name__=="__main__":
         #timestampsChunkPol1 = dataH5FilePol1["Data/timestamps"][t0 + startIndexPol1]
         spectraChunkPol0 = dataH5FilePol0["Data/bf_raw"][:, t0 + startIndexPol0:t1 + startIndexPol0, :]
         spectraChunkPol1 = dataH5FilePol1["Data/bf_raw"][:, t0 + startIndexPol1:t1 + startIndexPol1, :]
-        spectraChunkComplexPol0 = spectraChunkPol0[...,0] + 1j * spectraChunkPol0[...,1]
-        spectraChunkComplexPol1 = spectraChunkPol1[...,0] + 1j * spectraChunkPol1[...,1]
         if fullStokes:
+            stokesIQUV = to_stokes(spectraChunkPol0, spectraChunkPol1)
             if (decimationFactor > 1):
-                stokesI = ((((spectraChunkComplexPol0 * spectraChunkComplexPol0.conjugate()) + (spectraChunkComplexPol1 * spectraChunkComplexPol1.conjugate())).real).reshape(-1, (chunkSize / decimationFactor), decimationFactor).mean(axis = 2)).T
-                stokesQ = ((((spectraChunkComplexPol0 * spectraChunkComplexPol0.conjugate()) - (spectraChunkComplexPol1 * spectraChunkComplexPol1.conjugate())).real).reshape(-1, (chunkSize / decimationFactor), decimationFactor).mean(axis = 2)).T
-                stokesU = ((((spectraChunkComplexPol0 * spectraChunkComplexPol1.conjugate()) + (spectraChunkComplexPol0.conjugate() * spectraChunkComplexPol1)).real).reshape(-1, (chunkSize / decimationFactor), decimationFactor).mean(axis = 2)).T
-                stokesV = ((((spectraChunkComplexPol0 * spectraChunkComplexPol1.conjugate()) - (spectraChunkComplexPol0.conjugate() * spectraChunkComplexPol1)).imag).reshape(-1, (chunkSize / decimationFactor), decimationFactor).mean(axis = 2)).T
-            else:
-                stokesI = (((spectraChunkComplexPol0 * spectraChunkComplexPol0.conjugate()) + (spectraChunkComplexPol1 * spectraChunkComplexPol1.conjugate())).real).T
-                stokesQ = (((spectraChunkComplexPol0 * spectraChunkComplexPol0.conjugate()) - (spectraChunkComplexPol1 * spectraChunkComplexPol1.conjugate())).real).T
-                stokesU = (((spectraChunkComplexPol0 * spectraChunkComplexPol1.conjugate()) + (spectraChunkComplexPol0.conjugate() * spectraChunkComplexPol1)).real).T
-                stokesV = (((spectraChunkComplexPol0 * spectraChunkComplexPol1.conjugate()) - (spectraChunkComplexPol0.conjugate() * spectraChunkComplexPol1)).imag).T
-            stokesIQUV = np.concatenate((stokesI, stokesQ, stokesU, stokesV), axis = 1)
-            stokesIQUV = stokesIQUV.reshape(chunkSize * 4, channelNumberPol0)
-            stokesIQUVFloat32 = stokesIQUV.astype(dtype = np.float32)
-            bytesStokesIQUVFloat32 = stokesIQUVFloat32.tobytes(order = "C")
+                stokesIQUV = stokesIQUV.reshape(-1, 4, (chunkSize / decimationFactor), decimationFactor).mean(axis = 3)
+            bytesStokesIQUVFloat32 = stokesIQUV.T.astype(np.float32).tobytes(order = "C")
             fileOut.write(bytesStokesIQUVFloat32)
         else:
-            if (decimationFactor > 1):
-                stokesI = ((((spectraChunkComplexPol0 * spectraChunkComplexPol0.conjugate()) + (spectraChunkComplexPol1 * spectraChunkComplexPol1.conjugate())).real).reshape(-1, (chunkSize / decimationFactor), decimationFactor).mean(axis = 2)).T
-            else:
-                stokesI = (((spectraChunkComplexPol0 * spectraChunkComplexPol0.conjugate()) + (spectraChunkComplexPol1 * spectraChunkComplexPol1.conjugate())).real).T
-            stokesIFloat32 = stokesI.astype(dtype = np.float32)
-            bytesStokesIFloat32 = stokesIFloat32.tobytes(order = "C")
-            fileOut.write(bytesStokesIFloat32)
-        fileOut.seek(0, 2)
+            stokesI = to_stokesI(spectraChunkPol0, spectraChunkPol1, decimationFactor)
+            stokesI = np.require(stokesI, np.float32, requirements='C')
+            stokesI.tofile(fileOut)
     fileOut.close()
