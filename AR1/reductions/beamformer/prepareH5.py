@@ -35,18 +35,6 @@ def _write_double(key, value):
 def _write_char(key, value):
     return "".join([struct.pack("I",len(key)), key, struct.pack("b", value)])
 
-def _make_fapl(cache_entries, cache_size):
-    fapl = h5py.h5p.create(h5py.h5p.FILE_ACCESS)
-    cache_settings = list(fapl.get_cache())
-    fapl.set_cache(cache_settings[0], cache_entries, cache_size, cache_settings[3])
-    fapl.set_fclose_degree(h5py.h5f.CLOSE_STRONG)
-    return fapl
-
-# Opens an HDF5 file with a larger cache size
-def _open_h5(filename):
-    fapl = _make_fapl(257, 128 * 1024 * 1024)
-    return h5py.File(h5py.h5f.open(filename, h5py.h5f.ACC_RDONLY, fapl))
-
 @jit(nopython=True)
 def _to_stokesI(x, y, decimationFactor, out):
     for i in range(out.shape[1]):
@@ -130,8 +118,8 @@ if __name__=="__main__":
     h5FilePol1 = opts.h5FilePol1
     print ("h5FilePol0: %s") % h5FilePol0
     print ("h5FilePol1: %s") % h5FilePol1
-    dataH5FilePol0 = _open_h5(h5FilePol0)
-    dataH5FilePol1 = _open_h5(h5FilePol1)
+    dataH5FilePol0 = h5py.File(h5FilePol0, "r")
+    dataH5FilePol1 = h5py.File(h5FilePol1, "r")
 
     # Getting number of channels from each file.
     channelNumberPol0 = dataH5FilePol0["Data/bf_raw"].shape[0]
