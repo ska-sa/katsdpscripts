@@ -21,13 +21,6 @@ def activity(h5,state = 'track'):
         activityV[i,:] +=   (sensor==state)
     return np.all(activityV,axis=0)
 
-def defaulted_sensor(h5, quantity, default):
-    """Safely get environmental sensor data. with defaults"""
-    try:
-        return h5.sensor[quantity] 
-    except KeyError:
-        return np.repeat(default, h5.shape[0])
-
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
@@ -46,11 +39,11 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
-        temperature = np.mean(defaulted_sensor(h5, 'temperature', 35.0))
-        pressure = np.mean(defaulted_sensor(h5, 'pressure', 950.0))
-        humidity = np.mean(defaulted_sensor(h5, 'humidity', 15.0))
-        wind_speed = np.mean(defaulted_sensor(h5, 'wind_speed', 0.0))
-        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(defaulted_sensor(h5, 'wind_direction', 0.0))))) )# Vector Mean
+        temperature = np.mean(h5.temperature[:])
+        pressure = np.mean(h5.pressure[:])
+        humidity = np.mean(h5.humidity[:])
+        wind_speed = np.mean(h5.wind_speed[:])
+        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(h5.wind_direction[:])))) )# Vector Mean
         sun = katpoint.Target('Sun, special')
         # Calculate pointing offset
         # Obtain middle timestamp of compound scan, where all pointing calculations are done
@@ -79,12 +72,13 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         h5.select(pol=pol)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() : 
-            data = h5.vis[activity(h5,state = 'track')]
+             valid_index = activity(h5,state = 'track')
+             data = h5.vis[valid_index]
             if data.shape[0] > 0 : # need at least one data point
                 gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
-                pos.append( [h5.target_x[:,:].mean(axis=0), h5.target_y[:,:].mean(axis=0)] ) 
+                pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
         for ant in range(len(h5.ants)):
             for chunk in range(chunks):
                 if np.array(pos).shape[0] > 4 : # Make sure there is enough data for a fit
@@ -152,6 +146,13 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                 ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
                 ant_pointing[name]["sun_el"] = sun_azel.tolist()[1]
                 ant_pointing[name]["timestamp"] =middle_time.astype(int)
+                #Work out the Target position and the requested position
+                # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
+                requested_azel = target.azel(middle_time,antenna=h5.ants[ant])
+                # Correct for refraction, which becomes the requested value at input of pointing model
+                rc = katpoint.RefractionCorrection()
+                requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
+                requested_azel = katpoint.rad2deg(np.array(requested_azel))
                 target_azel = katpoint.rad2deg(np.array(target.azel(middle_time,antenna=h5.ants[ant])))  
                 ant_pointing[name]["azimuth"] =target_azel.tolist()[0]
                 ant_pointing[name]["elevation"] =target_azel.tolist()[1]
