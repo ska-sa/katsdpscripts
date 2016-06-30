@@ -39,11 +39,11 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
-        temperature = np.mean(h5.temperature[:])
-        pressure = np.mean(h5.pressure[:])
-        humidity = np.mean(h5.humidity[:])
-        wind_speed = np.mean(h5.wind_speed[:])
-        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(h5.wind_direction[:])))) )# Vector Mean
+        temperature = np.mean(h5.temperature)
+        pressure = np.mean(h5.pressure)
+        humidity = np.mean(h5.humidity)
+        wind_speed = np.mean(h5.wind_speed)
+        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(h5.wind_direction)))) )# Vector Mean
         sun = katpoint.Target('Sun, special')
         # Calculate pointing offset
         # Obtain middle timestamp of compound scan, where all pointing calculations are done
