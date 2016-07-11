@@ -479,10 +479,6 @@ if len(args) ==0:
 
 
 
-# frequency channels to keep
-start_freq_channel = int(opts.freq_keep.split(',')[0])
-end_freq_channel = int(opts.freq_keep.split(',')[1])
-
 h5 = katdal.open(args[0])
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
@@ -497,6 +493,8 @@ if len(opts.channel_mask)>0:
     pickle_file = open(opts.channel_mask)
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
+    if n_chan > rfi_static_flags.shape[0] :
+        rfi_static_flags = rfi_static_flags.repeat(8) # 32k mode
 else:
     rfi_static_flags = np.tile(False, n_chan)
 
