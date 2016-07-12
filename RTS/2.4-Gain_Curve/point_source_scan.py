@@ -66,7 +66,7 @@ parser.add_option('--fine', action="store_true", default=False,
                   'This is for Ku-band observations where the beam is 8 arcmin. *DEPRECATED*')
 parser.add_option('--search-fine', action="store_true", default=False,
                   help='Do a fine grained pointscan with an extent of 2 degree and a duration of 60 seconds.'
-                  'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
+                  'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .*DEPRECATED*')
 
 
 parser.set_defaults(description='Point source scan',dump_rate=None)
