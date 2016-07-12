@@ -11,6 +11,8 @@ import os
 from katsdpscripts import git_info
 import pickle
 import h5py
+from katsdpcal import calprocs
+
 
 
 def read_and_select_file(data, flags_file=None, value=np.inf):
@@ -288,30 +290,6 @@ def anglestd(a, axis=None):
     S0 = 1 - np.cos(th - np.reshape(thme, nshape)).mean(axis=axis)
     return np.angle(np.exp(1j * np.sqrt( - 2. * np.log(1. - S0))))
 
-
-def plot_BaselineGain(gains, freq, inputs):
-    """ This plots the Amplitude and Phase across the bandpass
-    gains   : complex array shape (time,frequency,antenna) 
-    or (frequency,antenna)
-    freq    : array shape (frequency) in Herts
-    inputs  : list of string names of the antennas
-    returns : a list of figure objects
-    """
-    returned_plots = []
-    if len(gains.shape) == 2 :
-        gains =gains[np.newaxis, :, :]
-    for i in xrange(gains.shape[-1]):
-        fig, ax = plt.subplots(nrows=1, sharex=True)
-        ax.set_title('Baseline  Phase Correction %s'%(inputs[i]))
-        #ax[1].set_title('Baseline Amplitude Correction  %s'%(inputs[i]))
-        ax.set_ylabel('Degrees')
-        #ax[1].set_ylim(0,20)
-        ax.set_xlabel("Frequency (MHz)")
-        ax.plot(freq/1e6,np.degrees(np.angle(gains[:, :, i].T)))
-        #ax[1].plot(freq/1e6,np.abs(gains[:,:,i].T))
-        returned_plots.append(fig)
-    return returned_plots
-
 def anglemax(x):
     x = np.exp(1j * x)
     #x = np.ma.array(data=np.nan_to_num(x),mask=x.mask +np.isnan(x))
@@ -471,6 +449,7 @@ parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rf
                   help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
 parser.add_option("-r", "--rfi-flagging", default='',
                   help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
+parser.add_option( '--ref', dest='ref_ant',  default=None,help="Reference antenna, default is first antenna in the python dictionary")
 
 (opts, args) = parser.parse_args()
 
@@ -478,12 +457,10 @@ if len(args) ==0:
     raise RuntimeError('Please specify an h5 file to load.')
 
 
+output_dir = '.'
 
-# frequency channels to keep
-start_freq_channel = int(opts.freq_keep.split(',')[0])
-end_freq_channel = int(opts.freq_keep.split(',')[1])
-
-h5 = katdal.open(args[0])
+h5 = katdal.open(args[0],ref_ant=opts.ref_ant) 
+ref_ant_ind = [ant.name for ant in h5.ants].index(h5.ref_ant)
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
     start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -493,48 +470,54 @@ if not opts.freq_keep is None :
 else :
     edge = np.tile(False, n_chan)
 #load static flags if pickle file is given
-if len(opts.channel_mask)>0:
-    pickle_file = open(opts.channel_mask)
+channel_mask ='/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
+rfi_flagging = ''
+if len(channel_mask)>0:
+    pickle_file = open(channel_mask)
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
+    if n_chan > rfi_static_flags.shape[0] :
+        rfi_static_flags = rfi_static_flags.repeat(8) # 32k mode
 else:
     rfi_static_flags = np.tile(False, n_chan)
-
 static_flags = np.logical_or(edge,rfi_static_flags)
-
-
 fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1])[0])
-nice_filename =  fileprefix+ '_baseline_phase_stability'
+nice_filename =  fileprefix+ '_antenna_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
+
 for pol in ('h','v'):
-    h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track',dumps=slice(1,600))
-    vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
-    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:,:,:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
-    h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
-    data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
+    h5.select(channels=~static_flags,pol=pol,scans='track')
+    h5.antlist = [a.name for a in h5.ants]
+    h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
+    data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
     i = 0
     for scan in h5.scans():
-        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
-        data[i:i+h5.shape[0]] = mean((vis*fit_gains),axis=1)
+        vis = read_and_select_file(h5, flags_file=rfi_flagging)
+        print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
+        bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
+        antA, antB = bl_ant_pairs
+        cal_baselines = vis.mean(axis=1) 
+                         #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
+        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
+        #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
+        print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
         i += h5.shape[0]
-    figlist = []
-    figlist += plot_BaselineGain(fit_gains,h5.channel_freqs,h5.corr_products)
-    for tmpfig in figlist :
-        tmpfig.savefig(pp,format='pdf')
-        plt.close(tmpfig)
+
     fig = plt.figure()
     plt.suptitle(h5.name)
-    plt.title('Phase angle in Baseline vs. Time for %s pol baselines '%(pol))
-    plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='nearest')
-    plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Baseline Number')
+    plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
+    plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
+    plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
+    plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
     plt.colorbar()
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
-    for i,(ant1,ant2) in  enumerate(h5.corr_products):
-        #print "Generating Stats on the baseline %s,%s"%(ant1,ant2)
-        mask = ~data.mask[:,i]
-        returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant1,ant2),windowtime=1200,minsamples=1200)
+    for i,ant in  enumerate(h5.antlist):
+        print "Generating Stats on the Antenna %s"%(ant)
+        #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
+        mask = slice(0,data.shape[0])
+        returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=1200//4,minsamples=1200//4)
         pltfig.savefig(pp,format='pdf')
         plt.close(pltfig)
         pltfig2.savefig(pp,format='pdf')
@@ -543,8 +526,5 @@ for pol in ('h','v'):
         plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
-
 pp.close()
 plt.close('all')
-
-
