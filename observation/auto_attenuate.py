@@ -212,8 +212,8 @@ with verify_and_connect(opts) as kat:
                 user_logger.error("dbe7 mode is '%s' and not in the list of valid modes. Could not set appropriate gain." % (dbe_mode))
 
             # Populate lookup table that maps ant+pol to DBE input
-            for dbe_input_sensor in [sensor for sensor in vars(selected_dbe.sensor) if sensor.startswith('input_mappings_')]:
-                ant_pol = getattr(selected_dbe.sensor, dbe_input_sensor).get_value()
+            for dbe_input_sensor in [sensor for sensor in selected_dbe.sensor if sensor.startswith('input_mappings_')]:
+                ant_pol = selected_dbe.sensor[dbe_input_sensor].get_value()
                 connected_antpols[ant_pol] = dbe_input_sensor[15:]
 
             # Create device array of antennas, based on specification string
