@@ -30,9 +30,9 @@ def select_ant(cbf, ant, bf='bf0'):
 
 def get_weights(cbf):
     weights = {}
-    for sensor_name in vars(cbf.sensor):
+    for sensor_name in cbf.sensor:
         if sensor_name.endswith('_gain_correction_per_channel'):
-            sensor = getattr(cbf.sensor, sensor_name)
+            sensor = cbf.sensor[sensor_name]
             weights[sensor_name.split('_')[1]] = sensor.get_value()
     return weights
 
