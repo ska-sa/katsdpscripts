@@ -22,8 +22,9 @@ def save_ND(diode_filename,file_base,freq,Tdiode_pol ):
     return outfilename
     
 
-def get_nd_on_off(h5,buff = 5,log=None): 
+def get_nd_on_off(h5,buff = 2,log=None): 
     on = h5.sensor['Antennas/%s/nd_coupler'%(h5.ants[0].name)]
+    off = ~h5.sensor['Antennas/%s/nd_coupler'%(h5.ants[0].name)]
     n_on = np.tile(False,on.shape[0])
     n_off = np.tile(False,on.shape[0])
     if not any(on):
@@ -32,9 +33,9 @@ def get_nd_on_off(h5,buff = 5,log=None):
         else :
             print('No noise diode fired during track of %s'%target)
     else:
-        jumps = (np.diff(on).nonzero()[0] + 1).tolist()
-        n_on[slice(jumps[0]+buff,jumps[1]-buff)] = True
-        n_off[slice(jumps[1]+buff,-buff)] = True
+        #jumps = (np.diff(on).nonzero()[0] + 1).tolist()
+        n_on[on.nonzero()[0][buff:-buff]]   = True
+        n_off[off.nonzero()[0][buff:-buff]] = True
     return n_on,n_off
 
 
@@ -274,6 +275,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
 if __name__ == "__main__":
 #test the method with a know file
     filename = '/var/kat/archive/data/RTS/telescope_products/2016/01/19/1453216690.h5'
+    #filename = '/var/kat/archive2/data/MeerKATAR1/telescope_products/2016/07/21/1469134098.h5'
     pdf=True
     Ku=False
     verbose=False
@@ -283,7 +285,7 @@ if __name__ == "__main__":
     write_nd = True
     print 'Performing test run with: ' + filename
     read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)
-# Output checsums of the noisediode files
+# Output checsums of the noisediode files for 1453216690.h5s
 #md5sum rx.* 
 #7545907bbe621f4e5937de7536be21f3  rx.l.4002.h.csv
 #532332722c8bca9714f4e2d97978ccd6  rx.l.4002.v.csv
