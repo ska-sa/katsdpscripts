@@ -39,7 +39,7 @@ def get_nd_on_off(h5,buff = 2,log=None):
     return n_on,n_off
 
 
-def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Tsys_std=None,ant = '', file_base='.'):
+def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_base='.'):
     fig = plt.figure(figsize=(20,5))
     pols = ['v','h']
     for p,pol in enumerate(pols) : 
@@ -257,9 +257,9 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
             if write_nd:
                 outfilename = save_ND(diode_filename,file_base,freq,Tdiode[pol] )
                 logger.info('Noise temp data written to file %s'%outfilename)
-
+        
         fig2 = plot_nd(freq,Tdiode,nd_temp,ant = ant, file_base=file_base)
-        fig1 = plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Tsys_std=Tsys_std,ant = ant, file_base=file_base)
+        fig1 = plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Tsys_std=Tsys_std,ant = ant, file_base=file_base,Ku=Ku)
         if pdf:
             if not(Ku):
                 fig2.savefig(pp,format='pdf')
