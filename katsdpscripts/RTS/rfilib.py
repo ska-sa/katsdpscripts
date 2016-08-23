@@ -852,7 +852,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=1000,write_into_input=False,speedup=1,debug=True):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=1000,write_into_input=False,speedup=1,debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -871,11 +871,14 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
         elif not os.path.samefile(input_file,output_file):
             shutil.copy(input_file,output_root)
         h5 = katdal.open(os.path.join(output_file),mode='r+')
+        outfile = h5.file
+        flags_dataset = h5._flags
     else:
         h5 = katdal.open(input_file)
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
         outfile=h5py.File(basename+'.h5','w')
-
+        outfile.create_dataset('corr_products',data=h5.corr_products)
+        flags_dataset = outfile.create_dataset('flags',h5._flags.shape,dtype=h5._flags.dtype)
     freq_length = h5.shape[1]
     #Read static flags from pickle
     if static_flags:
@@ -887,15 +890,11 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     else:
         #Create dummy static flag array if no static flags are specified. 
         static_flags=np.zeros(h5.shape[1],dtype=np.bool)
-
     #Set up the mask for broadcasting
     if static_flags is not None:
         mask_array = static_flags[np.newaxis,:,np.newaxis]
     else:
         mask_array = np.zeros((1,h5.vis.shape[1],1),dtype=np.bool)
-
-    #Set up empty flag table
-    final_flags = np.zeros(h5._flags.shape,dtype=np.uint8)
 
     #Shall we speed up the flagging
     average_freq = 8 if freq_length == 32768 else 1
@@ -932,43 +931,32 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             scan_slices = [slice(0,h5.shape[0])]
         #loop over slices
         for this_slice in scan_slices:
-            this_data = np.abs(h5.vis[this_slice,:,:])
+            #this_data = np.abs(h5.vis)[this_slice,:,:]
+            #Don't read all of the data in one hit- loop over timestamps instead
+            this_data = np.empty(h5.shape,dtype=np.float32)
+            for i in h5.dumps[this_slice]: this_data[i]=np.abs(h5.vis[i])
             if use_file_flags:
-                file_flags = h5.flags('ingest_rfi')[this_slice,:,:]
+                flags = h5.flags('ingest_rfi')[this_slice,:,:]
             else:
-                file_flags = np.zeros(this_data.shape,dtype=np.bool)
-            #Construct a masked array with flags removed
-            mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
-            #Broadcast the channel mask to the same shape as this_flags
-            mask_flags[:] = mask_array
-
+                flags = np.zeros(this_data.shape,dtype=np.bool)
             #OR the mask flags with the flags already in the h5 file
-            this_flags = file_flags | mask_flags
-	
-            detected_flags = flagger.get_flags(this_data[:,freq_range],this_flags[:,freq_range],blarray=h5.corr_products,num_cores=cores_to_use)
+            flags = np.logical_or(flags,mask_array)
+            detected_flags = flagger.get_flags(this_data[:,freq_range],flags[:,freq_range],blarray=h5.corr_products,num_cores=cores_to_use)
+            del this_data
             #Flags are 8 bit:
-            #1: 'reserved0' = 7
-            #2: 'static' = 6
-            #3: 'cam' = 5
-            #4: 'reserved3' = 4
-            #5: 'ingest_rfi' = 3 
-            #6: 'predicted_rfi' = 2
-            #7: 'cal_rfi' = 1
-            #8: 'reserved7' = 0
-            #Always copy 'detected_rfi' from file into all_flags
-            all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
-            all_flags[...,6] = mask_flags
-            all_flags[:,freq_range,:,1] = detected_flags
-            all_flags[...,3] = h5.flags('ingest_rfi')[this_slice,:,:]
-
-            all_flags=np.packbits(all_flags,axis=3).squeeze()
-            final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
-    if write_into_input:
-        h5._flags[:] = final_flags[:]
-        h5.file.close()
-    else:
-        outfile.create_dataset('flags',data=final_flags)
-        outfile.create_dataset('corr_products',data=h5.corr_products)
+            #1: 'reserved0' = 0
+            #2: 'static' = 1
+            #3: 'cam' = 2
+            #4: 'reserved3' = 3
+            #5: 'ingest_rfi' = 4
+            #6: 'predicted_rfi' = 5
+            #7: 'cal_rfi' = 6
+            #8: 'reserved7' = 7
+            #Add new flags to flag table from the mask and the detection
+            flags = np.zeros(h5.flags().shape,dtype=np.uint8)
+            flags += mask_array.view(np.uint8)*2
+            flags[:,freq_range,:] += detected_flags.view(np.uint8)*(2**6)
+            flags_dataset[:] += flags
         outfile.close()
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
