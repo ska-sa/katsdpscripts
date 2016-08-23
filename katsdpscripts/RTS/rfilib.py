@@ -852,7 +852,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=1000,write_into_input=False,speedup=1,debug=True):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -875,11 +875,14 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
         h5 = katdal.open(input_file)
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
         outfile=h5py.File(basename+'.h5','w')
-    
+
+    freq_length = h5.shape[1]
     #Read static flags from pickle
     if static_flags:
         sff = open(static_flags)
         static_flags = pickle.load(sff)
+        #Extend static mask if in 32K mode
+        if freq_length==32768: static_flags=np.repeat(static_flags,8)
         sff.close()
     else:
         #Create dummy static flag array if no static flags are specified. 
@@ -895,8 +898,10 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     final_flags = np.zeros(h5._flags.shape,dtype=np.uint8)
 
     #Shall we speed up the flagging
-    freq_length = h5.shape[1]
-    average_freq = 2 if (freq_length > 18000) and speedup else 1
+    average_freq = 8 if freq_length == 32768 else 1
+
+    #Speed up flagging by averaging further if requested.
+    average_freq*=speedup
 
     #Convert spike width from frequency and time to channel and dump for the flagger.
     width_freq_channel = int(width_freq*1.e6/h5.channel_width/average_freq)
@@ -906,17 +911,18 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     num_bl = h5.shape[-1]
     cores_to_use = min(num_bl, (cpu_count+1)//2)
 
-    #Are we KAT7 or RTS
+    #Are we KAT7 or MeerKAT
     if h5.inputs[0][0]=='m':
-        #RTS
+        #MeerKAT
         flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
         cut_chans = h5.shape[1]//20
-        freq_range = slice(cut_chans,h5.shape[1]-cut_chans)
     else:
         #kat-7
         flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,background_reject=4.0,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
         cut_chans = h5.shape[1]//7
-        freq_range = slice(cut_chans,h5.shape[1]-cut_chans)
+    #Make sure final size of array divides into averaging width
+    remainder = (h5.shape[1]-2*cut_chans)%average_freq
+    freq_range = slice(cut_chans-(remainder//2),h5.shape[1]-(cut_chans-(remainder-(remainder//2))))
     for scan, state, target in h5.scans():
         #Take slices through scan if it is too large for memory
         if h5.shape[0]>max_scan:
