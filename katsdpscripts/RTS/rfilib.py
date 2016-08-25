@@ -25,7 +25,7 @@ import pickle
 import h5py
 import os
 import shutil
-import pathos.multiprocessing as mp
+import multiprocessing as mp
 import time
 import itertools
 
@@ -349,6 +349,20 @@ def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.1, color='Maroon')
 
+def get_scan_flags(flagger,data,flags,bline):
+    """
+    Function to run the flagging for a single scan. This is used by multiprocessing
+    to avoid pickling problems therein. It can also be used to runn the flagger
+    independantly of multiprocessing shenanigans.
+    Inputs:
+        flagger: A flagger object with a method for running the flagging
+        data: a 2d array of data to flag
+        flags: a 2d array of prior flags
+        bline: the corr_product reference for the data
+    Outputs:
+        flags: a 2d array of derived flags for the scan
+    """
+    return flagger._detect_spikes_sumthreshold(data,flags,bline)
 
 class sumthreshold_flagger():
     def __init__(self,background_iterations=2, spike_width_time=10, spike_width_freq=10, outlier_sigma=4.0, background_reject=2.0, window_size_auto=[1,3,5,7,9,11,25], \
@@ -378,21 +392,23 @@ class sumthreshold_flagger():
 
     def get_flags(self,data,flags=None,blarray=None,num_cores=6):
         if self.debug: start_time=time.time()
-        #Move the baseline axis to the front of data
-        in_data = np.rollaxis(data,-1)
-        if flags is not None:
-            in_flags = np.rollaxis(flags,-1)
-        else:
-            in_flags = np.repeat(None,in_data.shape[0])
+        if flags is None:
+            in_flags = np.repeat(None,in_data.shape[0]).reshape((in_data.shape[0]))
         if blarray is None:
             blarray = np.repeat(None,in_data.shape[0])
-        p=mp.ProcessingPool(num_cores)
-        derived_flags=p.map(self._detect_spikes_sumthreshold,in_data,in_flags,blarray)
-        p.clear()
+        out_flags=np.empty(data.shape,dtype=np.bool)
+        async_results=[]
+        p=mp.Pool(num_cores)
+        for i in range(data.shape[-1]):
+            async_results.append(p.apply_async(get_scan_flags,(self,data[...,i],flags[...,i],blarray[i],)))
+        p.close()
+        p.join()
+        for i,result in enumerate(async_results):
+            out_flags[...,i]=result.get()     
         if self.debug: 
             end_time=time.time()
             print "TOTAL SCAN TIME: %f"%((end_time-start_time)/60.0)
-        return np.rollaxis(np.array(derived_flags),0,3)
+        return out_flags
 
     def _average(self,data,flags):
         #Only works if self.average_time and self.average_freq divide into data.shape
@@ -432,6 +448,8 @@ class sumthreshold_flagger():
             window_bl = self.window_size_cross
             # Can lower the threshold a little for cross correlations
             this_sigma = self.outlier_sigma * self.threshold_decrease_cross
+        
+
         if self.debug: back_time=time.time()
         flags = flags | ~np.isfinite(filtered_data)
         #Subtract background
@@ -908,7 +926,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
 
     #loop through scans
     num_bl = h5.shape[-1]
-    cores_to_use = min(num_bl, (cpu_count+1)//2)
+    cores_to_use = min(num_bl, (cpu_count-2))
 
     #Are we KAT7 or MeerKAT
     if h5.inputs[0][0]=='m':
