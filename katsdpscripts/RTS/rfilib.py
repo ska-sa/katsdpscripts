@@ -448,7 +448,6 @@ class sumthreshold_flagger():
             window_bl = self.window_size_cross
             # Can lower the threshold a little for cross correlations
             this_sigma = self.outlier_sigma * self.threshold_decrease_cross
-        
 
         if self.debug: back_time=time.time()
         flags = flags | ~np.isfinite(filtered_data)
@@ -870,7 +869,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=1000,write_into_input=False,speedup=1,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=200,write_into_input=False,speedup=1,debug=True):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -951,15 +950,16 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
         for this_slice in scan_slices:
             #this_data = np.abs(h5.vis)[this_slice,:,:]
             #Don't read all of the data in one hit- loop over timestamps instead
-            this_data = np.empty(h5.shape,dtype=np.float32)
-            for i in h5.dumps[this_slice]: this_data[i]=np.abs(h5.vis[i])
+            this_data = np.empty((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.float32)
+            for index,dump in enumerate(h5.dumps[this_slice]):
+                this_data[index]=np.abs(h5.vis[dump,freq_range])
             if use_file_flags:
-                flags = h5.flags('ingest_rfi')[this_slice,:,:]
+                flags = h5.flags('ingest_rfi')[this_slice,freq_range,:]
             else:
                 flags = np.zeros(this_data.shape,dtype=np.bool)
             #OR the mask flags with the flags already in the h5 file
-            flags = np.logical_or(flags,mask_array)
-            detected_flags = flagger.get_flags(this_data[:,freq_range],flags[:,freq_range],blarray=h5.corr_products,num_cores=cores_to_use)
+            flags = np.logical_or(flags,mask_array[:,freq_range,:])
+            detected_flags = flagger.get_flags(this_data,flags,blarray=h5.corr_products,num_cores=cores_to_use)
             del this_data
             #Flags are 8 bit:
             #1: 'reserved0' = 0
@@ -971,10 +971,10 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             #7: 'cal_rfi' = 6
             #8: 'reserved7' = 7
             #Add new flags to flag table from the mask and the detection
-            flags = np.zeros(h5.flags().shape,dtype=np.uint8)
+            flags = np.zeros((this_slice.stop-this_slice.start,h5.shape[1],h5.shape[2],),dtype=np.uint8)
             flags += mask_array.view(np.uint8)*2
             flags[:,freq_range,:] += detected_flags.view(np.uint8)*(2**6)
-            flags_dataset[:] += flags
+            flags_dataset[this_slice] += flags
         outfile.close()
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
