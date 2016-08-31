@@ -174,62 +174,6 @@ def getbackground_median_filter(in_data,in_flags,broad_iterations=2,fine_iterati
             nonfinite_values=~np.isfinite(background)
     return background
 
-
-def getbackground_gaussian_filter(in_data,in_flags=None,broad_iterations=2,fine_iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,interp_nonfinite=True):
-    """Determine a smooth background through a 2d data array by iteratively smoothing
-    the data with a gaussian
-    """
-    data=in_data[:]
-    #Make mask array
-    mask=np.ones(data.shape)
-    mask[:,0]=0.0
-    #Mask input flags if provided
-    if in_flags is not None:
-        mask[in_flags]=0.0
-    #First do the broad iterations
-    sigma=np.array([data.shape[0]//5,data.shape[1]//5])
-    for iteration in range(broad_iterations):
-        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
-        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
-        residual=data-background
-        # Three more mask runs on the last iteration
-        for i in range(2):
-            mask[np.abs(residual)>reject_threshold*2.0*np.std(residual[np.where(mask)])]=0.0
-
-    #Next convolve with Gaussians with decreasing width from iterations*spike_width to 1*spike_width
-    for extend_factor in range(fine_iterations,0,-1):
-        #Convolution sigma
-        sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//5,1)),min(spike_width_freq*extend_factor,data.shape[1]//5)])
-        #Get weight and background convolved in time axis
-        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
-        #Smooth background and apply weight
-        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
-        residual=data-background
-        #Reject outliers
-        residual=residual-np.median(residual[np.where(mask)])
-        mask[np.abs(residual)>reject_threshold*np.std(residual[np.where(mask)])]=0.0
-
-    weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
-    background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight    
-
-    if interp_nonfinite:
-        #If requested fill in nonfinite values with background smoothed with gaussian width increased by a factor of 2. 
-        #Fill values with 0.0 if gaussian smoothing factor is larger than the scan size.
-        nonfinite_values=~np.isfinite(background)
-        denominator=5
-        while np.any(nonfinite_values):
-            denominator-=1
-            if denominator==0:
-            #If we really can't interpolate any values- just set nonfinite values to zero
-                background[nonfinite_values]=0.0
-                break
-            sigma=np.array([data.shape[0]//denominator,data.shape[1]//denominator])
-            weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
-            interp_background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
-            background[nonfinite_values]=interp_background[nonfinite_values]
-            nonfinite_values=~np.isfinite(background)
-    return background
-
 def getbackground(data,in_flags=None,iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,interp_nonfinite=True):
     """Determine a smooth background through a 2d data array by iteratively smoothing
     the data with a gaussian
@@ -244,7 +188,7 @@ def getbackground(data,in_flags=None,iterations=3,spike_width_time=10,spike_widt
         median = np.nanmedian(data[~in_flags])
         mask[data-median > reject_threshold*3*np.nanstd(data[~in_flags])]=0.0
     #Next convolve with Gaussians with increasing width from iterations*spike_width to 1*spike_width
-    for extend_factor in range(fine_iterations,0,-1):
+    for extend_factor in range(iterations,0,-1):
         #Convolution sigma
         sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//10,1)),min(spike_width_freq*extend_factor,data.shape[1]//10)])
         #sigma=np.array([1,min(spike_width_freq*extend_factor,data.shape[1]//10)])
@@ -333,14 +277,14 @@ def get_scan_flags(flagger,data,flags,bline):
     """
     Function to run the flagging for a single scan. This is used by multiprocessing
     to avoid pickling problems therein. It can also be used to runn the flagger
-    independantly of multiprocessing shenanigans.
+    independently of multiprocessing.
     Inputs:
         flagger: A flagger object with a method for running the flagging
         data: a 2d array of data to flag
         flags: a 2d array of prior flags
         bline: the corr_product reference for the data
     Outputs:
-        flags: a 2d array of derived flags for the scan
+        a 2d array of derived flags for the scan
     """
     return flagger._detect_spikes_sumthreshold(data,flags,bline)
 
@@ -418,15 +362,15 @@ class sumthreshold_flagger():
             data, flags = self._average(data,flags)
         if bline is None or bline[0][:-1] == bline[1][:-1]:
             #Auto-Correlation.
-            filtered_data = getbackground(data,in_flags=flags,fine_iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
-                                            spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,median_precision=8,interp_nonfinite=False)
+            filtered_data = getbackground(data,in_flags=flags,iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
+                                            spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,interp_nonfinite=False)
             #Use the auto correlation window function
             window_bl = self.window_size_auto
             this_sigma = self.outlier_sigma
         else:
             #Cross-Correlation.
-            filtered_data = getbackground(data,in_flags=flags,fine_iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
-                                            spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,median_precision=8,interp_nonfinite=False)
+            filtered_data = getbackground(data,in_flags=flags,iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
+                                            spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,interp_nonfinite=False)
             #Use the cross correlation window function
             window_bl = self.window_size_cross
             # Can lower the threshold a little for cross correlations
@@ -448,9 +392,7 @@ class sumthreshold_flagger():
         flags=np.repeat(np.repeat(flags,self.average_freq,axis=1),self.average_time,axis=0)
         if self.debug:
             end_time=time.time()
-            #plot_waterfall(av_dev,flags)
             print "%s: Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(bline,data.shape[0],data.shape[1],back_time-start_time, end_time-back_time, end_time-start_time)
-        #plot_waterfall(data,flags)
         return flags
 
 
@@ -850,7 +792,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=200,write_into_input=False,speedup=1,debug=True):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=200,write_into_input=False,speedup=1,debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
