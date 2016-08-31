@@ -230,39 +230,19 @@ def getbackground_gaussian_filter(in_data,in_flags=None,broad_iterations=2,fine_
             nonfinite_values=~np.isfinite(background)
     return background
 
-def getbackground(data,in_flags=None,broad_iterations=1,fine_iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,median_precision=16,interp_nonfinite=True):
+def getbackground(data,in_flags=None,iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,interp_nonfinite=True):
     """Determine a smooth background through a 2d data array by iteratively smoothing
-    the data with a gaussian in the fine iterations and a median filter for the broad iterations
+    the data with a gaussian
     """
     #Make mask array
-    mask=np.ones(data.shape,dtype=np.bool)
-    mask[:,0]=False
+    mask=np.ones(data.shape,dtype=np.float)
     #Mask input flags if provided
     if in_flags is not None:
-        mask[in_flags]=False
+        mask[in_flags]=0.0
     #Filter Brightest spikes
     for i in range(2):
-        median = np.nanmedian(data[mask])
-        mask[data-median > reject_threshold*2*np.nanstd(data[mask])]=False
-    #First do the broad iterations using median filter
-    background_func=skimage.filters.median
-    morphology_func=skimage.morphology.rectangle
-    if median_precision==8:
-        cast_func=skimage.img_as_ubyte
-        max_int=255.0
-    else:
-        cast_func=skimage.img_as_uint
-        max_int=65535.0
-    sigma=np.array([max(data.shape[0]//5,1),max(data.shape[1]//5,1)])
-    for iteration in range(broad_iterations):
-        datamax=data[mask].max()
-        datamin=data[mask].min()
-        background=background_func(cast_func((np.where(mask,data,datamax)-datamin)/(datamax-datamin)),morphology_func(*sigma),mask=mask)*((datamax-datamin)/max_int) + datamin
-        residual=data-background
-        # 2 mask runs
-        for i in range(2):
-            mask[residual>reject_threshold*1.5*np.std(residual[np.where(mask)])]=False
-    mask=mask.astype(np.float)
+        median = np.nanmedian(data[~in_flags])
+        mask[data-median > reject_threshold*3*np.nanstd(data[~in_flags])]=0.0
     #Next convolve with Gaussians with increasing width from iterations*spike_width to 1*spike_width
     for extend_factor in range(fine_iterations,0,-1):
         #Convolution sigma
@@ -419,8 +399,11 @@ class sumthreshold_flagger():
         avg_flags = flags.reshape(new_time_axis,self.average_time,new_freq_axis,self.average_freq)
         avg_data = np.nansum(np.nansum(avg_data*(~avg_flags),axis=3),axis=1)
         avg_flags = np.nansum(np.nansum(avg_flags,axis=3),axis=1)
-        avg_data /= (bin_area - avg_flags)
+        bin_weight = (bin_area - avg_flags)
         avg_flags = (avg_flags == bin_area)
+        #Avoid NaNs where all data is flagged (data will become zero)
+        bin_weight[avg_flags==True] = 1
+        avg_data /= bin_weight
         return avg_data, avg_flags
 
     def _detect_spikes_sumthreshold(self,in_data,in_flags,bline):
@@ -448,7 +431,6 @@ class sumthreshold_flagger():
             window_bl = self.window_size_cross
             # Can lower the threshold a little for cross correlations
             this_sigma = self.outlier_sigma * self.threshold_decrease_cross
-
         if self.debug: back_time=time.time()
         flags = flags | ~np.isfinite(filtered_data)
         #Subtract background
@@ -457,14 +439,13 @@ class sumthreshold_flagger():
         flags = self._sumthreshold(av_dev,flags,0,window_bl,this_sigma)
         #Sumthreshold along frequency axis
         flags = self._sumthreshold(av_dev,flags,1,window_bl,this_sigma)
-        #Extend flags by 2 pixel in freq and time
+        #Extend flags in freq and time
         flags = ndimage.convolve1d(flags, [True]*self.time_extend, axis=1, mode='reflect')
         flags = ndimage.convolve1d(flags, [True]*self.freq_extend, axis=0, mode='reflect')
         #Flag all freqencies and times if too much is flagged.
         flags[:,np.where(np.sum(flags,dtype=np.float,axis=0)/flags.shape[0] > self.flag_all_time_frac)[0]]=True
         flags[np.where(np.sum(flags,dtype=np.float,axis=1)/flags.shape[1] > self.flag_all_freq_frac)]=True
         flags=np.repeat(np.repeat(flags,self.average_freq,axis=1),self.average_time,axis=0)
-
         if self.debug:
             end_time=time.time()
             #plot_waterfall(av_dev,flags)
@@ -972,7 +953,9 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             #8: 'reserved7' = 7
             #Add new flags to flag table from the mask and the detection
             flags = np.zeros((this_slice.stop-this_slice.start,h5.shape[1],h5.shape[2],),dtype=np.uint8)
+            #Add mask to 'static' flags
             flags += mask_array.view(np.uint8)*2
+            #Add detected flags to 'cal_rfi'
             flags[:,freq_range,:] += detected_flags.view(np.uint8)*(2**6)
             flags_dataset[this_slice] += flags
         outfile.close()
