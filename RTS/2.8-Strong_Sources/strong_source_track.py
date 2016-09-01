@@ -104,7 +104,7 @@ with verify_and_connect(opts) as kat:
             target_list = []
             target_list.append((cold_sources,opts.cold_duration,"track_before",-1))  # -1 means to use the old attenuation
             target_list.append((strong_sources,opts.track_duration,"track_strong",39))
-            target_list.append((cold_sources,opts.cold_duration,"track_after"),-1)  # -1 means to use the old attenuation
+            target_list.append((cold_sources,opts.cold_duration,"track_after",-1))  # -1 means to use the old attenuation
             attenuation_old = {}
             for ant in kat.ants:
                 
