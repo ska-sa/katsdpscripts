@@ -625,7 +625,7 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 ##############################
 # End of RFI detection routines
 ##############################
-def get_flag_stats_new(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=None):
+def get_flag_stats(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
     (ignoring severe spikes) then obtain an average spectrum of
@@ -641,7 +641,7 @@ def get_flag_stats_new(h5, thisdata=None, flags=None, flags_to_show=None, norm_s
         flags = h5.flags(flags_to_show)[:]
     #Squeeze here removes stray axes left over by LazyIndexer
     if thisdata is None:
-        thisdata = np.abs(h5.vis).squeeze()
+        thisdata = np.abs(h5.vis[:]).squeeze()
     if norm_spec is not None: thisdata /= norm_spec[np.newaxis,:]
     #Get DC height (median rather than mean is more robust...)
     offset = np.ma.median(np.ma.MaskedArray(thisdata,mask=flags,fillvalue=1.0),axis=1)
@@ -957,8 +957,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         vis=np.abs(h5.vis[:]).squeeze()
         flags=h5.flags(flags_to_show)[:]
         #Populate data_dict
-        data_dict=get_flag_stats_new(h5,thisdata=vis,flags=flags)
-        print vis.shape
+        data_dict=get_flag_stats(h5,thisdata=vis,flags=flags)
         #Output to h5 file
         outfile=h5py.File(basename+'.h5','w')
         for targetname, targetdata in data_dict.iteritems():
@@ -1022,7 +1021,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         vis=np.abs(h5.vis[:]).squeeze()
         flags=h5.flags(flags_to_show)[:]
         #Populate data_dict
-        data_dict=get_flag_stats_new(h5,thisdata=vis,flags=flags)
+        data_dict=get_flag_stats(h5,thisdata=vis,flags=flags)
         #Output to h5 file
         outfile=h5py.File(basename+'.h5','w')
         for targetname, targetdata in data_dict.iteritems():
