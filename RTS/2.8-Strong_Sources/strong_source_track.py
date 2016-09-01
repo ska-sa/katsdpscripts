@@ -108,7 +108,7 @@ with verify_and_connect(opts) as kat:
             attenuation_old = {}
             for ant in kat.ants:
                 
-                band = kat.ant.sensor.ap_indexer_position.get_value()
+                band = ant.sensor.ap_indexer_position.get_value()
                 if not band=='l' :
                     raise ValueError("Please ensure all antennas are in L-band), "
                                      "Antenna %s is in %s"%(ant.name,band))
