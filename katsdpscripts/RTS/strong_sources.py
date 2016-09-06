@@ -56,21 +56,8 @@ def read_and_select_file(file, bline=None, channels=None, rfi_mask=None, nd_mode
         chan_select[:start_chan] = False
         chan_select[end_chan:] = False
 
-    #Do the selection
-    compscanlist=[]
-    for compscan in data.compscans:
-        scanlist=[]
-        for scan in compscan.scans:
-            if scan.label == 'track':
-                scanlist.append(scan.select(freqkeep=chan_select, copy=True))
-        if scanlist:
-            compscanlist.append(scape.CompoundScan(scanlist, compscan.target, compscan.label))
-
-    data = scape.DataSet(None,compscanlist, data.experiment_id, data.observer, data.description, data.data_unit,
-                        data.corrconf.select(chan_select,True), data.antenna, data.antenna2, data.nd_h_model,
-                        data.nd_v_model, data.enviro)
     #return the selected data
-    return data
+    return data.select(freqkeep=chan_select,labelkeep='track')
 
 
 def get_system_temp(temperature):
