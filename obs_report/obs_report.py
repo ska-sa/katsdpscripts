@@ -335,18 +335,12 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
     savefig(pp,format='pdf')
 
 def plot_bpcal_selection(f):
-    corrmode=f.spectral_windows[0].product
-    if corrmode=='bc16n400M1k':
-        #Do all targets if beamformer mode
-        bp=f.target_indices
-        type_tag='Target '
-    else:
-        #else only select bandpass calibrators
-        bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
-        bp = np.arange(len(bp))[bp][0]
-        type_tag='BP Cal '
+#   Removed lines for plotting target (if beamformer mode)
+    bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
+    bp = np.arange(len(bp))[bp][0]
+    type_tag='BPCal '
     fig = plt.figure(figsize=(21,15))
-    plt.suptitle(type_tag+"Fringes",fontsize=16, fontweight="bold")
+    plt.suptitle("%s Fringes"%(type_tag,),fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=bp, corrprods='cross', pol=pol, scans='track')

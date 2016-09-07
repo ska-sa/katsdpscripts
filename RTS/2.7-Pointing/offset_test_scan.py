@@ -119,7 +119,7 @@ with verify_and_connect(opts) as kat:
                     while offsetloop:
                         session.label('raster')
                         # Do different raster scan on strong and weak targets
-                        if not opts.quick:
+                        if not opts.quick and not opts.fine:
                             if opts.source_strength == 'strong' or \
                                 (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
                                 session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
@@ -140,10 +140,10 @@ with verify_and_connect(opts) as kat:
                                 scantime = 3*15*1.5
                             else: # if opts.fine:
                                 user_logger.info("Doing scan of '%s' with current azel (%s,%s) "%(target.description,target.azel()[0],target.azel()[1]))
-                                session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
-                                            scan_spacing=4./60., scan_in_azimuth=not opts.scan_in_elevation,
+                                session.raster_scan(target, num_scans=16, scan_duration=16, scan_extent=(16*2)/60.,
+                                            scan_spacing=(1.*2.)/60., scan_in_azimuth=not opts.scan_in_elevation,
                                             projection=opts.projection)
-                                scantime = 5*60*1.5
+                                scantime = 16*16*1.5
 
                         #session.label('slew')
                         angle = np.arange(0., 2.*np.pi, 2.*np.pi /4.)  # The four directions

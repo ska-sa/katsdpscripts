@@ -50,23 +50,23 @@ with verify_and_connect(opts) as kat:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
         if not opts.no_delays and not kat.dry_run :
-            if session.dbe.req.auto_delay('on'):
+            if session.data.req.auto_delay('on'):
                 user_logger.info("Turning on delay tracking.")
             else:
                 user_logger.error('Unable to turn on delay tracking.')
         elif opts.no_delays and not kat.dry_run:
-            if session.dbe.req.auto_delay('off'):
+            if session.data.req.auto_delay('off'):
                 user_logger.info("Turning off delay tracking.")
             else:
                 user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
+            if session.data.req.zero_delay():
                 user_logger.info("Zeroed the delay values.")
             else:
                 user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
 
-        session.ants.req.mode('STOP')#necessary hack for now
+        if not kat.dry_run: session.ants.req.mode('STOP')#necessary hack for now
         time.sleep(10)
         
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
@@ -119,4 +119,5 @@ with verify_and_connect(opts) as kat:
                 
                 targets_observed.append(target.name)
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
-        session.ants.req.mode('STOP')#necessary hack for now
+
+        if not kat.dry_run: session.ants.req.mode('STOP')#necessary hack for now

@@ -30,7 +30,6 @@ parser.add_option('-m','--max-duration', type='float', default=3600,
                   help='Minimum duration of obsevation (default=%default)')
 parser.add_option('--no-delays', action="store_true", default=False,
                   help='Do not use delay tracking, and zero delays')
-parser.add_option('--tracking-target', help='Override target on tracking antennas')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan', nd_params='off')
 # Parse the command line
@@ -73,7 +72,7 @@ with verify_and_connect(opts) as kat:
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray
-        track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
+        #track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
@@ -89,16 +88,9 @@ with verify_and_connect(opts) as kat:
                 session.label('holo')
                 user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
                                  % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
-                if opts.tracking_target:
-                    user_logger.info("Overriding target on tracking antennas with %r" % (opts.tracking_target,))
-                tracking_target = opts.tracking_target if opts.tracking_target else target
                 user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                 # Slew all antennas onto the target (don't spend any more time on it though)
-                session.ants = scan_ants
                 session.track(target, duration=0, announce=False)
-                session.ants = track_ants
-                session.track(tracking_target, duration=0, announce=False)
-                session.ants = all_ants
                 # Provide opportunity for noise diode to fire on all antennas
                 session.fire_noise_diode(announce=False, **nd_params)
                 # Perform multiple scans across the target at various angles with the scan antennas only
@@ -110,9 +102,9 @@ with verify_and_connect(opts) as kat:
                     session.scan(target, duration=opts.scan_duration, start=-offset, end=offset, index=scan_index,
                                  projection=opts.projection, announce=False)
                     # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
-                    session.ants = track_ants
+                    session.ants = all_ants
                     user_logger.info("Using track antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                    session.track(tracking_target, duration=0, announce=False)
+                    session.track(target, duration=0, announce=False)
                     # Provide opportunity for noise diode to fire on all antennas
                     session.ants = all_ants
                     user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))

@@ -1,11 +1,13 @@
 #Library to contain RFI flagging routines and other RFI related functions
 import katdal
 import katpoint 
+import warnings
+warnings.simplefilter('ignore')
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 from mpl_toolkits.axes_grid import Grid
 
-import matplotlib.pyplot as plt; plt.ioff()
+import matplotlib.pyplot as plt #; plt.ioff()
 import matplotlib.gridspec as gridspec
 from matplotlib import ticker
 
@@ -14,6 +16,8 @@ import optparse
 import scipy.signal as signal
 import scipy.interpolate as interpolate
 import scipy.ndimage as ndimage
+import skimage
+import skimage.morphology
 import math
 
 import pickle
@@ -21,6 +25,22 @@ import pickle
 import h5py
 import os
 import shutil
+import pathos.multiprocessing as mp
+import time
+import itertools
+
+#Supress warnings
+import warnings
+warnings.simplefilter('ignore')
+
+def running_mean(x, N, axis=None):
+    #Fast implementation of a running mean (array x with width N)
+    #Stolen from http://stackoverflow.com/questions/13728392/moving-average-or-running-mean
+    #And modified to allow axis selection
+    cumsum = np.cumsum(np.insert(x, 0, 0, axis=axis), axis=axis)
+    return np.apply_along_axis(lambda x: (x[N:] - x[:-N])/N, axis, cumsum) if axis else (cumsum[N:] - cumsum[:-N])/N
+
+
 #########################
 # RFI Detection routines
 #########################
@@ -99,6 +119,197 @@ def getbackground_spline(data,spike_width):
 
     return(thisfitted_data)
 
+def getbackground_median_filter(in_data,in_flags,broad_iterations=2,fine_iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,interp_nonfinite=True):
+    """Determine a smooth background through a 2d data array by iteratively smoothing
+    the data with a median filter
+    """
+    data=in_data[:]
+    #Mask array
+    mask=np.ones(data.shape,dtype=np.bool)
+    mask[:,0]=0
+    if in_flags is not None:
+        mask[in_flags]=0
+    background_func=skimage.filters.median
+    morphology_func=skimage.morphology.rectangle
+    #First do the broad iterations
+    sigma=np.array([max(data.shape[0]//5,1),max(data.shape[1]//5,1)])
+    for iteration in range(broad_iterations):
+        background=background_func(skimage.img_as_uint(data/data.max()),morphology_func(*sigma),mask=mask)*data.max()/65535.0
+        residual=data-background
+        # Three more mask runs on the last iteration
+        for i in range(2):
+            mask[np.abs(residual)>reject_threshold*np.std(residual[np.where(mask)])]=0
+
+    #Next use windows with decreasing width from iterations*spike_width to 1*spike_width
+    for extend_factor in range(fine_iterations,0,-1):
+        #Convolution sigma
+        sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//5,1)),min(spike_width_freq*extend_factor,max(data.shape[1]//5,1))])
+        background=background_func(skimage.img_as_uint(data/data.max()),morphology_func(*sigma),mask=mask)*data.max()/65535.0
+        residual=data-background
+        #Reject outliers
+        residual=residual-np.median(residual[np.where(mask)])
+        mask[np.abs(residual)>reject_threshold*np.std(residual[np.where(mask)])]=0
+
+    #Final background
+    background=background_func(skimage.img_as_uint(data/data.max()),morphology_func(*sigma),mask=mask)*data.max()/65535.0
+
+    #Put nans in background where the median filter has failed
+    background[np.where((background==0.0)&(data!=0.0)&(~mask))]=np.nan
+
+    if interp_nonfinite:
+        #If requested fill in nonfinite values with background smoothed with gaussian width increased by a factor of 2. 
+        #Fill values with 0.0 if gaussian smoothing factor is larger than the scan size.
+        nonfinite_values=~np.isfinite(background)
+        denominator=5
+        while np.any(nonfinite_values):
+            denominator-=1
+            if denominator==0:
+            #If we really can't interpolate any values- just set nonfinite values to zero
+                background[nonfinite_values]=0.0
+                break
+            sigma=np.array([data.shape[0]//denominator,data.shape[1]//denominator])
+            weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+            interp_background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+            background[nonfinite_values]=interp_background[nonfinite_values]
+            nonfinite_values=~np.isfinite(background)
+    return background
+
+
+def getbackground_gaussian_filter(in_data,in_flags=None,broad_iterations=2,fine_iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,interp_nonfinite=True):
+    """Determine a smooth background through a 2d data array by iteratively smoothing
+    the data with a gaussian
+    """
+    data=in_data[:]
+    #Make mask array
+    mask=np.ones(data.shape)
+    mask[:,0]=0.0
+    #Mask input flags if provided
+    if in_flags is not None:
+        mask[in_flags]=0.0
+    #First do the broad iterations
+    sigma=np.array([data.shape[0]//5,data.shape[1]//5])
+    for iteration in range(broad_iterations):
+        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+        residual=data-background
+        # Three more mask runs on the last iteration
+        for i in range(2):
+            mask[np.abs(residual)>reject_threshold*2.0*np.std(residual[np.where(mask)])]=0.0
+
+    #Next convolve with Gaussians with decreasing width from iterations*spike_width to 1*spike_width
+    for extend_factor in range(fine_iterations,0,-1):
+        #Convolution sigma
+        sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//5,1)),min(spike_width_freq*extend_factor,data.shape[1]//5)])
+        #Get weight and background convolved in time axis
+        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+        #Smooth background and apply weight
+        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+        residual=data-background
+        #Reject outliers
+        residual=residual-np.median(residual[np.where(mask)])
+        mask[np.abs(residual)>reject_threshold*np.std(residual[np.where(mask)])]=0.0
+
+    weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+    background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight    
+
+    if interp_nonfinite:
+        #If requested fill in nonfinite values with background smoothed with gaussian width increased by a factor of 2. 
+        #Fill values with 0.0 if gaussian smoothing factor is larger than the scan size.
+        nonfinite_values=~np.isfinite(background)
+        denominator=5
+        while np.any(nonfinite_values):
+            denominator-=1
+            if denominator==0:
+            #If we really can't interpolate any values- just set nonfinite values to zero
+                background[nonfinite_values]=0.0
+                break
+            sigma=np.array([data.shape[0]//denominator,data.shape[1]//denominator])
+            weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+            interp_background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+            background[nonfinite_values]=interp_background[nonfinite_values]
+            nonfinite_values=~np.isfinite(background)
+    return background
+
+def getbackground(data,in_flags=None,broad_iterations=1,fine_iterations=3,spike_width_time=10,spike_width_freq=10,reject_threshold=2.0,median_precision=16,interp_nonfinite=True):
+    """Determine a smooth background through a 2d data array by iteratively smoothing
+    the data with a gaussian in the fine iterations and a median filter for the broad iterations
+    """
+    #Make mask array
+    mask=np.ones(data.shape,dtype=np.bool)
+    mask[:,0]=False
+    #Mask input flags if provided
+    if in_flags is not None:
+        mask[in_flags]=False
+    #Filter Brightest spikes
+    for i in range(2):
+        median = np.nanmedian(data[mask])
+        mask[data-median > reject_threshold*2*np.nanstd(data[mask])]=False
+    #First do the broad iterations using median filter
+    background_func=skimage.filters.median
+    morphology_func=skimage.morphology.rectangle
+    if median_precision==8:
+        cast_func=skimage.img_as_ubyte
+        max_int=255.0
+    else:
+        cast_func=skimage.img_as_uint
+        max_int=65535.0
+    sigma=np.array([max(data.shape[0]//5,1),max(data.shape[1]//5,1)])
+    for iteration in range(broad_iterations):
+        datamax=data[mask].max()
+        datamin=data[mask].min()
+        background=background_func(cast_func((np.where(mask,data,datamax)-datamin)/(datamax-datamin)),morphology_func(*sigma),mask=mask)*((datamax-datamin)/max_int) + datamin
+        residual=data-background
+        # 2 mask runs
+        for i in range(2):
+            mask[residual>reject_threshold*1.5*np.std(residual[np.where(mask)])]=False
+    mask=mask.astype(np.float)
+    #Next convolve with Gaussians with increasing width from iterations*spike_width to 1*spike_width
+    for extend_factor in range(fine_iterations,0,-1):
+        #Convolution sigma
+        sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//10,1)),min(spike_width_freq*extend_factor,data.shape[1]//10)])
+        #sigma=np.array([1,min(spike_width_freq*extend_factor,data.shape[1]//10)])
+        #Get weight and background convolved in time axis
+        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+        #Smooth background and apply weight
+        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+        residual=data-background
+        #Reject outliers
+        residual=residual-np.median(residual[np.where(mask)])
+        mask[np.abs(residual)>reject_threshold*np.std(residual[np.where(mask)])]=0.0
+    weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+    background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+
+    if interp_nonfinite:
+        #If requested fill in nonfinite values with background smoothed with gaussian width increased by a factor of 2. 
+        #Fill values with 0.0 if gaussian smoothing factor is larger than the scan size.
+        nonfinite_values=~np.isfinite(background)
+        denominator=5
+        while np.any(nonfinite_values):
+            denominator-=1
+            if denominator==0:
+            #If we really can't interpolate any values- just set nonfinite values to zero
+                background[nonfinite_values]=0.0
+                break
+            sigma=np.array([data.shape[0]//denominator,data.shape[1]//denominator])
+            weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+            interp_background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+            background[nonfinite_values]=interp_background[nonfinite_values]
+            nonfinite_values=~np.isfinite(background)
+    return background
+
+
+def getbackground_opening_filter():
+    """ Determine the background in a 1d array of data using an opening filter.
+        This is the process of "erosion" - filtering the array by the minimum
+        of the elements in a small area around a given element
+        followed by the process of "dilation" -filtering the array by the minimum
+        of the elements in a small area around a given element
+        the size of the area chosen should correspond to the expected spike width
+        in the data.
+    """
+
+    return(thisfitted_data)
+
 def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
     if main:
         pltobj.axvspan(1674e6,1677e6, alpha=0.3, color='grey')#Meteosat
@@ -137,118 +348,149 @@ def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
     if not extra is None:
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.1, color='Maroon')
-                
 
-def detect_spikes_sumthreshold(data, blarray=None, spike_width=5, outlier_sigma=11.0, window_size_auto=[1,3,5], window_size_cross=[2,4,8]):
-    """FUNCTION :  detect_spikes_sumthreshold
-    Given an array "data" from a baseline:
-    determine if the data is an auto-correlation or a cross-correlation.
-    Get the background in the data using a median filter for auto_correlations or a 
-    cubic spline for cross correlations.
-    Make an array of flags from the data using the "sumthreshold" method and return
-    this array of flags.
-    Parameters
-    ----------
-    data : array-like
-        An N-dimensional numpy array containing the data to flag
-    blarray : array-like
-        An array of baseline labels used to determine if the 
-        baseline index is an auto- or a cross- correlation. Should have the same
-        shape as the baseline part of the data array.
-    spike_width : integer
-        The width of the median filter and the gaps between knots in the spline fit.
-    outlier_sigma : float
-        The number of sigma in the first iteration of the sumthreshold method.
-    buffer_size : int
-        The number of timestamps in the data array to average.
-    window_size_auto : array of ints
-        The sizes of the averaging windows in each sumthreshold iteration for auto-correlations.
-    window_size_cross : array of ints 
-        The sizes of the averaging windows in each sumthreshold iteration for cross-correlations.
-    """
 
-    # Kernel size for the median filter.
-    kernel_size = 2 * max(int(spike_width), 0) + 1
-    #Init Flags
-    flags = np.zeros(data.shape, dtype=np.bool)
+class sumthreshold_flagger():
+    def __init__(self,background_iterations=2, spike_width_time=10, spike_width_freq=10, outlier_sigma=4.0, background_reject=2.0, window_size_auto=[1,3,5,7,9,11,25], \
+                 window_size_cross=[1,3,5,7,9,11,25], average_time=1, average_freq=1, debug=False):
+        self.background_iterations=background_iterations
+        self.spike_width_time=spike_width_time
+        self.spike_width_freq=spike_width_freq
+        self.outlier_sigma=outlier_sigma
+        self.background_reject=background_reject
+        self.window_size_auto=window_size_auto
+        self.window_size_cross=window_size_cross
+        self.average_time=average_time
+        self.average_freq=average_freq
+        self.debug=debug
+        #Internal parameters
+        #Fraction of data flagged to extend flag to all data
+        self.flag_all_time_frac = 0.5
+        self.flag_all_freq_frac = 0.8
+        #Extend size of flags in time and frequency
+        self.time_extend = 3
+        self.freq_extend = 3
+        #Decrease outlier_sigma by this fraction for cross-correlations
+        self.threshold_decrease_cross = 0.8
+        #Falloff exponent for sumthreshold
+        self.rho = 1.3
 
-    for bl_index in range(data.shape[-1]):
-        # Extract this baseline from the data
-        this_data_buffer = data[:,bl_index]
-        #Separate the auto-correlations and the cross-correlations
-        #auto-correlations use a median filter and cross correlations
-        #use a fitted spline.
-        if blarray is not None:
-            bl_name = bline.bls_ordering[bl_index]
-        
-        # Check if this is an auto or a cross... (treat as auto if we have no bl-ordering)
-        if blarray is None or bl_name[0][:-1] == bl_name[1][:-1]:
+
+    def get_flags(self,data,flags=None,blarray=None,num_cores=6):
+        if self.debug: start_time=time.time()
+        #Move the baseline axis to the front of data
+        in_data = np.rollaxis(data,-1)
+        if flags is not None:
+            in_flags = np.rollaxis(flags,-1)
+        else:
+            in_flags = np.repeat(None,in_data.shape[0])
+        if blarray is None:
+            blarray = np.repeat(None,in_data.shape[0])
+        p=mp.ProcessingPool(num_cores)
+        derived_flags=p.map(self._detect_spikes_sumthreshold,in_data,in_flags,blarray)
+        p.clear()
+        if self.debug: 
+            end_time=time.time()
+            print "TOTAL SCAN TIME: %f"%((end_time-start_time)/60.0)
+        return np.rollaxis(np.array(derived_flags),0,3)
+
+    def _average(self,data,flags):
+        #Only works if self.average_time and self.average_freq divide into data.shape
+        new_time_axis = data.shape[0]//self.average_time
+        new_freq_axis = data.shape[1]//self.average_freq
+        bin_area = self.average_time*self.average_freq
+        avg_data = data.reshape(new_time_axis,self.average_time,new_freq_axis,self.average_freq)
+        avg_flags = flags.reshape(new_time_axis,self.average_time,new_freq_axis,self.average_freq)
+        avg_data = np.nansum(np.nansum(avg_data*(~avg_flags),axis=3),axis=1)
+        avg_flags = np.nansum(np.nansum(avg_flags,axis=3),axis=1)
+        avg_data /= (bin_area - avg_flags)
+        avg_flags = (avg_flags == bin_area)
+        return avg_data, avg_flags
+
+    def _detect_spikes_sumthreshold(self,in_data,in_flags,bline):
+        if self.debug: start_time=time.time()
+        data = np.copy(in_data)
+        #Create flags array
+        if in_flags is None:
+            flags = np.zeros(data.shape, dtype=np.bool)
+        else:
+            flags = np.copy(in_flags)
+        if (self.average_time > 1) or (self.average_freq > 1):
+            data, flags = self._average(data,flags)
+        if bline is None or bline[0][:-1] == bline[1][:-1]:
             #Auto-Correlation.
-            #filtered_data = np.asarray(signal.medfilt(this_data_buffer, kernel_size), this_data_buffer.dtype)
-            filtered_data = getbackground_spline(this_data_buffer,kernel_size)
+            filtered_data = getbackground(data,in_flags=flags,fine_iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
+                                            spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,median_precision=8,interp_nonfinite=False)
             #Use the auto correlation window function
-            #filtered_data = ndimage.grey_opening(this_data_buffer, (kernel_size,))
-            window_bl = window_size_auto
-            this_sigma = outlier_sigma
+            window_bl = self.window_size_auto
+            this_sigma = self.outlier_sigma
         else:
             #Cross-Correlation.
-            filtered_data = getbackground_spline(this_data_buffer,kernel_size)
+            filtered_data = getbackground(data,in_flags=flags,fine_iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
+                                            spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,median_precision=8,interp_nonfinite=False)
             #Use the cross correlation window function
-            window_bl = window_size_cross
-            # Can lower the threshold a little (10%) for cross correlations
-            this_sigma = outlier_sigma * 0.9
-    
-        av_dev = (this_data_buffer-filtered_data)
+            window_bl = self.window_size_cross
+            # Can lower the threshold a little for cross correlations
+            this_sigma = self.outlier_sigma * self.threshold_decrease_cross
+        if self.debug: back_time=time.time()
+        flags = flags | ~np.isfinite(filtered_data)
+        #Subtract background
+        av_dev = data-filtered_data
+        #Sumthershold along time axis
+        flags = self._sumthreshold(av_dev,flags,0,window_bl,this_sigma)
+        #Sumthreshold along frequency axis
+        flags = self._sumthreshold(av_dev,flags,1,window_bl,this_sigma)
+        #Extend flags by 2 pixel in freq and time
+        flags = ndimage.convolve1d(flags, [True]*self.time_extend, axis=1, mode='reflect')
+        flags = ndimage.convolve1d(flags, [True]*self.freq_extend, axis=0, mode='reflect')
+        #Flag all freqencies and times if too much is flagged.
+        flags[:,np.where(np.sum(flags,dtype=np.float,axis=0)/flags.shape[0] > self.flag_all_time_frac)[0]]=True
+        flags[np.where(np.sum(flags,dtype=np.float,axis=1)/flags.shape[1] > self.flag_all_freq_frac)]=True
+        flags=np.repeat(np.repeat(flags,self.average_freq,axis=1),self.average_time,axis=0)
 
-        av_abs_dev = np.abs(av_dev)
-            
-        # Calculate median absolute deviation (MAD)
-        med_abs_dev = np.median(av_abs_dev[av_abs_dev>0])
-            
-        # Assuming normally distributed deviations, this is a robust estimator of the standard deviation
-        estm_stdev = 1.4826 * med_abs_dev
-            
+        if self.debug:
+            end_time=time.time()
+            #plot_waterfall(av_dev,flags)
+            print "%s: Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(bline,data.shape[0],data.shape[1],back_time-start_time, end_time-back_time, end_time-start_time)
+        #plot_waterfall(data,flags)
+        return flags
+
+
+    def _sumthreshold(self,input_data,flags,axis,window_bl,sigma):
+        sd_mask = (input_data==0.)|(flags)
+        #Get standard deviations along the axis using MAD
+        estm_stdev = 1.4826 * np.ma.median(np.ma.masked_array(np.abs(input_data),mask=sd_mask),axis=axis)
         # Identify initial outliers (again based on normal assumption), and replace them with local median
-        threshold = this_sigma * estm_stdev
-        outliers = np.zeros(data.shape[0],dtype=np.bool)
-        # Always flag the first element of the array.
-        outliers[0] = True 
-
+        threshold = sigma * estm_stdev
         for window in window_bl:
-            #Set up 'this_data' from the averaged background subtracted buffer 
-            bl_data = av_dev.copy()
-                
+            if window>input_data.shape[axis]: break
+            #Set up 'this_data' from the averaged background subtracted buffer
+            bl_data = input_data.copy()
             #The threshold for this iteration is calculated from the initial threshold
             #using the equation from Offringa (2010).
-            # rho=1.3 in the equation seems to work better for KAT-7 than rho=1.5 from AO.
-            thisthreshold = threshold / pow(1.2,(math.log(window)/math.log(2.0)))
+            thisthreshold = np.expand_dims(threshold / pow(self.rho,(math.log(window)/math.log(2.0))), axis).repeat(bl_data.shape[axis],axis=axis)
             #Set already flagged values to be the value of this threshold
-            bl_data[outliers] = thisthreshold
-                
+            bl_data = np.where(flags,thisthreshold,bl_data)
             #Calculate a rolling average array from the data with a windowsize for this iteration
-            weight = np.repeat(1.0, window)/window
-            avgarray = np.convolve(bl_data, weight,mode='valid')
-                
+            avgarray = running_mean(bl_data, window, axis=axis)
             #Work out the flags from the convolved data using the current threshold.
             #Flags are padded with zeros to ensure the flag array (derived from the convolved data)
             #has the same dimension as the input data.
-            this_flags = (avgarray > thisthreshold)
+            this_flags = np.abs(avgarray) > np.expand_dims(np.take(thisthreshold,0,axis),axis)
             #Convolve the flags to be of the same width as the current window.
-            convwindow = np.ones(window,dtype=np.bool)
-            this_outliers = np.convolve(this_flags,convwindow)
+            convwindow = np.ones(window, dtype=np.bool)
+            this_flags = np.apply_along_axis(np.convolve, axis, this_flags, convwindow)
             #"OR" the flags with the flags from the previous iteration.
-            outliers = outliers | this_outliers
-        flags[:,bl_index] = outliers
-    return flags
-
+            flags = flags | this_flags
+        return flags
 
 
 def detect_spikes_mad(data,blarray=None,spike_width=20,outlier_sigma=3):
     """
     FUNCTION :  detect_spikes_mad
-    Given an array "data" from a baseline determine flags using the "median absolute
-    deviation" method. The data is median filtered (with a kernel defined by "spike_width")
-    to find a background and then rfi spikes are found by finding peaks that are 
+    Given an array "data" from a baseline determine flags using the "median absolute deviation"
+    method. The data is median filtered (with a kernel defined by "spike_width")
+    to find a background and then rfi spikes are found by finding peaks that are
     "outlier_sigma" from the median of the absolute values of the background subtracted data.
     Parameters
     ----------
@@ -443,66 +685,64 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 ##############################
 # End of RFI detection routines
 ##############################
-
-def get_flag_stats(h5, flags=None, norm_spec=None):
+def get_flag_stats(h5, flags=None, flags_to_show=None, norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
     (ignoring severe spikes) then obtain an average spectrum of
     all of the scans in the data.
     Return the average spectrum with dc offset removed and the number of times
     each channel is flagged (flags come optionally from 'flags' else from the 
-    flages in the input katdal object). Optinally provide a 
+    flags in the input katdal object). Optinally provide a 
     spectrum (norm_spec) to divide into the calculated bandpass.
     """
 
-    sumarray=np.zeros((h5.shape[1],4))
-    offsetarray=np.zeros((h5.shape[0],4))
-    weightsum=np.zeros((h5.shape[1],4),dtype=np.int)
+    sumarray=np.zeros((h5.shape[1],h5.shape[2]))
+    weightsum=np.zeros((h5.shape[1],h5.shape[2]),dtype=np.int)
     if flags is None:
-        flags = h5.flags()
+        flags = h5.flags(flags_to_show)
     for num,thisdata in enumerate(h5.vis):
+        #Extract flags
+        thisflag = flags[num][0]
         #Extract pols
         thisdata = np.abs(thisdata[0,:])
         # normalise if defined
         if norm_spec is not None: thisdata /= norm_spec
-        #Get DC height (median rather than mean is more robust...)
-        offset = np.median(thisdata[np.where(~flags[num])],axis=0)
-        #Make an elevation corrected offset to remove outliers
-        offsetarray[num,:] = offset
+        #Get DC height (median rather than mean is more robust...
+        offset = np.ma.median(np.ma.MaskedArray(thisdata,mask=thisflag,fillvalue=1.0),axis=0)
         #Remove the DC height
-        weights = (~flags[num]).astype(np.float)
-        thisdata = thisdata/offset
+        weights = (~thisflag).astype(np.int)
+        thisdata = thisdata/offset.filled()
         weightsum += weights
         #Sum the data for this target
-        sumarray = sumarray + thisdata*weights
-    averagespec = sumarray/(weightsum.astype(np.float)+1.e-10)
+        sumarray = sumarray + thisdata*weights.astype(np.float)
+    averagespec = sumarray/(weightsum.astype(np.float))
     flagfrac = 1. - (weightsum.astype(np.float)/h5.shape[0].astype(np.float))
-    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period}
+    return {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, 'dump_period': h5.dump_period, 'corr_products': h5.corr_products}
 
-def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
+
+def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
     """
     Produce a plot of the average spectrum in H and V 
     after flagging and attach it to the pdf output.
     Also show fraction of times flagged per channel.
     """
-    from git_info import git_info, get_git_path
+    from katsdpscripts import git_info
 
-    repo_path=get_git_path()
-    repo_info = git_info() if repo_path=='' else git_info(repo_path)
+    repo_info = git_info() 
 
     #Set up the figure
     fig = plt.figure(figsize=(8.3,11.7))
     plt.suptitle(label,fontsize=14)
-    outer_grid= gridspec.GridSpec(2,1)
-    
+    outer_grid = gridspec.GridSpec(2,1)
+    spectrum = {'HH': hspectrum, 'VV': vspectrum}
+    flagfrac = {'HH': hflagfrac, 'VV': vflagfrac}
     for num,pol in enumerate(['HH','VV']):
-        data=np.abs(vis[:,:,num-1])
-        inner_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
+        inner_grid = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
         #Plot the spectrum for each target
         ax1 = plt.subplot(inner_grid[0])
         ax1.text(0.01, 0.90,repo_info, horizontalalignment='left',fontsize=10,transform=ax1.transAxes)
         ax1.set_title(pol +' polarisation')
-        plt.plot(freqs,spectrum[:,num-1])
+        plt.plot(freqs,spectrum[pol])
         plot_RFI_mask(ax1)
         ticklabels=ax1.get_xticklabels()
         plt.setp(ticklabels,visible=False)
@@ -512,84 +752,118 @@ def plot_flag_data(label,spectrum,flagfrac,vis,flags,freqs,pdf):
         plt.ylabel('Mean amplitude\n(arbitrary units)')
         #Plot the average flags
         ax = plt.subplot(inner_grid[1],sharex=ax1)
-        plt.plot(freqs,flagfrac[:,num-1],'r-')
+        plt.plot(freqs,flagfrac[pol],'r-')
         plt.ylim((0.,1.))
         plot_RFI_mask(ax)
-        ticklabels=ax.get_xticklabels()
-        plt.setp(ticklabels,visible=False)
         plt.xlim((min(freqs),max(freqs)))
         plt.ylabel('Fraction flagged')
-        #Waterfall plot
-        ax = plt.subplot(inner_grid[2],sharex=ax1)
-        kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (freqs[0],freqs[-1], -0.5, data.shape[0] - 0.5)}
-        image=plt.imshow(data,**kwargs)
-        ampsort=np.sort(data,axis=None)
-        arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
-        lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
-        image.norm.vmin = lowcut
-        image.norm.vmax = highcut
-        image.set_cmap('Greys')
-        plotflags = np.zeros(flags.shape[0:2]+(4,))
-        plotflags[:,:,0] = 1.0
-        plotflags[:,:,3] = flags[:,:,num-1]
-        flagimage=plt.imshow(plotflags,**kwargs)
-        plt.xlim((min(freqs),max(freqs)))
+        ticklabels=ax.get_yticklabels()
         #Convert ticks to MHZ
         ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
         ax.xaxis.set_major_formatter(ticks)
-        ticklabels=ax.get_yticklabels()
-        plt.setp(ticklabels,visible=False)
-        plt.ylabel('Time')
         plt.xlabel('Frequency (Hz)')
-
     pdf.savefig(fig)
     plt.close('all')
- 
-def plot_waterfall(visdata,flags,channel_freqs):
+
+def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label='', resolution=300):
+    """
+    Make a waterfall plot from visdata with flags overplotted. 
+    """
+    from datetime import datetime as dt
+    import matplotlib.dates as mdates
+    from katsdpscripts import git_info
+
+    repo_info = git_info()
+
     fig = plt.figure(figsize=(8.3,11.7))
-    data=np.squeeze(np.abs(visdata[:,:,0]))
-    kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_freqs[0],channel_freqs[1], -0.5, data.shape[0] - 0.5)}
+    ax = plt.subplot(111)
+    ax.set_title(label)
+    ax.text(0.01, 0.02,repo_info, horizontalalignment='left',fontsize=10,transform=ax.transAxes)
+    display_limits = ax.get_window_extent()
+    if freqs is None: freqs=range(0,visdata.shape[1])
+    #300dpi, and one pixel per desired data-point
+    #in pixels at 300dpi
+    display_width = display_limits.width * resolution/72.
+    display_height = display_limits.height * resolution/72.
+    x_step = max(int(visdata.shape[1]/display_width), 1)
+    y_step = max(int(visdata.shape[0]/display_height), 1)
+    x_slice = slice(0, -1, x_step)
+    y_slice = slice(0, -1, y_step)
+    data = np.log10(np.abs(visdata[y_slice,x_slice][...,0]))
+    flags = flagdata[y_slice,x_slice][...,0]
+    plotflags = np.zeros(flags.shape[0:2]+(4,))
+    plotflags[:,:,0] = 1.0
+    plotflags[:,:,3] = flags
+    if times is None:
+        starttime = 0
+        endtime = visdata.shape[0]
+    else:
+        starttime = mdates.date2num(dt.fromtimestamp(times[0]))
+        endtime = mdates.date2num(dt.fromtimestamp(times[-1]))
+    kwargs = {'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (freqs[0],freqs[-1], starttime, endtime)}
+    image = ax.imshow(data,**kwargs)
+    image.set_cmap('Greys')
+    ax.imshow(plotflags,alpha=0.5,**kwargs)
+    ampsort = np.sort(data[(data>0.0) | (~flags)], axis=None)
+    arrayremove = int(len(ampsort)*(1.0 - 0.80)/2.0)
+    lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
+    image.norm.vmin = lowcut
+    image.norm.vmax = highcut
+    plt.xlim((min(freqs),max(freqs)))
+    if times is not None:
+        ax.yaxis_date()
+        plt.gca().yaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        plt.ylabel('Time (SAST)')
+    else:
+        plt.ylabel('Time (Dumps)')
+    #Convert ticks to MHZ
+    ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
+    ax.xaxis.set_major_formatter(ticks)
+    plt.xlabel('Frequency (Hz)')
+    return(fig)
+
+
+def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
+    fig = plt.figure(figsize=(8.3,11.7))
+    data=np.squeeze(np.abs(visdata[:,:]))
+    if channel_range is None:
+        channel_range=[0,visdata.shape[1]]
+    kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_range[0],channel_range[1], -0.5, data.shape[0] - 0.5)}
     image=plt.imshow(data,**kwargs)
     image.set_cmap('Greys')
     #flagimage=plt.imshow(flags[:,:,0],**kwargs)
     #Make an array of RGBA data for the flags (initialize to alpha=0)
-    plotflags = np.zeros(flags.shape[0:2]+(4,))
-    plotflags[:,:,0] = 1.0
-    plotflags[:,:,3] = flags[:,:,0]
-    plt.imshow(plotflags,**kwargs)
-    ampsort=np.sort(data,axis=None)
-    arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
+    if flags is not None:
+        plotflags = np.zeros(flags.shape[0:2]+(4,))
+        plotflags[:,:,0] = 1.0
+        plotflags[:,:,3] = flags[:,:]
+        plt.imshow(plotflags,alpha=0.5,**kwargs)
+    else: 
+        flags=np.zeros_like(data,dtype=np.bool)
+    ampsort=np.sort(data[(data>0.0) | (~flags)],axis=None)
+    arrayremove = int(len(ampsort)*(1.0 - 0.90)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
-    pdf.savefig(fig)
-    plt.close(fig)
-    fig = plt.figure(figsize=(8.3,11.7))
-    data=np.squeeze(np.abs(visdata[:,:,1]))
-    kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_freqs[0],channel_freqs[1], -0.5, data.shape[0] - 0.5)}
-    image=plt.imshow(data,**kwargs)
-    image.set_cmap('Greys')
-    #flagimage=plt.imshow(flags[:,:,0],**kwargs)
-    #Make an array of RGBA data for the flags (initialize to alpha=0)
-    plotflags = np.zeros(flags.shape[0:2]+(4,))
-    plotflags[:,:,0] = 1.0
-    plotflags[:,:,3] = flags[:,:,1]
-    flagimage=plt.imshow(plotflags,**kwargs)
-    ampsort=np.sort(data,axis=None)
-    arrayremove = int(len(ampsort)*(1.0 - 0.97)/2.0)
-    lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
-    image.norm.vmin = lowcut
-    image.norm.vmax = highcut
-    pdf.savefig(fig)
-    plt.close(fig)
+    plt.xlabel('Frequency (MHz)')
+    plt.ylabel('Time')
+    if output==None:
+        plt.show()
+    else:
+        plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_input=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=4.5,width_freq=4.0,width_time=30.0,max_scan=2000,write_into_input=False,speedup=True,debug=False):
     """
-    Flag the visibility data in the h5 file ignoring the channels specified in static_flags.
+    Flag the visibility data in the h5 file ignoring the channels specified in 
+    static_flags, and the channels already flagged if use_file_flags=True.
 
-    This will write a list of flags per scan to the output h5 file.
+    This will write a list of flags per scan to the output h5 file or overwrite 
+    the flag table in the input file if write_into_input=True
     """
 
+    cpu_count=mp.cpu_count()
+
+    start_time=time.time()
     if write_into_input:
         output_file = os.path.join(output_root,input_file.split('/')[-1])
         if not os.path.exists(output_file):
@@ -598,9 +872,9 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_
             shutil.copy(input_file,output_root)
         h5 = katdal.open(os.path.join(output_file),mode='r+')
     else:
+        h5 = katdal.open(input_file)
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
         outfile=h5py.File(basename+'.h5','w')
-        h5 = katdal.open(input_file)
     
     #Read static flags from pickle
     if static_flags:
@@ -620,40 +894,69 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_
     #Set up empty flag table
     final_flags = np.zeros(h5._flags.shape,dtype=np.uint8)
 
+    #Shall we speed up the flagging
+    freq_length = h5.shape[1]
+    average_freq = 2 if (freq_length > 18000) and speedup else 1
+
+    #Convert spike width from frequency and time to channel and dump for the flagger.
+    width_freq_channel = int(width_freq*1.e6/h5.channel_width/average_freq)
+    width_time_dumps = int(width_time/h5.dump_period)
+
     #loop through scans
+    num_bl = h5.shape[-1]
+    cores_to_use = min(num_bl, (cpu_count+1)//2)
+
+    #Are we KAT7 or RTS
+    if h5.inputs[0][0]=='m':
+        #RTS
+        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        cut_chans = h5.shape[1]//20
+        freq_range = slice(cut_chans,h5.shape[1]-cut_chans)
+    else:
+        #kat-7
+        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,background_reject=4.0,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        cut_chans = h5.shape[1]//7
+        freq_range = slice(cut_chans,h5.shape[1]-cut_chans)
     for scan, state, target in h5.scans():
-        this_data = h5.vis[:]
-        file_flags = h5.flags('detected_rfi')[:]
+        #Take slices through scan if it is too large for memory
+        if h5.shape[0]>max_scan:
+            scan_slices = [slice(i,i+max_scan,1) for i in range(0,h5.shape[0],max_scan)]
+            scan_slices[-1] = slice(scan_slices[-1].start,h5.shape[0],1)
+        else:
+            scan_slices = [slice(0,h5.shape[0])]
+        #loop over slices
+        for this_slice in scan_slices:
+            this_data = np.abs(h5.vis[this_slice,:,:])
+            if use_file_flags:
+                file_flags = h5.flags('ingest_rfi')[this_slice,:,:]
+            else:
+                file_flags = np.zeros(this_data.shape,dtype=np.bool)
+            #Construct a masked array with flags removed
+            mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
+            #Broadcast the channel mask to the same shape as this_flags
+            mask_flags[:] = mask_array
 
-        #Construct a masked array with flags removed
-        mask_flags = np.zeros(file_flags.shape,dtype=np.bool)
-        #Broadcast the channel mask to the same shape as this_flags
-        mask_flags[:] = mask_array
+            #OR the mask flags with the flags already in the h5 file
+            this_flags = file_flags | mask_flags
+	
+            detected_flags = flagger.get_flags(this_data[:,freq_range],this_flags[:,freq_range],blarray=h5.corr_products,num_cores=cores_to_use)
+            #Flags are 8 bit:
+            #1: 'reserved0' = 7
+            #2: 'static' = 6
+            #3: 'cam' = 5
+            #4: 'reserved3' = 4
+            #5: 'ingest_rfi' = 3 
+            #6: 'predicted_rfi' = 2
+            #7: 'cal_rfi' = 1
+            #8: 'reserved7' = 0
+            #Always copy 'detected_rfi' from file into all_flags
+            all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
+            all_flags[...,6] = mask_flags
+            all_flags[:,freq_range,:,1] = detected_flags
+            all_flags[...,3] = h5.flags('ingest_rfi')[this_slice,:,:]
 
-        #OR the mask flags with the flags already in the h5 file
-        this_flags = file_flags | mask_flags
-
-        this_data = np.ma.MaskedArray(np.abs(this_data),mask=this_flags,fill_value=np.nan)
-
-        detected_flags = np.array([detect_spikes_sumthreshold(this_dump,outlier_sigma=8.0,spike_width=13.0) for this_dump in this_data])
-        #Flags are 8 bit:
-        #1: 'reserved0' 
-        #2: 'static' 
-        #3: 'cam' 
-        #4: 'reserved3' 
-        #5: 'detected_rfi' 
-        #6: 'predicted_rfi' 
-        #7: 'cal_rfi' 
-        #8: 'reserved7'
-        all_flags = np.zeros(h5.vis.shape+(8,),dtype=np.uint8)
-        all_flags[...,1] = mask_flags
-        all_flags[...,6] = detected_flags
-        all_flags[...,4] = file_flags
-
-        all_flags=np.packbits(all_flags,axis=3).squeeze()
-
-        final_flags[h5.dumps,...,0:h5.vis.shape[-1]]=all_flags
-
+            all_flags=np.packbits(all_flags,axis=3).squeeze()
+            final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
     if write_into_input:
         h5._flags[:] = final_flags[:]
         h5.file.close()
@@ -661,10 +964,10 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,write_into_
         outfile.create_dataset('flags',data=final_flags)
         outfile.create_dataset('corr_products',data=h5.corr_products)
         outfile.close()
-
+    print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None,targets=None,freq_chans=None):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_root='.',antenna=None,targets=None,time_range=None,freq_chans=None,do_cross=True):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -673,22 +976,26 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
     ======
     input_file - input h5 filename
     input_flags - input h5 flags; will overwrite flags in h5 file- h5 file in format returnd from generate_flag_table
+    flags_to_show - select which flag bits to plot. (None=all flags)
     output_root - directory where output is to be placed - defailt cwd
-    antenna - which antenna to produce report on - default first in file
+    antenna - which antenna to produce report on - default all in file
     targets - which target to produce report on - default all
+    time_range - Time range of input file to report. sequence of 2 (Start_time,End_time)
+                Format: 'YYYY-MM-DD HH:MM:SS.SSS', katpoint.Target or ephem.Date object or float in UTC seconds since Unix epoch
     freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
     """
 
     h5 = katdal.open(input_file)
 
     #Get the selected antenna or default to first file antenna
-    ant=antenna or h5.ants[0].name
+    ants=antenna.split(',') if antenna else [ant.name for ant in h5.ants]
 
     #Frequency range
     num_channels = len(h5.channels)
 
     if input_flags is not None:
         input_flags = h5py.File(input_flags)
+        h5._flags = input_flags['flags']
 
     if freq_chans is None:
         # Default is drop first and last 5% of the bandpass
@@ -699,64 +1006,143 @@ def generate_rfi_report(input_file,input_flags=None,output_root='.',antenna=None
         end_chan = int(freq_chans.split(',')[1])
     chan_range = range(start_chan,end_chan+1)
 
-    # Set up the output file
-    basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ant + '_RFI')
-    pdf = PdfPages(basename+'.pdf')
+    if time_range is None:
+        time_range = (h5.timestamps[0], h5.timestamps[-1],)
 
-    # Select the desired antenna and remove slews from the file
-    h5.select(ants=ant)
+    for ant in ants:
+        # Set up the output file
+        basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ant + '_RFI')
+        pdf = PdfPages(basename+'.pdf')
 
-    if h5.shape[0]==0:
-        raise ValueError('Selection has resulted in no data to process.')
+        if targets is None: targets = h5.catalogue.targets 
 
-    if targets is None: targets = h5.catalogue.targets 
+        #Set up the output data dictionary
+        data_dict = {}
 
-    #Set up the output data dictionary
-    data_dict = {}
+        # Loop through targets
+        for target in targets:
+            h5.select()
+            #Get the target name if it is a target object
+            if isinstance(target, katpoint.Target):
+                target = target.name
+            #Extract target and time range from file
+            h5.select(targets=target,timerange=time_range,scans='~slew',ants=ant)
+            if h5.shape[0]==0:
+                print 'No data to process for .' + target
 
-    if input_flags is not None:
-        all_flags = input_flags['flags'].value.astype(np.bool)
-        #Only keep the desired flags from corrprod
-        all_flags = all_flags[:,:,h5._corrprod_keep]
-    else:
-        all_flags=h5.flags()
+            #Extract desired flags
+            data_dict[target]=get_flag_stats(h5,flags_to_show=flags_to_show)
+            h5.select(channels=chan_range)
 
-    # Loop through targets
-    for target in targets:
-        #Get the target name if it is a target object
-        if isinstance(target, katpoint.Target):
-            target = target.name
-        #Extract target from file
-        h5.select(targets=target,scans='~slew')
-        #Extract desired flags
-        flags=all_flags[h5.dumps]
-        data_dict[target]=get_flag_stats(h5,flags)
-        label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
-        plot_flag_data(label,data_dict[target]['spectrum'][chan_range],data_dict[target]['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+            label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
+            #Get index of HH and VV data
+            hh_index=np.all(h5.corr_products==ant+'h',axis=1)
+            vv_index=np.all(h5.corr_products==ant+'v',axis=1)
+            plot_flag_data(label,data_dict[target]['spectrum'][chan_range][:,hh_index],data_dict[target]['flagfrac'][chan_range][:,hh_index], \
+                            data_dict[target]['spectrum'][chan_range][:,vv_index],data_dict[target]['flagfrac'][chan_range][:,vv_index],h5.channel_freqs,pdf)
+            for pol in ['HH','VV']:
+                h5.select(ants=ant,pol=pol)
+                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,None,label+'\n'+pol+' polarisation')
+                pdf.savefig(fig)
+            plt.close('all')
 
-    #Reset the selection
-    h5.select(scans='~slew',ants=ant)
+        #Reset the selection
+        h5.select()
+        h5.select(timerange=time_range,ants=ant)
 
-    flags=all_flags[h5.dumps]
+        # Do calculation for all the data and store in the dictionary
+        data_dict['all_data']=get_flag_stats(h5,flags_to_show=flags_to_show)
+        h5.select(channels=chan_range)
 
-    # Do calculation for all the data and store in the dictionary
-    data_dict['all_data']=get_flag_stats(h5,flags)
+        #Plot the flags for all data in the file
+        label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
+        #Get index of HH and VV data
+        hh_index=np.all(h5.corr_products==ant+'h',axis=1)
+        vv_index=np.all(h5.corr_products==ant+'v',axis=1)
+        plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range,hh_index],data_dict['all_data']['flagfrac'][chan_range,hh_index], \
+                        data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
+        for pol in ['HH','VV']:
+            h5.select(ants=ant,pol=pol)
+            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
+            pdf.savefig(fig)
+        plt.close('all')
 
-    #Plot the flags for all data in the file
-    label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
-    plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range],data_dict['all_data']['flagfrac'][chan_range],h5.vis[:,chan_range,0:2],flags[:,chan_range,:],h5.channel_freqs[chan_range],pdf)
+        #Output to h5 file
+        outfile=h5py.File(basename+'.h5','w')
+        for targetname, targetdata in data_dict.iteritems():
+            #Create a group in the h5 file corresponding to the target
+            grp=outfile.create_group(targetname)
+            #populate the group with the data
+            for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
+        outfile.close()
 
-    #Output to h5 file
-    outfile=h5py.File(basename+'.h5','w')
-    for targetname, targetdata in data_dict.iteritems():
-        #Create a group in the h5 file corresponding to the target
-        grp=outfile.create_group(targetname)
-        #populate the group with the data
-        for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
-    outfile.close()
+        #close the plot
+        pdf.close()
 
-    #Finish with a waterfall plot
-    #plot_waterfall(h5.vis[:,chan_range,:],all_flags[:,chan_range,:],h5.channel_freqs[chan_range])
+    #Report cross correlations if requested
+    all_blines = [','.join(pair) for pair in itertools.combinations(ants,2) if do_cross]
 
-    #close the plot
-    pdf.close()
+    for bline in all_blines:
+        # Set up the output file
+        basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + bline + '_RFI')
+        pdf = PdfPages(basename+'.pdf')
+
+        if targets is None: targets = h5.catalogue.targets 
+
+        #Set up the output data dictionary
+        data_dict = {}
+
+        # Loop through targets
+        for target in targets:
+            h5.select()
+            #Get the target name if it is a target object
+            if isinstance(target, katpoint.Target):
+                target = target.name
+            #Extract target from file
+            h5.select(targets=target,timerange=time_range,scans='~slew',ants=bline,corrprods='cross')
+            if h5.shape[0]==0:
+                print 'No data to process for ' + target
+                continue
+            #Extract desired flags
+            data_dict[target]=get_flag_stats(h5,flags_to_show=flags_to_show)
+            h5.select(channels=chan_range)
+            #Get HH and VV cross pol indices
+            hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
+            vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
+            label = 'Flag info for Target: ' + target + ', Baseline: ' + bline +', '+str(data_dict[target]['numrecords_tot'])+' records'
+            plot_flag_data(label,data_dict[target]['spectrum'][chan_range,hh_index],data_dict[target]['flagfrac'][chan_range,hh_index], \
+                        data_dict[target]['spectrum'][chan_range,vv_index],data_dict[target]['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
+            for pol in ['HH','VV']:
+                h5.select(ants=bline,pol=pol,corrprods='cross')
+                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,None,label+'\n'+pol+' polarisation')
+                pdf.savefig(fig)
+        #Reset the selection
+        h5.select()
+        h5.select(timerange=time_range,ants=bline,corrprods='cross')
+
+        # Do calculation for all the data and store in the dictionary
+        data_dict['all_data']=get_flag_stats(h5,flags_to_show=flags_to_show)
+        h5.select(channels=chan_range)
+
+        #Plot the flags for all data in the file
+        hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
+        vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
+        label = 'Flag info for all data, Baseline: ' + bline +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
+        plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range,hh_index],data_dict['all_data']['flagfrac'][chan_range,hh_index], \
+                        data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
+        for pol in ['HH','VV']:
+            h5.select(ants=bline,pol=pol,corrprods='cross')
+            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
+            pdf.savefig(fig)
+        
+        #Output to h5 file
+        outfile=h5py.File(basename+'.h5','w')
+        for targetname, targetdata in data_dict.iteritems():
+            #Create a group in the h5 file corresponding to the target
+            grp=outfile.create_group(targetname)
+            #populate the group with the data
+            for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
+        outfile.close()
+
+        #close the plot
+        pdf.close()

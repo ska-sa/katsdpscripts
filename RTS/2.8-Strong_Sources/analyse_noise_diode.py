@@ -31,9 +31,11 @@ from katsdpscripts.RTS import strong_sources
 def parse_arguments():
     parser = optparse.OptionParser(usage="%prog [opts] <file>")
     parser.add_option("-a", "--antenna", type="string", default='sd', help="Antenna to load, default is first single-dish baseline in file.")
-    parser.add_option("-f", "--freq-chans", help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 50% of the bandpass.")
+    parser.add_option("-f", "--freq-chans", default='211,3896', help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 211,3896.")
     parser.add_option("-t", "--targets", default='all', help="List of targets to select (default is all)")
     parser.add_option("-o", "--output_dir", default='.', help="Output directory. Default is cwd")
+    parser.add_option("-m", "--rfi_mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of rfi mask pickle.")
+    parser.add_option("-n", "--nd_models", default='/var/kat/katconfig/user/noise-diode-models/mkat/', help="Directory containing noise diode models")
     (opts, args) = parser.parse_args()
 
     return opts, args
@@ -41,5 +43,5 @@ def parse_arguments():
 # Print out the 'on' and 'off' values of noise diode firings from an on->off transition to a text file.
 opts, args = parse_arguments()
 
-strong_sources.analyse_noise_diode(args[0],output_dir=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans)
+strong_sources.analyse_noise_diode(args[0],output_dir=opts.output_dir,antenna=opts.antenna,targets=opts.targets,freq_chans=opts.freq_chans,rfi_mask=opts.rfi_mask,nd_models=opts.nd_models)
 
