@@ -46,13 +46,9 @@ parser.add_option( '--quick', action="store_true" , default=False,
 parser.add_option( '--fine', action="store_true" , default=False,
                   help='Do a fine grained pointscan with an extent of 1 degree and a duration of 60 seconds.'
                   'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
-
 parser.add_option( '--search-fine', action="store_true" , default=False,
                   help='Do a fine grained pointscan with an extent of 2 degree and a duration of 60 seconds.'
                   'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
-
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 
 parser.set_defaults(description='Point source scan')
 # Parse the command line
@@ -94,20 +90,6 @@ with verify_and_connect(opts) as kat:
         skip_file = file(opts.skip_catalogue, "a") \
                     if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
-                if session.data.req.auto_delay('on'):
-                    user_logger.info("Turning on delay tracking.")
-                else:
-                    user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not kat.dry_run:
-                if session.data.req.auto_delay('off'):
-                    user_logger.info("Turning off delay tracking.")
-                else:
-                    user_logger.error('Unable to turn off delay tracking.')
-                if session.data.req.zero_delay():
-                    user_logger.info("Zeroed the delay values.")
-                else:
-                    user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -180,4 +162,3 @@ with verify_and_connect(opts) as kat:
     else:
         user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
 # RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
-

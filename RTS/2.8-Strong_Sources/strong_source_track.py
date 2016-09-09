@@ -41,8 +41,6 @@ parser.add_option('--cold-duration', type='float', default=900.0,
                   help='Length of time to track the cold sky source in seconds when bracketing the obsevation (default=%default)')
 parser.add_option('--cold-target', type='string', default="SCP,radec,0,-90",
                   help='The target/catalogue of the cold sky source to use when bracketing the obsevation (default=%default)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('--sensor-watch',  default="rsc.rxl.omt.temperature,rsc.rxl.cryostat.body-temperature",
                   help='comma delimited list of sensors to monitor while the obsevation is in progress (default=%default)')
 parser.add_option('--change-limit', type='float', default=15.0,
@@ -84,21 +82,6 @@ with verify_and_connect(opts) as kat:
     if valid_targets:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
-                if session.dbe.req.auto_delay('on'):
-                    user_logger.info("Turning on delay tracking.")
-                else:
-                    user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not kat.dry_run:
-                if session.dbe.req.auto_delay('off'):
-                    user_logger.info("Turning off delay tracking.")
-                else:
-                    user_logger.error('Unable to turn off delay tracking.')
-                #if session.dbe.req.zero_delay():
-                #    user_logger.info("Zeroed the delay values.")
-                #else:
-                #    user_logger.error('Unable to zero delay values.')
-
             session.standard_setup(**vars(opts))
             session.capture_start()
             target_list = []
@@ -159,4 +142,3 @@ with verify_and_connect(opts) as kat:
         attenuation = attenuation_old[ant.name+'h']                   
         ant.req.dig_attenuation('h', attenuation, timeout=30)
         user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value() ))
-                    

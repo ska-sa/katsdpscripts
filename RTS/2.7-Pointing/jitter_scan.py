@@ -27,8 +27,6 @@ parser.add_option( '--max-extent', type='float', default=15./60.,
                   help='Maximum extent in degrees, the script will scan ')
 parser.add_option( '--number-of-steps', type='int', default=10,
                   help='Number of pointings to do while scaning , the script will scan ')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('-e', '--scan-in-elevation', action="store_true", default=False,
                   help="Scan in elevation rather than in azimuth (default=%default)")
 
@@ -62,21 +60,6 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
-                if session.dbe.req.auto_delay('on'):
-                    user_logger.info("Turning on delay tracking.")
-                else:
-                    user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not kat.dry_run:
-                if session.dbe.req.auto_delay('off'):
-                    user_logger.info("Turning off delay tracking.")
-                else:
-                    user_logger.error('Unable to turn off delay tracking.')
-                #if session.dbe.req.zero_delay():
-                #    user_logger.info("Zeroed the delay values.")
-                #else:
-                #    user_logger.error('Unable to zero delay values.')
-
             session.standard_setup(**vars(opts))
             session.capture_start()
             time_start = time.time()
@@ -102,5 +85,3 @@ with verify_and_connect(opts) as kat:
                         nd_params = session.nd_params
                         session.fire_noise_diode(announce=True, **nd_params)
                         time.sleep(opts.track_duration) # Snooze
-                
-

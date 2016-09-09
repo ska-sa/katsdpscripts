@@ -32,8 +32,6 @@ parser.add_option('-t', '--track-duration', type='float', default=2.0,
 parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('--siggen-ip',  default='192.168.14.61',
                   help='Signal Generator IP adress (default=%default)')
 parser.add_option('--siggen-port', type='int', default=5025,
@@ -101,21 +99,6 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            #if not opts.no_delays and not kat.dry_run :
-            #    if session.dbe.req.auto_delay('on'):
-            #        user_logger.info("Turning on delay tracking.")
-            #    else:
-            #        user_logger.error('Unable to turn on delay tracking.')
-            #elif opts.no_delays and not kat.dry_run:
-            #    if session.dbe.req.auto_delay('off'):
-            #        user_logger.info("Turning off delay tracking.")
-            #    else:
-            #        user_logger.error('Unable to turn off delay tracking.')
-            #    if session.dbe.req.zero_delay():
-            #        user_logger.info("Zeroed the delay values.")
-            #    else:
-            #        user_logger.error('Unable to zero delay values.')
-
             user_logger.info("Setting up the signal Generator ip:port %s:%i."%(siggen_ip,siggen_port))
             if not kat.dry_run or opts.force_siggen : # prevent verifiing script from messing with things and failing to connect
                 sigconn=SCPI.SCPI(siggen_ip,siggen_port)
