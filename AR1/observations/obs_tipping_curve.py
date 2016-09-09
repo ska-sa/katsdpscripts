@@ -35,12 +35,6 @@ if opts.tip_both_directions :
     spacings += list(np.arange(opts.max_elevation,opts.horizon-0.1,-opts.spacing))
 
 with verify_and_connect(opts) as kat:
-    # Start Antenna for observing
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(3)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
         user_logger.info("No Azimuth selected , selecting clear Azimith")

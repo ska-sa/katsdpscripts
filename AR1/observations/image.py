@@ -44,14 +44,6 @@ if len(args) == 0:
 
 with verify_and_connect(opts) as kat:
     sources = collect_targets(kat, args)
-
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
-
-
     user_logger.info("Imaging targets are [%s]" %
                      (', '.join([("'%s'" % (target.name,)) for target in sources.filter(['~bpcal', '~gaincal'])]),))
     user_logger.info("Bandpass calibrators are [%s]" %
@@ -94,11 +86,3 @@ with verify_and_connect(opts) as kat:
             if loop and not any(source_observed):
                 user_logger.warning('All imaging targets and gain cals are currently below horizon, stopping script')
                 loop = False
-
-# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
-# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions

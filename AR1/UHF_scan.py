@@ -87,12 +87,6 @@ siggen_power = siggen_power_list[0]
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
     if opts.force_siggen and  kat.dry_run: user_logger.warning("The signal generator commands are being used during a dry-run")
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
-
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         user_logger.warning("No targets are currently visible - please re-run the script later")

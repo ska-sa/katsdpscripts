@@ -37,14 +37,7 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     args_target_list =[]
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
-
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    
     try:
         observation_sources.add_tle(file(args[0]))
     except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string

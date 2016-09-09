@@ -49,10 +49,6 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
 
         all_ants = session.ants
-
-        if not kat.dry_run: session.ants.req.mode('STOP')#necessary hack for now
-        time.sleep(10)
-        
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray
@@ -103,4 +99,3 @@ with verify_and_connect(opts) as kat:
                 
                 targets_observed.append(target.name)
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
-        if not kat.dry_run: session.ants.req.mode('STOP')#necessary hack for now

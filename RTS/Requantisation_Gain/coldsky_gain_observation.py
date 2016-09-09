@@ -46,17 +46,9 @@ if __name__ == '__main__':
         raise ValueError("Please specify the target(s) and calibrator(s) to observe as arguments, either as "
                          "description strings or catalogue filenames")
     with verify_and_connect(opts) as kat:
-        if not kat.dry_run and kat.ants.req.mode('STOP') :
-            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-            time.sleep(3)
-        else:
-            user_logger.error("Unable to set Antenna mode to 'STOP'.")
-
         sources = collect_targets(kat, args)
         user_logger.info("Imaging targets are [%s]" %
                          (', '.join([("'%s'" % (target.name,)) for target in sources]),))
-        kat.ants.req.mode('STOP')
-        time.sleep(3)
         with start_session(kat, **vars(opts)) as session:
             # Start capture session, which creates HDF5 file
             session.standard_setup(**vars(opts))
