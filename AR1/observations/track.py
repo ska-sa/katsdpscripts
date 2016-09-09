@@ -6,14 +6,16 @@ from __future__ import with_statement
 
 import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
-import katpoint
+
+import numpy
+
 
 # temporary hack to ensure antenna does not timeout for the moment
 def bad_ar1_alt_hack(target, duration, limit=88.):
-    import numpy
     [az, el] = target.azel()
-    delta_transit = duration*(15./3600.)
-    if (numpy.rad2deg(float(el))+delta_transit+delta_transit) > limit: return True
+    delta_transit = duration * (15. / 3600.)
+    if (numpy.rad2deg(float(el)) + delta_transit + delta_transit) > limit:
+        return True
     return False
 
 # Set up standard script options
@@ -61,10 +63,10 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
 # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-#		    if bad_ar1_alt_hack(target, opts.track_duration):
-#		        user_logger.info('Too high elevation, skipping target %s...' % target.name)
+#       	         if bad_ar1_alt_hack(target, opts.track_duration):
+#   	                 user_logger.info('Too high elevation, skipping target %s...' % target.name)
 #                        user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
-#			continue
+#   		             continue
 # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
 
                     session.label('track')

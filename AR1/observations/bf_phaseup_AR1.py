@@ -15,6 +15,7 @@ from katsdptelstate import TelescopeState
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
+
 class NoGainsAvailableError(Exception):
     """No gain solutions are available from the cal pipeline."""
 
@@ -38,25 +39,27 @@ def get_delaycal_solutions(telstate):
     if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_K']
     return dict(zip(inputs, solutions.real.flat))
+
 
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
+
 
 def get_gaincal_solutions(telstate):
     """Retrieve gain calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_G' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_G']
     return dict(zip(inputs, solutions.flat))
 
