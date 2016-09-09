@@ -106,8 +106,9 @@ with verify_and_connect(opts) as kat:
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+        # Force delay tracking to be on
+        opts.no_delays = False
         session.standard_setup(**vars(opts))
-        session.data.req.auto_delay('on')
         # Get onto beamformer target
         session.track(target, duration=0)
         # Perform a drift scan if selected

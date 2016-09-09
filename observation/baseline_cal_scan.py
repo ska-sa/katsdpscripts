@@ -19,7 +19,7 @@ parser = standard_script_options(usage="%prog [options] [<'target/catalogue'> ..
 parser.add_option('-m', '--min-time', type='float', default=-1.0,
                   help="Minimum duration to run experiment, in seconds (default=one loop through sources)")
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Baseline calibration', nd_params='pin,0,0,-1')
+parser.set_defaults(description='Baseline calibration', nd_params='pin,0,0,-1', no_delays=True)
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -37,15 +37,8 @@ with verify_and_connect(opts) as kat:
         user_logger.info("No targets specified, loaded default catalogue with %d targets" % (len(baseline_sources),))
 
     with start_session(kat, **vars(opts)) as session:
-        if not kat.dry_run:
-            if session.dbe.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
+        # Force delay tracking to be off
+        opts.no_delays = True
         session.standard_setup(**vars(opts))
         session.capture_start()
         start_time = time.time()
