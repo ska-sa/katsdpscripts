@@ -165,9 +165,14 @@ with verify_and_connect(opts) as kat:
         else:
             raise ValueError("Could not set beamformer %r passband - (%s)" %
                              (stream, ' '.join(reply.messages[0].arguments)))
+        user_logger.info('Setting beamformer weights for stream %r:', stream)
         for inp in bf_inputs(kat.data, stream):
-            weight = 1.0 if inp[:-1] in bf_ants else 0.0
-            kat.data.req.cbf_beam_weights(stream, inp, weight)
+            weight = 1.0 / np.sqrt(len(bf_ants)) if inp[:-1] in bf_ants else 0.0
+            reply = kat.data.req.cbf_beam_weights(stream, inp, weight)
+            if reply.succeeded:
+                user_logger.info('  input %r got weight %f', inp, weight)
+            else:
+                user_logger.warning('  input %r weight could not be set', inp)
 
     # We are only interested in first target
     user_logger.info('Looking up main beamformer target...')
