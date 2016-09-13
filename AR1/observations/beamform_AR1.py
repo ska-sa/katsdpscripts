@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # Dual polarisation beamforming: Track target for beamforming.
 
+import argparse
+
 import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
@@ -26,6 +28,82 @@ def bf_inputs(data, stream):
         return []
     inputs = reply.messages[0].arguments[1:]
     return inputs[0::2] if stream.endswith('x') else inputs[1::2]
+
+
+def verify_digifits_backend_args(backend_args):
+    parser = argparse.ArgumentParser(description='Grab arguments')
+    parser.add_argument('-t', dest='-t', type=float, help='integration time (s) per output sample (default=64mus)')
+    parser.add_argument('-overlap', dest='-overlap', action='store_true', help='disable input buffering')
+    parser.add_argument('-header', dest='-header', type=str, help='command line arguments are header values (not filenames)')
+    parser.add_argument('-S', dest='-S', type=int, help='start processing at t=seek seconds')
+    parser.add_argument('-T', dest='-T', type=int, help='process only t=total seconds')
+    parser.add_argument('-set', dest='-set', type=str, help='key=value     set observation attributes')
+    parser.add_argument('-r', dest='-r', action='store_true', help='report time spent performing each operation')
+    parser.add_argument('-dump', dest='-dump', action='store_true', help='dump time series before performing operation')
+    parser.add_argument('-D', dest='-D', type=float, help='set the dispersion measure')
+    parser.add_argument('-do_dedisp', dest='-do_dedisp', action='store_true', help='enable coherent dedispersion (default: false)')
+    parser.add_argument('-c', dest='-c', action='store_true', help='keep offset and scale constant')
+    parser.add_argument('-I', dest='-I', type=int, help='rescale interval in seconds')
+    parser.add_argument('-p', dest='-p', type=int, choices = [1,2,4], help='output 1 (Intensity), 2 (AABB), or 4 (Coherence) products')
+    parser.add_argument('-b', dest='-b', type=int, choices = [1,2,4,8], help='number of bits per sample output to file [1,2,4,8]')
+    parser.add_argument('-F', dest='-F', type=int, help='nchan[:D]     * create a filterbank (voltages only)')
+    parser.add_argument('-nsblk', dest='-nsblk', type=int, help='output block size in samples (default=2048)')
+    parser.add_argument('-k', dest='-K', action='store_true', help='remove inter-channel dispersion delays')
+    opts = parser.parse_args (backend_args.split(" "))
+
+
+def verify_dspsr_backend_args(backend_args):
+    parser = argparse.ArgumentParser(description='Grab arguments')
+    parser.add_argument('-overlap', dest='-overlap', action='store_true', help='disable input buffering')
+    parser.add_argument('-header', dest='-header', type=str, help='command line arguments are header values (not filenames)')
+    parser.add_argument('-S', dest='-S', type=int, help='start processing at t=seek seconds')
+    parser.add_argument('-T', dest='-T', type=int, help='process only t=total seconds')
+    parser.add_argument('-set', dest='-set', type=str, help='key=value     set observation attributes')
+    parser.add_argument('-W', dest='-W', action='store_true', help='disable weights (allow bad data)')
+    parser.add_argument('-r', dest='-r', action='store_true', help='report time spent performing each operation')
+    parser.add_argument('-B', dest='-B', type=float, help='set the bandwidth in MHz')
+    parser.add_argument('-f', dest='-f', type=float, help='set the centre frequency in MHz')
+    parser.add_argument('-k', dest='-k', type=str, help='set the telescope name')
+    parser.add_argument('-N', dest='-N', type=str, help='set the source name')
+    parser.add_argument('-C', dest='-C', type=float, help='adjust clock byset the source name')
+    parser.add_argument('-m', dest='-m', type=str, help='set the start MJD of the observation')
+    parser.add_argument('-2', dest='-2', action='store_true', help='unpacker options ("2-bit" excision)')
+    parser.add_argument('-skz', dest='-skz', action='store_true', help='apply spectral kurtosis filterbank RFI zapping')
+    parser.add_argument('-noskz_too', dest='-noskz_too', action='store_true', help='also produce un-zapped version of output')
+    parser.add_argument('-skzm', dest='-skzm', type=int, help='samples to integrate for spectral kurtosis statistics')
+    parser.add_argument('-skzs', dest='-skzs', type=int, help='number of std deviations to use for spectral kurtosis excisions')
+    parser.add_argument('-skz_start', dest='-skz_start', type=int, help='first channel where signal is expected')
+    parser.add_argument('-skz_end', dest='-skz_end', type=int, help='last channel where signal is expected')
+    parser.add_argument('-skz_no_fscr', dest='-skz_no_fscr', action='store_true', help=' do not use SKDetector Fscrunch feature')
+    parser.add_argument('-skz_no_tscr', dest='-skz_no_tscr', action='store_true', help='do not use SKDetector Tscrunch feature')
+    parser.add_argument('-skz_no_ft', dest='-skz_no_ft', action='store_true', help='do not use SKDetector despeckeler')
+    parser.add_argument('-sk_fold', dest='-sk_fold', action='store_true', help='fold the SKFilterbank output')
+    parser.add_argument('-F', dest='-F', type=str, help=' <N>[:D]          * create an N-channel filterbank')
+    parser.add_argument('-G', dest='-G', type=int, help='nbin          create phase-locked filterbank')
+    parser.add_argument('-cyclic', dest='-cyclic', type=int, help='form cyclic spectra with N channels (per input channel)')
+    parser.add_argument('-cyclicoversample', dest='-cyclicoversample', type=int, help='use M times as many lags to improve cyclic channel isolation (4 is recommended)')
+    parser.add_argument('-D', dest='-D', type=float, help='over-ride dispersion measure')
+    parser.add_argument('-K', dest='-K', type=float, help='remove inter-channel dispersion delays')
+    parser.add_argument('-d', dest='-d', type=int, choices=[1,2,3,4], help='1=PP+QQ, 2=PP,QQ, 3=(PP+QQ)^2 4=PP,QQ,PQ,QP')
+    parser.add_argument('-n', dest='-n', action='store_true', help='[experimental] ndim of output when npol=4')
+    parser.add_argument('-4', dest='-4', action='store_true', help='compute fourth-order moments')
+    parser.add_argument('-b', dest='-b', type=int, help='number of phase bins in folded profile')
+    parser.add_argument('-c', dest='-c', type=float, help='folding period (in seconds)')
+    parser.add_argument('-cepoch', dest='-cepoch', type=str, help='MJD           reference epoch for phase=0 (when -c is used)')
+    parser.add_argument('-p', dest='-p', type=float, help='reference phase of rising edge of bin zero')
+    parser.add_argument('-E', dest='-E', type=str, help='pulsar ephemeris used to generate predictor')
+    parser.add_argument('-P', dest='-P', type=str, help='phase predictor used for folding')
+    parser.add_argument('-X', dest='-X', type=str, help='additional pulsar to be folded')
+    parser.add_argument('-asynch-fold', dest='-asynch-fold', action='store_true', help='fold on CPU while processing on GPU')
+    parser.add_argument('-A', dest='-A', action='store_true', help='output single archive with multiple integrations')
+    parser.add_argument('-nsub', dest='-nsub', type=int, help='output archives with N integrations each')
+    parser.add_argument('-s', dest='-s', action='store_true', help='create single pulse sub-integrations')
+    parser.add_argument('-turns', dest='-turns', type=int, help='create integrations of specified number of spin periods')
+    parser.add_argument('-L', dest='-L', type=float, help='create integrations of specified duration')
+    parser.add_argument('-Lepoch', dest='-Lepoch', type=str, help='start time of first sub-integration (when -L is used)')
+    parser.add_argument('-Lmin', dest='-Lmin', type=float, help='minimum integration length output')
+    parser.add_argument('-y', dest='-y', action='store_true', help='output partially completed integrations')
+    opts = parser.parse_args (backend_args.split(" "))
 
 
 # Set up standard script options
@@ -97,6 +175,12 @@ with verify_and_connect(opts) as kat:
     target_elevation = np.degrees(target.azel()[1])
     if target_elevation < opts.horizon:
         raise ValueError("The target %r is below the horizon" % (target.description,))
+
+    # Verify backend_args
+    if opts.backend in "dspsr" and opts.backend_args:
+        verify_dspsr_backend_args(opts.backend_args)
+    elif opts.backend in "digifits" and opts.backend_args:
+        verify_digifits_backend_args(opts.backend_args)
 
     # Save script parameters before session capture-init's the SDP subsystem
     telstate = get_telstate(kat.data, kat.sub)
