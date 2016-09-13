@@ -15,6 +15,7 @@ from katsdptelstate import TelescopeState
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
+
 class NoGainsAvailableError(Exception):
     """No gain solutions are available from the cal pipeline."""
 
@@ -38,25 +39,27 @@ def get_delaycal_solutions(telstate):
     if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_K']
     return dict(zip(inputs, solutions.real.flat))
+
 
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
+
 
 def get_gaincal_solutions(telstate):
     """Retrieve gain calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_G' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_G']
     return dict(zip(inputs, solutions.flat))
 
@@ -71,8 +74,6 @@ parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
@@ -114,17 +115,6 @@ with verify_and_connect(opts) as kat:
                                              dump_rate, beams, streams, timeout=200)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
-        if not opts.no_delays and not kat.dry_run:
-            if session.data.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.data.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-
         session.standard_setup(**vars(opts))
         inputs = get_cbf_inputs(session.data)
         # Assume correlator stream is bc product name without the 'b'

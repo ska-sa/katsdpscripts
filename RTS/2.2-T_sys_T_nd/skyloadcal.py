@@ -17,8 +17,6 @@ parser = standard_script_options(usage="%prog [options] hotload or coldload",
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=30.0,
                   help='Length of time for each loading, in seconds (default=%default)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('-m', '--max-duration', type='float',default=-1,
                   help='Maximum duration of script, in seconds (the default is to observing all sources once)')
 
@@ -37,28 +35,8 @@ nd_coupler = {'diode' : 'coupler', 'on' : opts.track_duration, 'off' : 0., 'peri
 #                     "description strings or catalogue filenames")
 
 with verify_and_connect(opts) as kat:
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     moon = kat.sources.lookup['moon']
     with start_session(kat, **vars(opts)) as session:
-        if not opts.no_delays and not kat.dry_run :
-            if session.dbe.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.dbe.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            #if session.dbe.req.zero_delay():
-            #    user_logger.info("Zeroed the delay values.")
-            #else:
-            #    user_logger.error('Unable to zero delay values.')
-
         session.standard_setup(**vars(opts))
         session.nd_params = nd_off
         session.capture_start()
@@ -100,5 +78,3 @@ with verify_and_connect(opts) as kat:
                 session.track(target, duration=opts.track_duration)
         if opts.max_duration and time.time() > start_time + opts.max_duration:
             user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
-
-

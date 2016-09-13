@@ -21,7 +21,7 @@ def get_telstate(data, sub):
 
 def bf_inputs(data, stream):
     """Input labels associated with specified beamformer stream."""
-    reply = data.req.cbf_input_labels() # do away with once get CAM sensor
+    reply = data.req.cbf_input_labels()  # do away with once get CAM sensor
     if not reply.succeeded:
         return []
     inputs = reply.messages[0].arguments[1:]
@@ -76,7 +76,7 @@ with verify_and_connect(opts) as kat:
     bf_streams = ('beam_0x', 'beam_0y')
     for stream in bf_streams:
         reply = kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
-                                                       int(opts.beam_centre_freq * 1e6))
+                                               int(opts.beam_centre_freq * 1e6))
         if reply.succeeded:
             actual_bandwidth = float(reply.messages[0].arguments[2])
             actual_centre_freq = float(reply.messages[0].arguments[3])
@@ -106,8 +106,9 @@ with verify_and_connect(opts) as kat:
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+        # Force delay tracking to be on
+        opts.no_delays = False
         session.standard_setup(**vars(opts))
-        session.data.req.auto_delay('on')
         # Get onto beamformer target
         session.track(target, duration=0)
         # Perform a drift scan if selected

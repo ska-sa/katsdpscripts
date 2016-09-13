@@ -23,7 +23,7 @@ parser.remove_option('-p')
 parser.add_option('-f', '--centre-freq', default='1328.0,1575.0,1822.0',
                       help='Centre frequency, in MHz')
 ## Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Basic RFI Scan')
+parser.set_defaults(description='Basic RFI Scan', no_delays=True)
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -40,16 +40,9 @@ opts.centre_freq = freq[0]
 opts.dump_rate = 1.
 with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
+        # Force delay tracking to be off
+        opts.no_delays = True
         session.standard_setup(**vars(opts))
-        if not kat.dry_run:
-            if session.dbe.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            if session.dbe.req.zero_delay():
-                user_logger.info("Zeroed delay values.")
-            else:
-                user_logger.error('Unable to zero the delay values.')
         session.capture_start()
         start_time = time.time()
         nd_params = session.nd_params.copy()

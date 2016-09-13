@@ -28,8 +28,6 @@ parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
 parser.add_option('-m','--max-duration', type='float', default=3600,
                   help='Minimum duration of obsevation (default=%default)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan', nd_params='off')
 # Parse the command line
@@ -42,31 +40,11 @@ if len(args) == 0:
 
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     targets = collect_targets(kat, args)
-
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
-        if not opts.no_delays and not kat.dry_run :
-            if session.dbe.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.dbe.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            #if session.dbe.req.zero_delay():
-            #    user_logger.info("Zeroed the delay values.")
-            #else:
-            #    user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)

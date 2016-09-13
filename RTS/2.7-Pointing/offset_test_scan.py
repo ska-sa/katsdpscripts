@@ -42,8 +42,6 @@ parser.add_option('--source-strength', type='choice', default='auto', choices=('
 parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
                        'spaced 0.5 degrees apart with 2 Hz dump rate.')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option( '--fine', action="store_true" , default=False,
                   help='Do a fine grained pointscan with an extent of 1 degree and a duration of 60 seconds.'
                   'The intention of this is for use in Ku-band obsevations where the beam is 8 arc-min .')
@@ -56,11 +54,6 @@ if opts.quick:
     opts.dump_rate = 2.0
 uniquename = 0
 with verify_and_connect(opts) as kat:
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     if len(args) > 0:
         # Load pointing calibrator catalogues and command line targets
         pointing_sources = collect_targets(kat, args)
@@ -87,20 +80,6 @@ with verify_and_connect(opts) as kat:
         skip_file = file(opts.skip_catalogue, "a") \
                     if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
-            if not opts.no_delays and not kat.dry_run :
-                if session.dbe.req.auto_delay('on'):
-                    user_logger.info("Turning on delay tracking.")
-                else:
-                    user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not kat.dry_run:
-                if session.dbe.req.auto_delay('off'):
-                    user_logger.info("Turning off delay tracking.")
-                else:
-                    user_logger.error('Unable to turn off delay tracking.')
-                #if session.dbe.req.zero_delay():
-                #    user_logger.info("Zeroed the delay values.")
-                #else:
-                #    user_logger.error('Unable to zero delay values.')
             session.standard_setup(**vars(opts))
             session.capture_start()
 
