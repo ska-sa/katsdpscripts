@@ -91,9 +91,9 @@ opts, args = parser.parse_args()
 # with anything other than session objects (e.g. kat.data).
 # The *near future* will be modelled CBF sessions.
 # The *distant future* will be fully simulated sessions via kattelmod.
-if opts.dry_run:
-    import sys
-    sys.exit(0)
+#if opts.dry_run:
+#    import sys
+#    sys.exit(0)
 
 # set of targets with flux models    
 J1934 = 'PKS 1934-63 | J1939-6342, radec bfcal single_accumulation, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
@@ -137,7 +137,8 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            time.sleep(180)
+            session.track('', duration=180, announce=False)
+            #time.sleep(180)
             telstate = get_telstate(session.data, kat.sub)
             delays = get_delaycal_solutions(telstate)
             bp_gains = get_bpcal_solutions(telstate)
