@@ -76,6 +76,8 @@ parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
+parser.add_option('--fft-shift', type='int',
+	          help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
@@ -120,6 +122,8 @@ with verify_and_connect(opts) as kat:
         # Assume correlator stream is bc product name without the 'b'
         product = kat.sub.sensor.product.get_value()
         corr_stream = product if product.startswith('c') else product[1:]
+        if opts.fft_shift is not None:
+            session.data.req.cbf_fft_shift(opts.fft_shift)
         session.data.req.capture_start(corr_stream)
 
         for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
