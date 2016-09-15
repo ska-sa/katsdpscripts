@@ -121,7 +121,7 @@ with verify_and_connect(opts) as kat:
         corr_stream = product if product.startswith('c') else product[1:]
         session.data.req.capture_start(corr_stream)
 
-        for target in observation_sources.sort('el')[0]:
+        for target in [observation_sources.sort('el')[0]]:
             # Calibration tests
             user_logger.info("Performing calibration tests")
             if target.flux_model is None:
