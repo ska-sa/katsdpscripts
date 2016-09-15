@@ -69,7 +69,7 @@ def get_gaincal_solutions(telstate):
 def bad_ar1_alt_hack(target, duration, limit=88.):
     [az, el] = target.azel()
     delta_transit = duration * (15. / 3600.)
-    if (numpy.rad2deg(float(el)) + delta_transit + delta_transit) > limit:
+    if (np.rad2deg(float(el)) + delta_transit + delta_transit) > limit:
         return True
     return False
 
@@ -109,6 +109,7 @@ with verify_and_connect(opts) as kat:
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     observation_sources.add(J1934)
     observation_sources.add(J0408)
+    user_logger.info(observation_sources.visibility_list())
     # Quit early if there are no sources to observe ... use 25 degrees to alow time to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
@@ -121,7 +122,7 @@ with verify_and_connect(opts) as kat:
         corr_stream = product if product.startswith('c') else product[1:]
         session.data.req.capture_start(corr_stream)
 
-        for target in [observation_sources.sort('el')[0]]:
+        for target in [observation_sources.sort('el').targets[-1]]:
             # Calibration tests
             user_logger.info("Performing calibration tests")
             if target.flux_model is None:
@@ -137,35 +138,36 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            session.track('', duration=180, announce=False)
-            #time.sleep(180)
-            telstate = get_telstate(session.data, kat.sub)
-            delays = get_delaycal_solutions(telstate)
-            bp_gains = get_bpcal_solutions(telstate)
-            gains = get_gaincal_solutions(telstate)
-            if not gains:
-                raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
-            user_logger.info("Setting F-engine gains to phase up antennas")
-            for inp in set(inputs) and set(gains):
-                orig_weights = gains[inp]
-                if inp in bp_gains:
-                    orig_weights *= bp_gains[inp]
-                if inp in delays:
-                    # XXX Hacky hack
-                    centre_freq = 1284e6
-                    num_chans = 32768 if product.endswith('32k') else 4096
-                    sideband = 1
-                    channel_width = 856e6 / num_chans
-                    channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
-                    delay_weights = np.exp(2.0j * np.pi * delays[inp] * channel_freqs)
-                    # Guess which direction to apply delays as katcal has a bug here
-                    orig_weights *= delay_weights
-                amp_weights = np.abs(orig_weights)
-                phase_weights = orig_weights / amp_weights
-                # Cop out on the gain amplitude but at least correct the phase
-                new_weights = opts.default_gain * phase_weights.conj()
-                weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
-                session.data.req.cbf_gain(inp, *weights_str)
+            #session.track('Nothing,special', duration=180, announce=False)
+            time.sleep(180)
+            if not kat.dry_run:
+                telstate = get_telstate(session.data, kat.sub)
+                delays = get_delaycal_solutions(telstate)
+                bp_gains = get_bpcal_solutions(telstate)
+                gains = get_gaincal_solutions(telstate)
+                if not gains:
+                    raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
+                user_logger.info("Setting F-engine gains to phase up antennas")
+                for inp in set(inputs) and set(gains):
+                    orig_weights = gains[inp]
+                    if inp in bp_gains:
+                        orig_weights *= bp_gains[inp]
+                    if inp in delays:
+                        # XXX Hacky hack
+                        centre_freq = 1284e6
+                        num_chans = 32768 if product.endswith('32k') else 4096
+                        sideband = 1
+                        channel_width = 856e6 / num_chans
+                        channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
+                        delay_weights = np.exp(2.0j * np.pi * delays[inp] * channel_freqs)
+                        # Guess which direction to apply delays as katcal has a bug here
+                        orig_weights *= delay_weights
+                    amp_weights = np.abs(orig_weights)
+                    phase_weights = orig_weights / amp_weights
+                    # Cop out on the gain amplitude but at least correct the phase
+                    new_weights = opts.default_gain * phase_weights.conj()
+                    weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
+                    session.data.req.cbf_gain(inp, *weights_str)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked" %
                              (target.name, opts.track_duration))
             session.track(target, duration=opts.track_duration, announce=False)
@@ -175,7 +177,7 @@ with verify_and_connect(opts) as kat:
             session.label('interferometric_pointing')
             session.track(target, duration=opts.track_duration, announce=False)
             for direction in {'x', 'y'}:
-                for offset in np.linspace(-opts.max_extent, opts.max_extent, opts.number_of_steps // 2):
+                for offset in np.linspace(-1, 1, 10 // 2):
                     if direction == 'x':
                         offset_target = [offset, 0.0]
                     else:
