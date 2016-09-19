@@ -560,12 +560,12 @@ pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
     # loop over both polarisations
-    if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
+    #if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
         #print "Need to do fringe stopping "
-        vis = fringe_stopping(h5)
-    else:
+    #    vis = fringe_stopping(h5)
+    #else:
         #print "Fringe stopping done in the correlator"
-        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
+    #    vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
 
     #flaglist[0:start_freq_channel] = False
     #flaglist[end_freq_channel:] = False
@@ -590,11 +590,11 @@ for pol in ('h','v'):
     i = 0
     for scan in h5.scans():
         #print scan
-        if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
+        #if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
             #print "Stopping fringes for size ",h5.shape
-            vis = fringe_stopping(h5)
-        else:
-            vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
+        #    vis = fringe_stopping(h5)
+        #else:
+        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
             #vis = fringe_correction(h5)
         data[i:i+h5.shape[0]] = mean((vis*fit_gains),axis=1)
         i += h5.shape[0]
