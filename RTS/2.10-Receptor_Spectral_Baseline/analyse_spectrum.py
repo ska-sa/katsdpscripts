@@ -20,5 +20,5 @@ def parse_arguments():
     return opts, args
 
 opts, args = parse_arguments()
-spectral_baseline.analyse_spectrum(args,output_dir=opts.output_dir,polarisation=opts.polarisation,baseline=opts.baseline,target=opts.target,
+spectral_baseline.analyse_spectrum(args[0],output_dir=opts.output_dir,polarisation=opts.polarisation,baseline=opts.baseline,target=opts.target,
             freqav=opts.freqaverage,timeav=opts.timeaverage,freq_chans=opts.freq_chans,correct=opts.correct,flags_file=opts.flags_file)
