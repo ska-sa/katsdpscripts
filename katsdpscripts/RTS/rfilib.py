@@ -627,10 +627,14 @@ def get_flag_stats(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=
     targets=h5.catalogue.targets
     flag_stats = {}
     if flags is None:
-        flags = h5.flags(flags_to_show)[:]
+        flags = np.empty(h5.shape,dtype=np.bool)
+        for dump in range(h5.shape[0]):
+            flags[dump] = h5.flags(flags_to_show)[dump][0]
     #Squeeze here removes stray axes left over by LazyIndexer
     if thisdata is None:
-        thisdata = np.abs(h5.vis).squeeze()
+        thisdata = np.empty(h5.shape,dtype=np.float32)
+        for dump in range(h5.shape[0]):
+            thisdata[dump] = np.abs(h5.vis[dump][0])
     if norm_spec is not None: thisdata /= norm_spec[np.newaxis,:]
     #Get DC height (median rather than mean is more robust...)
     data = np.ma.MaskedArray(thisdata,mask=flags,copy=False).filled(fill_value=np.nan)
@@ -869,12 +873,11 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             #this_data = np.abs(h5.vis)[this_slice,:,:]
             #Don't read all of the data in one hit- loop over timestamps instead
             this_data = np.empty((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.float32)
+            flags = np.zeros((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.float32)
             for index,dump in enumerate(range(*this_slice.indices(h5.shape[0]))):
                 this_data[index]=np.abs(h5.vis[dump,freq_range])
-            if use_file_flags:
-                flags = h5.flags('ingest_rfi')[this_slice,freq_range,:]
-            else:
-                flags = np.zeros(this_data.shape,dtype=np.bool)
+                if use_file_flags:
+                    flags[index] = h5.flags('ingest_rfi')[dump,freq_range,:][0]
             #OR the mask flags with the flags already in the h5 file
             flags = np.logical_or(flags,mask_array[:,freq_range,:])
             detected_flags = flagger.get_flags(this_data,flags,num_cores=cores_to_use)
@@ -944,12 +947,13 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         #Only select single pol
         corrprodselect=[[ant+'h']*2,[ant+'v']*2]
         h5.select(reset='TFB',corrprods=corrprodselect)
-        vis=np.empty((h5.shape),dtype=np.float)
+        vis=np.empty(h5.shape,dtype=np.float32)
+        flags=np.empty(h5.shape)
         #Get required vis and flags up front to avoid multiple reads of the data
         #vis=np.abs(h5.vis).squeeze()
-        for dump in h5.dumps:
-            vis[dump]=np.abs(h5.vis[dump]).squeeze()
-        flags=h5.flags(flags_to_show)[:]
+        for dump in range(h5.shape[0]):
+            vis[dump]=np.abs(h5.vis[dump][0])
+            flags[dump]=h5.flags(flags_to_show)[dump][0]
         #Populate data_dict
         data_dict=get_flag_stats(h5,thisdata=vis,flags=flags)
         #Output to h5 file

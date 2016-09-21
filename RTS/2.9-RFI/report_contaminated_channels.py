@@ -71,8 +71,8 @@ def plot_flag_data(label,spectrum,flagfrac,freqs,pdf,mask=None):
     pdf.savefig(fig)
 
 #command-line parameters
-parser = optparse.OptionParser(usage="Please specify the input file\n\
-    USAGE: python report_contaminated_channels.py <inputfile.h5> ",
+parser = optparse.OptionParser(usage="Please specify the input file\n \
+    USAGE: python report_contaminated_channels.py <inputfile.h5> ", \
     description="Report the frequencies of channels that have consistently been flagged.")
 parser.add_option("--antenna", "-a", default=None, help="Antenna to process. Default is first ant in file")
 parser.add_option("--threshold", "-t", default=0.8, help="Threshold above which to report contamination percentage. Default=0.8")
@@ -119,7 +119,7 @@ else: known_rfi=[]
 known_lookup=sorted([(freq,i) for i,freq in enumerate(known_rfi_start_freqs)])
 
 #Open a pdf
-pdf = PdfPages(os.path.splitext(os.path.basename(input_file))[0]+'_chanflags.pdf')
+pdf = PdfPages(os.path.splitext(os.path.basename(input_file))[0]+'_'+ant+'_chanflags.pdf')
 fig = plt.figure(None,figsize = (10,16))
 page_length = 90.0
 
