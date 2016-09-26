@@ -65,16 +65,32 @@ with verify_and_connect(opts) as kat:
             session.track(target, duration=opts.track_duration, announce=False) # Set the target & mode = point
 
 
-            ## 2) Track off target
-            user_logger.info("Sleeping for 5 minutes")
-            time.sleep(300)
+            ## 2) Track moon again
+            user_logger.info("Sleeping for 2 minutes")
+            time.sleep(120)
+            for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
+                user_logger.info(target)
+                # track the Moon for a short time
+                session.label('track')
+                user_logger.info("Repeating %g-second track on target %s" % (opts.track_duration, target.name,))
+                session.set_target(target) # Set the target
+                session.track(target, duration=opts.track_duration, announce=False) # Set the target & mode = point
+
+            ## 3) Track ephem target behind the moon
+            user_logger.info("Sleeping for 2 minutes")
+            time.sleep(120)
+            user_logger.info("Setting to Ephem target")
+            observer.date = ephem.now()
+            moon = ephem.Moon(observer)
+            moon.compute(observer)
             target = katpoint.construct_radec_target(moon.ra, moon.dec)
             session.label('track')
-            user_logger.info("Second set of %g-second track on ephem target (%.2f, %.2f)" % (opts.track_duration, katpoint.rad2deg(float(moon.ra)), katpoint.rad2deg(float(moon.dec)),))
+            user_logger.info("Initiating %g-second track on ephem target (%.2f, %.2f)" % (opts.track_duration, katpoint.rad2deg(float(moon.ra)), katpoint.rad2deg(float(moon.dec)),))
             session.set_target(target) # Set the target
             session.track(target, duration=opts.track_duration, announce=False) # Set the target & mode = point
 
-            ## 3) Track moon again
+
+            ## 4) Track moon again
             user_logger.info("Sleeping for 2 minutes")
             time.sleep(120)
             for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
