@@ -200,7 +200,7 @@ if __name__ == '__main__':
             beamrotation[ant]['azoffsetangle']=VLBImodelbeamrotation(skypoints[:,0], skypoints[:,1], p3, p4, p5, p6)
         else:
             beamrotation[ant]['azoffsetangle']=APHbeamrotation(skypoints[:,0], skypoints[:,1], p3, p4, p5, p6)
-        beamrotation[ant]['maxazoffsetangle']=np.max(np.abs(beamrotation[ant]['azoffsetangle']))
+        beamrotation[ant]['maxazoffsetangle']=np.max(beamrotation[ant]['azoffsetangle'])
 
 ## Display calculated azimuth beam rotation
     antennas=np.sort(beamrotation.keys())[:-1] #ignore last antenna, dummy antenna
@@ -217,7 +217,7 @@ if __name__ == '__main__':
                                       beamrotation[antennas[i]]['elevation'],
                                       beamrotation[antennas[i]]['azoffsetangle']))
         plotpoints = np.array(sorted(plotpoints, key=operator.itemgetter(1,0)))
-        ax1.plot(plotpoints[:,1], np.abs(plotpoints[:,2]),'.', label='%s'%antennas[i])
+        ax1.plot(plotpoints[:,1], plotpoints[:,2],'.', label='%s'%antennas[i])
         box = ax1.get_position()
         ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         ax1.set_ylabel('Beamrotation')
@@ -228,7 +228,7 @@ if __name__ == '__main__':
         eloffset = []
         elerr = []
         for elev in elangle:
-            elev_offset_range = np.abs(plotpoints[plotpoints[:,1]==elev,2])
+            elev_offset_range = plotpoints[plotpoints[:,1]==elev,2]
             eloffset.append(np.median(elev_offset_range))
             elerr.append((np.max(elev_offset_range)-np.min(elev_offset_range))/2.)
         ax2 = plt.subplot(111)
@@ -263,7 +263,7 @@ if __name__ == '__main__':
         maxoffset = []
         maxoffsetaz = []
         for elev in elangle:
-            elev_offset_range = np.abs(plotpoints[plotpoints[:,1]==elev,2])
+            elev_offset_range = plotpoints[plotpoints[:,1]==elev,2]
             azim_angles = plotpoints[plotpoints[:,1]==elev,0]
             maxoffset.append(elev_offset_range[np.argmax(elev_offset_range)])
             maxoffsetaz.append(azim_angles[np.argmax(elev_offset_range)])
@@ -283,7 +283,7 @@ if __name__ == '__main__':
     for i in range(len(antennas)):
         maxelevation = beamrotation[antennas[i]]['elevation'].max()
         maxelidx = [beamrotation[antennas[i]]['elevation']==maxelevation]
-        x = np.abs(beamrotation[antennas[i]]['azoffsetangle'][maxelidx])
+        x = beamrotation[antennas[i]]['azoffsetangle'][maxelidx]
         # the histogram of the data
         ax = plt.subplot(int(nants/float(ncols))+1,ncols,i)
         n, bins, patches = plt.hist(x, facecolor='green', alpha=0.75)

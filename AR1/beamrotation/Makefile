@@ -3,6 +3,7 @@ clean:
 
 clobber: clean
 	rm -rf *.png
+	rm -rf katconfig
 
 # -fin-
 
