@@ -873,7 +873,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             #this_data = np.abs(h5.vis)[this_slice,:,:]
             #Don't read all of the data in one hit- loop over timestamps instead
             this_data = np.empty((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.float32)
-            flags = np.zeros((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.float32)
+            flags = np.zeros((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.bool)
             for index,dump in enumerate(range(*this_slice.indices(h5.shape[0]))):
                 this_data[index]=np.abs(h5.vis[dump,freq_range])
                 if use_file_flags:
@@ -948,7 +948,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         corrprodselect=[[ant+'h']*2,[ant+'v']*2]
         h5.select(reset='TFB',corrprods=corrprodselect)
         vis=np.empty(h5.shape,dtype=np.float32)
-        flags=np.empty(h5.shape)
+        flags=np.empty(h5.shape,dtype=np.bool)
         #Get required vis and flags up front to avoid multiple reads of the data
         #vis=np.abs(h5.vis).squeeze()
         for dump in range(h5.shape[0]):

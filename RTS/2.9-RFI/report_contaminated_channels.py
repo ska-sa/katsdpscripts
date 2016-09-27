@@ -88,7 +88,7 @@ try:
     ant=opts.antenna if opts.antenna else katdalfile.ants[0].name
     katdalfile.select(ants=ant,scans='~slew')
     #Get the flag stats
-    report_dict=rfilib.get_flag_stats(katdalfile)
+    report_dict=rfilib.get_flag_stats(katdalfile)['all_data']
 except BrokenFile:
     #Open the rfi_report
     report_data=h5py.File(input_file)['all_data']
