@@ -12,7 +12,7 @@ import pickle
 import h5py
 import katpoint
 
-def read_and_select_file(data, flags_file=None, value=np.inf):
+def read_and_select_file(data, value=np.inf,step=slice(None,None,None)):
     """
     Read in the input h5 file and make a selection based on kwargs.
     data : katdal object
@@ -25,21 +25,8 @@ def read_and_select_file(data, flags_file=None, value=np.inf):
      #Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('No data to process.')
-
-    if flags_file is None or flags_file == '':
-        print('No flag data to process. Using the file flags')
-        file_flags = data.flags()[:]
-    else:
-        #Open the flags file
-        ff = h5py.File(flags_file)
-        #Select file flages based on h5 file selection
-        file_flags=ff['flags'].value
-        file_flags = file_flags[data.dumps]
-        file_flags = file_flags[:,data._freq_keep]
-        file_flags = file_flags[:,:,data._corrprod_keep]
-        #Extend flags
-        #flags = np.sum(file_flags,axis=-1)
-    return np.ma.masked_array(data.vis[:,:,:], mask=file_flags,fill_value=value)
+    file_flags = data.flags()[step]
+    return np.ma.masked_array(data.vis[step,:,:], mask=file_flags,fill_value=value)
     
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
@@ -535,6 +522,13 @@ start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
 
 h5 = katdal.open(args[0])
+if opts.rfi_flagging == '':
+    print('No flag data to process. Using the file flags')
+else:
+    ff = h5py.File(opts.rfi_flagging)
+    h5._flags=  ff['flags'].value
+    ff.close()
+
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
     start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -588,16 +582,12 @@ for pol in ('h','v'):
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
     data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0
-    for scan in h5.scans():
-        #print scan
-        #if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
-            #print "Stopping fringes for size ",h5.shape
-        #    vis = fringe_stopping(h5)
-        #else:
-        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
+    size = h5.shape[0]
+    while (i < size ):
+        vis = read_and_select_file(h5,step=slice(i,i+600))
             #vis = fringe_correction(h5)
-        data[i:i+h5.shape[0]] = mean((vis*fit_gains),axis=1)
-        i += h5.shape[0]
+        data[i:i+vis.shape[0]] = mean((vis*fit_gains),axis=1)
+        i += vis.shape[0]
     figlist = []
     figlist += plot_BaselineGain(fit_gains,h5.channel_freqs,h5.corr_products)
     for tmpfig in figlist : 
