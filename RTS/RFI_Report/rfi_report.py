@@ -13,7 +13,7 @@ parser.add_option("-a", "--antennas", type="string", default=None, help="Comma s
 parser.add_option("-t", "--targets", type="string", default=None, help="List of targets to produce report for, default is all targets in the file")
 parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 90% of the bandpass.")
 parser.add_option("-o", "--output_dir", default='.', help="Directory to place output .pdf report. Default is cwd")
-parser.add_option("-s", "--static_flags", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', help="Location of static flags pickle file.")
+parser.add_option("-s", "--static_flags", default=None, help="Location of static flags pickle file.")
 parser.add_option("--ku-band", action='store_true', help="Force ku-band observation")
 parser.add_option("--write-input", action='store_true', help="Make a copy of the input h5 file and insert flags into it.")
 parser.add_option("--flags-only", action='store_true', help="Only calculate flags (no rfi-report).")

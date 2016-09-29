@@ -823,8 +823,6 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     if static_flags:
         sff = open(static_flags)
         static_flags = pickle.load(sff)
-        #Extend static mask if in 32K mode
-        if freq_length==32768: static_flags=np.repeat(static_flags,8)
         sff.close()
     else:
         #Create dummy static flag array if no static flags are specified. 
@@ -835,11 +833,8 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     else:
         mask_array = np.zeros((1,h5.vis.shape[1],1),dtype=np.bool)
 
-    #Shall we speed up the flagging
-    average_freq = 4 if freq_length == 32768 else 1
-
     #Speed up flagging by averaging further if requested.
-    average_freq*=speedup
+    average_freq = speedup
 
     #Convert spike width from frequency and time to channel and dump for the flagger.
     width_freq_channel = int(width_freq*1.e6/h5.channel_width/average_freq)
