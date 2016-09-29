@@ -12,7 +12,7 @@ import pickle
 import h5py
 import katpoint
 
-def read_and_select_file(data, flags_file=None, value=np.inf,step=slice(None,None,None)):
+def read_and_select_file(data, value=np.inf,step=slice(None,None,None)):
     """
     Read in the input h5 file and make a selection based on kwargs.
     data : katdal object
@@ -25,20 +25,7 @@ def read_and_select_file(data, flags_file=None, value=np.inf,step=slice(None,Non
      #Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('No data to process.')
-
-    if flags_file is None or flags_file == '':
-        print('No flag data to process. Using the file flags')
-        file_flags = data.flags()[step]
-    else:
-        #Open the flags file
-        ff = h5py.File(flags_file)
-        #Select file flages based on h5 file selection
-        file_flags=ff['flags'].value
-        file_flags = file_flags[data.dumps[step]]
-        file_flags = file_flags[:,data._freq_keep]
-        file_flags = file_flags[:,:,data._corrprod_keep]
-        #Extend flags
-        #flags = np.sum(file_flags,axis=-1)
+    file_flags = data.flags()[step]
     return np.ma.masked_array(data.vis[step,:,:], mask=file_flags,fill_value=value)
     
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
@@ -535,6 +522,13 @@ start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
 
 h5 = katdal.open(args[0])
+if opts.rfi_flagging == '':
+    print('No flag data to process. Using the file flags')
+else:
+    ff = h5py.File(opts.rfi_flagging)
+    h5._flags=  ff['flags'].value
+    ff.close()
+
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
     start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -590,7 +584,7 @@ for pol in ('h','v'):
     i = 0
     size = h5.shape[0]
     while (i < size ):
-        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging,step=slice(i,i+600))
+        vis = read_and_select_file(h5,step=slice(i,i+600))
             #vis = fringe_correction(h5)
         data[i:i+vis.shape[0]] = mean((vis*fit_gains),axis=1)
         i += vis.shape[0]
