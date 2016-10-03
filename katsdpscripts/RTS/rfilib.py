@@ -805,9 +805,8 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     start_time=time.time()
     if write_into_input:
         output_file = os.path.join(output_root,input_file.split('/')[-1])
-        if not os.path.exists(output_file):
-            shutil.copy(input_file,output_root)
-        elif not os.path.samefile(input_file,output_file):
+        if not os.path.exists(output_file) or not os.path.samefile(input_file,output_file):
+            print "Copying input file from %s to %s"%(input_file,os.path.abspath(output_root),)
             shutil.copy(input_file,output_root)
         h5 = katdal.open(os.path.join(output_file),mode='r+')
         outfile = h5.file
@@ -828,10 +827,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
         #Create dummy static flag array if no static flags are specified. 
         static_flags=np.zeros(h5.shape[1],dtype=np.bool)
     #Set up the mask for broadcasting
-    if static_flags is not None:
-        mask_array = static_flags[np.newaxis,:,np.newaxis]
-    else:
-        mask_array = np.zeros((1,h5.vis.shape[1],1),dtype=np.bool)
+    mask_array = static_flags[np.newaxis,:,np.newaxis]
 
     #Speed up flagging by averaging further if requested.
     average_freq = speedup
