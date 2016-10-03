@@ -64,7 +64,7 @@ with verify_and_connect(opts) as kat:
                 # The entire sequence of commands on the same target forms a single compound scan
                 session.label('holo')
                 user_logger.info("Initiating holography cycle %d of %d (%d %g-second scans extending %g degrees) on target '%s'"
-                                 % (cycle,opts.num_cycles,opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
+                                 % (cycle+1,opts.num_cycles,opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
                 user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                 # Slew all antennas onto the target
                 session.track(target, duration=3.0+opts.tracktime, announce=False)#spend extra 3 seconds in beginning
