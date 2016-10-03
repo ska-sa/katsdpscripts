@@ -373,12 +373,17 @@ class sumthreshold_flagger():
             flags_chunk = self._sumthreshold(av_dev,flags_chunk,1,self.window_size,self.outlier_sigma)
             flags[:,chunk] = flags_chunk
         #Extend flags in freq and time
-        flags = ndimage.convolve1d(flags, [True]*self.time_extend, axis=0, mode='reflect')
-        flags = ndimage.convolve1d(flags, [True]*self.freq_extend, axis=1, mode='reflect')
+        if self.freq_extend > 1:
+            flags = ndimage.convolve1d(flags, [True]*self.freq_extend, axis=1, mode='reflect')
+        if self.time_extend > 1:
+            flags = ndimage.convolve1d(flags, [True]*self.time_extend, axis=0, mode='reflect')
         #Flag all freqencies and times if too much is flagged.
         flags[:,np.where(np.sum(flags,dtype=np.float,axis=0)/flags.shape[0] > self.flag_all_time_frac)[0]]=True
         flags[np.where(np.sum(flags,dtype=np.float,axis=1)/flags.shape[1] > self.flag_all_freq_frac)]=True
-        flags=np.repeat(np.repeat(flags,self.average_freq,axis=1),self.average_time,axis=0)
+        if self.average_freq > 1:
+            flags=np.repeat(flags,self.average_freq,axis=1)
+        if self.average_time > 1:
+            flags=np.repeat(flags,self.average_time,axis=0)
         if self.debug:
             end_time=time.time()
             print "Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(data.shape[0],data.shape[1],back_time-start_time, end_time-back_time, end_time-start_time)
