@@ -351,7 +351,8 @@ class sumthreshold_flagger():
         #Create flags array
         if in_flags is None:
             flags = np.zeros(data.shape, dtype=np.bool)
-        data, flags = self._average(in_data,in_flags)
+        if self.average_time > 1 or self.average_freq > 1:
+            data, flags = self._average(in_data,in_flags)
 
         freq_chunk_overlap = max(self.window_size*2)
         chunk_size = int(np.ceil(data.shape[1]/float(self.num_freq_chunks)))
