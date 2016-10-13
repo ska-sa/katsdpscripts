@@ -1,9 +1,10 @@
 #!/usr/bin/python
 #track target(s) for a specified time.
 
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, user_logger
+from katcorelib import standard_script_options, verify_and_connect,  user_logger
 import katpoint
 import time
+import numpy as np
 
 
 def track(ants, target, duration=10, dry_run=False):
