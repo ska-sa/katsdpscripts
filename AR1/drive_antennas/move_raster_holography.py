@@ -165,7 +165,7 @@ with verify_and_connect(opts) as kat:
     # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
 
     user_logger.info("Initiating raster holography scan cycles on target '%s'" % (target.name))
-    track(all_ants, target, duration=0, dry_run=kat.dry_run):
+    track(all_ants, target, duration=0, dry_run=kat.dry_run)
     raster_scan(scan_ants,target, num_scans=13, scan_duration=120.0,
                         scan_extent=3.0, scan_spacing=0.1,
                         projection=opts.projection, dry_run=kat.dry_run)
