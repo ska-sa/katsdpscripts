@@ -130,20 +130,6 @@ parser = standard_script_options(usage="%prog [options] 'target'",
                                              'option) perform a spiral raster scan on the target. Note also some '
                                              '**required** options below.')
 parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
-parser.add_option('--num-cycles', type='int', default=1,
-                  help='Number of beam measurement cycles to complete (default=%default)')
-parser.add_option('--cycle-duration', type='float', default=300.0,
-                  help='Time to spend measuring beam pattern per cycle, in seconds (default=%default)')
-parser.add_option('-l', '--scan-extent', type='float', default=4.0,
-                  help='Diameter of beam pattern to measure, in degrees (default=%default)')
-parser.add_option('--kind', type='string', default='uniform',
-                  help='Kind of spiral, could be "uniform" or "dense-core" (default=%default)')
-parser.add_option('--tracktime', type='float', default=1.0,
-                  help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
-parser.add_option('--sampletime', type='float', default=1.0,
-                  help='time in seconds to spend on pointing (default=%default)')
-parser.add_option('--mirrorx', action="store_true", default=False,
-                  help='Mirrors x coordinates of pattern (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -178,8 +164,8 @@ with verify_and_connect(opts) as kat:
     track_ants = ant_array(kat, [ant for ant in all_ants if ant not in scan_ants], 'track_ants')
     # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
 
-    user_logger.info("Initiating spiral holography scan cycles (%d %g-second cycles extending %g degrees) on target '%s'"
-                     % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
+    user_logger.info("Initiating raster holography scan cycles on target '%s'" % (target.name))
+    track(all_ants, target, duration=0, dry_run=kat.dry_run):
     raster_scan(scan_ants,target, num_scans=13, scan_duration=120.0,
                         scan_extent=3.0, scan_spacing=0.1,
                         projection=opts.projection, dry_run=kat.dry_run)
