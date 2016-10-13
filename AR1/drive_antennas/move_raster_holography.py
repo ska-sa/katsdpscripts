@@ -147,7 +147,6 @@ else:
 with verify_and_connect(opts) as kat:
    # observation_sources = collect_targets(kat, args)
     print "Set Sensor stratergy"
-    lasttargetel=target.azel()[1]*180.0/np.pi
     kat.ants.set_sampling_strategy("lock", "event")
     kat.ants.set_sampling_strategy("scan_status", "event")
     if not kat.dry_run and kat.ants.req.mode('STOP') :
