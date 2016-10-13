@@ -76,13 +76,13 @@ def scan(ants, target, duration=30.0, start=(-3.0, 0.0), end=(3.0, 0.0),
             user_logger.info('performing %s' % (scan_name,))
             # Start scanning the antennas
             ants.req.mode('SCAN')
-            # Wait until they are all finished scanning (with 5 minute timeout)
-            user_logger.info('%s complete' % (scan_name,))
+            # Wait until they are all finished scanning (with 5 minute timeout)     
             scanc = 0
             for ant_x in ants:
                 if ant_x.wait('scan_status', 'after', timeout=300):
                     scanc +=1
                 print "scan status:", ant_x.name , scanc,len(ants) 
+            user_logger.info('%s complete' % (scan_name,))
         return True
     else:
         user_logger.warning("Unable to Scan Target : %r Check %s sensors  " % (target,','.join([ant.name for ant in ants])))
