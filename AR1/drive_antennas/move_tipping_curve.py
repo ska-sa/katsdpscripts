@@ -78,7 +78,7 @@ with verify_and_connect(opts) as kat:
             #target = katpoint.Target('EL_%i,azel, %s,%s'%(int(tel),taz,tel))
             #track(kat.ants,target,duration=30,dry_run=kat.dry_run)
             
-            spacings = list(np.arange(15.0,90.1,opts.spacing))
+            spacings = list(np.arange(18.0,90.1,opts.spacing))
             if opts.tip_both_directions :
                 spacings += list(np.arange(90.0,19.9,-opts.spacing))
             for el in spacings:
