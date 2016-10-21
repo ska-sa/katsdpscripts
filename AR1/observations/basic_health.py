@@ -82,7 +82,7 @@ parser = standard_script_options(usage, description)
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(observer='basic_health', nd_params='off', project_id='MKAIV-308',
+parser.set_defaults(observer='basic_health', nd_params='off', project_id='MKAIV-308',reduction_label='MKAIV-308',
                     description='Basic health test of the system.',horizon=25,track_duration=30)
 # Parse the command line
 opts, args = parser.parse_args()
@@ -219,6 +219,7 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
                              (target.description, target.azel()[0], target.azel()[1]))
             # Do different raster scan on strong and weak targets
+            session.ants.req.offset_fixed(0,0, opts.projection) # reset any dangling offsets 
             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
                                 scan_spacing=0.25, scan_in_azimuth=True,
                                 projection=opts.projection)
