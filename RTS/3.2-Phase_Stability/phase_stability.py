@@ -12,22 +12,22 @@ import pickle
 import h5py
 import katpoint
 
-def read_and_select_file(data, value=np.inf,step=slice(None,None,None)):
+
+def read_and_select_file(data, value=np.inf, step=slice(None, None, None)):
     """
     Read in the input h5 file and make a selection based on kwargs.
     data : katdal object
-    flags_file:  {string} filename of h5 flagfile to open 
 
     Returns:
         A array with the visibility data and bad data changed to {value}.
     """
-
-     #Check there is some data left over
+    # Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('No data to process.')
-    file_flags = data.flags()[step]
-    return np.ma.masked_array(data.vis[step,:,:], mask=file_flags,fill_value=value)
-    
+    flags = data.flags[step]
+    return np.ma.masked_array(data.vis[step], mask=flags, fill_value=value)
+
+
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
     Modified polyfit:Any nan values in x are 'masked' and std is returned .
@@ -305,7 +305,7 @@ def  fringe_stopping(data): #This will have to be updated for MKAT
     vis_set = None
     for compscan_no,compscan_label,target in data.compscans():
         #print "loop",compscan_no,compscan_label,target
-        vis = data.vis[:,:,:]
+        vis = data.vis[:]
         # Number of turns of phase that signal B is behind signal A due to geometric delay
         geom_delay_turns = - data.w[:, np.newaxis, :] / wavelengths[:, np.newaxis]
         # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
@@ -338,7 +338,7 @@ def fringe_correction(h5):
     for compscan_no,compscan_label,target in h5.compscans():
         #print compscan_no,target.description
         #print "loop",compscan_no,compscan_label,target,h5.shape
-        vis = h5.vis[:,:,:]
+        vis = h5.vis[:]
         # Number of turns of phase that signal B is behind signal A due to geometric delay
         target.antenna = antlook['m024']
         new_w =np.array(target.uvw(antenna2=katpoint.Antenna(','.join(anttmp) ),timestamp=h5.timestamps))[2,:]
@@ -578,7 +578,7 @@ for pol in ('h','v'):
     # but use angle mean on solutions/phase change.
    # gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
     #calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
-    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:,:,:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
+    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
     data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0
@@ -617,5 +617,3 @@ for pol in ('h','v'):
 
 pp.close()
 plt.close('all')
-
-

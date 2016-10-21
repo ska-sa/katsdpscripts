@@ -423,7 +423,7 @@ def plot_selection_per_antenna(h5, pol, chan_range,detectfunc=None):
     """
     target_list = np.copy(h5.target_indices)
     #h5.select(corrprods='cross', pol=pol, channels=chan_range,scans='~slew')
-    #crossdata = h5.vis[:,:,:].mean(axis=0)
+    #crossdata = h5.vis[:].mean(axis=0)
     if detectfunc is None : detectfunc=detect_spikes_mad
     #external_rfi =  detectfunc(crossdata).mean(axis=-1)# = 1 will be rfi on all baselines (occupancy)
     h5.select(corrprods='auto', pol=pol, channels=chan_range,scans='~slew') 
@@ -433,7 +433,7 @@ def plot_selection_per_antenna(h5, pol, chan_range,detectfunc=None):
     for i,target  in enumerate(target_list) :
         h5.select(corrprods='auto', pol=pol,targets=target, channels=chan_range,scans='~slew') 
         if h5.shape[0] >  1 :#more than one timestamp 
-            autodata[i,:,:] = np.abs(h5.vis[:,:,:].mean(axis=0))
+            autodata[i,:,:] = np.abs(h5.vis[:].mean(axis=0))
             spikes[i,:,:] =  detectfunc(autodata[i,...]) #internal + external
     rfiflag =  spikes[...].mean(axis=0) > 0.8
     figlist = []

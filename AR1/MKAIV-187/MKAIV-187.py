@@ -31,7 +31,7 @@ def read_and_select_file(data, flags_file=None, value=np.inf):
 
     if flags_file is None or flags_file == '':
         print('No flag data to process. Using the file flags')
-        file_flags = data.flags()[:]
+        file_flags = data.flags[:]
     else:
         #Open the flags file
         ff = h5py.File(flags_file)
@@ -42,8 +42,7 @@ def read_and_select_file(data, flags_file=None, value=np.inf):
         file_flags = file_flags[:, :, data._corrprod_keep]
         #Extend flags
         #flags = np.sum(file_flags,axis=-1)
-    return np.ma.masked_array(data.vis[:, :, :],
-                        mask=file_flags, fill_value=value)
+    return np.ma.masked_array(data.vis[:], mask=file_flags, fill_value=value)
 
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
