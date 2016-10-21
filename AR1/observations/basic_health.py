@@ -82,7 +82,7 @@ parser = standard_script_options(usage, description)
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(observer='basic_health', nd_params='off', project_id='MKAIV-308',
+parser.set_defaults(observer='basic_health', nd_params='off', project_id='MKAIV-308',reduction_label='MKAIV-308',
                     description='Basic health test of the system.',horizon=25,track_duration=30)
 # Parse the command line
 opts, args = parser.parse_args()
