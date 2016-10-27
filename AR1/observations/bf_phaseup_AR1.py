@@ -133,7 +133,7 @@ with verify_and_connect(opts) as kat:
                              % (opts.default_gain,))
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
-            session.label('track')
+            session.label('un_corrected')
             user_logger.info("Initiating %g-second track on target '%s'" %
                              (opts.track_duration, target.name,))
             session.track(target, duration=opts.track_duration, announce=False)
@@ -148,6 +148,7 @@ with verify_and_connect(opts) as kat:
             if not gains:
                 raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
+	    session.label('corrected')
             for inp in set(inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:
