@@ -289,7 +289,7 @@ def get_scan_flags(flagger,data,flags):
 
 class sumthreshold_flagger():
     def __init__(self,background_iterations=1, spike_width_time=10, spike_width_freq=10, outlier_sigma=4.5, background_reject=2.0, 
-                window_size=[1,3,5,7,9,11], average_time=1, average_freq=1, debug=False):
+                window_size=[1,3,5,7,9,11], average_time=1, average_freq=1, time_extend=3, freq_extend=3, debug=False):
         self.background_iterations=background_iterations
         self.spike_width_time=spike_width_time
         self.spike_width_freq=spike_width_freq
@@ -304,8 +304,8 @@ class sumthreshold_flagger():
         self.flag_all_time_frac = 0.6
         self.flag_all_freq_frac = 0.8
         #Extend size of flags in time and frequency
-        self.time_extend = 3
-        self.freq_extend = 3
+        self.time_extend = time_extend
+        self.freq_extend = freq_extend
         #How many subbands to flag in frequency??
         self.num_freq_chunks = 4
         #Falloff exponent for sumthreshold
@@ -797,7 +797,8 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=5.0,width_freq=3.0,width_time=15.0,max_scan=200,write_into_input=False,speedup=1,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=5.0,width_freq=3.0,
+                        width_time=15.0,time_extend=3,freq_extend=3,max_scan=600,write_into_input=False,speedup=1,debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -849,7 +850,8 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     #Are we KAT7 or MeerKAT
     if h5.inputs[0][0]=='m':
         #MeerKAT
-        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,
+                                       time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,debug=debug)
         cut_chans = h5.shape[1]//20
     else:
         #kat-7

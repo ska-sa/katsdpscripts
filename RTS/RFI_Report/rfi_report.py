@@ -18,6 +18,11 @@ parser.add_option("--ku-band", action='store_true', help="Force ku-band observat
 parser.add_option("--write-input", action='store_true', help="Make a copy of the input h5 file and insert flags into it.")
 parser.add_option("--flags-only", action='store_true', help="Only calculate flags (no rfi-report).")
 parser.add_option("--report-only", action='store_true', help="Only generate RFI report (use flags from file).")
+parser.add_option("--width-freq", type="float", default=3.0, help="Frequency width for background smoothing in MHz")
+parser.add_option("--width-time", type="float", default=40.0, help="Time width for background smoothing in seconds")
+parser.add_option("--freq-extend", type="int", default=3, help="Convolution width in channels to extend flags")
+parser.add_option("--time-extend", type="int", default=3, help="Convolution width in dumps to extend flags")
+parser.add_option("--outlier-sigma", type="float", default=4.5, help="Number of sigma to threshold for flags in single channel sumthreshold iteration")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
@@ -40,8 +45,7 @@ else:
 	report_input=filename
 
 if not opts.report_only:
-	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input)
+	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,outlier_sigma=opts.outlier_sigma,
+						width_freq=opts.width_freq,width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend)
 if not opts.flags_only:
 	generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,freq_chans=opts.freq_chans)
-
-
