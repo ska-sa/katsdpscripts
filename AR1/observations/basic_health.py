@@ -98,6 +98,7 @@ opts, args = parser.parse_args()
 # set of targets with flux models    
 J1934 = 'PKS 1934-63 | J1939-6342, radec bfcal single_accumulation, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
 J0408 = 'PKS 0408-65 | J0408-6545, radec bfcal single_accumulation, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
+J1313 = '3C286      | J1331+3030, radec bfcal single_accumulation, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
 
 # ND states
 nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
@@ -109,6 +110,7 @@ with verify_and_connect(opts) as kat:
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     observation_sources.add(J1934)
     observation_sources.add(J0408)
+    observation_sources.add(J1313)
     user_logger.info(observation_sources.visibility_list())
     # Quit early if there are no sources to observe ... use 25 degrees to alow time to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
