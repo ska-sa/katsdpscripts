@@ -167,6 +167,9 @@ parser.add_option('--dwell-time', type='float',
 parser.add_option('--num-repeat', type='int',
                   default=1,
                   help='The number of times to repeat the sequence (once by by default)')
+parser.add_option('--ap', type='str',                                   
+                  default="m036",                                                    
+                  help='Receptor under test (default is m036)')
 
 # Parse the command line
 opts, args = parser.parse_args()
@@ -187,6 +190,10 @@ for argstr in args:
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
+    # TODO: Basic check for m036 added but will need to be improved later
+    if opts.ap not in [ant.name for ant in ants]:
+        raise RuntimeError("Receptor under test is not in controlled array")
+
     # Set sensor strategies"
     kat.ants.set_sampling_strategy("lock", "event")
     kat.ants.set_sampling_strategy("ap.indexer-position", "event")
