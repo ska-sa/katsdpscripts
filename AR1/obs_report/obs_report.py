@@ -21,7 +21,7 @@ def build_ipynb_obs_report_command(datafile,template):
                     cell['input'] = "filename = '%s'" % datafile
     else:
         for cell in nb["cells"]:
-            if cell['input'].startswith('filename ='):
+            if cell['source'].startswith('filename ='):
                 cell['source'] = "filename = '%s'" % datafile
     nbformat.write(nb,file_out)
     file_in.close()
