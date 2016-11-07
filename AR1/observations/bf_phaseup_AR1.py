@@ -140,18 +140,19 @@ with verify_and_connect(opts) as kat:
         session.data.req.capture_start(corr_stream)
 
         for target in [observation_sources.sort('el').targets[-1]]:
-            if target.flux_model is None:
-                user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
-            user_logger.info("Resetting F-engine gains to %g to allow phasing up"
-                             % (opts.default_gain,))
-	    channels = 32768 if product.endswith('32k') else 4096
+            channels = 32768 if product.endswith('32k') else 4096
 	    if channels == 4096:
 		target.add_tags('bfcal single_accumulation')
 		opts.default_gain = 200
 	    elif channels == 32768:
 		target.add_tags('delaycal gaincal single_accumulation')
 		opts.default_gain = 4000
-            for inp in inputs:
+	    user_logger.info("Target to be observed: %s"%target.description)
+            if target.flux_model is None:
+                user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
+            user_logger.info("Resetting F-engine gains to %g to allow phasing up"
+                             % (opts.default_gain,))
+	    for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
             session.label('un_corrected')
             user_logger.info("Initiating %g-second track on target '%s'" %
