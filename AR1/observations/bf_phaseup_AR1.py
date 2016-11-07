@@ -6,6 +6,7 @@
 import time
 
 import numpy as np
+import katpoint
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
@@ -77,7 +78,7 @@ parser.add_option('--reset', action='store_true', default=False,
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 parser.add_option('--fft-shift', type='int',
-	          help='Set correlator F-engine FFT shift (default=leave as is)')
+                  help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
@@ -93,8 +94,8 @@ opts, args = parser.parse_args()
 if opts.dry_run:
     import sys
     sys.exit(0)
-	
-# set of targets with flux models    
+
+# set of targets with flux models
 J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
 J0408 = 'PKS 0408-65 | J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
 J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
@@ -102,10 +103,13 @@ J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    observation_sources.add(J1934)
-    observation_sources.add(J0408)
-    observation_sources.add(J1331)
+    if len(args) == 0:
+	observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        observation_sources.add(J1934)
+        observation_sources.add(J0408)
+        observation_sources.add(J1331)
+    else:
+        observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
@@ -136,16 +140,18 @@ with verify_and_connect(opts) as kat:
         session.data.req.capture_start(corr_stream)
 
         for target in [observation_sources.sort('el').targets[-1]]:
+            channels = 32768 if product.endswith('32k') else 4096
+            if channels == 4096:
+                target.add_tags('bfcal single_accumulation')
+                opts.default_gain = 200
+            elif channels == 32768:
+                target.add_tags('delaycal gaincal single_accumulation')
+                opts.default_gain = 4000
+            user_logger.info("Target to be observed: %s"%target.description)
             if target.flux_model is None:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
             user_logger.info("Resetting F-engine gains to %g to allow phasing up"
                              % (opts.default_gain,))
-	    if channels == 4096:
-		target.add_tags('bfcal single_accumulation')
-		opts.default_gain = 200
-	    elif channels == 32768:
-		target.add_tags('delaycal gaincal single_accumulation')
-		opts.default_gain = 4000
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
             session.label('un_corrected')
@@ -163,7 +169,7 @@ with verify_and_connect(opts) as kat:
             if not gains:
                 raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
-	    session.label('corrected')
+            session.label('corrected')
             for inp in set(inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:
