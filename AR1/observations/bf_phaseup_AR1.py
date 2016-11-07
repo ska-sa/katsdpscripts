@@ -104,12 +104,12 @@ J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     if len(args) == 0:
-	observation_sources = collect_targets(kat, args)
-    else:
-        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+	observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
         observation_sources.add(J1934)
         observation_sources.add(J0408)
         observation_sources.add(J1331)
+    else:
+        observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
