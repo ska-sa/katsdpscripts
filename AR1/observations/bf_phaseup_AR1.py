@@ -144,6 +144,7 @@ with verify_and_connect(opts) as kat:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
             user_logger.info("Resetting F-engine gains to %g to allow phasing up"
                              % (opts.default_gain,))
+	    channels = 32768 if product.endswith('32k') else 4096
 	    if channels == 4096:
 		target.add_tags('bfcal single_accumulation')
 		opts.default_gain = 200
