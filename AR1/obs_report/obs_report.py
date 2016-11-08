@@ -17,11 +17,11 @@ def build_ipynb_obs_report_command(datafile,template):
     if ipy_version == 2:
         for sheet in nb["worksheets"]:
             for cell in sheet["cells"]:
-                if 'filename =' in cell['input']:
+                if cell['input'].startswith('filename ='):
                     cell['input'] = "filename = '%s'" % datafile
     else:
         for cell in nb["cells"]:
-            if 'filename =' in cell['source']:
+            if cell['source'].startswith('filename ='):
                 cell['source'] = "filename = '%s'" % datafile
     nbformat.write(nb,file_out)
     file_in.close()
