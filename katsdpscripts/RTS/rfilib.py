@@ -708,7 +708,7 @@ def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
         #Convert ticks to MHZ
         ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
         ax.xaxis.set_major_formatter(ticks)
-        plt.xlabel('Frequency (Hz)')
+        plt.xlabel('Frequency (MHz)')
     pdf.savefig(fig)
     plt.close('all')
 
@@ -766,7 +766,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
     #Convert ticks to MHZ
     ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
     ax.xaxis.set_major_formatter(ticks)
-    plt.xlabel('Frequency (Hz)')
+    plt.xlabel('Frequency (MHz)')
     return(fig)
 
 
