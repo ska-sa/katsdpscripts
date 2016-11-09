@@ -350,10 +350,11 @@ class sumthreshold_flagger():
         if self.debug: start_time=time.time()
         #Create flags array
         if in_flags is None:
-            flags = np.zeros(data.shape, dtype=np.bool)
+            in_flags = np.zeros(data.shape, dtype=np.bool)
         if self.average_time > 1 or self.average_freq > 1:
             data, flags = self._average(in_data,in_flags)
-
+        else:
+            data, flags = in_data, in_flags
         freq_chunk_overlap = max(self.window_size*2)
         chunk_size = int(np.ceil(data.shape[1]/float(self.num_freq_chunks)))
 
@@ -634,13 +635,14 @@ def get_flag_stats(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=
     flag_stats = {}
     if flags is None:
         flags = np.empty(h5.shape,dtype=np.bool)
+        h5.select(flags=flags_to_show)
         for dump in range(h5.shape[0]):
-            flags[dump] = h5.flags(flags_to_show)[dump][0]
+            flags[dump] = h5.flags[dump]
     #Squeeze here removes stray axes left over by LazyIndexer
     if thisdata is None:
         thisdata = np.empty(h5.shape,dtype=np.float32)
         for dump in range(h5.shape[0]):
-            thisdata[dump] = np.abs(h5.vis[dump][0])
+            thisdata[dump] = np.abs(h5.vis[dump])
     if norm_spec is not None: thisdata /= norm_spec[np.newaxis,:]
     #Get DC height (median rather than mean is more robust...)
     data = np.ma.MaskedArray(thisdata,mask=flags,copy=False).filled(fill_value=np.nan)
@@ -823,7 +825,9 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
         outfile=h5py.File(basename+'.h5','w')
         outfile.create_dataset('corr_products',data=h5.corr_products)
-        flags_dataset = outfile.create_dataset('flags',h5._flags.shape,dtype=h5._flags.dtype)
+        h5._flags.parent.copy(h5._flags,outfile,name='flags')
+        flags_dataset = outfile['flags']
+
     freq_length = h5.shape[1]
     #Read static flags from pickle
     if static_flags:
@@ -876,7 +880,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             for index,dump in enumerate(range(*this_slice.indices(h5.shape[0]))):
                 this_data[index]=np.abs(h5.vis[dump,freq_range])
                 if use_file_flags:
-                    flags[index] = h5.flags('ingest_rfi')[dump,freq_range,:][0]
+                    flags[index] = h5.flags[dump,freq_range]
             #OR the mask flags with the flags already in the h5 file
             flags = np.logical_or(flags,mask_array[:,freq_range,:])
             detected_flags = flagger.get_flags(this_data,flags,num_cores=cores_to_use)
@@ -901,7 +905,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -910,7 +914,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
     ======
     input_file - input h5 filename
     input_flags - input h5 flags; will overwrite flags in h5 file- h5 file in format returnd from generate_flag_table
-    flags_to_show - select which flag bits to plot. (None=all flags)
+    flags_to_show - select which flag bits to plot. ('all'=all flags)
     output_root - directory where output is to be placed - defailt cwd
     antenna - which antenna to produce report on - default all in file
     targets - which target to produce report on - default all
@@ -950,9 +954,10 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         flags=np.empty(h5.shape,dtype=np.bool)
         #Get required vis and flags up front to avoid multiple reads of the data
         #vis=np.abs(h5.vis).squeeze()
+        h5.select(flags=flags_to_show)
         for dump in range(h5.shape[0]):
-            vis[dump]=np.abs(h5.vis[dump][0])
-            flags[dump]=h5.flags(flags_to_show)[dump][0]
+            vis[dump]=np.abs(h5.vis[dump])
+            flags[dump]=h5.flags[dump]
         #Populate data_dict
         data_dict=get_flag_stats(h5,thisdata=vis,flags=flags)
         #Output to h5 file
@@ -1014,9 +1019,13 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         pdf = PdfPages(basename+'.pdf')
         corrprodselect=[[bline[0]+'h',bline[1]+'h'],[bline[0]+'v',bline[1]+'v']]
         h5.select(reset='TFB',corrprods=corrprodselect)
+        vis=np.empty(h5.shape,dtype=np.float32)
+        flags=np.empty(h5.shape,dtype=np.bool)
         #Get required vis and flags up front to avoid multiple reads of the data
-        vis=np.abs(h5.vis).squeeze()
-        flags=h5.flags(flags_to_show)[:]
+        h5.select(flags=flags_to_show)
+        for dump in range(h5.shape[0]):
+            vis[dump]=np.abs(h5.vis[dump])
+            flags[dump]=h5.flags[dump]
         #Populate data_dict
         data_dict=get_flag_stats(h5,thisdata=vis,flags=flags)
         #Output to h5 file
