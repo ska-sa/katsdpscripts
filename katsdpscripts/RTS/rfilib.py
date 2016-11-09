@@ -977,7 +977,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
             #Extract target and time range from file
             h5.select(targets=target,scans='~slew',ants=ant,channels=chan_range)
             if h5.shape[0]==0:
-                print 'No data to process for .' + target
+                print 'No data to process for ' + target
                 continue
             label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
             #Get index of HH and VV data
