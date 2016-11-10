@@ -142,6 +142,7 @@ for i,pol in  enumerate(["HH","VV"]):
     this_known=known_iterator.next()
     end_known=report_dict['channel_freqs'][0]
     text.append(("Flagged channels and frequencies %s, %s polarisation:"%(ant, pol),'black','bold'))
+    inside_known=False
     for j,freq in enumerate(report_dict['channel_freqs']):
         if j not in chan_range: continue
         if end_known<freq:

@@ -957,7 +957,6 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
         vis=np.empty(h5.shape,dtype=np.float32)
         flags=np.empty(h5.shape,dtype=np.bool)
         #Get required vis and flags up front to avoid multiple reads of the data
-        #vis=np.abs(h5.vis).squeeze()
         h5.select(flags=flags_to_show)
         for dump in range(h5.shape[0]):
             vis[dump]=np.abs(h5.vis[dump])
