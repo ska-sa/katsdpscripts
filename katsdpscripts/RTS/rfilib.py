@@ -799,7 +799,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_flags=True,outlier_sigma=5.0,width_freq=3.0,
+def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=None,use_file_flags=True,outlier_sigma=5.0,width_freq=3.0,
                         width_time=15.0,time_extend=3,freq_extend=3,max_scan=600,write_into_input=False,speedup=1,debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
@@ -855,15 +855,19 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     if h5.inputs[0][0]=='m':
         #MeerKAT
         flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,
-                                       time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,debug=debug)
-        cut_chans = h5.shape[1]//20
+                                        time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,debug=debug)
+        cut_chans = (h5.shape[1]//20,h5.shape[1]-h5.shape[1]//20,) if freq_chans is None \
+                        else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
     else:
         #kat-7
-        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,background_reject=4.5,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
-        cut_chans = h5.shape[1]//7
+        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,background_reject=4.5,spike_width_freq=width_freq_channel,
+                                        spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        cut_chans = (h5.shape[1]//7,h5.shape[1]-h5.shape[1]//7,) if freq_chans is None \
+                        else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
+
     #Make sure final size of array divides into averaging width
-    remainder = (h5.shape[1]-2*cut_chans)%average_freq
-    freq_range = slice(cut_chans-(remainder//2),h5.shape[1]-(cut_chans-(remainder-(remainder//2))))
+    remainder = (cut_chans[1]-cut_chans[0])%average_freq
+    freq_range = slice(cut_chans[0]-(remainder//2),cut_chans[1]-(remainder-(remainder//2)))
     for scan, state, target in h5.scans():
         #Take slices through scan if it is too large for memory
         if h5.shape[0]>max_scan:

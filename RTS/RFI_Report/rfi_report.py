@@ -45,11 +45,14 @@ else:
 	report_input=filename
 
 if opts.flags_only:
-	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,outlier_sigma=opts.outlier_sigma,
-						width_freq=opts.width_freq,width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend)
+	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,
+						freq_chans=opts.freq_chans, outlier_sigma=opts.outlier_sigma, width_freq=opts.width_freq,
+						width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend)
 elif opts.report_only:
-	generate_rfi_report(filename,input_flags=None,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,freq_chans=opts.freq_chans)
+	generate_rfi_report(filename,input_flags=None,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,
+						freq_chans=opts.freq_chans)
 else:
-	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,outlier_sigma=opts.outlier_sigma,
-						width_freq=opts.width_freq,width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend)
+	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,
+						freq_chans=opts.freq_chans, outlier_sigma=opts.outlier_sigma, width_freq=opts.width_freq,
+						width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend)
 	generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,freq_chans=opts.freq_chans)
