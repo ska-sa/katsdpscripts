@@ -5,6 +5,7 @@
 # Updated for AR1 by Ruby
 # Benjamin added PPS offsets
 # Added timestamp of sync output for easier use
+# Tiyani replaced dig_sync_epoch with dig_l_band_time_sync
 
 from __future__ import with_statement
 import time, string
@@ -178,7 +179,7 @@ with verify_and_connect(opts) as kat:
             time.sleep(5)
 	    etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
 	    for ant in ant_active:
-		if int(ant.sensor.dig_synchronisation_epoch.get_value()) != int(etime):
+		if int(ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()) != int(etime):
 		    raise RuntimeError('System not synced, investigation is required...')
 
 	    import time
