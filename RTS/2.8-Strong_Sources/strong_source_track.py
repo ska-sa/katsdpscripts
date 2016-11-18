@@ -87,20 +87,14 @@ with verify_and_connect(opts) as kat:
             for ant in kat.ants:
                 
                 band = kat.sub.sensor.band.get_value()
-                #if not band=='l' : # This is commented
-                #    raise ValueError("Please ensure all antennas are in L-band), "
-                #                     "Antenna %s is in %s"%(ant.name,band))
-                #TODO   change the staments to use band infomation
-                if band=='l' : 
-                    dig_vpol = ant.sensor.dig_l_band_rfcu_vpol_attenuation
-                    dig_hpol = ant.sensor.dig_l_band_rfcu_hpol_attenuation
-                elif band=='u' : 
-                    dig_vpol = ant.sensor.dig_u_band_rfcu_vpol_attenuation
-                    dig_hpol = ant.sensor.dig_u_band_rfcu_hpol_attenuation                    
+                if not band=='' :
+                    atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'h') 
+                    dig_hpol = ant.sensor[atten_name] # Deal with KeyError if no such sensor
+                    atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'v') 
+                    dig_vpol = ant.sensor[atten_name] 
                 else : 
                     raise ValueError("Please ensure all antennas are in L/U-band), "
-                                     "Antenna %s is in %s"%(ant.name,band))
-                    
+                                     "Antenna %s is in %s"%(ant.name,band))                  
                 attenuation_old[ant.name+'v']= dig_vpol.get_value() 
                 attenuation_old[ant.name+'h']= dig_hpol.get_value()
                 user_logger.info("%s v pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'v']))
@@ -142,16 +136,11 @@ with verify_and_connect(opts) as kat:
                 if endobs : break
     for ant in kat.ants:
         band = kat.sub.sensor.band.get_value()
-        #if not band=='l' : # This is commented
-        #    raise ValueError("Please ensure all antennas are in L-band), "
-        #                     "Antenna %s is in %s"%(ant.name,band))
-        #TODO   change the staments to use band infomation
-        if band=='l' : 
-            dig_vpol = ant.sensor.dig_l_band_rfcu_vpol_attenuation
-            dig_hpol = ant.sensor.dig_l_band_rfcu_hpol_attenuation
-        elif band=='u' : 
-            dig_vpol = ant.sensor.dig_u_band_rfcu_vpol_attenuation
-            dig_hpol = ant.sensor.dig_u_band_rfcu_hpol_attenuation                    
+        if not band=='' :
+            atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'h') 
+            dig_hpol = ant.sensor[atten_name] # Deal with KeyError if no such sensor
+            atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'v') 
+            dig_vpol = ant.sensor[atten_name] 
         else : 
             raise ValueError("Please ensure all antennas are in L/U-band), "
                              "Antenna %s is in %s"%(ant.name,band))
