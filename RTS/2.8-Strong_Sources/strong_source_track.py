@@ -87,12 +87,22 @@ with verify_and_connect(opts) as kat:
             for ant in kat.ants:
                 
                 band = ant.sensor.ap_indexer_position.get_value()
-                if not band=='l' :
-                    raise ValueError("Please ensure all antennas are in L-band), "
-                                     "Antenna %s is in %s"%(ant.name,band))
+                #if not band=='l' : # This is commented
+                #    raise ValueError("Please ensure all antennas are in L-band), "
+                #                     "Antenna %s is in %s"%(ant.name,band))
                 #TODO   change the staments to use band infomation
-                attenuation_old[ant.name+'v']= ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() 
-                attenuation_old[ant.name+'h']= ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value()
+                if band=='l' : 
+                    dig_vpol = ant.sensor.dig_l_band_rfcu_vpol_attenuation
+                    dig_hpol = ant.sensor.dig_l_band_rfcu_hpol_attenuation
+                elif band=='u' : 
+                    dig_vpol = ant.sensor.dig_u_band_rfcu_vpol_attenuation
+                    dig_hpol = ant.sensor.dig_u_band_rfcu_hpol_attenuation                    
+                else : 
+                    raise ValueError("Please ensure all antennas are in L/U-band), "
+                                     "Antenna %s is in %s"%(ant.name,band))
+                    
+                attenuation_old[ant.name+'v']= dig_vpol.get_value() 
+                attenuation_old[ant.name+'h']= dig_hpol.get_value()
                 user_logger.info("%s v pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'v']))
                 user_logger.info("%s h pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'h']))
             
@@ -102,11 +112,11 @@ with verify_and_connect(opts) as kat:
                     if attenuation== -1 :
                         attenuation = attenuation_old[ant.name+'v']                   
                     ant.req.dig_attenuation('v', attenuation, timeout=30)
-                    user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() ))
+                    user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,dig_vpol.get_value() ))
                     if attenuation== -1 :
                         attenuation = attenuation_old[ant.name+'h']                   
                     ant.req.dig_attenuation('h', attenuation, timeout=30)
-                    user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value() ))
+                    user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,dig_hpol.get_value() ))
                     
                 # Iterate through source list, picking the first one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
@@ -131,9 +141,23 @@ with verify_and_connect(opts) as kat:
                     if endobs : break
                 if endobs : break
     for ant in kat.ants:
+        band = ant.sensor.ap_indexer_position.get_value()
+        #if not band=='l' : # This is commented
+        #    raise ValueError("Please ensure all antennas are in L-band), "
+        #                     "Antenna %s is in %s"%(ant.name,band))
+        #TODO   change the staments to use band infomation
+        if band=='l' : 
+            dig_vpol = ant.sensor.dig_l_band_rfcu_vpol_attenuation
+            dig_hpol = ant.sensor.dig_l_band_rfcu_hpol_attenuation
+        elif band=='u' : 
+            dig_vpol = ant.sensor.dig_u_band_rfcu_vpol_attenuation
+            dig_hpol = ant.sensor.dig_u_band_rfcu_hpol_attenuation                    
+        else : 
+            raise ValueError("Please ensure all antennas are in L/U-band), "
+                             "Antenna %s is in %s"%(ant.name,band))
         attenuation = attenuation_old[ant.name+'v']                   
         ant.req.dig_attenuation('v', attenuation, timeout=30)
-        user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_vpol_attenuation.get_value() ))
+        user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,dig_vpol.get_value() ))
         attenuation = attenuation_old[ant.name+'h']                   
         ant.req.dig_attenuation('h', attenuation, timeout=30)
-        user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,ant.sensor.dig_l_band_rfcu_hpol_attenuation.get_value() ))
+        user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,dig_hpol.get_value() ))
