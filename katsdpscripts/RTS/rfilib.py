@@ -685,7 +685,7 @@ def detect_spikes_orig(data, axis=0, spike_width=2, outlier_sigma=11.0):
 ##############################
 # End of RFI detection routines
 ##############################
-def get_flag_stats(h5, flags=None, flags_to_show=None, norm_spec=None):
+def get_flag_stats(h5, flags=None, flags_to_show='all', norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
     (ignoring severe spikes) then obtain an average spectrum of
@@ -699,12 +699,13 @@ def get_flag_stats(h5, flags=None, flags_to_show=None, norm_spec=None):
     sumarray=np.zeros((h5.shape[1],h5.shape[2]))
     weightsum=np.zeros((h5.shape[1],h5.shape[2]),dtype=np.int)
     if flags is None:
-        flags = h5.flags(flags_to_show)
+        h5.select(flags=flags_to_show)
+        flags = h5.flags
     for num,thisdata in enumerate(h5.vis):
         #Extract flags
-        thisflag = flags[num][0]
+        thisflag = flags[num]
         #Extract pols
-        thisdata = np.abs(thisdata[0,:])
+        thisdata = np.abs(thisdata)
         # normalise if defined
         if norm_spec is not None: thisdata /= norm_spec
         #Get DC height (median rather than mean is more robust...
@@ -926,9 +927,10 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             scan_slices = [slice(0,h5.shape[0])]
         #loop over slices
         for this_slice in scan_slices:
-            this_data = np.abs(h5.vis[this_slice,:,:])
+            this_data = np.abs(h5.vis[this_slice])
             if use_file_flags:
-                file_flags = h5.flags('ingest_rfi')[this_slice,:,:]
+                h5.select(flags='ingest_rfi')
+                file_flags = h5.flags[this_slice]
             else:
                 file_flags = np.zeros(this_data.shape,dtype=np.bool)
             #Construct a masked array with flags removed
@@ -953,7 +955,8 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
             all_flags = np.zeros(this_data.shape+(8,),dtype=np.uint8)
             all_flags[...,6] = mask_flags
             all_flags[:,freq_range,:,1] = detected_flags
-            all_flags[...,3] = h5.flags('ingest_rfi')[this_slice,:,:]
+            h5.select(flags='ingest_rfi')
+            all_flags[...,3] = h5.flags[this_slice]
 
             all_flags=np.packbits(all_flags,axis=3).squeeze()
             final_flags[h5.dumps[this_slice],:,0:all_flags.shape[-1]]=all_flags
@@ -967,7 +970,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,use_file_fl
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_root='.',antenna=None,targets=None,time_range=None,freq_chans=None,do_cross=True):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,time_range=None,freq_chans=None,do_cross=True):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -1041,8 +1044,8 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
             plot_flag_data(label,data_dict[target]['spectrum'][chan_range][:,hh_index],data_dict[target]['flagfrac'][chan_range][:,hh_index], \
                             data_dict[target]['spectrum'][chan_range][:,vv_index],data_dict[target]['flagfrac'][chan_range][:,vv_index],h5.channel_freqs,pdf)
             for pol in ['HH','VV']:
-                h5.select(ants=ant,pol=pol)
-                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,None,label+'\n'+pol+' polarisation')
+                h5.select(ants=ant,pol=pol,flags=flags_to_show)
+                fig=plot_waterfall_subsample(h5.vis,h5.flags,h5.channel_freqs,None,label+'\n'+pol+' polarisation')
                 pdf.savefig(fig)
             plt.close('all')
 
@@ -1062,8 +1065,8 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range,hh_index],data_dict['all_data']['flagfrac'][chan_range,hh_index], \
                         data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
         for pol in ['HH','VV']:
-            h5.select(ants=ant,pol=pol)
-            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
+            h5.select(ants=ant,pol=pol,flags=flags_to_show)
+            fig=plot_waterfall_subsample(h5.vis,h5.flags,h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
             pdf.savefig(fig)
         plt.close('all')
 
@@ -1113,8 +1116,8 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
             plot_flag_data(label,data_dict[target]['spectrum'][chan_range,hh_index],data_dict[target]['flagfrac'][chan_range,hh_index], \
                         data_dict[target]['spectrum'][chan_range,vv_index],data_dict[target]['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
             for pol in ['HH','VV']:
-                h5.select(ants=bline,pol=pol,corrprods='cross')
-                fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,None,label+'\n'+pol+' polarisation')
+                h5.select(ants=bline,pol=pol,corrprods='cross',flags=flags_to_show)
+                fig=plot_waterfall_subsample(h5.vis,h5.flags,h5.channel_freqs,None,label+'\n'+pol+' polarisation')
                 pdf.savefig(fig)
         #Reset the selection
         h5.select()
@@ -1131,8 +1134,8 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show=None,output_ro
         plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range,hh_index],data_dict['all_data']['flagfrac'][chan_range,hh_index], \
                         data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
         for pol in ['HH','VV']:
-            h5.select(ants=bline,pol=pol,corrprods='cross')
-            fig=plot_waterfall_subsample(h5.vis,h5.flags(flags_to_show),h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
+            h5.select(ants=bline,pol=pol,corrprods='cross',flags=flags_to_show)
+            fig=plot_waterfall_subsample(h5.vis,h5.flags,h5.channel_freqs,h5.timestamps,label+'\n'+pol+' polarisation')
             pdf.savefig(fig)
         
         #Output to h5 file

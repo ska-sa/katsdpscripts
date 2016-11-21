@@ -111,7 +111,8 @@ for scan in h5.scans() :
         antA = [h5.inputs.index(inpA) for inpA, inpB in h5.corr_products]
         antB = [h5.inputs.index(inpB) for inpA, inpB in h5.corr_products]
 
-        full_vis = (np.concatenate((h5.vis[:], (h5.vis[:]).conj()), axis=-1))
+        vis = h5.vis[:]
+        full_vis = np.concatenate((vis, vis.conj()), axis=-1)
         full_antA = np.r_[antA, antB]
         full_antB = np.r_[antB, antA]
         corrprods = zip(full_antA,full_antB)

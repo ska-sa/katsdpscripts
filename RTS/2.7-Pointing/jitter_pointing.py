@@ -122,10 +122,10 @@ for ant in ant_list :
 
     var = np.zeros((np.array(hist.nonzero()[0]).shape[0],h5.channels.shape[0],h5.shape[-1]))
     mean  = np.zeros((np.array(hist.nonzero()[0]).shape[0],h5.channels.shape[0],h5.shape[-1]))
-    baseline_mean = (np.mean(h5.vis[digibins == digibins.max(),:,:],axis=0))# Off source Mean
-    peak_mean = (np.mean(h5.vis[digibins == digibins.min(),:,:],axis=0))# On source Mean
+    baseline_mean = (np.mean(h5.vis[digibins == digibins.max()],axis=0))# Off source Mean
+    peak_mean = (np.mean(h5.vis[digibins == digibins.min()],axis=0))# On source Mean
     norm = np.abs(1./(peak_mean-baseline_mean) *np.sqrt(2.*np.pi)*beamwidth(fwhm)[np.newaxis,:,np.newaxis])
-    var_inf = (np.std((h5.vis[digibins == digibins.max(),:,:]-baseline_mean)*norm,axis=0))**2  # Off source variance
+    var_inf = (np.std((h5.vis[digibins == digibins.max()]-baseline_mean)*norm,axis=0))**2  # Off source variance
 
     returntext = []
     for blcount,blvalue in enumerate(h5.corr_products[:]) :
@@ -137,7 +137,7 @@ for ant in ant_list :
             returntext.append('File:%s Calculated Antenna short timescale jitter for %s'%(args[0].split('/')[-1],blvalue[0]))
             returntext.append('Antenna, Angle ,  mean ,  lower ,upper errors')
             for n,i in enumerate(hist.nonzero()[0]) :
-                data =  np.abs((h5.vis[digibins == i+1,:,:]-baseline_mean)*norm)
+                data =  np.abs((h5.vis[digibins == i+1] - baseline_mean)*norm)
                 var[n,:,:] = (np.std(data,axis=0))**2 - var_inf #  digitize has a [1..bins] index
                 var_amp = var[n,:,blcount]
                 theta = sep[digibins == i+1].mean()

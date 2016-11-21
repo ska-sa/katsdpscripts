@@ -211,7 +211,7 @@ def plot_spectrum(pol, ant):
 
         #still to take a closer look at the calculation of the flags
         ab.append(ab[-1].twinx())
-        flag=f.flags()[:]
+        flag=f.flags[:]
         # total_sum=0
         perc=[]
         for i in range(len(f.channels)):
@@ -348,7 +348,7 @@ def plot_bpcal_selection(f):
                 raise ObsReporterError('The selection criteria resulted in an empty data set.')
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
-            fringes = np.angle(f.vis[:,:,:])
+            fringes = np.angle(f.vis[:])
             #For plotting the fringes
             fig.subplots_adjust(wspace=0., hspace=0.)
             #debug_here()
@@ -393,9 +393,9 @@ def plot_target_selection(f):
     max_integration=0
     for target in check_targets.targets:
         f.select(targets=target)
-        if f.vis.shape[0]>max_integration:
+        if f.shape[0]>max_integration:
             select_target=target
-            max_integration=f.vis.shape[0]
+            max_integration=f.shape[0]
     plt.suptitle("Correlation Spectra on "+select_target.name,fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
@@ -409,9 +409,9 @@ def plot_target_selection(f):
                 subplot_index = (len(f.ants) * indexA + indexB + 1) if pol == 'h' else (indexA + len(f.ants) * indexB + 1)
                 ax = fig.add_subplot(len(f.ants), len(f.ants), subplot_index)
                 #loop through scans and average individually to remove changes in power over time
-                sum_power=np.zeros(f.vis.shape[1]) #initialise sum
+                sum_power=np.zeros(f.shape[1]) #initialise sum
                 for tmp in f.scans():
-                    power = np.abs(f.vis[:,:,n])[:,:,0]
+                    power = np.abs(f.vis[:,:,n])
                     #get average power for this scan (omit first channel)
                     dc_offset=np.mean(power[:,1:])
                     sum_power+=np.sum(power[:,:]/dc_offset,axis=0)

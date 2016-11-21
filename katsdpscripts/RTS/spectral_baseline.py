@@ -68,26 +68,22 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
 
     data.select(strict=False, **select_data)
 
-    #Check there is some data left over
+    # Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('Selection has resulted in no data to process.')
-    #Insert flags if coming from file
+    # Insert flags if coming from file
     if flags_file is not None:
         ff = h5py.File(flags_file, 'r')
         data._flags = ff['flags']
-    #Get the selected visibilities and flags (average to stokes I if required and extend flags across corr products)
-    vis = np.empty(data.shape,dtype=np.float32)
-    flags = np.empty(data.shape,dtype=np.bool)
-    weights = np.empty(data.shape,dtype=np.float32)
+    # Get the selected visibilities and flags (average to stokes I if required and extend flags across corr products)
+    vis = np.empty(data.shape[:-1], dtype=np.float32)
+    flags = np.empty(data.shape[:-1], dtype=np.bool)
+    weights = np.empty(data.shape[:-1], dtype=np.float32)
     for dump in range(data.shape[0]):
-        vis[dump] = np.abs(data.vis[dump][0])
-        flags[dump] = data.flags()[dump][0] 
-        weights[dump] = data.weights()[dump][0]
-    vis = np.sum(vis,axis=-1)
-    flags = np.sum(flags,axis=-1,dtype=np.bool)
-    weights = np.sum(weights, axis=-1)
+        vis[dump] = np.sum(np.abs(data.vis[dump]), axis=-1)
+        flags[dump] = np.sum(data.flags[dump], axis=-1, dtype=np.bool)
+        weights[dump] = np.sum(data.weights[dump], axis=-1)
     outputvis = np.ma.masked_array(vis, mask=flags)
-    #return the selected data
     return outputvis, weights, data
 
 
