@@ -29,7 +29,7 @@ def read_and_select_file(data, flags_file=None, value=np.inf):
 
     if flags_file is None or flags_file == '':
         print('No flag data to process. Using the file flags')
-        file_flags = data.flags()[:]
+        file_flags = data.flags[:]
     else:
         #Open the flags file
         ff = h5py.File(flags_file)
@@ -40,8 +40,7 @@ def read_and_select_file(data, flags_file=None, value=np.inf):
         file_flags = file_flags[:, :, data._corrprod_keep]
         #Extend flags
         #flags = np.sum(file_flags,axis=-1)
-    return np.ma.masked_array(data.vis[:, :, :],
-                        mask=file_flags, fill_value=value)
+    return np.ma.masked_array(data.vis[:], mask=file_flags, fill_value=value)
 
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
@@ -507,7 +506,7 @@ pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track',dumps=slice(1,600))
     vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
-    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:,:,:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
+    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:].mean(axis=0)))[np.newaxis,:,:] # roll back the fringes \n
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
     data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0

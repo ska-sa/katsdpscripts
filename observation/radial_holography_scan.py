@@ -30,8 +30,6 @@ parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Radial holography scan', nd_params='off')
 # Parse the command line
@@ -49,26 +47,8 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
-        if not opts.no_delays and not kat.dry_run :
-            if session.data.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.data.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            if session.data.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
-
-        if not kat.dry_run: session.ants.req.mode('STOP')#necessary hack for now
-        time.sleep(10)
-        
         # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
         scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray
@@ -84,7 +64,7 @@ with verify_and_connect(opts) as kat:
                 # The entire sequence of commands on the same target forms a single compound scan
                 session.label('holo')
                 user_logger.info("Initiating holography cycle %d of %d (%d %g-second scans extending %g degrees) on target '%s'"
-                                 % (cycle,opts.num_cycles,opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
+                                 % (cycle+1,opts.num_cycles,opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
                 user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
                 # Slew all antennas onto the target
                 session.track(target, duration=3.0+opts.tracktime, announce=False)#spend extra 3 seconds in beginning
@@ -119,4 +99,3 @@ with verify_and_connect(opts) as kat:
                 
                 targets_observed.append(target.name)
         user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
-        if not kat.dry_run: session.ants.req.mode('STOP')#necessary hack for now

@@ -306,6 +306,9 @@ def analyse_point_source_scans(filename, opts):
     if opts.ku_band:
         kwargs['centre_freq'] = 12.5005e9
 
+    if opts.freq_centre is not None:
+        kwargs['centre_freq'] = float(opts.freq_centre)*10e6
+
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
     if opts.keepfilename:
@@ -503,13 +506,13 @@ def analyse_point_source_scans(filename, opts):
 
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd', 
         mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, 
-        ku_band=False, channel_mask=None,keep_all=None,remove_spikes=False):
+        ku_band=False, channel_mask=None,keep_all=None,remove_spikes=False,freq_centre=None):
 
     class FakeOptsForBatch(object):
         batch = True #always batch
         plot_spectrum = False #never plot
         def __init__(self, outfilebase, keepfilename, baseline, 
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all,remove_spikes):
+                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all,remove_spikes,freq_centre):
             self.outfilebase=outfilebase
             self.keepfilename=keepfilename
             self.baseline=baseline
@@ -524,10 +527,12 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
             self.channel_mask=channel_mask
             self.keep_all=keep_all
             self.remove_spikes=remove_spikes
+            self.freq_centre = freq_centre
 
     fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
     mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
-    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all,remove_spikes=remove_spikes)
+    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all,
+    remove_spikes=remove_spikes,freq_centre=freq_centre)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
     
     return dataset_antenna, output_data

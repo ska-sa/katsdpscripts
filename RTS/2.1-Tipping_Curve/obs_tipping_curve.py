@@ -19,8 +19,6 @@ parser.add_option('--spacing', type="float", default=1.0,
                   help='The Spacing along the elevation axis of the tipping curve that measuremnts are taken, in degrees (default="%default")')
 parser.add_option( '--tip-both-directions', action="store_true" , default=False,
                   help='Do tipping curve from low to high elevation and then from high to low elevation')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays (default="%default")')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Tipping Curve')
@@ -30,12 +28,6 @@ opts, args = parser.parse_args()
 
 on_time = 15.0
 with verify_and_connect(opts) as kat:
-    # Start Antenna for observing
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(3)
-    else:
-        user_logger.error("Unable to set Antenna mode to 'STOP'.")
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
         user_logger.info("No Azimuth selected , selecting clear Azimith")
@@ -62,20 +54,6 @@ with verify_and_connect(opts) as kat:
     user_logger.info("Tipping Curve at Azimuth=%f"%(opts.az,))
 
     with start_session(kat, **vars(opts)) as session:
-        if not opts.no_delays and not kat.dry_run :
-            if session.dbe.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.dbe.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            #if session.dbe.req.zero_delay():
-            #    user_logger.info("Zeroed the delay values.")
-            #else:
-            #    user_logger.error('Unable to zero delay values.')
         session.standard_setup(**vars(opts))
         session.capture_start()
         # Iterate through elevation angles

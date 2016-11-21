@@ -6,6 +6,7 @@
 import time
 
 import numpy as np
+import katpoint
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
@@ -14,6 +15,7 @@ from katsdptelstate import TelescopeState
 
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
+
 
 class NoGainsAvailableError(Exception):
     """No gain solutions are available from the cal pipeline."""
@@ -38,25 +40,27 @@ def get_delaycal_solutions(telstate):
     if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_K']
     return dict(zip(inputs, solutions.real.flat))
+
 
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
+
 
 def get_gaincal_solutions(telstate):
     """Retrieve gain calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_G' not in telstate:
         return {}
     ants = telstate['cal_antlist']
-    inputs = [ant+pol for pol in 'hv' for ant in ants]
+    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_G']
     return dict(zip(inputs, solutions.flat))
 
@@ -71,10 +75,10 @@ parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
+parser.add_option('--fft-shift', type='int',
+                  help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
@@ -91,9 +95,21 @@ if opts.dry_run:
     import sys
     sys.exit(0)
 
+# set of targets with flux models
+J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
+J0408 = 'PKS 0408-65 | J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
+J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
+
+
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = collect_targets(kat, args)
+    if len(args) == 0:
+	observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        observation_sources.add(J1934)
+        observation_sources.add(J0408)
+        observation_sources.add(J1331)
+    else:
+        observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
@@ -114,40 +130,38 @@ with verify_and_connect(opts) as kat:
                                              dump_rate, beams, streams, timeout=200)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
-        if not opts.no_delays and not kat.dry_run:
-            if session.data.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.data.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-
         session.standard_setup(**vars(opts))
         inputs = get_cbf_inputs(session.data)
         # Assume correlator stream is bc product name without the 'b'
         product = kat.sub.sensor.product.get_value()
         corr_stream = product if product.startswith('c') else product[1:]
+        if opts.fft_shift is not None:
+            session.data.req.cbf_fft_shift(opts.fft_shift)
         session.data.req.capture_start(corr_stream)
 
-        for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
+        for target in [observation_sources.sort('el').targets[-1]]:
+            channels = 32768 if product.endswith('32k') else 4096
+            if channels == 4096:
+                target.add_tags('bfcal single_accumulation')
+                opts.default_gain = 200
+            elif channels == 32768:
+                target.add_tags('delaycal gaincal single_accumulation')
+                opts.default_gain = 4000
+            user_logger.info("Target to be observed: %s"%target.description)
             if target.flux_model is None:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
             user_logger.info("Resetting F-engine gains to %g to allow phasing up"
                              % (opts.default_gain,))
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
-            target.add_tags('bfcal')
-            session.label('track')
+            session.label('un_corrected')
             user_logger.info("Initiating %g-second track on target '%s'" %
                              (opts.track_duration, target.name,))
             session.track(target, duration=opts.track_duration, announce=False)
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            time.sleep(120)
+            time.sleep(180)
             telstate = get_telstate(session.data, kat.sub)
             delays = get_delaycal_solutions(telstate)
             bp_gains = get_bpcal_solutions(telstate)
@@ -155,6 +169,7 @@ with verify_and_connect(opts) as kat:
             if not gains:
                 raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
+            session.label('corrected')
             for inp in set(inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:

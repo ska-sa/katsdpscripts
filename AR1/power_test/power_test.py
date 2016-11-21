@@ -65,5 +65,3 @@ with verify_and_connect(opts) as kat:
 #power_test.py "0,15,L"   -t 120
 #power_test.py "140,25,L" "160,35,X" --num-repeat=5 -t 1
 #power_test.py "140,25,L" -t 1
-    
-    

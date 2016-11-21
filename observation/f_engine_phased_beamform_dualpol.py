@@ -295,8 +295,9 @@ with verify_and_connect(opts) as kat:
 
     # Start correlator capture session
     with start_session(kat, **vars(opts)) as corr_session:
+        # Force delay tracking to be on
+        opts.no_delays = False
         corr_session.standard_setup(**vars(opts))
-        corr_session.dbe.req.auto_delay('on')
         corr_session.capture_start()
 
         # Dictionary to hold observation metadata to send over to beamformer receiver
