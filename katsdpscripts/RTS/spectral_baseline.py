@@ -82,7 +82,7 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
     for dump in range(data.shape[0]):
         vis[dump] = np.sum(np.abs(data.vis[dump]), axis=-1)
         flags[dump] = np.sum(data.flags[dump], axis=-1, dtype=np.bool)
-        weights[dump] = 1. / np.sum(1. / data.weights[dump], axis=-1)
+        weights[dump] = np.sum(data.weights[dump], axis=-1)
     outputvis = np.ma.masked_array(vis, mask=flags)
     return outputvis, weights, data
 
