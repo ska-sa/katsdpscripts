@@ -196,7 +196,9 @@ with verify_and_connect(opts) as kat:
                         session.track(target, duration=opts.track_duration, announce=False)
                     else:
                         time.sleep(opts.track_duration)  # Snooze
+            session.ants.req.offset_fixed(0,0, opts.projection) # reset any dangling offsets 
 
+                        
             # Tsys and averaging
             user_logger.info("Performing Tsys and averaging tests")
             session.nd_params = nd_off
@@ -221,7 +223,6 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
                              (target.description, target.azel()[0], target.azel()[1]))
             # Do different raster scan on strong and weak targets
-            session.ants.req.offset_fixed(0,0, opts.projection) # reset any dangling offsets 
             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
                                 scan_spacing=0.25, scan_in_azimuth=True,
                                 projection=opts.projection)
