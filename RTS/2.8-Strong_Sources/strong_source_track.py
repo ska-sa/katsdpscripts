@@ -88,15 +88,15 @@ with verify_and_connect(opts) as kat:
                 
                 band = kat.sub.sensor.band.get_value()
                 if not band=='' :
-                    atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'h') 
-                    dig_hpol = ant.sensor[atten_name] # Deal with KeyError if no such sensor
-                    atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'v') 
-                    dig_vpol = ant.sensor[atten_name] 
+                    dig_pol = {}
+                    for pol in ['h','v'] :
+                        atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, pol) 
+                        dig_pol[pol] = ant.sensor[atten_name] # Deal with KeyError if no such sensor
                 else : 
                     raise ValueError("Please ensure all antennas are in L/U-band), "
                                      "Antenna %s is in %s"%(ant.name,band))                  
-                attenuation_old[ant.name+'v']= dig_vpol.get_value() 
-                attenuation_old[ant.name+'h']= dig_hpol.get_value()
+                attenuation_old[ant.name+'v']= dig_pol['v'].get_value() 
+                attenuation_old[ant.name+'h']= dig_pol['h'].get_value()
                 user_logger.info("%s v pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'v']))
                 user_logger.info("%s h pol band '%s' has attenuation = %f"%(ant.name,band,attenuation_old[ant.name+'h']))
             
@@ -106,11 +106,11 @@ with verify_and_connect(opts) as kat:
                     if attenuation== -1 :
                         attenuation = attenuation_old[ant.name+'v']                   
                     ant.req.dig_attenuation('v', attenuation, timeout=30)
-                    user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,dig_vpol.get_value() ))
+                    user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,dig_pol['v'].get_value() ))
                     if attenuation== -1 :
                         attenuation = attenuation_old[ant.name+'h']                   
                     ant.req.dig_attenuation('h', attenuation, timeout=30)
-                    user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,dig_hpol.get_value() ))
+                    user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,dig_pol['h'].get_value() ))
                     
                 # Iterate through source list, picking the first one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
@@ -137,16 +137,16 @@ with verify_and_connect(opts) as kat:
     for ant in kat.ants:
         band = kat.sub.sensor.band.get_value()
         if not band=='' :
-            atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'h') 
-            dig_hpol = ant.sensor[atten_name] # Deal with KeyError if no such sensor
-            atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, 'v') 
-            dig_vpol = ant.sensor[atten_name] 
+            dig_pol = {}
+            for pol in ['h','v'] :
+                atten_name = "dig_{}_band_rfcu_{}pol_attenuation".format(band, pol) 
+                dig_pol[pol] = ant.sensor[atten_name] # Deal with KeyError if no such sensor
         else : 
             raise ValueError("Please ensure all antennas are in L/U-band), "
                              "Antenna %s is in %s"%(ant.name,band))
         attenuation = attenuation_old[ant.name+'v']                   
         ant.req.dig_attenuation('v', attenuation, timeout=30)
-        user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,dig_vpol.get_value() ))
+        user_logger.info("%s v pol , attenuation set to = %f"%(ant.name,dig_pol['v'].get_value() ))
         attenuation = attenuation_old[ant.name+'h']                   
         ant.req.dig_attenuation('h', attenuation, timeout=30)
-        user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,dig_hpol.get_value() ))
+        user_logger.info("%s h pol , attenuation set to = %f"%(ant.name,dig_pol['h'].get_value() ))
