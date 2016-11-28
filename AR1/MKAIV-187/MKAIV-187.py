@@ -63,7 +63,7 @@ def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
 
 def rolling_window(a, window, axis=-1, pad=False, mode='reflect', **kargs):
     """
-        This function produces a rolling window shaped data with 
+        This function produces a rolling window shaped data with
         the rolled data in the last col
         a      :  n-D array of data
         window : integer is the window size
@@ -152,8 +152,8 @@ def cplot(data, *args, **kwargs):
 
 def mean(a, axis=None):
     """This function calclates the mean along the chosen axis of the array
-    This function has been writen to calculate the mean 
-    of complex numbers correctly by taking the mean of 
+    This function has been writen to calculate the mean
+    of complex numbers correctly by taking the mean of
     the argument & the angle (exp(1j*theta) )
     Input :
     a    : N-D numpy array
@@ -183,7 +183,7 @@ def yamartino_method(a, axis=None):
     the standard devation of the argument & the
     angle (exp(1j*theta) ). This uses the Yamartino method
     which is a one pass method of estimating the standard
-    devation of an angle. 
+    devation of an angle.
     Input :
     a    : N-D numpy array
     axis : The axis to perform the operation over
@@ -211,7 +211,7 @@ def std(a, axis=None):
     """This function calclates the standard devation along the
     chosen axis of the array. This function has been writen to
     calculate the mean of complex numbers correctly by taking
-    the standard devation of the argument & the 
+    the standard devation of the argument & the
     angle (exp(1j*theta) ).
     Input :
     a    : N-D numpy array
@@ -458,7 +458,7 @@ if len(args) ==0:
 
 output_dir = '.'
 
-h5 = katdal.open(args[0],ref_ant=opts.ref_ant) 
+h5 = katdal.open(args[0],ref_ant=opts.ref_ant)
 ref_ant_ind = [ant.name for ant in h5.ants].index(h5.ref_ant)
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
@@ -469,8 +469,8 @@ if not opts.freq_keep is None :
 else :
     edge = np.tile(False, n_chan)
 #load static flags if pickle file is given
-channel_mask ='/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
-rfi_flagging = ''
+channel_mask = opts.channel_mask
+rfi_flagging = opts.rfi_flagging
 if len(channel_mask)>0:
     pickle_file = open(channel_mask)
     rfi_static_flags = pickle.load(pickle_file)
@@ -495,7 +495,7 @@ for pol in ('h','v'):
         print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
-        cal_baselines = vis.mean(axis=1) 
+        cal_baselines = vis.mean(axis=1)
                          #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
         data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
