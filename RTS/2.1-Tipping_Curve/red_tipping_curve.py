@@ -473,8 +473,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.ylim(lim_min,lim_max)
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
-        recLim_apEffH = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
-        recLim_apEffV = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
+        recLim_apEffH = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['VV'](frequency)
         plt.hlines(recLim_apEffH,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='-')
         plt.hlines(recLim_apEffV,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='-')
         for error_margin in [0.9,1.1]:
@@ -492,19 +492,32 @@ def r_lim(dataf,func=np.min):
     return func(dataf[index,...])
 
 
-#plot_data(freqs/1e6, np.linspace(275,410,len(freqs)), newfig=False, label="275-410 m^2/K at Receivers CDR")
-def receptor_Lband_limit(frequency):
-    """275-410 m^2/K at Receivers CDR"""
-    return_array = np.zeros_like(frequency,dtype=np.float)
-    return_array[np.array(frequency < 1280)] = np.array(12 + 6+(5.5-6)/(1280-900)*(frequency-900))[np.array(frequency < 1280)]
-    return_array[np.array(~(frequency < 1280))] = np.array(12 + 5.5+(4-5.5)/(1670-1280)*(frequency-1280))[np.array(~(frequency < 1280))]
-    return return_array
+def receptor_band_limit(frequency,elevation):
+    
+    if (frequency.min() < 800) :
+        return receptor_UHFband_limit(frequency,elevation)
+    else :
+        return receptor_Lband_limit(frequency,elevation)
 
-def receptor_UHFband_limit(frequency):
-    return_array = np.zeros_like(frequency,dtype=np.float)
-    return_array[np.array(frequency < 900)] = np.array(8 + (12-8)/(1015-580)*(frequency-580) + 8+(7-8)/(900-580)*(frequency-580))[np.array(frequency < 900)]
-    return_array[np.array(~(frequency < 900))] = np.array (8 + (12-8)/(1015-580)*(frequency-580) + 7+(4-7)/(1015-900)*(frequency-900))[np.array(~(frequency < 900))]
-    return return_array
+def receptor_Lband_limit(frequency,elevation): # APH added elevation
+    """275-410 m^2/K at Receivers CDR"""
+    return_array = np.zeros_like(frequency,dtype=np.float) # APH changed division below to "/float()"
+    return_array[np.array(frequency < 1280)] = np.array(12 + 6+(5.5-6)/float(1280-900)*(frequency-900))[np.array(frequency < 1280)]
+    return_array[np.array(~(frequency < 1280))] = np.array(12 + 5.5+(4-5.5)/float(1670-1280)*(frequency-1280))[np.array(~(frequency < 1280))]
+    # APH added the code below to adjust for atmosphere vs. elevation
+    Tatm = lambda f_MHz, el: 275*(1-np.exp(-(0.005+0.075*(f_MHz/22230.)**4)/np.sin(el*np.pi/180))) # Approximate relation appropriate for spec limit
+    DT_elevation = Tatm(frequency,elevation)-Tatm(frequency,90)
+    return return_array+DT_elevation
+
+def receptor_UHFband_limit(frequency,elevation): # APH added elevation
+    return_array = np.zeros_like(frequency,dtype=np.float) # APH changed division below to "/float()"
+    return_array[np.array(frequency < 900)] = np.array(8 + (12-8)/float(1015-580)*(frequency-580) + 8+(7-8)/float(900-580)*(frequency-580))[np.array(frequency < 900)]
+    return_array[np.array(~(frequency < 900))] = np.array (8 + (12-8)/float(1015-580)*(frequency-580) + 7+(4-7)/float(1015-900)*(frequency-900))[np.array(~(frequency < 900))]
+    # APH added the code below to adjust for atmosphere vs. elevation
+    Tatm = lambda f_MHz, el: 275*(1-np.exp(-(0.005+0.075*(f_MHz/22230.)**4)/np.sin(el*np.pi/180))) # Approximate relation appropriate for spec limit
+    DT_elevation = Tatm(frequency,elevation)-Tatm(frequency,90)
+    return return_array+DT_elevation
+    
 
 def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     fig = plt.figure(figsize=(16,9))
@@ -518,8 +531,8 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Frequency (MHz)')
     if aperture_efficiency is not None:
-        recLim_apEffH = receptor_Lband_limit(frequency)/aperture_efficiency.eff['HH'](frequency)
-        recLim_apEffV = receptor_Lband_limit(frequency)/aperture_efficiency.eff['VV'](frequency)
+        recLim_apEffH = receptor_band_limit(frequency,Tsys[:,2])/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = receptor_band_limit(frequency,Tsys[:,2])/aperture_efficiency.eff['VV'](frequency)
         plt.plot(frequency,recLim_apEffH,lw=1.1,color='limegreen',linestyle='-')
         plt.plot(frequency,recLim_apEffV,lw=1.1,color='limegreen',linestyle='-')
         for error_margin in [0.9,1.1]:
