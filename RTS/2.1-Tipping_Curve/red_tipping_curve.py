@@ -277,7 +277,7 @@ class System_Temp:
             for val_el,ra,dec,el in zip(sort_ind,self.ra,self.dec,self.elevation):
                 self.T_sky.append( T_sky(ra,dec))
                 self.Tsys_sky[pol].append(tipping_mu[val_el]-T_sky(ra,dec))
-        TmpSky = scape.fitting.PiecewisePolynomial1DFit()
+        TmpSky = fit.PiecewisePolynomial1DFit()
         TmpSky.fit(self.elevation, self.T_sky)
         self.Tsky = TmpSky
 
@@ -438,7 +438,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     else:
         tau = 0.01078
     print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
-    tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
+    tip = fit.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
     def know_quant(x):
         rx = T_rx.rec[pol](freqs)
         sky = T_sys.Tsky(x)
