@@ -16,8 +16,6 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
 
 parser.add_option('--max-elevation', type='float', default=90.0,
                   help="Maximum elevation angle, in degrees (default=%default)")
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('--drift', action="store_true", default=False,
                   help='Do a drift scan observation')
 parser.add_option('--drift-duration', type='float', default=300,
@@ -45,13 +43,6 @@ opts, args = parser.parse_args()
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(5)
-    else:
-        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
-
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     try:
         observation_sources.add_tle(file(args[0]))
@@ -66,22 +57,6 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-
-            if not opts.no_delays and not kat.dry_run :
-                if session.data.req.auto_delay('on'):
-                    user_logger.info("Turning on delay tracking.")
-                else:
-                    user_logger.error('Unable to turn on delay tracking.')
-            elif opts.no_delays and not kat.dry_run:
-                if session.data.req.auto_delay('off'):
-                    user_logger.info("Turning off delay tracking.")
-                else:
-                    user_logger.error('Unable to turn off delay tracking.')
-                if session.data.req.zero_delay():
-                    user_logger.info("Zeroed the delay values.")
-                else:
-                    user_logger.error('Unable to zero delay values.')
-
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -133,9 +108,3 @@ with verify_and_connect(opts) as kat:
 
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)
-
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(5)
-    else:
-        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")

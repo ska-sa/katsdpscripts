@@ -21,15 +21,7 @@ parser.set_defaults(description='Point source check', observer='check')#, dump_r
 opts, args = parser.parse_args()
 
 with verify_and_connect(opts) as kat:
-
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-         user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
-
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-
     try:
         observation_sources.add_tle(file(args[0]))
     except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string

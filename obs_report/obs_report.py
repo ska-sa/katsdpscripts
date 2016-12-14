@@ -211,7 +211,7 @@ def plot_spectrum(pol, ant):
 
         #still to take a closer look at the calculation of the flags
         ab.append(ab[-1].twinx())
-        flag=f.flags()[:]
+        flag=f.flags[:]
         # total_sum=0
         perc=[]
         for i in range(len(f.channels)):
@@ -335,18 +335,12 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
     savefig(pp,format='pdf')
 
 def plot_bpcal_selection(f):
-    corrmode=f.spectral_windows[0].product
-    if corrmode=='bc16n400M1k':
-        #Do all targets if beamformer mode
-        bp=f.target_indices
-        type_tag='Target '
-    else:
-        #else only select bandpass calibrators
-        bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
-        bp = np.arange(len(bp))[bp][0]
-        type_tag='BP Cal '
+#   Removed lines for plotting target (if beamformer mode)
+    bp = np.array([t.tags.count('bpcal') for t in f.catalogue.targets]) == 1
+    bp = np.arange(len(bp))[bp][0]
+    type_tag='BPCal '
     fig = plt.figure(figsize=(21,15))
-    plt.suptitle(type_tag+"Fringes",fontsize=16, fontweight="bold")
+    plt.suptitle("%s Fringes"%(type_tag,),fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
             f.select(targets=bp, corrprods='cross', pol=pol, scans='track')
@@ -354,7 +348,7 @@ def plot_bpcal_selection(f):
                 raise ObsReporterError('The selection criteria resulted in an empty data set.')
             crosscorr = [(f.inputs.index(inpA), f.inputs.index(inpB)) for inpA, inpB in f.corr_products]
             #extract the fringes
-            fringes = np.angle(f.vis[:,:,:])
+            fringes = np.angle(f.vis[:])
             #For plotting the fringes
             fig.subplots_adjust(wspace=0., hspace=0.)
             #debug_here()
@@ -399,9 +393,9 @@ def plot_target_selection(f):
     max_integration=0
     for target in check_targets.targets:
         f.select(targets=target)
-        if f.vis.shape[0]>max_integration:
+        if f.shape[0]>max_integration:
             select_target=target
-            max_integration=f.vis.shape[0]
+            max_integration=f.shape[0]
     plt.suptitle("Correlation Spectra on "+select_target.name,fontsize=16, fontweight="bold")
     try:
         for pol in ('h','v'):
@@ -415,9 +409,9 @@ def plot_target_selection(f):
                 subplot_index = (len(f.ants) * indexA + indexB + 1) if pol == 'h' else (indexA + len(f.ants) * indexB + 1)
                 ax = fig.add_subplot(len(f.ants), len(f.ants), subplot_index)
                 #loop through scans and average individually to remove changes in power over time
-                sum_power=np.zeros(f.vis.shape[1]) #initialise sum
+                sum_power=np.zeros(f.shape[1]) #initialise sum
                 for tmp in f.scans():
-                    power = np.abs(f.vis[:,:,n])[:,:,0]
+                    power = np.abs(f.vis[:,:,n])
                     #get average power for this scan (omit first channel)
                     dc_offset=np.mean(power[:,1:])
                     sum_power+=np.sum(power[:,:]/dc_offset,axis=0)

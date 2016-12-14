@@ -73,11 +73,13 @@ def select_ant(cbf, input, bf='bf0'):
 def get_weights(cbf):
     """Retrieve the latest gain corrections and their corresponding update times."""
     weights, times = {}, {}
-    for sensor_name in vars(cbf.sensor):
+    for sensor_name in cbf.sensor:
         if sensor_name.endswith('_gain_correction_per_channel'):
-            sensor = getattr(cbf.sensor, sensor_name)
-            weights[sensor_name.split('_')[1]] = sensor.get_value()
-            times[sensor_name.split('_')[1]] = sensor.value_seconds
+            sensor = cbf.sensor[sensor_name]
+            input_name = sensor_name.split('_')[1]
+            reading = sensor.get_reading()
+            weights[input_name] = reading.value
+            times[input_name] = reading.timestamp
     return weights, times
 
 
@@ -320,8 +322,9 @@ with verify_and_connect(opts) as kat:
 
     # Start correlator capture session
     with start_session(kat, **vars(opts)) as corr_session:
+        # Force delay tracking to be on
+        opts.no_delays = False
         corr_session.standard_setup(**vars(opts))
-        corr_session.dbe.req.auto_delay('on')
         corr_session.capture_start()
 
         # Refresh beamformer weights if cal target and at least 4 antennas provided

@@ -68,28 +68,22 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
 
     data.select(strict=False, **select_data)
 
-    #Check there is some data left over
+    # Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('Selection has resulted in no data to process.')
-
-    #Get the selected visibilities and flags (average to stokes I if required and extend flags across corr products)
-    vis = np.sum(np.abs(data.vis[:]),axis=-1)
-    if flags_file is None:
-        flags = np.sum(data.flags()[:],axis=-1)
-    else:
-        #Open the flags file
+    # Insert flags if coming from file
+    if flags_file is not None:
         ff = h5py.File(flags_file, 'r')
-        #Select file flages based on h5 file selection
-        file_flags=ff['flags'].value
-        file_flags = file_flags[data._time_keep]
-        file_flags = file_flags[:,data._freq_keep]
-        file_flags = file_flags[:,:,data._corrprod_keep]
-        #Extend flags
-        flags = np.sum(file_flags,axis=-1)
-    weights = np.sum(data.weights()[:], axis=-1)
+        data._flags = ff['flags']
+    # Get the selected visibilities and flags (average to stokes I if required and extend flags across corr products)
+    vis = np.empty(data.shape[:-1], dtype=np.float32)
+    flags = np.empty(data.shape[:-1], dtype=np.bool)
+    weights = np.empty(data.shape[:-1], dtype=np.float32)
+    for dump in range(data.shape[0]):
+        vis[dump] = np.sum(np.abs(data.vis[dump]), axis=-1)
+        flags[dump] = np.sum(data.flags[dump], axis=-1, dtype=np.bool)
+        weights[dump] = np.sum(data.weights[dump], axis=-1)
     outputvis = np.ma.masked_array(vis, mask=flags)
-
-    #return the selected data
     return outputvis, weights, data
 
 
@@ -341,7 +335,10 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
     if baseline == None:
         baseline = h5data.ants[0].name+','+h5data.ants[0].name
     #Set up plotting.
-    fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
+    if type(input_file) == type(list()) :
+        fileprefix = os.path.join(output_dir,os.path.splitext(input_file[0].split('/')[-1])[0])
+    else:
+        fileprefix = os.path.join(output_dir,os.path.splitext(input_file.split('/')[-1])[0])
     basename = fileprefix+'_SpecBase_'+baseline.replace(',','')
     pdf = PdfPages(basename+'.pdf')
     for this_pol in polarisation.split(','):

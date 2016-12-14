@@ -35,8 +35,6 @@ if __name__ == '__main__':
                       help='Integer minimum requantisation gain setting (default=%default)')
     parser.add_option('--max-gain', type='int', default=300,
                       help='Integer maximum requantisation gain setting (default=%default)')
-    # parser.add_option('--no-delays', action="store_true", default=False,
-    #                   help='Do not use delay tracking, and zero delays')
 
     # Set default value for any option (both standard and experiment-specific options)
     parser.set_defaults(description='Requantisation Gain Evaluation', nd_params='coupler,0,0,-1',dump_rate=0.1)
@@ -48,33 +46,10 @@ if __name__ == '__main__':
         raise ValueError("Please specify the target(s) and calibrator(s) to observe as arguments, either as "
                          "description strings or catalogue filenames")
     with verify_and_connect(opts) as kat:
-        if not kat.dry_run and kat.ants.req.mode('STOP') :
-            user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-            time.sleep(3)
-        else:
-            user_logger.error("Unable to set Antenna mode to 'STOP'.")
-
         sources = collect_targets(kat, args)
         user_logger.info("Imaging targets are [%s]" %
                          (', '.join([("'%s'" % (target.name,)) for target in sources]),))
-        kat.ants.req.mode('STOP')
-        time.sleep(3)
         with start_session(kat, **vars(opts)) as session:
-            # if not opts.no_delays and not kat.dry_run :
-            #     if session.dbe.req.auto_delay('on'):
-            #         user_logger.info("Turning on delay tracking.")
-            #     else:
-            #         user_logger.error('Unable to turn on delay tracking.')
-            # elif opts.no_delays and not kat.dry_run:
-            #     if session.dbe.req.auto_delay('off'):
-            #         user_logger.info("Turning off delay tracking.")
-            #     else:
-            #         user_logger.error('Unable to turn off delay tracking.')
-            #     if session.dbe.req.zero_delay():
-            #         user_logger.info("Zeroed the delay values.")
-            #     else:
-            #         user_logger.error('Unable to zero delay values.')
-
             # Start capture session, which creates HDF5 file
             session.standard_setup(**vars(opts))
             session.capture_start()

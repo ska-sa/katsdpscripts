@@ -12,35 +12,22 @@ import pickle
 import h5py
 import katpoint
 
-def read_and_select_file(data, flags_file=None, value=np.inf):
+
+def read_and_select_file(data, value=np.inf, step=slice(None, None, None)):
     """
     Read in the input h5 file and make a selection based on kwargs.
     data : katdal object
-    flags_file:  {string} filename of h5 flagfile to open 
 
     Returns:
         A array with the visibility data and bad data changed to {value}.
     """
-
-     #Check there is some data left over
+    # Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('No data to process.')
+    flags = data.flags[step]
+    return np.ma.masked_array(data.vis[step], mask=flags, fill_value=value)
 
-    if flags_file is None or flags_file == '':
-        print('No flag data to process. Using the file flags')
-        file_flags = data.flags()[:]
-    else:
-        #Open the flags file
-        ff = h5py.File(flags_file)
-        #Select file flages based on h5 file selection
-        file_flags=ff['flags'].value
-        file_flags = file_flags[data.dumps]
-        file_flags = file_flags[:,data._freq_keep]
-        file_flags = file_flags[:,:,data._corrprod_keep]
-        #Extend flags
-        #flags = np.sum(file_flags,axis=-1)
-    return np.ma.masked_array(data.vis[:,:,:], mask=file_flags,fill_value=value)
-    
+
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
     """
     Modified polyfit:Any nan values in x are 'masked' and std is returned .
@@ -318,7 +305,7 @@ def  fringe_stopping(data): #This will have to be updated for MKAT
     vis_set = None
     for compscan_no,compscan_label,target in data.compscans():
         #print "loop",compscan_no,compscan_label,target
-        vis = data.vis[:,:,:]
+        vis = data.vis[:]
         # Number of turns of phase that signal B is behind signal A due to geometric delay
         geom_delay_turns = - data.w[:, np.newaxis, :] / wavelengths[:, np.newaxis]
         # Visibility <A, B*> has phase (A - B), therefore add (B - A) phase to stop fringes (i.e. do delay tracking)
@@ -351,7 +338,7 @@ def fringe_correction(h5):
     for compscan_no,compscan_label,target in h5.compscans():
         #print compscan_no,target.description
         #print "loop",compscan_no,compscan_label,target,h5.shape
-        vis = h5.vis[:,:,:]
+        vis = h5.vis[:]
         # Number of turns of phase that signal B is behind signal A due to geometric delay
         target.antenna = antlook['m024']
         new_w =np.array(target.uvw(antenna2=katpoint.Antenna(','.join(anttmp) ),timestamp=h5.timestamps))[2,:]
@@ -535,6 +522,13 @@ start_freq_channel = int(opts.freq_keep.split(',')[0])
 end_freq_channel = int(opts.freq_keep.split(',')[1])
 
 h5 = katdal.open(args[0])
+if opts.rfi_flagging == '':
+    print('No flag data to process. Using the file flags')
+else:
+    ff = h5py.File(opts.rfi_flagging)
+    h5._flags=  ff['flags'].value
+    ff.close()
+
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
     start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -560,12 +554,12 @@ pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track',dumps=slice(1,600)) 
     # loop over both polarisations
-    if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
+    #if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
         #print "Need to do fringe stopping "
-        vis = fringe_stopping(h5)
-    else:
+    #    vis = fringe_stopping(h5)
+    #else:
         #print "Fringe stopping done in the correlator"
-        vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
+    #    vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
 
     #flaglist[0:start_freq_channel] = False
     #flaglist[end_freq_channel:] = False
@@ -584,20 +578,16 @@ for pol in ('h','v'):
     # but use angle mean on solutions/phase change.
    # gains = stefcal.stefcal( np.concatenate( (np.mean(vis,axis=0), np.mean(vis.conj(),axis=0)), axis=-1) , N_ants, full_antA, full_antB, num_iters=50,weights=weights)
     #calfac = 1./(gains[np.newaxis][:,:,full_antA]*gains[np.newaxis][:,:,full_antB].conj())
-    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:,:,:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
+    fit_gains = np.ma.exp(-1j*np.angle(h5.vis[:].mean(axis=0) ) )[np.newaxis,:,:] # roll back the fringes \n
     h5.select(channels=~static_flags,pol=pol,corrprods='cross',scans='track')
     data = np.ma.zeros((h5.shape[0:3:2]),dtype=np.complex)
     i = 0
-    for scan in h5.scans():
-        #print scan
-        if np.all(h5.sensor['CorrelatorBeamformer/auto_delay_enabled'] == '0') :
-            #print "Stopping fringes for size ",h5.shape
-            vis = fringe_stopping(h5)
-        else:
-            vis = read_and_select_file(h5, flags_file=opts.rfi_flagging)
+    size = h5.shape[0]
+    while (i < size ):
+        vis = read_and_select_file(h5,step=slice(i,i+600))
             #vis = fringe_correction(h5)
-        data[i:i+h5.shape[0]] = mean((vis*fit_gains),axis=1)
-        i += h5.shape[0]
+        data[i:i+vis.shape[0]] = mean((vis*fit_gains),axis=1)
+        i += vis.shape[0]
     figlist = []
     figlist += plot_BaselineGain(fit_gains,h5.channel_freqs,h5.corr_products)
     for tmpfig in figlist : 
@@ -627,5 +617,3 @@ for pol in ('h','v'):
 
 pp.close()
 plt.close('all')
-
-

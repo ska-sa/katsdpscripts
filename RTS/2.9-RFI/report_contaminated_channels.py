@@ -71,8 +71,8 @@ def plot_flag_data(label,spectrum,flagfrac,freqs,pdf,mask=None):
     pdf.savefig(fig)
 
 #command-line parameters
-parser = optparse.OptionParser(usage="Please specify the input file\n\
-    USAGE: python report_contaminated_channels.py <inputfile.h5> ",
+parser = optparse.OptionParser(usage="Please specify the input file\n \
+    USAGE: python report_contaminated_channels.py <inputfile.h5> ", \
     description="Report the frequencies of channels that have consistently been flagged.")
 parser.add_option("--antenna", "-a", default=None, help="Antenna to process. Default is first ant in file")
 parser.add_option("--threshold", "-t", default=0.8, help="Threshold above which to report contamination percentage. Default=0.8")
@@ -88,7 +88,7 @@ try:
     ant=opts.antenna if opts.antenna else katdalfile.ants[0].name
     katdalfile.select(ants=ant,scans='~slew')
     #Get the flag stats
-    report_dict=rfilib.get_flag_stats(katdalfile)
+    report_dict=rfilib.get_flag_stats(katdalfile)['all_data']
 except BrokenFile:
     #Open the rfi_report
     report_data=h5py.File(input_file)['all_data']
@@ -119,7 +119,7 @@ else: known_rfi=[]
 known_lookup=sorted([(freq,i) for i,freq in enumerate(known_rfi_start_freqs)])
 
 #Open a pdf
-pdf = PdfPages(os.path.splitext(os.path.basename(input_file))[0]+'_chanflags.pdf')
+pdf = PdfPages(os.path.splitext(os.path.basename(input_file))[0]+'_'+ant+'_chanflags.pdf')
 fig = plt.figure(None,figsize = (10,16))
 page_length = 90.0
 
@@ -142,6 +142,7 @@ for i,pol in  enumerate(["HH","VV"]):
     this_known=known_iterator.next()
     end_known=report_dict['channel_freqs'][0]
     text.append(("Flagged channels and frequencies %s, %s polarisation:"%(ant, pol),'black','bold'))
+    inside_known=False
     for j,freq in enumerate(report_dict['channel_freqs']):
         if j not in chan_range: continue
         if end_known<freq:

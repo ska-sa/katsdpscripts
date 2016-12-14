@@ -36,11 +36,6 @@ def read_and_select_file(file, bline=None, channels=None, rfi_mask=None, nd_mode
     """
 
     data = scape.DataSet(file, baseline=bline, nd_models=nd_models, katfile=True)
-    compscan_labels=[]
-    # Get compscan names (workaround for broken labelling after selection in scape)
-    for compscan in data.compscans:
-        compscan_labels.append(compscan.label)
-    compscan_labels=np.array(compscan_labels)
     # Secect desired channel range and tracks
     # Select frequency channels and setup defaults if not specified
     num_channels = len(data.channel_select)
@@ -60,10 +55,9 @@ def read_and_select_file(file, bline=None, channels=None, rfi_mask=None, nd_mode
             raise ValueError('Number of channels in provided mask does not match number of channels in data')
         chan_select[:start_chan] = False
         chan_select[end_chan:] = False
-    data = data.select(freqkeep=chan_select,labelkeep='track')
 
     #return the selected data
-    return data,compscan_labels
+    return data.select(freqkeep=chan_select,labelkeep='track')
 
 
 def get_system_temp(temperature):
@@ -167,13 +161,14 @@ def plot_temps_time(pdf,alltimes,alltempshh,alltempsvv,antenna):
 def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',freq_chans=None,rfi_mask=None, nd_models=None):
 
     # Get data from h5 file and use 'select' to obtain a useable subset of it.
-    data,compscan_labels = read_and_select_file(input_file, bline=antenna, channels=freq_chans, rfi_mask=rfi_mask, nd_models=nd_models)
+    data = read_and_select_file(input_file, bline=antenna, channels=freq_chans, rfi_mask=rfi_mask, nd_models=nd_models)
     pdf = PdfPages(os.path.join(output_dir,os.path.splitext(os.path.basename(input_file))[0] +'_SystemTemp_'+data.antenna.name+'.pdf'))
     #Convert the data to kelvin using the noise diode firings
     data.convert_power_to_temperature()
     #average each required scan in time sensibly and plot the data for the before and after scans
     average_specs=[]
     plottitles=[]
+    compscan_labels=np.array([compscan.label for compscan in data.compscans])
     ba_compscans = np.concatenate((np.where(compscan_labels == 'track_before')[0], np.where(compscan_labels == 'track_after')[0],))
     for num in ba_compscans:
         compscan = data.compscans[num]

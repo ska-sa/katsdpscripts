@@ -169,9 +169,9 @@ for ant in data.ants:
             dbe_timestamps = data.timestamps[:] - 0.5 * data.dump_period
             if len(dbe_timestamps) < 3:
                 continue
-            power = data.vis[:, :, hh_index][:, :, 0].real.mean(axis=1) if hh_index is not None \
+            power = data.vis[:, :, hh_index].real.mean(axis=1) if hh_index is not None \
                     else np.zeros(data.shape[0], dtype=np.float32)
-            power += data.vis[:, :, vv_index][:, :, 0].real.mean(axis=1) if vv_index is not None \
+            power += data.vis[:, :, vv_index].real.mean(axis=1) if vv_index is not None \
                      else np.zeros(data.shape[0], dtype=np.float32)
             # Since I = HH + VV and not the average of HH and VV, the dof actually halves instead of doubling
             power_dof = dof / 2 if (hh_index is not None and vv_index is not None) else dof

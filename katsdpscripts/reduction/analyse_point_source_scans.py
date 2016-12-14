@@ -224,7 +224,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
             plt.close('all')
         #return the recarray
         to_keep=[]
-        for field in output_field_names:
+        for field in output_field_names: 
             to_keep.append([data[field] for data in reduced_data if data and data['keep']])
         output_data = np.rec.fromarrays(to_keep, dtype=zip(output_field_names,[np.array(tk).dtype for tk in to_keep]))
         return (dataset.antenna, output_data,)
@@ -306,6 +306,9 @@ def analyse_point_source_scans(filename, opts):
     #Force centre freqency if ku-band option is set
     if opts.ku_band:
         kwargs['centre_freq'] = 12.5005e9
+
+    if opts.freq_centre is not None:
+        kwargs['centre_freq'] = float(opts.freq_centre)*10e6
 
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
@@ -502,15 +505,15 @@ def analyse_point_source_scans(filename, opts):
         plt.show()
 
 
-def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd',
-        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None,
-        ku_band=False, channel_mask=None,keep_all=None,remove_spikes=False):
+def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd', 
+        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None, 
+        ku_band=False, channel_mask=None,keep_all=None,remove_spikes=False,freq_centre=None):
 
     class FakeOptsForBatch(object):
         batch = True #always batch
         plot_spectrum = False #never plot
-        def __init__(self, outfilebase, keepfilename, baseline,
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all,remove_spikes):
+        def __init__(self, outfilebase, keepfilename, baseline, 
+                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all,remove_spikes,freq_centre):
             self.outfilebase=outfilebase
             self.keepfilename=keepfilename
             self.baseline=baseline
@@ -525,12 +528,14 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
             self.channel_mask=channel_mask
             self.keep_all=keep_all
             self.remove_spikes=remove_spikes
+            self.freq_centre = freq_centre
 
-    fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline,
+    fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline, 
     mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
-    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all,remove_spikes=remove_spikes)
+    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all,
+    remove_spikes=remove_spikes,freq_centre=freq_centre)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
-
+    
     return dataset_antenna, output_data
 
 

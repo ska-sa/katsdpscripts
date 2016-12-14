@@ -7,7 +7,6 @@ from __future__ import with_statement
 import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
-import numpy
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
@@ -17,20 +16,18 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              "respectively), while the imaging targets may optionally have a tag " +
                                              "of 'target'.")
 # Add experiment-specific options
-#parser.add_option('--project-id',
-#                  help='Project ID code the observation (**required**) This is a required option')
 parser.add_option('-t', '--target-duration', type='float', default=300,
                   help='Minimum duration to track the imaging target per visit, in seconds (default="%default")')
 parser.add_option('-b', '--bpcal-duration', type='float', default=300,
                   help='Minimum duration to track bandpass calibrator per visit, in seconds (default="%default")')
 parser.add_option('-i', '--bpcal-interval', type='float',
-                  help='Minimum interval between bandpass calibrator visits, in seconds (visits each source in turn by default)')
+                  help='Minimum interval between bandpass calibrator visits, in seconds '
+                       '(visits each source in turn by default)')
 parser.add_option('-g', '--gaincal-duration', type='float', default=60,
                   help='Minimum duration to track gain calibrator per visit, in seconds (default="%default")')
 parser.add_option('-m', '--max-duration', type='float',
-                  help='Maximum duration of script, in seconds (the default is to keep observing until all sources have set)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
+                  help='Maximum duration of script, in seconds (the default is to keep '
+                       'observing until all sources have set)')
 
 # Set default value for any option (both standard and experiment-specific options)
 # parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1',dump_rate=0.1)
@@ -46,38 +43,15 @@ if len(args) == 0:
 
 with verify_and_connect(opts) as kat:
     sources = collect_targets(kat, args)
-
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
-
-
     user_logger.info("Imaging targets are [%s]" %
                      (', '.join([("'%s'" % (target.name,)) for target in sources.filter(['~bpcal', '~gaincal'])]),))
     user_logger.info("Bandpass calibrators are [%s]" %
                      (', '.join([("'%s'" % (bpcal.name,)) for bpcal in sources.filter('bpcal')]),))
     user_logger.info("Gain calibrators are [%s]" %
                      (', '.join([("'%s'" % (gaincal.name,)) for gaincal in sources.filter('gaincal')]),))
-    duration = {'target' : opts.target_duration, 'bpcal' : opts.bpcal_duration, 'gaincal' : opts.gaincal_duration}
+    duration = {'target': opts.target_duration, 'bpcal': opts.bpcal_duration, 'gaincal': opts.gaincal_duration}
 
     with start_session(kat, **vars(opts)) as session:
-        if not opts.no_delays and not kat.dry_run :
-            if session.data.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.data.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            if session.data.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
-
         session.standard_setup(**vars(opts))
         session.capture_start()
 
@@ -97,7 +71,7 @@ with verify_and_connect(opts) as kat:
                         session.track(bpcal, duration=duration['bpcal'])
                 # Visit source if it is not a bandpass calibrator (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
-                targets=[target for target in sources.filter(['~bpcal', '~gaincal'])]
+                targets = [target for target in sources.filter(['~bpcal', '~gaincal'])]
                 if opts.bpcal_interval is None or 'bpcal' not in source.tags or not targets:
                     # Set the default track duration for a target with no recognised tags
                     track_duration = opts.target_duration
@@ -111,11 +85,3 @@ with verify_and_connect(opts) as kat:
             if loop and not any(source_observed):
                 user_logger.warning('All imaging targets and gain cals are currently below horizon, stopping script')
                 loop = False
-
-# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
-    if not kat.dry_run and kat.ants.req.mode('STOP') :
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(10)
-    else:
-        user_logger.error("Dry Run: Unable to set Antenna mode to 'STOP'.")
-# RvR -- Temporary measure to put antennas in stop mode until we can go back to safe stow positions
