@@ -15,6 +15,7 @@ from katuilib.observe import ant_array
 
 import katpoint
 import scape
+import scikits.fitting as fit
 
 class InputError(Exception):
     """Error in option or argument specified on the command line."""
@@ -101,7 +102,7 @@ scan_extent = 6.0
 scan_spacing = 0.5
 scan_in_azimuth = True
 drive_strategy = 'shortest-slew'
-                
+
 # Set the drive strategy for how antenna moves between targets
 ants.req.drive_strategy(drive_strategy)
 # Set the antenna target
@@ -174,7 +175,7 @@ antenna = katpoint.Antenna(first_ant.sensor.observer.get_value())
 # Expected beamwidth in radians (beamwidth factor x lambda / D)
 expected_width = antenna.beamwidth * katpoint.lightspeed / (opts.centre_freq * 1e6) / antenna.diameter
 # Linearly interpolate pointing coordinates to correlator data timestamps
-interp = scape.fitting.PiecewisePolynomial1DFit(max_degree=1)
+interp = fit.PiecewisePolynomial1DFit(max_degree=1)
 interp.fit(az[0], az[1])
 az = katpoint.deg2rad(interp(timestamps))
 interp.fit(el[0], el[1])
@@ -184,7 +185,7 @@ target_coords = np.vstack(target.sphere_to_plane(az, el, timestamps, antenna))
 
 # Do quick beam + baseline fitting, where both are fitted in 2-D target coord space
 # This makes no assumptions about the structure of the scans - they are just viewed as a collection of samples
-baseline = scape.fitting.Polynomial2DFit((1, 3))
+baseline = fit.Polynomial2DFit((1, 3))
 prev_err_power = np.inf
 # Initially, all data is considered to be in the "outer" region and therefore forms part of the baseline
 outer = np.tile(True, len(power))

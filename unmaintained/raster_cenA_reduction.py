@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 import scape
 import katpoint
+import scikits.fitting as fit
 
 # Load temporary noise diode models
 a1h = np.loadtxt('noise_diode_models/T_nd_A1H_coupler.txt', delimiter=',')
@@ -50,7 +51,7 @@ for n, scan in enumerate(d.scans):
         mean = scan_power.min()
         upper = scape.stats.chi2_conf_interval(dof, mean)[1]
         # Move baseline down as low as possible, taking confidence interval into account
-        baseline = scape.fitting.Polynomial1DFit(max_degree=1)
+        baseline = fit.Polynomial1DFit(max_degree=1)
         fit_region = np.arange(len(scan_power))
         for iteration in range(7):
             baseline.fit(scan.timestamps[fit_region], scan_power[fit_region])
@@ -80,7 +81,7 @@ power = np.abs(power)
 
 # Grid the raster scan to projected plane
 min_num_pixels = 201
-interp = scape.fitting.Delaunay2DScatterFit(default_val=0.0, jitter=True)
+interp = fit.Delaunay2DScatterFit(default_val=0.0, jitter=True)
 interp.fit([ra, dec], power)
 ra_range, dec_range = ra.max() - ra.min(), dec.max() - dec.min()
 # Use a square pixel size in projected plane

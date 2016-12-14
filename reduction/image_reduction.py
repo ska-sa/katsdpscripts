@@ -1046,12 +1046,12 @@ if pyfits:
 #     vis, model_vis, uvd = vis_samples[n:n + solint_size], model_vis_samples[n:n + solint_size], uvdist[n:n + solint_size]
 #     good_uv = (uvd >= uv_dist_range[0]) & (uvd <= uv_dist_range[1])
 #     if selfcal_type == 'P':
-#         fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_phases(p, x, model_vis[good_uv]), initial_phases)
+#         fitter = NonLinearLeastSquaresFit(lambda p, x: apply_phases(p, x, model_vis[good_uv]), initial_phases)
 #         fitter.fit(np.tile(input_pairs, bins_per_solint)[:, good_uv], np.vstack((vis.real, vis.imag))[:, good_uv])
 #         phase_params[phase_params_to_fit] = fitter.params
 #         gainsol = np.exp(1j * phase_params).astype(np.complex64)
 #     else:
-#         fitter = scape.fitting.NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis[good_uv]), initial_gains)
+#         fitter = NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis[good_uv]), initial_gains)
 #         fitter.fit(np.tile(input_pairs, bins_per_solint)[:, good_uv], np.vstack((vis.real, vis.imag))[:, good_uv])
 #         full_params[params_to_fit] = fitter.params * np.sign(fitter.params[2 * ref_input_index])
 #         gainsol = full_params.view(np.complex128).astype(np.complex64)
