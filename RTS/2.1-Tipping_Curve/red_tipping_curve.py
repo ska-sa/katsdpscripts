@@ -277,7 +277,7 @@ class System_Temp:
             for val_el,ra,dec,el in zip(sort_ind,self.ra,self.dec,self.elevation):
                 self.T_sky.append( T_sky(ra,dec))
                 self.Tsys_sky[pol].append(tipping_mu[val_el]-T_sky(ra,dec))
-        TmpSky = scape.fitting.PiecewisePolynomial1DFit()
+        TmpSky = fit.PiecewisePolynomial1DFit()
         TmpSky.fit(self.elevation, self.T_sky)
         self.Tsky = TmpSky
 
@@ -307,7 +307,7 @@ def remove_rfi(d,width=3,sigma=5,axis=1):
 def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,channel_mask='',n_chan = 4096,channel_range=None,band_input=None):
     """ Load the dataset into memory """
     print('Loading noise diode models')
-    
+
     try:
         d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models,band=band_input)
     except IOError:
@@ -315,8 +315,8 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
         warnings.warn('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         print('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd ,band=band_input)
-        
-        
+
+
     if not channel_range is None :
         start_freq_channel = int(channel_range.split(',')[0])
         end_freq_channel = int(channel_range.split(',')[1])
@@ -438,7 +438,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
     else:
         tau = 0.01078
     print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
-    tip = scape.fitting.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
+    tip = fit.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
     def know_quant(x):
         rx = T_rx.rec[pol](freqs)
         sky = T_sys.Tsky(x)
@@ -480,7 +480,7 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         for error_margin in [0.9,1.1]:
             plt.hlines(recLim_apEffH*error_margin,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='--')
             plt.hlines(recLim_apEffV*error_margin,elevation.min(), elevation.max(), lw=1.1,colors='g',linestyle='--')
-        
+
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
@@ -524,7 +524,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
         plt.plot(frequency,recLim_apEffV,lw=1.1,color='limegreen',linestyle='-')
         for error_margin in [0.9,1.1]:
             plt.plot(frequency,recLim_apEffH*error_margin, lw=1.1,color='g',linestyle='--')
-            plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')   
+            plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')
 
     low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
     low_lim = np.min(low_lim)
@@ -536,7 +536,7 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     high_lim = np.max((high_lim , 46*1.3))
     plt.ylim(low_lim,high_lim)
     plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')    
+    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
     if np.min(frequency) <= 1420 :
         plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
     if np.max(frequency) >=1420 :
@@ -569,7 +569,7 @@ parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aper
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
-parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle', 
+parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                   help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 
 (opts, args) = parser.parse_args()
@@ -610,9 +610,9 @@ for ant in h5.ants:
         Band,SN = h5.receivers.get(ant.name,'l.4').split('.') # A safe Default
     else:
         Band = 'L'
-        SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model 
-        
-        
+        SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model
+
+
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
@@ -625,8 +625,8 @@ for ant in h5.ants:
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
-    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())    
-    
+    d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())
+
     for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
 
     tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
@@ -659,7 +659,7 @@ for ant in h5.ants:
             #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
             #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
             length = len(T_SysTemp.elevation)
-            Tsky_spec = 2.725 + 1.6*(d.freqs[i]/1e3)**-2.75 # T_SysTemp.Tsys_sky  is Tsys-(Tsky-cmb) . We then add the spec sky aproxx (T_gal+Tcmb) 
+            Tsky_spec = 2.725 + 1.6*(d.freqs[i]/1e3)**-2.75 # T_SysTemp.Tsys_sky  is Tsys-(Tsky-cmb) . We then add the spec sky aproxx (T_gal+Tcmb)
             tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+Tsky_spec)/aperture_efficiency.eff['HH'](d.freqs[i])
             tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+Tsky_spec)/aperture_efficiency.eff['VV'](d.freqs[i])
             tsys[0:length,i,2] = T_SysTemp.elevation
@@ -695,26 +695,26 @@ for ant in h5.ants:
                 #break
 
     fig = plt.figure(None,figsize = (8,8))
-    text =r"""The 'tipping curve' is calculated according to the expression below, with the parameters 
-of $T_{\mathrm{ant}}$ and $\tau_{0}$, the Antenna temperature and the atmospheric opacity respectively. All the 
+    text =r"""The 'tipping curve' is calculated according to the expression below, with the parameters
+of $T_{\mathrm{ant}}$ and $\tau_{0}$, the Antenna temperature and the atmospheric opacity respectively. All the
 variables are also functions of frequency.
 
 $T_{\mathrm{sys}}(\mathrm{el}) = T_{\mathrm{cmb}}(\mathrm{ra,dec}) + T_{\mathrm{gal}}(\mathrm{ra,dec}) + T_{\mathrm{atm}}*(1-\exp\left(\frac{-\tau_{0}}{\sin(\mathrm{el})}\right)) + T_{\mathrm{spill}}(\mathrm{el}) + T_{\mathrm{ant}} + T_{\mathrm{rx}}$
 
 $T_{\mathrm{sys}}(\mathrm{el})$ is determined from the noise diode calibration so it is $\frac{T_{\mathrm{sys}}(\mathrm{el})}{\eta_{_{\mathrm{illum}}}}$
 
-We assume the opacity and $T_{\mathrm{ant}}$ is the residual after the tipping curve function is calculated. 
+We assume the opacity and $T_{\mathrm{ant}}$ is the residual after the tipping curve function is calculated.
 $T_{\mathrm{cmb}}$ + $T_{\mathrm{gal}}$ is obtained from the Sky model. """
     if fix_opacity :
-        text += r"""$\tau_{0}$, the zenith opacity, is set to 0.01078 
-(Van Zee et al., 1997). $T_{\mathrm{ant}}$ is the excess temperature since the other components are 
+        text += r"""$\tau_{0}$, the zenith opacity, is set to 0.01078
+(Van Zee et al., 1997). $T_{\mathrm{ant}}$ is the excess temperature since the other components are
 known. """
     else:
-        text += r"""$\tau_{0}$, the zenith opacity, is the calculated opacity 
-according to ITU-R P.676-9. $T_{\mathrm{ant}}$ is the excess temperature since the other components are 
+        text += r"""$\tau_{0}$, the zenith opacity, is the calculated opacity
+according to ITU-R P.676-9. $T_{\mathrm{ant}}$ is the excess temperature since the other components are
 known. """
 
-    text += r"""The green solid lines in the figures reflect the modelled $T_{\mathrm{sys}}(\mathrm{el})$ or $T_{\mathrm{sys}}(\mathrm{freq})$, with the 
+    text += r"""The green solid lines in the figures reflect the modelled $T_{\mathrm{sys}}(\mathrm{el})$ or $T_{\mathrm{sys}}(\mathrm{freq})$, with the
 broken green lines indicating a $\pm10\%$ margin."""
 
     params = {'font.size': 10}
