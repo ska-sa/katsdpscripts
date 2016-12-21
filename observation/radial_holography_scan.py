@@ -81,6 +81,8 @@ with verify_and_connect(opts) as kat:
                     offset2 = np.array((np.cos(angle+dangle), -np.sin(angle+dangle))) * opts.scan_extent / 2.
                     session.scan(target, duration=(opts.scan_duration-opts.tracktime)/2.0, start=[0,0], end=offset1, index=scan_index,
                                      projection=opts.projection, announce=False)
+                    session.scan(target, duration=(opts.scan_duration-opts.tracktime)/2.0*np.abs(np.sin(dangle))+1.0, start=offset1, end=offset2, index=scan_index,
+                                     projection=opts.projection, announce=False)
                     session.scan(target, duration=(opts.scan_duration-opts.tracktime)/2.0, start=offset2, end=[0,0], index=scan_index,
                                      projection=opts.projection, announce=False)
                     session.track(target, duration=opts.tracktime, announce=False)
