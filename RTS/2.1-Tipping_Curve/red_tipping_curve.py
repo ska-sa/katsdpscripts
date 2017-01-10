@@ -465,8 +465,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.ylim(lim_min,lim_max)
     plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
-        recLim_apEffH = receptor_band_limit(frequency,elevation)
-        recLim_apEffV = receptor_band_limit(frequency,elevation)
+        recLim_apEffH = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['VV'](frequency)
         plt.plot(elevation,recLim_apEffH, lw=1.1,c='g',linestyle='-')
         plt.plot(elevation,recLim_apEffV, lw=1.1,c='g',linestyle='-')
         #print recLim_apEffH.shape,frequency
