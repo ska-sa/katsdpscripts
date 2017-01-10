@@ -345,93 +345,100 @@ def fit_phase_std(x, y):
     if (~np.isnan(y)).sum() <= 3 :
         return 0.0 # Not enough data
     x_m = x - x.mean()
-    #y = np.angle(np.exp(1j*np.angle(y))/mean(y))
     m= ((x_m) * (y - y.mean())).sum() / ((x_m)** 2).sum()
-    #print "m=",m
-    #p_guess = [1.,0.,0. ]
-    #params, cov = optimize.leastsq(residuals, p_guess, args=(x, z))
-    # print params, cov
-    #if np.isnan(gg[0]) : raise RuntimeError('NaN in polyfit, Error')
-    #np.exp(1j*np.angle(y))/(np.exp(1j*(m*x))
-    #plot(y-(m*x))
     return  anglestd(y - (m * x))
+
+
+def plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,windowtime,phase=True,title=""):
+    pltobj = plt.figure(figsize=[11,20])
+    sub_title = "Amplitude"
+    unit_str = ""
+    unit = 1.0
+    if phase :
+        unit = 180./np.pi
+        unit_str = "(deg)"
+        sub_title = "phase"
+    
+    plt.suptitle(title)
+    plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
+    plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
+    plt.subplot(311)
+    plt.title('phases for '+pol)
+    (gain_val* unit).plot(label='%d( - rolling mean)'%(sub_title))
+    (peakmax * unit).plot(label='rolling max')
+    (peakmin * unit).plot(label='rolling min')
+    plt.legend(loc='best')
+    plt.ylabel('Gain %s %s'%(sub_title,unit_str))
+
+    ax2 = plt.subplot(312)
+    plt.title('Peak to peak variation of %s, %i Second sliding Window'%(pol,windowtime,))
+    (peak* unit).plot(color='blue')
+    ax2.axhline(13,ls='--', color='red')
+    #plt.legend(loc='best')
+    plt.ylabel('Variation %s'%(unit_str))
+
+    ax3 = plt.subplot(313)
+    plt.title('Detrended Std of %s, %i Second sliding Window'%(pol,windowtime,))
+    (std* unit).plot(color='blue',label='Std')
+    (dtrend_std* unit).plot(color='green',label='Detrended Std')
+    ax3.axhline(2.2,ls='--', color='red')
+    plt.legend(loc='best')
+    plt.ylabel('Variation %s'%(unit_str))
+    plt.xlabel('Date/Time')
+    return pltobj
+
+def plot_raw_gain(gain_ts,phase=True,title=""):
+    sub_title = "Amplitude"
+    unit_str = ""
+    unit = 1.0
+    if phase :
+        unit = 180./np.pi
+        unit_str = "(deg)"
+        sub_title = "phase"
+
+    pltobj2 = plt.figure(figsize=[11,11])
+    plt.suptitle(title)
+    plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
+    plt.subplot(111)
+    plt.title('Raw %s for %s'%(sub_title,pol))
+    (gain_ts* unit).plot(label='Raw %s'%(sub_title))
+    plt.legend(loc='best')
+    plt.ylabel('%s %s'%(sub_title,unit_str))
+    plt.xlabel('Date/Time')
+    plt.legend(loc='best')
+    plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
+    return pltobj2
 
 def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamples=1200):
     """ calculate the Stats needed to evaluate the observation"""
-    returntext = []
+    
     #note gain is in radians
     #change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
-
     gain_ts = pandas.Series(np.angle(gain), pandas.to_datetime(timestamps, unit='s'))
-
-    #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
-    #full = np.where(window_occ==1)
     #note std is returned in degrees
     std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))
     peakmin= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemin,min_periods=minsamples)))
     peakmax= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemax,min_periods=minsamples)))
     gain_val_corr = ((pandas.rolling_apply(gain_ts,window=windowtime,func=angle_mean,min_periods=minsamples)))
-    #gain_val = pandas.Series(gain_ts-gain_val_corr, pandas.to_datetime(timestamps, unit='s') )
     gain_val = pandas.Series(np.angle(np.exp(1j*gain_ts)/np.exp(1j*gain_val_corr)), pandas.to_datetime(timestamps, unit='s'))
 
     peak =  ((pandas.rolling_apply(gain_ts,window=windowtime,func=peak2peak,min_periods=minsamples)))
     dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
-    #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     timeval = timestamps.max()-timestamps.min()
-
-
-    #rms = np.sqrt((gain**2).mean())
+    
+    
+    returntext = []
     returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
-    #returntext.append("The mean gain of %s is: %.5f"%(pol,gain.mean()))
-    #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
-    #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
-    #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
     returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,np.degrees(peak.mean())))
     returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,np.degrees(peak.max())) )
     returntext.append("The mean variation over %i seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.mean())) )
     returntext.append("The Max  variation over %i seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.max())) )
     returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.mean())))
     returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
-    pltobj = plt.figure(figsize=[11,20])
-
-    plt.suptitle(h5.name)
-    plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
-    plt.subplot(311)
-    plt.title('phases for '+pol)
-    (gain_val* 180./np.pi).plot(label='phase( - rolling mean)')
-    (peakmax * 180./np.pi).plot(label='rolling max')
-    (peakmin * 180./np.pi).plot(label='rolling min')
-    plt.legend(loc='best')
-    plt.ylabel('Gain phase (deg)')
-
-    ax2 = plt.subplot(312)
-    plt.title('Peak to peak variation of %s, %i Second sliding Window'%(pol,windowtime,))
-    (peak* 180./np.pi).plot(color='blue')
-    ax2.axhline(13,ls='--', color='red')
-    #plt.legend(loc='best')
-    plt.ylabel('Variation (deg)')
-
-    ax3 = plt.subplot(313)
-    plt.title('Detrended Std of %s, %i Second sliding Window'%(pol,windowtime,))
-    (std* 180./np.pi).plot(color='blue',label='Std')
-    (dtrend_std* 180./np.pi).plot(color='green',label='Detrended Std')
-    ax3.axhline(2.2,ls='--', color='red')
-    plt.legend(loc='best')
-    plt.ylabel('Variation (deg)')
-    plt.xlabel('Date/Time')
-
-    pltobj2 = plt.figure(figsize=[11,11])
-    plt.suptitle(h5.name)
-    plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
-    plt.subplot(111)
-    plt.title('Raw phases for '+pol)
-    (gain_ts* 180./np.pi).plot(label='Raw phase')
-    plt.legend(loc='best')
-    plt.ylabel('Phase (deg)')
-    plt.xlabel('Date/Time')
-    plt.legend(loc='best')
-    plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
-
+ 
+ 
+    pltobj2 = plot_raw_gain(gain_ts,phase=True,title=h5.name)
+    pltobj = plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,phase=True,title=h5.name)
     return returntext,pltobj,pltobj2  # a plot would be cool
 
 
