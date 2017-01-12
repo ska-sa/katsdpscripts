@@ -363,7 +363,7 @@ def plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,windowtime=30,ph
     plt.figtext(0.89, 0.05, git_info(), horizontalalignment='right',fontsize=10)
     plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
     plt.subplot(311)
-    plt.title('%ss for %s'&(sub_title,pol))
+    plt.title('%ss for %s'%(sub_title,pol))
     (gain_val* unit).plot(label='%s( - rolling mean)'%(sub_title))
     (peakmax * unit).plot(label='rolling max')
     (peakmin * unit).plot(label='rolling min')
@@ -431,6 +431,7 @@ def text_calc(windowtime,timestamps,peak,std,dtrend_std,phase=True,title=""):
     timeval = timestamps.max()-timestamps.min()
     returntext = []
     returntext.append("")
+    returntext.append("============================================================================")
     returntext.append("%s %s"%(title,sub_title))
     returntext.append("")
     returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
@@ -440,12 +441,11 @@ def text_calc(windowtime,timestamps,peak,std,dtrend_std,phase=True,title=""):
     returntext.append("The Max  variation over %i seconds of %s is: %.5f  %s   "%(windowtime,pol,std.max()*unit,unit_str) )
     returntext.append("The mean detrended variation over %i seconds of %s is: %.5f  %s  "%(windowtime,pol,dtrend_std.mean()*unit,unit_str))
     returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f  %s  "%(windowtime,pol,dtrend_std.max()*unit,unit_str))
-    fig = plt.figure(None,figsize = (10,10))
-    plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
-    
-    return returntext,fig
+    returntext.append("============================================================================")
+    returntext.append("")
+    return returntext
  
-def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=30, minsamples=30,title=""):
+def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=30, minsamples=30,title="",noplot=True):
     """ calculate the Stats needed to evaluate the observation"""
     
     #note gain is in radians
@@ -463,14 +463,12 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=30, minsample
     peak =  ((pandas.rolling_apply(gain_ts,window=windowtime,func=peak2peak,min_periods=minsamples)))
     dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
   
-      
-    pltobj.append(plot_raw_gain(gain_ts,phase=True,title=title))
-    pltobj.append(plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,phase=True,windowtime=windowtime,title=title))
-    returntext,tmp = text_calc(windowtime,timestamps,peak,std,dtrend_std,phase=True,title=title)
-    pltobj.append(tmp)
+    if not noplot: 
+        pltobj.append(plot_raw_gain(gain_ts,phase=True,title=title))
+        pltobj.append(plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,phase=True,windowtime=windowtime,title=title))
+    returntext = text_calc(windowtime,timestamps,peak,std,dtrend_std,phase=True,title=title)
 
     # Amplitude
-
     gain_ts = pandas.Series(np.abs(gain), pandas.to_datetime(timestamps, unit='s'))
     std = (pandas.rolling_std(gain_ts,window=windowtime,min_periods=minsamples))
     peakmin= ((pandas.rolling_min(gain_ts,window=windowtime,min_periods=minsamples)))
@@ -480,12 +478,16 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=30, minsample
     peak =  peakmax-peakmin
     dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
 
- 
-    pltobj.append(plot_raw_gain(gain_ts,phase=False,title=title))
-    pltobj.append(plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,phase=False,windowtime=windowtime,title=title))
-    tmptxt,tmp = text_calc(windowtime,timestamps,peak,std,dtrend_std,phase=False,title=title)
-    returntext.append(tmp)
-    pltobj.append(tmp)
+    if not noplot:  
+        pltobj.append(plot_raw_gain(gain_ts,phase=False,title=title))
+        pltobj.append(plot_rolingavg(gain_val,peakmax,peakmin,peak,std,dtrend_std,phase=False,windowtime=windowtime,title=title))
+    tmptxt = text_calc(windowtime,timestamps,peak,std,dtrend_std,phase=False,title=title)
+    returntext = returntext+tmptxt
+    
+    fig = plt.figure(None,figsize = (10,8))
+    plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
+    print returntext
+    pltobj.append(fig)
     return returntext,pltobj 
 
 
@@ -536,65 +538,76 @@ fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1
 
 
 nice_filename =  fileprefix+ '_antenna_phase_stability'
-pp = PdfPages(nice_filename+'.pdf')
 
-for pol in ('h','v'):
-    h5.select(channels=~static_flags,pol=pol,scans='track')
-    bandpass = {} #h5.vis[0:30,:,:].mean(axis=0)
-    #bandpass = bandpass[np.newaxis,:,:]
-    h5.antlist = [a.name for a in h5.ants]
-    h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
-    data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
-    i = 0
-    for scan in h5.scans():
-        vis = read_and_select_file(h5, flags_file=rfi_flagging)#/bandpass
-        print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
-        bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
-        antA, antB = bl_ant_pairs
-        if not bandpass.has_key(scan[2].name):
-            print "Calculating bandpass for target:%s  "%(scan[2].name)
-            #bandpass[scan[2].name] = calprocs.g_fit(vis.mean(axis=0),h5.bls_lookup,refant=ref_ant_ind)
-            bandpass[scan[2].name] = vis.mean(axis=0)
-        bpfac = bandpass[scan[2].name][np.newaxis,:,:]
-        #bandpass[scan[2].name][np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[scan[2].name][np.newaxis,:,antB[:len(antB)//2]])
+pp = PdfPages(nice_filename+'_summary.pdf')
+pp1 = PdfPages(nice_filename+'.pdf')
+
+
+for target in h5.catalogue.targets :
+    for pol in ('h','v'):
+        scanbounds = []
+        h5.select(channels=~static_flags,pol=pol,scans='track',targets=target.name)
+        bandpass = {} #h5.vis[0:30,:,:].mean(axis=0)
+        #bandpass = bandpass[np.newaxis,:,:]
+        h5.antlist = [a.name for a in h5.ants]
+        h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
+        data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
+        i = 0
+        for scan in h5.scans():
             
-        cal_baselines = (vis/bpfac).mean(axis=1)
-                         
-        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
-        #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
-        print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
-        i += h5.shape[0]
+            vis = read_and_select_file(h5, flags_file=rfi_flagging)#/bandpass
+            print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
+            bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
+            antA, antB = bl_ant_pairs
+            if not bandpass.has_key(scan[2].name):
+                print "Calculating bandpass for target:%s  "%(scan[2].name)
+                #bandpass[scan[2].name] = calprocs.g_fit(vis.mean(axis=0),h5.bls_lookup,refant=ref_ant_ind)
+                bandpass[scan[2].name] = vis.mean(axis=0)
+            bpfac = bandpass[scan[2].name][np.newaxis,:,:]
+            #bandpass[scan[2].name][np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[scan[2].name][np.newaxis,:,antB[:len(antB)//2]])
+            
+            cal_baselines = (vis/bpfac).mean(axis=1)
+            scanbounds.append(i+h5.shape[0])  
+            data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
+            #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
+            print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
+            i += h5.shape[0]
         
-    g_title = "%s :     frequency %f->%f MHz "%(h5.name,h5.channel_freqs.min()/1e6,h5.channel_freqs.max()/1e6)
+        g_title = "%s : %s  : %i->%i MHz "%(h5.name.split('/')[-1],target.name,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
 
-    fig = plt.figure()
-    plt.suptitle(g_title)
-    plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
-    plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
-    plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
-    plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
-    plt.colorbar()
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+        fig = plt.figure()
+        plt.suptitle(g_title)
+        plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
+        plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
+        plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
+        plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
+        plt.colorbar()
+        for sb in scanbounds :
+            plt.hlines(sb,0,len(h5.antlist),'k')
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
 
-    fig = plt.figure()
-    plt.suptitle(g_title)
-    plt.title('Amplitude  in Antenna vs. Time for %s pol  '%(pol))
-    plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
-    plt.imshow((np.abs(data)),aspect='auto',interpolation='none')
-    plt.ylabel('Time');plt.xlabel('Antenna')
-    plt.colorbar()
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+        fig = plt.figure()
+        plt.suptitle(g_title)
+        plt.title('Amplitude  in Antenna vs. Time for %s pol  '%(pol))
+        plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
+        plt.imshow((np.abs(data)),aspect='auto',interpolation='none')
+        plt.ylabel('Time');plt.xlabel('Antenna')
+        plt.colorbar()
+        for sb in scanbounds :
+            plt.hlines(sb,0,len(h5.antlist),'k')
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
 
-    for i,ant in  enumerate(h5.antlist):
-        print "Generating Stats on the Antenna %s"%(ant)
-        #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
-        mask = slice(0,data.shape[0])
-        g_title = "%s :  Antenna %s        frequency %f->%f MHz "%(h5.name,ant,h5.channel_freqs.min()/1e6,h5.channel_freqs.max()/1e6)
-        returntext,pltfig = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=30,minsamples=30,title=g_title)
-        for plot_fig in pltfig:
-            plot_fig.savefig(pp,format='pdf')
-            plt.close(plot_fig)
+        for i,ant in  enumerate(h5.antlist):
+            print "Generating Stats on the Antenna %s"%(ant)
+            #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
+            mask = slice(0,data.shape[0])
+            g_title = "%s :  Antenna %s  :%s      frequency %i->%i MHz "%(h5.name.split('/')[-1],target.name,ant,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
+            returntext,pltfig = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=30,minsamples=30,title=g_title,noplot=True)
+            for plot_fig in pltfig:
+                plot_fig.savefig(pp1,format='pdf')
+                plt.close(plot_fig)
 pp.close()
+pp1.close()
 plt.close('all')
