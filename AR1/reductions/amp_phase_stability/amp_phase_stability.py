@@ -486,7 +486,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=30, minsample
     
     fig = plt.figure(None,figsize = (10,8))
     plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
-    print returntext
+    #print returntext
     pltobj.append(fig)
     return returntext,pltobj 
 
