@@ -500,6 +500,8 @@ parser.add_option("-f", "--frequency-channels", dest="freq_keep", type="string",
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                   help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
+parser.add_option("-p", "--np-plot", default=True,
+                  help="Do not plot detailed graphs  (Default = %default)")
 parser.add_option("-r", "--rfi-flagging", default='',
                   help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
 parser.add_option( '--ref', dest='ref_ant',  default=None,help="Reference antenna, default is first antenna in the python dictionary")
@@ -511,7 +513,7 @@ if len(args) ==0:
 
 
 output_dir = '.'
-
+noplot = opts.no_plot
 h5 = katdal.open(args[0],ref_ant=opts.ref_ant)
 ref_ant_ind = [ant.name for ant in h5.ants].index(h5.ref_ant)
 n_chan = np.shape(h5.channels)[0]
@@ -588,7 +590,7 @@ for target in h5.catalogue.targets :
         plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
         plt.colorbar()
         for sb in scanbounds :
-            plt.hlines(sb,0,len(h5.antlist),'k')
+            plt.hlines(sb,-.5,len(h5.antlist)-0.5,'k')
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
@@ -600,7 +602,7 @@ for target in h5.catalogue.targets :
         plt.ylabel('Time');plt.xlabel('Antenna')
         plt.colorbar()
         for sb in scanbounds :
-            plt.hlines(sb,0,len(h5.antlist),'k')
+            plt.hlines(sb,-.5,len(h5.antlist)-0.5,'k')
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
@@ -609,7 +611,7 @@ for target in h5.catalogue.targets :
             #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
             mask = slice(0,data.shape[0])
             g_title = "%s :  Antenna %s  :%s      frequency %i->%i MHz "%(h5.name.split('/')[-1],target.name,ant,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
-            returntext,pltfig = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=30,minsamples=30,title=g_title,noplot=True)
+            returntext,pltfig = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=30,minsamples=30,title=g_title,noplot=noplot)
             for plot_fig in pltfig:
                 plot_fig.savefig(pp1,format='pdf')
                 plt.close(plot_fig)
