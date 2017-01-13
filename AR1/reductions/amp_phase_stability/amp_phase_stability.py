@@ -495,7 +495,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=30, minsample
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <file>",
                                description=" This produces a pdf file with graphs decribing the gain stability for each antenna in the file")
-parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string", default='211,3896',
+parser.add_option("-f", "--frequency-channels", dest="freq_keep", type="string", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as start,end). Default = %default")
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
@@ -515,9 +515,14 @@ output_dir = '.'
 h5 = katdal.open(args[0],ref_ant=opts.ref_ant)
 ref_ant_ind = [ant.name for ant in h5.ants].index(h5.ref_ant)
 n_chan = np.shape(h5.channels)[0]
-if not opts.freq_keep is None :
-    start_freq_channel = int(opts.freq_keep.split(',')[0])
-    end_freq_channel = int(opts.freq_keep.split(',')[1])
+
+if not opts.freq_keep is "" :
+    if not opts.freq_keep is None :
+        start_freq_channel = int(opts.freq_keep.split(',')[0])
+        end_freq_channel = int(opts.freq_keep.split(',')[1])
+    else:
+        start_freq_channel = int(n_chan*0.05)
+        end_freq_channel = int(n_chan*0.95)
     edge = np.tile(True, n_chan)
     edge[slice(start_freq_channel, end_freq_channel)] = False
 else :
