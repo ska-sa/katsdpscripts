@@ -500,7 +500,7 @@ parser.add_option("-f", "--frequency-channels", dest="freq_keep", type="string",
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                   help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
-parser.add_option("-p", "--np-plot", default=True,
+parser.add_option("-p", "--no-plot", default=True,
                   help="Do not plot detailed graphs  (Default = %default)")
 parser.add_option("-r", "--rfi-flagging", default='',
                   help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
