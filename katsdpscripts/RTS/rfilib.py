@@ -351,7 +351,7 @@ class sumthreshold_flagger():
         if self.debug: start_time=time.time()
         #Create flags array
         if in_flags is None:
-            in_flags = np.zeros(data.shape, dtype=np.bool)
+            in_flags = np.zeros(in_data.shape, dtype=np.bool)
         if self.average_time > 1 or self.average_freq > 1:
             data, flags = self._average(in_data,in_flags)
         else:
