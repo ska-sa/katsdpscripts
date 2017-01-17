@@ -314,13 +314,14 @@ class sumthreshold_flagger():
 
     def get_flags(self,data,flags=None,num_cores=6):
         if self.debug: start_time=time.time()
-        if flags is None:
-            in_flags = np.repeat(None,in_data.shape[0]).reshape((in_data.shape[0]))
         out_flags=np.empty(data.shape,dtype=np.bool)
         async_results=[]
         p=mp.Pool(num_cores)
         for i in range(data.shape[-1]):
-            async_results.append(p.apply_async(get_scan_flags,(self,data[...,i],flags[...,i],)))
+            if flags is None:
+                async_results.append(p.apply_async(get_scan_flags,(self,data[...,i],None,)))
+            else:
+                async_results.append(p.apply_async(get_scan_flags,(self,data[...,i],flags[...,i],)))
         p.close()
         p.join()
         for i,result in enumerate(async_results):
@@ -350,7 +351,7 @@ class sumthreshold_flagger():
         if self.debug: start_time=time.time()
         #Create flags array
         if in_flags is None:
-            in_flags = np.zeros(data.shape, dtype=np.bool)
+            in_flags = np.zeros(in_data.shape, dtype=np.bool)
         if self.average_time > 1 or self.average_freq > 1:
             data, flags = self._average(in_data,in_flags)
         else:
