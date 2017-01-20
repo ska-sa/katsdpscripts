@@ -8,28 +8,34 @@
 # Tiyani replaced dig_sync_epoch with dig_l_band_time_sync
 
 from __future__ import with_statement
-import time, string
-from katcorelib import standard_script_options, verify_and_connect, user_logger, start_session
-from katcorelib import cambuild, katconf
+
+import time
+
+from katcorelib import standard_script_options, verify_and_connect, user_logger
+from katcorelib import cambuild
+
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
-                            description="AR1 Global Sync Script ver 2\n"+
-                            "Performs a global sync,\n"+
-                            "Starts data stream from digitisers,\n"+
-                            "Halts AR1 array and programs the correlator")
+                                 description="AR1 Global Sync Script ver 2\n"
+                                             "Performs a global sync,\n"
+                                             "Starts data stream from digitisers,\n"
+                                             "Halts AR1 array and programs the correlator")
 parser.add_option('--delayfile', type="string", default='pps_delays.csv',
-                  help='Specify the full path to the csv file containing receptor delays in the format m0xx, <delay> (default="%default")')
+                  help='Specify the full path to the csv file containing receptor delays '
+                       'in the format m0xx, <delay> (default="%default")')
 parser.add_option('--mcpsetband', type="string", default='',
-                  help='If specified, script will call cam.mcp.req.set_band() with given parameter (default="%default")')
+                  help='If specified, script will call cam.mcp.req.set_band() '
+                       'with given parameter (default="%default")')
 parser.add_option('--with-array', action="store_true", default=False,
                   help='Build a new array for user after sync')
 parser.add_option('--all', action="store_true", default=False,
                   help='Include all antennas in the global sync')
 # assume basic options passed from instruction_set
-parser.set_defaults(description = 'AR1 Global sync')
+parser.set_defaults(description='AR1 Global sync')
 (opts, args) = parser.parse_args()
 print("global_sync_AR1 script: start")
+
 
 def log_info(response):
     response = str(response)
@@ -50,9 +56,9 @@ with verify_and_connect(opts) as kat:
         count = 1
 
         if not kat.dry_run:
-	    print('Building CAM object')
+            print('Building CAM object')
             cam = cambuild(password="camcam", full_control="all")
-	    time.sleep(5)
+            time.sleep(5)
 
             delay_list = {}
             try:
@@ -69,16 +75,17 @@ with verify_and_connect(opts) as kat:
 #                     print(str(cam.mcp.req.set_band(opts.mcpsetband)))
 # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
                 if (opts.mcpsetband == 'x'):
-		    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s' % opts.mcpsetband)
+                    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s' % (opts.mcpsetband,))
 # RvR -- AR1 is locked into L-band for now (remove when other bands can be selected again)
 
             if opts.all:
                 ant_active = cam.ants
             else:
-                ant_active = [ant for ant in cam.ants if ant.name not in cam.katpool.sensor.resources_in_maintenance.get_value()]
+                ant_active = [ant for ant in cam.ants if ant.name not in
+                              cam.katpool.sensor.resources_in_maintenance.get_value()]
             print('Set PPS delay compensation for digitisers')
             for ant in ant_active:
-                #look at current delay and program in delay specified in CSV
+                # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (assuming L band)
                     response = ant.req.dig_digitiser_offset('l')
@@ -112,8 +119,8 @@ with verify_and_connect(opts) as kat:
 # Currently sync is done in serial format one digitiser at a time, which means that the timeout will have to be
 # almost doubled for every 2 new antennas for the known future, until some optimization can be implemented
             print('Performing global sync on AR1 ...')
-	    serial_sync_timeout=300 # seconds
-            for n in xrange(2):
+            serial_sync_timeout = 300     # seconds
+            for n in range(2):
                 # doing it twice just for good measure
                 start_time = time.time()
                 cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
@@ -125,71 +132,72 @@ with verify_and_connect(opts) as kat:
 # almost doubled for every 2 new antennas for the known future, until some optimization can be implemented
 
             print('Reiniting all digitisers ...')
-            antlist=''
+            antlist = ''
             for ant in ant_active:
-                if antlist: antlist=','.join((antlist,ant.name))
-                else: antlist=ant.name
+                if antlist:
+                    antlist = ','.join((antlist, ant.name))
+                else:
+                    antlist = ant.name
                 response = ant.req.dig_capture_start('hv', timeout=60)
                 print(ant.name + ': ' + str(response))
                 time.sleep(1)
 
             while not done:
 # RvR -- For the moment assume always subarray_1 -- need to follow up with cam about knowing which is active
-		print('Halting ar1 array...')
-		cam.subarray_1.req.free_subarray(timeout=30)
-		print('Waiting 5 seconds for things to settle')
-		time.sleep(10)
+                print('Halting ar1 array...')
+                cam.subarray_1.req.free_subarray(timeout=30)
+                print('Waiting 5 seconds for things to settle')
+                time.sleep(10)
 
-		# Do not build new array by default
-		if not opts.with_array:
-		    break
+                # Do not build new array by default
+                if not opts.with_array:
+                    break
 
-		corrprod = opts.product
-		if corrprod not in ('c856M4k', 'c856M32k'):
-		    corrprod = 'c856M4k'
-		    print('No correlation product specified. Using %s' % corrprod)
+                corrprod = opts.product
+                if corrprod not in ('c856M4k', 'c856M32k'):
+                    corrprod = 'c856M4k'
+                    print('No correlation product specified. Using %s' % corrprod)
 
-		cam.subarray_1.req.free_subarray(timeout=30)
-		print('Waiting 5 seconds for things to settle')
-		time.sleep(10)
-		print('Building new subarray, this may take a little time....')
- 		cam.subarray_1.req.set_band('l')
-		time.sleep(1)
+                cam.subarray_1.req.free_subarray(timeout=30)
+                print('Waiting 5 seconds for things to settle')
+                time.sleep(10)
+                print('Building new subarray, this may take a little time....')
+                cam.subarray_1.req.set_band('l')
+                time.sleep(1)
                 cam.subarray_1.req.set_product(corrprod)
-		time.sleep(1)
- 		cam.subarray_1.req.assign_resources('data_1,'+antlist)
-		time.sleep(1)
-		response=cam.subarray_1.req.activate_subarray(timeout=600)
+                time.sleep(1)
+                cam.subarray_1.req.assign_resources('data_1,' + antlist)
+                time.sleep(1)
+                response = cam.subarray_1.req.activate_subarray(timeout=600)
 # RvR -- For the moment assume always subarray_1 -- need to follow up with cam about knowing which is active
 
                 print("The response from array activate: =={}==".format(str(response)))
-		if 'ok' in str(response):
+                if 'ok' in str(response):
                     done = True
                     print('Programming correlator successful!')
                     print('Subarray 1 active!')
                 else:
                     count = count + 1
                     print('Failure to program CBF or SP!!!  Trying again.....')
-	        time.sleep(10)
+                time.sleep(10)
 
                 if count > 5:
-		    print('Cannot auto-activate subarray, giving up.....')
-		    break
+                    print('Cannot auto-activate subarray, giving up.....')
+                    break
 
             time.sleep(5)
-	    etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-	    for ant in ant_active:
-		if int(ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()) != int(etime):
-		    raise RuntimeError('System not synced, investigation is required...')
+            etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
+            for ant in ant_active:
+                ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
+                if int(ant_epoch) != int(etime):
+                    raise RuntimeError('System not synced, investigation is required...')
                 else:
-                   print '%s sync epoch:  %d' % (ant.name, ant.sensor.dig_l_band_time_synchronisation_epoch.get_value())
+                    print '%s sync epoch:  %d' % (ant.name, ant_epoch)
             print '\n'
- 
-	    import time
             print("Script complete")
     finally:
         if cam:
-	    print("Cleaning up cam object")
+            print("Cleaning up cam object")
             cam.disconnect()
 
     print("\nGlobal Sync Date %s" % time.ctime(etime))
