@@ -27,6 +27,14 @@ def get_cbf_inputs(data):
     return reply.messages[0].arguments[1:] if reply.succeeded else []
 
 
+def get_cal_inputs(telstate):
+    """Input labels associated with calibration products."""
+    ants = telstate['cal_antlist']
+    polprods = telstate['cal_pol_ordering']
+    pols = [prod[0] for prod in polprods if prod[0] == prod[1]]
+    return [ant + pol for pol in pols for ant in ants]
+
+
 def get_telstate(data, sub):
     """Get TelescopeState object associated with current data product."""
     subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(),
@@ -39,8 +47,7 @@ def get_delaycal_solutions(telstate):
     """Retrieve delay calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
         return {}
-    ants = telstate['cal_antlist']
-    inputs = [ant + pol for pol in 'hv' for ant in ants]
+    inputs = get_cal_inputs(telstate)
     solutions = telstate['cal_product_K']
     return dict(zip(inputs, solutions.real.flat))
 
@@ -49,8 +56,7 @@ def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
         return {}
-    ants = telstate['cal_antlist']
-    inputs = [ant + pol for pol in 'hv' for ant in ants]
+    inputs = get_cal_inputs(telstate)
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
 
@@ -59,8 +65,7 @@ def get_gaincal_solutions(telstate):
     """Retrieve gain calibration solutions from telescope state."""
     if 'cal_antlist' not in telstate or 'cal_product_G' not in telstate:
         return {}
-    ants = telstate['cal_antlist']
-    inputs = [ant + pol for pol in 'hv' for ant in ants]
+    inputs = get_cal_inputs(telstate)
     solutions = telstate['cal_product_G']
     return dict(zip(inputs, solutions.flat))
 
