@@ -27,6 +27,16 @@ def get_cbf_inputs(data):
     return reply.messages[0].arguments[1:] if reply.succeeded else []
 
 
+def get_cal_inputs(telstate):
+    """Input labels associated with calibration products."""
+    if 'cal_antlist' not in telstate or 'cal_pol_ordering' not in telstate:
+        return []
+    ants = telstate['cal_antlist']
+    polprods = telstate['cal_pol_ordering']
+    pols = [prod[0] for prod in polprods if prod[0] == prod[1]]
+    return [ant + pol for pol in pols for ant in ants]
+
+
 def get_telstate(data, sub):
     """Get TelescopeState object associated with current data product."""
     subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(),
@@ -37,30 +47,27 @@ def get_telstate(data, sub):
 
 def get_delaycal_solutions(telstate):
     """Retrieve delay calibration solutions from telescope state."""
-    if 'cal_antlist' not in telstate or 'cal_product_K' not in telstate:
+    inputs = get_cal_inputs(telstate)
+    if not inputs or 'cal_product_K' not in telstate:
         return {}
-    ants = telstate['cal_antlist']
-    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_K']
     return dict(zip(inputs, solutions.real.flat))
 
 
 def get_bpcal_solutions(telstate):
     """Retrieve bandpass calibration solutions from telescope state."""
-    if 'cal_antlist' not in telstate or 'cal_product_B' not in telstate:
+    inputs = get_cal_inputs(telstate)
+    if not inputs or 'cal_product_B' not in telstate:
         return {}
-    ants = telstate['cal_antlist']
-    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_B']
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
 
 
 def get_gaincal_solutions(telstate):
     """Retrieve gain calibration solutions from telescope state."""
-    if 'cal_antlist' not in telstate or 'cal_product_G' not in telstate:
+    inputs = get_cal_inputs(telstate)
+    if not inputs or 'cal_product_G' not in telstate:
         return {}
-    ants = telstate['cal_antlist']
-    inputs = [ant + pol for pol in 'hv' for ant in ants]
     solutions = telstate['cal_product_G']
     return dict(zip(inputs, solutions.flat))
 
@@ -104,7 +111,7 @@ J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     if len(args) == 0:
-	observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
         observation_sources.add(J1934)
         observation_sources.add(J0408)
         observation_sources.add(J1331)
@@ -122,8 +129,8 @@ with verify_and_connect(opts) as kat:
         dump_rate = sub.sensor.dump_rate.get_value()
         channels = 32768 if product.endswith('32k') else 4096
         beams = 1 if product.startswith('b') else 0
-        user_logger.info("Deconfiguring SDP subsystem for subarray product %r" %
-                         (subarray_product,))
+        user_logger.info("Deconfiguring SDP subsystem for subarray product %r",
+                         subarray_product)
         data.req.spmc_data_product_configure(subarray_product, 0, timeout=30)
         user_logger.info("Reconfiguring SDP subsystem")
         data.req.spmc_data_product_configure(subarray_product, receptors, channels,
@@ -147,16 +154,16 @@ with verify_and_connect(opts) as kat:
             elif channels == 32768:
                 target.add_tags('delaycal gaincal single_accumulation')
                 opts.default_gain = 4000
-            user_logger.info("Target to be observed: %s"%target.description)
+            user_logger.info("Target to be observed: %s", target.description)
             if target.flux_model is None:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
-            user_logger.info("Resetting F-engine gains to %g to allow phasing up"
-                             % (opts.default_gain,))
+            user_logger.info("Resetting F-engine gains to %g to allow phasing up",
+                             opts.default_gain)
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
             session.label('un_corrected')
-            user_logger.info("Initiating %g-second track on target '%s'" %
-                             (opts.track_duration, target.name,))
+            user_logger.info("Initiating %g-second track on target '%s'",
+                             opts.track_duration, target.name)
             session.track(target, duration=opts.track_duration, announce=False)
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
@@ -190,10 +197,10 @@ with verify_and_connect(opts) as kat:
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.data.req.cbf_gain(inp, *weights_str)
-            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked" %
-                             (target.name, opts.track_duration))
+            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
+                             target.name, opts.track_duration)
             session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
-            user_logger.info("Resetting F-engine gains to %g" % (opts.default_gain,))
+            user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
             for inp in inputs:
                 session.data.req.cbf_gain(inp, opts.default_gain)
