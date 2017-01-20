@@ -181,7 +181,10 @@ with verify_and_connect(opts) as kat:
 	    for ant in ant_active:
 		if int(ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()) != int(etime):
 		    raise RuntimeError('System not synced, investigation is required...')
-
+                else:
+                   print '%s sync epoch:  %d' % (ant.name, ant.sensor.dig_l_band_time_synchronisation_epoch.get_value())
+            print '\n'
+ 
 	    import time
             print("Script complete")
     finally:
