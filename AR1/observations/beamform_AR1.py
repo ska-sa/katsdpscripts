@@ -173,7 +173,7 @@ with verify_and_connect(opts) as kat:
                 user_logger.info('  input %r got weight %f', inp, weight)
             else:
                 user_logger.warning('  input %r weight could not be set', inp)
-            quant_gain = 1.0 / np.sqrt(len(bf_ants))
+            quant_gain = 1.0 #/ np.sqrt(len(bf_ants))
             kat.data.req.cbf_beam_quant_gains(quant_gain)
             if reply.succeeded:
                 user_logger.info('  beamformer quant gain set to %f', quant_gain)
