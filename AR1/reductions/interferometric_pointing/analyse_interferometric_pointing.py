@@ -69,7 +69,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol)
+        h5.select(pol=pol,corrprods='cross')
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() : 
             valid_index = activity(h5,state = 'track')
