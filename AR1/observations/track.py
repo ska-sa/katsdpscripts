@@ -9,6 +9,11 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 
 import numpy
 
+# needed to set the gain to a non-complex number for calibration of the delay model
+def get_cbf_inputs(data):
+    """Input labels associated with correlator."""
+    reply = data.req.cbf_input_labels()
+    return reply.messages[0].arguments[1:] if reply.succeeded else []
 
 # temporary hack to ensure antenna does not timeout for the moment
 def bad_ar1_alt_hack(target, duration, limit=88.):
@@ -45,6 +50,13 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
+    # set the gain to a single non complex number if needed 
+    if not opts.reset_gain is None:
+        inputs = get_cbf_inputs(kat.data)
+        user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
+        for inp in inputs:
+            kat.data.req.cbf_gain(inp, opts.reset_gain)
+
     observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -52,12 +64,6 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
-            if opts.reset_gain:
-                inputs = get_cbf_inputs(session.data)
-                user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
-                for inp in inputs:
-                    session.data.req.cbf_gain(inp, opts.reset_gain)
-
             session.standard_setup(**vars(opts))
             session.capture_start()
 
