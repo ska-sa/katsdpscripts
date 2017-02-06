@@ -30,6 +30,8 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                        'as soon as the current track finishes (no limit by default)')
 parser.add_option('--repeat', action="store_true", default=False,
                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
+parser.add_option('--reset-gain', type='int', default=None,
+                  help='Value for the reset of the correlator F-engine gain (default=%default)')
 
 # Set default value for any option (both standard and experiment-specific options)
 # parser.set_defaults(description='Target track',dump_rate=0.1)
@@ -50,6 +52,12 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
+            if opts.reset_gain:
+                inputs = get_cbf_inputs(session.data)
+                user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
+                for inp in inputs:
+                    session.data.req.cbf_gain(inp, opts.reset_gain)
+
             session.standard_setup(**vars(opts))
             session.capture_start()
 
