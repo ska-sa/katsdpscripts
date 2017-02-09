@@ -50,11 +50,11 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_ba
         plt.ylabel("$T_{sys}/eta_{A}$ [K]")
         plt.xlabel('f [MHz]')
         #if p == ant_num * 2 -1: plt.ylabel(ant)
-        if Tsys_std is not None :
-            plt.errorbar(freq/1e6,Tsys,Tsys_std,color = 'b',linestyle = '.',label='Measurement')
-        plt.plot(freq/1e6,Tsys/eta_A,'b.',label='Measurement: Y-method')
+        if Tsys_std[pol] is not None :
+            plt.errorbar(freq/1e6,Tsys[pol],Tsys_std[pol],color = 'b',linestyle = '.',label='Measurement')
+        plt.plot(freq/1e6,Tsys[pol]/eta_A,'b.',label='Measurement: Y-method')
         if not(Ku): plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
-        plt.axhline(np.mean(Tsys/eta_A),linewidth=2,color='k',label='Mean: Y-method')
+        plt.axhline(np.mean(Tsys[pol]/eta_A),linewidth=2,color='k',label='Mean: Y-method')
         if freq.min() < 2090e6:
             D = 13.5
             Ag = np.pi* (D/2)**2 # Antenna geometric area
