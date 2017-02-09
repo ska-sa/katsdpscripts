@@ -6,7 +6,8 @@
 # Better check after technical maintenance: run check_ant_AR1.py -o ruby --tech
 # Better check and reset all failure states: run check_ant_AR1.py -o ruby --tech --reset
 # Tiyani adding more sensors: Indexer pos, safe key switch, acu encoders
-# will include receiver band selection later
+# will include receiver band selection to query the selected receiver and
+# dititiser band later
 
 
 from __future__ import with_statement
