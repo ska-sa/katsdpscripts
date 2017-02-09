@@ -237,6 +237,7 @@ with verify_and_connect(opts) as kat:
 #		    'rsc_rxl_lna_v_power_enabled']
 #		    if not check_sensors(ant.sensor, lna_status, test_false=True):
 #		        any_errors = True
+#
 
 		    if ant.sensor.rsc_rxl_startup_state.get_value() != 'cold-operational':
 		        raise RuntimeError('rsc_rxl_startup_state is %s, cold-operational expected'% ant.sensor.rsc_rxl_startup_state.get_value())
