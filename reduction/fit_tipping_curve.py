@@ -22,7 +22,7 @@ import scipy
 import scape
 from katpoint import rad2deg, deg2rad,  construct_azel_target
 from math import *
-import skikits.fitting as fit
+import scikits.fitting as fit
 
 class Sky_temp:
     """
