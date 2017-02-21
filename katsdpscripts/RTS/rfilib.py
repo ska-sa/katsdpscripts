@@ -10,6 +10,8 @@ from mpl_toolkits.axes_grid import Grid
 import matplotlib.pyplot as plt #; plt.ioff()
 import matplotlib.gridspec as gridspec
 from matplotlib import ticker
+import matplotlib
+matplotlib.use('pdf')
 
 import numpy as np
 import optparse
@@ -193,16 +195,15 @@ def getbackground(data,in_flags=None,iterations=3,spike_width_time=10,spike_widt
         sigma=np.array([min(spike_width_time*extend_factor,max(data.shape[0]//10,1)),min(spike_width_freq*extend_factor,data.shape[1]//10)])
         #sigma=np.array([1,min(spike_width_freq*extend_factor,data.shape[1]//10)])
         #Get weight and background convolved in time axis
-        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
+        weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0,truncate=3.0)
         #Smooth background and apply weight
-        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
+        background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0,truncate=3.0)/weight
         residual=data-background
         #Reject outliers
         residual=residual-np.median(residual[np.where(mask)])
-        mask[np.abs(residual)>reject_threshold*np.std(residual[np.where(mask)])]=0.0
-    weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
-    background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
-
+        mask[np.abs(residual)>reject_threshold*np.nanstd(residual[np.where(mask)])]=0.0
+    weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0,truncate=3.0)
+    background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0,truncate=3.0)/weight
     if interp_nonfinite:
         #If requested fill in nonfinite values with background smoothed with gaussian width increased by a factor of 2. 
         #Fill values with 0.0 if gaussian smoothing factor is larger than the scan size.
@@ -288,14 +289,17 @@ def get_scan_flags(flagger,data,flags):
     return flagger._detect_spikes_sumthreshold(data,flags)
 
 class sumthreshold_flagger():
-    def __init__(self,background_iterations=1, spike_width_time=10, spike_width_freq=10, outlier_sigma=4.5, background_reject=2.0, 
-                window_size=[1,3,5,7,9,11], average_time=1, average_freq=1, time_extend=3, freq_extend=3, debug=False):
+    def __init__(self,background_iterations=1, spike_width_time=10, spike_width_freq=10, outlier_sigma_freq=4.0, outlier_sigma_time=5.5, 
+                background_reject=2.0, num_windows=5, average_time=1, average_freq=1, time_extend=3, freq_extend=3, debug=False):
         self.background_iterations=background_iterations
         self.spike_width_time=spike_width_time
         self.spike_width_freq=spike_width_freq
-        self.outlier_sigma=outlier_sigma
+        self.outlier_sigma_freq=outlier_sigma_freq
+        self.outlier_sigma_time=outlier_sigma_time
         self.background_reject=background_reject
-        self.window_size=window_size
+        # Range of windows from 1 to 2*spike_width
+        self.window_size_freq=np.unique(np.logspace(0,np.log10(spike_width_freq + 0.001),num_windows,endpoint=True,dtype=np.int))
+        self.window_size_time=np.unique(np.logspace(0,np.log10(spike_width_time + 0.001),num_windows,endpoint=True,dtype=np.int))
         self.average_time=average_time
         self.average_freq=average_freq
         self.debug=debug
@@ -307,10 +311,13 @@ class sumthreshold_flagger():
         self.time_extend = time_extend
         self.freq_extend = freq_extend
         #How many subbands to flag in frequency??
-        self.num_freq_chunks = 4
+        self.num_freq_chunks = 7
         #Falloff exponent for sumthreshold
         self.rho = 1.3
-
+        if debug: 
+            print 'Initialise flagger:'
+            print 'spike_width_time,spike_width_freq:', spike_width_time,spike_width_freq
+            print 'window_size_freq,outlier_sigma_time:',self.window_size_freq,self.window_size_time
 
     def get_flags(self,data,flags=None,num_cores=6):
         if self.debug: start_time=time.time()
@@ -347,7 +354,10 @@ class sumthreshold_flagger():
         return avg_data, avg_flags
 
     def _detect_spikes_sumthreshold(self,in_data,in_flags):
-        if self.debug: start_time=time.time()
+        if self.debug: 
+            start_time=time.time()
+            back_time=0.
+            st_time=0.
         #Create flags array
         if in_flags is None:
             in_flags = np.zeros(data.shape, dtype=np.bool)
@@ -355,10 +365,10 @@ class sumthreshold_flagger():
             data, flags = self._average(in_data,in_flags)
         else:
             data, flags = in_data, in_flags
-        freq_chunk_overlap = max(self.window_size)*3
+        freq_chunk_overlap = max(self.window_size_freq)*3
         chunk_size = int(np.ceil(data.shape[1]/float(self.num_freq_chunks)))
-
         for chunk_num in range(self.num_freq_chunks):
+            if self.debug: back_start=time.time()
             chunk_start = chunk_size*chunk_num
             chunk=slice(chunk_start,chunk_start+chunk_size+freq_chunk_overlap)
             next_chunk = slice(chunk_start+chunk_size,chunk_start+(2*chunk_size)+freq_chunk_overlap)
@@ -368,17 +378,20 @@ class sumthreshold_flagger():
             else:
                 flags_chunk = next_flags_chunk
             next_flags_chunk = np.copy(flags[:,next_chunk])
-            background_chunk = getbackground(data_chunk,in_flags=flags_chunk,iterations=self.background_iterations,spike_width_time=self.spike_width_time, \
+            background_chunk = getbackground(data_chunk,in_flags=flags_chunk,iterations=self.background_iterations,spike_width_time=self.spike_width_time,\
                                                 spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,interp_nonfinite=False)
-            if self.debug: back_time=time.time()
+            if self.debug: 
+                back_time += (time.time()-back_start)
+                st_start = time.time()
             flags_chunk = flags_chunk | ~np.isfinite(background_chunk)
             #Subtract background
-            abs_av_dev = np.abs(data_chunk-background_chunk)
+            av_dev = data_chunk-background_chunk
             #Sumthershold along time axis
-            flags_chunk = self._sumthreshold(abs_av_dev,flags_chunk,0,self.window_size,self.outlier_sigma)
+            flags_chunk = self._sumthreshold(av_dev,flags_chunk,0,self.window_size_time,self.outlier_sigma_time)
             #Sumthreshold along frequency axis
-            flags_chunk = self._sumthreshold(abs_av_dev,flags_chunk,1,self.window_size,self.outlier_sigma)
+            flags_chunk = self._sumthreshold(av_dev,flags_chunk,1,self.window_size_freq,self.outlier_sigma_freq)
             flags[:,chunk] = flags_chunk
+            if self.debug: st_time += (time.time()-st_start)
         #Extend flags in freq and time
         if self.freq_extend > 1:
             flags = ndimage.convolve1d(flags, [True]*self.freq_extend, axis=1, mode='reflect')
@@ -393,14 +406,15 @@ class sumthreshold_flagger():
             flags=np.repeat(flags,self.average_time,axis=0)
         if self.debug:
             end_time=time.time()
-            print "Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(data.shape[0],data.shape[1],back_time-start_time, end_time-back_time, end_time-start_time)
+            print "Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(data.shape[0], data.shape[1], back_time, st_time, end_time-start_time)
         return flags
 
 
     def _sumthreshold(self,input_data,flags,axis,window_bl,sigma):
-        sd_mask = (input_data==0.)|(flags)
+
+        sd_mask = (input_data==0.) | ~np.isfinite(input_data) | flags
         #Get standard deviations along the axis using MAD
-        estm_stdev = 1.4826 * np.nanmedian(np.ma.MaskedArray(input_data,mask=flags).filled(fill_value=np.nan),axis=axis)
+        estm_stdev = 1.4826 * np.nanmedian(np.abs(np.ma.MaskedArray(input_data,mask=sd_mask).filled(fill_value=np.nan)),axis=axis)
         # Identify initial outliers (again based on normal assumption), and replace them with local median
         threshold = sigma * estm_stdev
         for window in window_bl:
@@ -413,10 +427,11 @@ class sumthreshold_flagger():
             bl_data = np.where(bl_mask,thisthreshold,input_data)
             #Calculate a rolling average array from the data with a windowsize for this iteration
             avgarray = running_mean(bl_data, window, axis=axis)
+            abs_avg = np.abs(avgarray)
             #Work out the flags from the convolved data using the current threshold.
             #Flags are padded with zeros to ensure the flag array (derived from the convolved data)
             #has the same dimension as the input data.
-            this_flags = np.abs(avgarray) > np.expand_dims(np.take(thisthreshold,0,axis),axis)
+            this_flags = abs_avg > np.expand_dims(np.take(thisthreshold,0,axis),axis)
             #Convolve the flags to be of the same width as the current window.
             convwindow = np.ones(window, dtype=np.bool)
             this_flags = np.apply_along_axis(np.convolve, axis, this_flags, convwindow)
@@ -776,7 +791,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
 
 def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     fig = plt.figure(figsize=(8.3,11.7))
-    data=np.squeeze(np.abs(visdata[:,:]))
+    data=np.log10(np.squeeze(np.abs(visdata[:,:])))
     if channel_range is None:
         channel_range=[0,visdata.shape[1]]
     kwargs={'aspect' : 'auto', 'origin' : 'lower', 'interpolation' : 'none', 'extent' : (channel_range[0],channel_range[1], -0.5, data.shape[0] - 0.5)}
@@ -792,7 +807,7 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else: 
         flags=np.zeros_like(data,dtype=np.bool)
     ampsort=np.sort(data[(data>0.0) | (~flags)],axis=None)
-    arrayremove = int(len(ampsort)*(1.0 - 0.90)/2.0)
+    arrayremove = int(len(ampsort)*(1.0 - 0.80)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
     image.norm.vmax = highcut
@@ -803,8 +818,8 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=None,use_file_flags=True,outlier_sigma=5.0,width_freq=3.0,
-                        width_time=15.0,time_extend=3,freq_extend=3,max_scan=600,write_into_input=False,speedup=1,debug=False):
+def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=None,use_file_flags=True,outlier_sigma_freq=5.0, outlier_sigma_time=5.5,
+                        width_freq=1.0, width_time=2.0,time_extend=3,freq_extend=3,max_scan=600,write_into_input=False,speedup=1,debug=True):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -848,24 +863,23 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
     average_freq = speedup
 
     #Convert spike width from frequency and time to channel and dump for the flagger.
-    width_freq_channel = int(width_freq*1.e6/h5.channel_width/average_freq)
-    width_time_dumps = int(width_time/h5.dump_period)
+    width_freq_channel = max(1,int(width_freq*1.e6/h5.channel_width/average_freq))
+    width_time_dumps = max(1,int(width_time/h5.dump_period))
 
     #loop through scans
     num_bl = h5.shape[-1]
     cores_to_use = min(num_bl, (cpu_count-2))
-
     #Are we KAT7 or MeerKAT
     if h5.inputs[0][0]=='m':
         #MeerKAT
-        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,
-                                        time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,debug=debug)
+        flagger = sumthreshold_flagger(outlier_sigma_freq=outlier_sigma_freq,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,
+                                        outlier_sigma_time=outlier_sigma_time,time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,debug=debug)
         cut_chans = (h5.shape[1]//20,h5.shape[1]-h5.shape[1]//20,) if freq_chans is None \
                         else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
     else:
         #kat-7
-        flagger = sumthreshold_flagger(outlier_sigma=outlier_sigma,background_reject=4.5,spike_width_freq=width_freq_channel,
-                                        spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
+        flagger = sumthreshold_flagger(outlier_sigma_freq=outlier_sigma_freq,background_reject=4.5,spike_width_freq=width_freq_channel,
+                                        outlier_sigma_time=outlier_sigma_time,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
         cut_chans = (h5.shape[1]//7,h5.shape[1]-h5.shape[1]//7,) if freq_chans is None \
                         else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
 
@@ -905,15 +919,15 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
             #Add new flags to flag table from the mask and the detection
             flags = np.zeros((this_slice.stop-this_slice.start,h5.shape[1],h5.shape[2],),dtype=np.uint8)
             #Add mask to 'static' flags
-            flags += mask_array.view(np.uint8)*2
+            flags += mask_array.astype(np.uint8)*2
             #Add detected flags to 'cal_rfi'
-            flags[:,freq_range,:] += detected_flags.view(np.uint8)*(2**6)
-            flags_dataset[h5.dumps[this_slice],:,:] += flags.squeeze()
+            flags[:,freq_range,:] += detected_flags.astype(np.uint8)*(2**6)
+            flags_dataset[h5.dumps[this_slice],:,:] += flags
     outfile.close()
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show='cal_rfi',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
