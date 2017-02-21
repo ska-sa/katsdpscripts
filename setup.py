@@ -1,5 +1,12 @@
 #!/usr/bin/env python
-from setuptools import find_packages
+from setuptools import dist, find_packages
+
+# Avoid NumPy 1.12.0 which broke f2py and cannot build gsm extension
+good_numpy = 'numpy !=1.12.0b1, !=1.12.0rc1, !=1.12.0rc2, !=1.12.0'
+# Ensure we have NumPy before we start as it is needed before we call setup()
+# If not installed system-wide it will be downloaded into the local .eggs dir
+dist.Distribution(dict(setup_requires=good_numpy))
+
 from numpy.distutils.core import setup, Extension
 
 
@@ -31,6 +38,6 @@ setup(name="katsdpscripts",
           Extension(name='gsm', sources=['RTS/gsm/gsm.f'],
                     extra_f77_compile_args=['-std=legacy -ffixed-line-length-0'])],
       package_data={'': ['RTS/gsm/gsm.f']},
-      setup_requires=['katversion'],
+      setup_requires=['katversion', good_numpy],
       use_katversion=True,
       install_requires=['numpy', 'katpoint', 'katcp', 'scikits.fitting'])
