@@ -298,8 +298,8 @@ class sumthreshold_flagger():
         self.outlier_sigma_time=outlier_sigma_time
         self.background_reject=background_reject
         # Range of windows from 1 to 2*spike_width
-        self.window_size_freq=np.unique(np.logspace(0,np.log10(spike_width_freq + 0.001),num_windows,endpoint=True,dtype=np.int))
-        self.window_size_time=np.unique(np.logspace(0,np.log10(spike_width_time + 0.001),num_windows,endpoint=True,dtype=np.int))
+        self.window_size_freq=np.unique(np.logspace(0,max(0,np.log10(spike_width_freq + 0.00001)),num_windows,endpoint=True,dtype=np.int))
+        self.window_size_time=np.unique(np.logspace(0,max(0,np.log10(spike_width_time + 0.00001)),num_windows,endpoint=True,dtype=np.int))
         self.average_time=average_time
         self.average_freq=average_freq
         self.debug=debug
@@ -863,8 +863,8 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
     average_freq = speedup
 
     #Convert spike width from frequency and time to channel and dump for the flagger.
-    width_freq_channel = max(1,int(width_freq*1.e6/h5.channel_width/average_freq))
-    width_time_dumps = max(1,int(width_time/h5.dump_period))
+    width_freq_channel = width_freq*1.e6/h5.channel_width/average_freq
+    width_time_dumps = width_time/h5.dump_period
 
     #loop through scans
     num_bl = h5.shape[-1]
