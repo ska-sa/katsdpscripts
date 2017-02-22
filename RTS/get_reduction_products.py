@@ -24,11 +24,15 @@ def get_reduction_metadata(filename, reduction_name=None):
 
 #command-line parameters
 parser = optparse.OptionParser(usage="Please specify the input file\n \
-    USAGE: python get_reduction_products.py <filename>", \
+    USAGE: get_reduction_products.py <filename>", \
     description="List reduction production associated with input filename")
 opts, args = parser.parse_args()
 
-input_file=args[0]
+if len(args)==1:
+	input_file=args[0]
+else:
+	parser.error("incorrect number of arguments")
+
 output=get_reduction_metadata(args[0])
 
 print "Reductions in archive for ", input_file 
@@ -36,6 +40,5 @@ print "----------------------------------------"
 
 for result in output:
 	reduction_name=result['ReductionName']
-	file_location=result['FileLocation'][0]+'/'+result['ProductName']
+	file_location=result['FileLocation'][0]+"/"+result['ProductName']
 	print reduction_name,':\t\t',file_location
-
