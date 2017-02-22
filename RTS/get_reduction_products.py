@@ -1,10 +1,11 @@
 #!/usr/bin/python
 
-#Given a filename this script will list the location of reduction products 
-#in the archive that have been produced by it.
+#Given a filename this script will list the date and location of 
+#reduction products in the archive that have been produced by it.
 
 import optparse
 import pysolr
+import os
 
 pysolr_database_url='http://kat-archive.kat.ac.za:8983/solr/kat_core'
 
@@ -37,8 +38,9 @@ output=get_reduction_metadata(args[0])
 
 print "Reductions in archive for ", input_file 
 print "----------------------------------------"
-
+print "%-40s  %-20s   %-56s"%("Reduction Name:","Reduction Date:", "Archive Location:",)
 for result in output:
 	reduction_name=result['ReductionName']
 	file_location=result['FileLocation'][0]+"/"+result['ProductName']
-	print reduction_name,':\t\t',file_location
+	reduction_date=result['StartTime']
+	print "%-40s  %-20s   %-56s"%(reduction_name,reduction_date,file_location,)
