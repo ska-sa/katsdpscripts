@@ -51,7 +51,7 @@ def get_delaycal_solutions(telstate):
     if not inputs or 'cal_product_K' not in telstate:
         return {}
     solution_range = telstate.get_range('cal_product_K')
-    soultions = solution_range[0][0]
+    solutions = solution_range[0][0]
     solution_ts = solution_range[0][1]
     obs_start_time = telstate.get_range('obs_params')[0][1]
     if solution_ts < obs_start_time:
@@ -65,7 +65,7 @@ def get_bpcal_solutions(telstate):
     if not inputs or 'cal_product_B' not in telstate:
         return {}    
     solution_range = telstate.get_range('cal_product_B')
-    soultions = solution_range[0][0]
+    solutions = solution_range[0][0]
     solution_ts = solution_range[0][1]
     obs_start_time = telstate.get_range('obs_params')[0][1]
     if solution_ts < obs_start_time:
@@ -79,7 +79,7 @@ def get_gaincal_solutions(telstate):
     if not inputs or 'cal_product_G' not in telstate:
         return {}
     solution_range = telstate.get_range('cal_product_G')
-    soultions = solution_range[0][0]
+    solutions = solution_range[0][0]
     solution_ts = solution_range[0][1]
     obs_start_time = telstate.get_range('obs_params')[0][1]
     if solution_ts < obs_start_time:
