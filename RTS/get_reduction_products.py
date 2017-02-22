@@ -30,17 +30,20 @@ parser = optparse.OptionParser(usage="Please specify the input file\n \
 opts, args = parser.parse_args()
 
 if len(args)==1:
-	input_file=args[0]
+	input_file=os.path.basename(args[0])
 else:
 	parser.error("incorrect number of arguments")
 
-output=get_reduction_metadata(args[0])
+if input_file is '':
+	parser.error("no filename specified")
 
-print "Reductions in archive for ", input_file 
-print "----------------------------------------"
+output=get_reduction_metadata(input_file)
+
+print "Reductions in archive for ", input_file + ":\n"
 print "%-40s  %-20s   %-56s"%("Reduction Name:","Reduction Date:", "Archive Location:",)
+print "%-40s  %-20s   %-56s"%("---------------","---------------", "-----------------",)
 for result in output:
 	reduction_name=result['ReductionName']
-	file_location=result['FileLocation'][0]+"/"+result['ProductName']
+	file_location=os.path.join(result['FileLocation'][0],result['ProductName'])
 	reduction_date=result['StartTime']
 	print "%-40s  %-20s   %-56s"%(reduction_name,reduction_date,file_location,)
