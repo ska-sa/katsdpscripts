@@ -317,7 +317,7 @@ class sumthreshold_flagger():
         if debug: 
             print 'Initialise flagger:'
             print 'spike_width_time,spike_width_freq:', spike_width_time,spike_width_freq
-            print 'window_size_freq,outlier_sigma_time:',self.window_size_freq,self.window_size_time
+            print 'window_size_time,window_size_freq:',self.window_size_freq,self.window_size_time
 
     def get_flags(self,data,flags=None,num_cores=6):
         if self.debug: start_time=time.time()
