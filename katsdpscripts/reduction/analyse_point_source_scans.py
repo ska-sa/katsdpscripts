@@ -9,14 +9,13 @@
 # 3 June 2011
 #
 
-from __future__ import with_statement
-
 import os.path
+import logging
+import pickle
+
 import numpy as np
 import scape
 import katpoint
-import logging
-import pickle
 import scikits.fitting as fit
 
 try:
@@ -37,6 +36,7 @@ def interp_sensor(compscan, quantity, default):
         interp.fit(sensor['timestamp'], sensor['value'])
         return interp
 
+
 def compscan_key(compscan):
     """List of strings that identifies compound scan."""
     # Name of data set that contains compound scan
@@ -46,6 +46,7 @@ def compscan_key(compscan):
     # Time when compound scan is exactly half-way through its operation (i.e. 50% complete)
     middle_time = np.median(np.hstack([scan.timestamps for scan in compscan.scans]), axis=None)
     return compscan.dataset.antenna.name, dataset_name, compscan.target.name, str(katpoint.Timestamp(middle_time))
+
 
 def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs):
     """Do complete point source reduction on a compound scan (gain cal + beam fit)."""
@@ -76,13 +77,13 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     pressure = np.mean(interp_sensor(compscan, 'pressure', 950.0)(compscan_times))
     humidity = np.mean(interp_sensor(compscan, 'humidity', 15.0)(compscan_times))
     wind_speed = np.mean(interp_sensor(compscan, 'wind_speed', 0.0)(compscan_times))
-    wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(interp_sensor(compscan, 'wind_direction', 0.0)(compscan_times))))) )# Vector Mean
+    wind_direction = np.degrees(np.angle(np.mean(np.exp(1j * np.radians(interp_sensor(compscan, 'wind_direction', 0.0)(compscan_times))))))  # Vector Mean
     sun = katpoint.Target('Sun, special')
     # Calculate pointing offset
     # Obtain middle timestamp of compound scan, where all pointing calculations are done
     middle_time = np.median(compscan_times, axis=None)
     # work out the sun's angle
-    sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time,antenna=compscan.dataset.antenna)))
+    sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time, antenna=compscan.dataset.antenna)))
     # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
     requested_azel = compscan.target.azel(middle_time)
     # Correct for refraction, which becomes the requested value at input of pointing model
@@ -107,9 +108,12 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
         offset_azel = np.array([np.nan, np.nan])
     # Outputs that are not expected to change if visibility data is perturbed
     fixed_names = 'antenna dataset target timestamp_ut data_unit frequency flux ' \
-                  'temperature pressure humidity wind_speed wind_direction azimuth elevation beam_expected_width_I sun_az sun_el timestamp'
-    fixed = list(compscan_key(compscan)) + [compscan.dataset.data_unit, compscan.dataset.freqs[0]] + \
-            [average_flux, temperature, pressure, humidity, wind_speed, wind_direction] + requested_azel.tolist() + [expected_width] + sun_azel.tolist() + [middle_time,]
+                  'temperature pressure humidity wind_speed wind_direction ' \
+                  'azimuth elevation beam_expected_width_I sun_az sun_el timestamp'
+    fixed = list(compscan_key(compscan)) + \
+        [compscan.dataset.data_unit, compscan.dataset.freqs[0]] + \
+        [average_flux, temperature, pressure, humidity, wind_speed, wind_direction] + \
+        requested_azel.tolist() + [expected_width] + sun_azel.tolist() + [middle_time]
     # Outputs that are expected to change if visibility data is perturbed
     var_names = 'delta_azimuth delta_elevation'
     variable = offset_azel.tolist()
@@ -117,6 +121,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
         var_names += ' beam_height_%s beam_width_%s baseline_height_%s refined_%s' % tuple([beam[0]] * 4)
         variable += list(beam[1])
     return dict(zip(fixed_names.split(), fixed)), dict(zip(var_names.split(), variable))
+
 
 def extract_cal_dataset(dataset):
     """Build data set from scans in original dataset containing noise diode firings."""
@@ -132,21 +137,24 @@ def extract_cal_dataset(dataset):
                          dataset.description, dataset.data_unit, dataset.corrconf.select(copy=True),
                          dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
 
-def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True,keep_all=True, **kwargs):
+
+def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True, keep_all=True, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
     dataset = scape.DataSet(None, [dataset.compscans[compscan_index]], dataset.experiment_id, dataset.observer,
-                       dataset.description, dataset.data_unit, dataset.corrconf,
-                       dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
+                            dataset.description, dataset.data_unit, dataset.corrconf,
+                            dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
     scan_dataset = dataset.select(labelkeep='scan', copy=False)
     compscan = scan_dataset.compscans[0]
-    if kwargs.has_key('logger'):
-        kwargs['logger'].info("==== Processing compound scan %d of %d: '%s' ====" % (compscan_index + 1, len(scan_dataset.compscans),
-                                                                       ' '.join(compscan_key(compscan)),))
+    if 'logger' in kwargs:
+        kwargs['logger'].info("==== Processing compound scan %d of %d: '%s' ====",
+                              compscan_index + 1, len(scan_dataset.compscans),
+                              ' '.join(compscan_key(compscan)))
     # Build data set containing a single compound scan at a time (make copy, as reduction modifies it)
     scan_dataset.compscans = [compscan]
-    if not dataset.nd_h_model is None and not dataset.nd_v_model is None : # If there are no noisediode models assume that there are no noisediodes
+    # If there are no noise diode models assume that there are no noise diodes
+    if dataset.nd_h_model is not None and dataset.nd_v_model is not None:
         compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True)
-    else :
+    else:
         compscan_dataset = dataset.select(labelkeep='scan', copy=True)
     cal_dataset = extract_cal_dataset(dataset)
     # Do first reduction run
@@ -159,8 +167,9 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     # Add data from Monte Carlo perturbations
     iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=variable.keys())]
     for m in range(mc_iterations - 1):
-        if kwargs.has_key('logger'):
-            kwargs['logger'].info("---- Monte Carlo iteration %d of %d ----" % (m + 2, mc_iterations))
+        if 'logger' in kwargs:
+            kwargs['logger'].info("---- Monte Carlo iteration %d of %d ----",
+                                  m + 2, mc_iterations)
         compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True).perturb()
         cal_dataset = extract_cal_dataset(dataset).perturb()
         fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
@@ -171,8 +180,9 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
     keep = batch and main_compscan.beam and (keep_all or main_compscan.beam.is_valid)
-    print("keep_all=%s,main_compscan.beam.is_valid=%s , keep=%s "%(keep_all,main_compscan.beam.is_valid,keep) )
-    output_dict = {'keep' : keep, 'compscan' : main_compscan, 'unavg_dataset' : unavg_compscan_dataset}
+    print("keep_all=%s, main_compscan.beam.is_valid=%s, keep=%s" %
+          (keep_all, main_compscan.beam.is_valid, keep))
+    output_dict = {'keep': keep, 'compscan': main_compscan, 'unavg_dataset': unavg_compscan_dataset}
     output_dict.update(fixed)
     output_dict.update(var_mean)
     output_dict.update(var_std)
@@ -205,12 +215,15 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
     # Save reduction output and return after last compound scan is done
     if current_compscan >= len(reduced_data):
         output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
-                        '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
-                        '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, %(beam_width_I).7f, ' \
-                        '%(beam_width_I_std).7f, %(baseline_height_I).7f, %(baseline_height_I_std).7f, %(refined_I).7f, ' \
+                        '%(delta_azimuth).7f, %(delta_azimuth_std).7f, ' \
+                        '%(delta_elevation).7f, %(delta_elevation_std).7f, ' \
+                        '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, ' \
+                        '%(beam_width_I).7f, %(beam_width_I_std).7f, ' \
+                        '%(baseline_height_I).7f, %(baseline_height_I_std).7f, %(refined_I).7f, ' \
                         '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
                         '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
-                        '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
+                        '%(frequency).7f, %(flux).4f, ' \
+                        '%(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
                         '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
         output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
         output_data = [output_fields % out for out in reduced_data if out and out['keep']]
@@ -222,18 +235,19 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         if not opts.batch:
             # This closes the GUI and effectively exits the program in the interactive case
             plt.close('all')
-        #return the recarray
-        to_keep=[]
+        # return the recarray
+        to_keep = []
         for field in output_field_names:
             to_keep.append([data[field] for data in reduced_data if data and data['keep']])
-        output_data = np.rec.fromarrays(to_keep, dtype=zip(output_field_names,[np.array(tk).dtype for tk in to_keep]))
+        output_data = np.rec.fromarrays(to_keep, dtype=zip(output_field_names, [np.array(tk).dtype for tk in to_keep]))
         return (dataset.antenna, output_data,)
 
     # Reduce current compound scan if results are not cached
     if not reduced_data[current_compscan]:
         with SuppressErrors(kwargs['logger']):
-            reduced_data[current_compscan] = reduce_compscan_with_uncertainty(dataset, current_compscan,
-                                                                              opts.mc_iterations, opts.batch,keep_all =opts.keep_all, **kwargs)
+            reduced_data[current_compscan] = \
+                reduce_compscan_with_uncertainty(dataset, current_compscan, opts.mc_iterations,
+                                                 opts.batch, opts.keep_all, **kwargs)
 
     # Display compound scan
     if fig:
@@ -267,8 +281,8 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                 info.set_text((u"Beamwidth = %s' (expected %.1f')\nBeam height = %s %s\n"
                                u"HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %s %s") %
                               (beam_width, 60. * out['beam_expected_width_I'], beam_height, out['data_unit'],
-                               out['flux'] / out['beam_height_HH'], out['flux'] / out['beam_height_VV'], out['data_unit'],
-                               baseline_height, out['data_unit']))
+                               out['flux'] / out['beam_height_HH'], out['flux'] / out['beam_height_VV'],
+                               out['data_unit'], baseline_height, out['data_unit']))
             else:
                 info.set_text(u"No beam\nBaseline height = %s %s" % (baseline_height, out['data_unit']))
         else:
@@ -279,8 +293,10 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
     # Reduce next compound scan so long, as this will improve interactiveness (i.e. next plot will be immediate)
     if (current_compscan < len(reduced_data) - 1) and not reduced_data[current_compscan + 1]:
         with SuppressErrors(kwargs['logger']):
-            reduced_data[current_compscan + 1] = reduce_compscan_with_uncertainty(dataset, current_compscan + 1,
-                                                                                  opts.mc_iterations, opts.batch,opts.keep_all, **kwargs)
+            reduced_data[current_compscan + 1] = \
+                reduce_compscan_with_uncertainty(dataset, current_compscan + 1, opts.mc_iterations,
+                                                 opts.batch, opts.keep_all, **kwargs)
+
 
 def analyse_point_source_scans(filename, opts):
     # Produce canonical version of baseline string (remove duplicate antennas)
@@ -290,7 +306,7 @@ def analyse_point_source_scans(filename, opts):
 
     dataset_name = os.path.splitext(os.path.basename(filename))[0]
     # Default output file names are based on input file name
-    if opts.outfilebase  is None:
+    if opts.outfilebase is None:
         opts.outfilebase = dataset_name + '_' + opts.baseline + '_point_source_scans'
 
     # Set up logging: logging everything (DEBUG & above), both to console and file
@@ -301,14 +317,14 @@ def analyse_point_source_scans(filename, opts):
     fh.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(fh)
 
-    kwargs={}
+    kwargs = {}
 
-    #Force centre freqency if ku-band option is set
+    # Force centre freqency if ku-band option is set
     if opts.ku_band:
         kwargs['centre_freq'] = 12.5005e9
 
     if opts.freq_centre is not None:
-        kwargs['centre_freq'] = float(opts.freq_centre)*10e6
+        kwargs['centre_freq'] = float(opts.freq_centre) * 10e6  # XXX
 
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
@@ -317,7 +333,7 @@ def analyse_point_source_scans(filename, opts):
         try:
             data = np.loadtxt(opts.keepfilename, dtype='string', comments='#', delimiter=', ')
         except ValueError:
-            raise ValueError("CSV file '%s' contains rows with a different number of columns/commas" % opts.keepfilename)
+            raise ValueError("CSV file %r contains rows with a different number of columns/commas" % opts.keepfilename)
         try:
             fields = data[0].tolist()
             id_fields = [fields.index('dataset'), fields.index('target'), fields.index('timestamp_ut')]
@@ -351,11 +367,11 @@ def analyse_point_source_scans(filename, opts):
     if opts.freq_chans is None:
         # Default is drop first and last 25% of the bandpass
         start_chan = num_channels // 4
-        end_chan   = start_chan * 3
+        end_chan = start_chan * 3
     else:
         start_chan = int(opts.freq_chans.split(',')[0])
         end_chan = int(opts.freq_chans.split(',')[1])
-    chan_select = range(start_chan,end_chan+1)
+    chan_select = range(start_chan, end_chan + 1)
     # Check if a channel mask is specified and apply
     if opts.channel_mask:
         mask_file = open(opts.channel_mask)
@@ -372,7 +388,8 @@ def analyse_point_source_scans(filename, opts):
         raise RuntimeError('No scans found in file, skipping data set')
     scan_dataset = dataset.select(labelkeep='scan', copy=False)
     if len(scan_dataset.compscans) == 0 or len(scan_dataset.scans) == 0:
-        raise RuntimeError('No scans left after standard reduction, skipping data set (no scans labelled "scan", perhaps?)')
+        raise RuntimeError('No scans left after standard reduction, skipping '
+                           'data set (no scans labelled "scan", perhaps?)')
     # Override pointing model if it is specified (useful if it is not in data file, like on early KAT-7)
     if opts.pointing_model:
         pm = file(opts.pointing_model).readline().strip()
@@ -380,17 +397,18 @@ def analyse_point_source_scans(filename, opts):
         dataset.antenna.pointing_model = katpoint.PointingModel(pm)
 
     # Remove any noise diode models if the ku band option is set and flag for spikes
-    if opts.ku_band :
-        dataset.nd_h_model=None
-        dataset.nd_v_model=None
-    if opts.remove_spikes :
+    if opts.ku_band:
+        dataset.nd_h_model = None
+        dataset.nd_v_model = None
+    if opts.remove_spikes:
         for i in range(len(dataset.scans)):
-            dataset.scans[i].data = scape.stats.remove_spikes(dataset.scans[i].data,axis=1,spike_width=3,outlier_sigma=5.)
+            dataset.scans[i].data = scape.stats.remove_spikes(dataset.scans[i].data, axis=1,
+                                                              spike_width=3, outlier_sigma=5.)
 
     # Initialise the output data cache (None indicates the compscan has not been processed yet)
     reduced_data = [{} for n in range(len(scan_dataset.compscans))]
 
-    ### BATCH MODE ###
+    # BATCH MODE #
 
     # This will cycle through all data sets and stop when done
     if opts.batch:
@@ -405,10 +423,11 @@ def analyse_point_source_scans(filename, opts):
             output = reduce_and_plot(dataset, current_compscan, reduced_data, opts, logger=logger)
         return output
 
-    ### INTERACTIVE MODE ###
+    # INTERACTIVE MODE #
     else:
         if not plt:
-            raise ImportError('Interactive use of this script requires matplotlib - please install it or run in batch mode')
+            raise ImportError('Interactive use of this script requires matplotlib - '
+                              'please install it or run in batch mode')
         # Set up figure with buttons
         plt.ion()
         fig = plt.figure(1)
@@ -429,9 +448,11 @@ def analyse_point_source_scans(filename, opts):
             def __init__(self):
                 """Start with empty button list."""
                 self.buttons = []
+
             def append(self, button):
                 """Add button to list."""
                 self.buttons.append(button)
+
             def __enter__(self):
                 """Disable buttons on entry."""
                 if plt.fignum_exists(1):
@@ -440,6 +461,7 @@ def analyse_point_source_scans(filename, opts):
                         button.hovercolor = '0.85'
                         button.label.set_color('gray')
                     plt.draw()
+
             def __exit__(self, exc_type, exc_value, traceback):
                 """Re-enable buttons on exit."""
                 if plt.fignum_exists(1):
@@ -448,10 +470,10 @@ def analyse_point_source_scans(filename, opts):
                         button.hovercolor = '0.95'
                         button.label.set_color('k')
                     plt.draw()
+
         all_buttons = DisableButtons()
 
         # Create buttons and their callbacks
-        spectrogram_button = widgets.Button(plt.axes([0.37, 0.05, 0.1, 0.075]), 'Spectrogram')
         def spectrogram_callback(event):
             with all_buttons:
                 plt.figure(2)
@@ -459,41 +481,42 @@ def analyse_point_source_scans(filename, opts):
                 out = reduced_data[fig.current_compscan]
                 ax = scape.plot_xyz(out['unavg_dataset'], 'time', 'freq', 'amp', power_in_dB=True)
                 ax.set_title(out['target'], size='medium')
+        spectrogram_button = widgets.Button(plt.axes([0.37, 0.05, 0.1, 0.075]), 'Spectrogram')
         spectrogram_button.on_clicked(spectrogram_callback)
         all_buttons.append(spectrogram_button)
 
-        keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
         def keep_callback(event):
             with all_buttons:
                 reduced_data[fig.current_compscan]['keep'] = True
                 fig.current_compscan += 1
                 reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
+        keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
         keep_button.on_clicked(keep_callback)
         all_buttons.append(keep_button)
 
-        discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
         def discard_callback(event):
             with all_buttons:
                 reduced_data[fig.current_compscan]['keep'] = False
                 fig.current_compscan += 1
                 reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
+        discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
         discard_button.on_clicked(discard_callback)
         all_buttons.append(discard_button)
 
-        back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
         def back_callback(event):
             with all_buttons:
                 if fig.current_compscan > 0:
                     fig.current_compscan -= 1
                     reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
+        back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
         back_button.on_clicked(back_callback)
         all_buttons.append(back_button)
 
-        done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
         def done_callback(event):
             with all_buttons:
                 fig.current_compscan = len(reduced_data)
                 reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
+        done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
         done_button.on_clicked(done_callback)
         all_buttons.append(done_button)
 
@@ -506,37 +529,42 @@ def analyse_point_source_scans(filename, opts):
 
 
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd',
-        mc_iterations=1, time_offset=0.0, pointing_model=None, freq_chans=None, old_loader=None, nd_models=None,
-        ku_band=False, channel_mask=None,keep_all=None,remove_spikes=False,freq_centre=None):
+                                          mc_iterations=1, time_offset=0.0, pointing_model=None,
+                                          freq_chans=None, old_loader=None, nd_models=None,
+                                          ku_band=False, channel_mask=None, keep_all=None,
+                                          remove_spikes=False, freq_centre=None):
 
     class FakeOptsForBatch(object):
-        batch = True #always batch
-        plot_spectrum = False #never plot
+        batch = True  # always batch
+        plot_spectrum = False  # never plot
+
         def __init__(self, outfilebase, keepfilename, baseline,
-                        mc_iterations, time_offset, pointing_model, freq_chans, old_loader, nd_models, ku_band, channel_mask,keep_all,remove_spikes,freq_centre):
-            self.outfilebase=outfilebase
-            self.keepfilename=keepfilename
-            self.baseline=baseline
-            self.mc_iterations=mc_iterations
-            self.time_offset=time_offset
-            self.pointing_model=pointing_model
-            self.freq_chans=freq_chans
-            self.old_loader=old_loader
-            self.nd_models=nd_models
-            self.ku_band=ku_band
-            self.channel_mask=channel_mask
-            self.channel_mask=channel_mask
-            self.keep_all=keep_all
-            self.remove_spikes=remove_spikes
+                     mc_iterations, time_offset, pointing_model, freq_chans,
+                     old_loader, nd_models, ku_band, channel_mask, keep_all,
+                     remove_spikes, freq_centre):
+            self.outfilebase = outfilebase
+            self.keepfilename = keepfilename
+            self.baseline = baseline
+            self.mc_iterations = mc_iterations
+            self.time_offset = time_offset
+            self.pointing_model = pointing_model
+            self.freq_chans = freq_chans
+            self.old_loader = old_loader
+            self.nd_models = nd_models
+            self.ku_band = ku_band
+            self.channel_mask = channel_mask
+            self.channel_mask = channel_mask
+            self.keep_all = keep_all
+            self.remove_spikes = remove_spikes
             self.freq_centre = freq_centre
 
-    fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename, baseline=baseline,
-    mc_iterations=mc_iterations, time_offset=time_offset, pointing_model=pointing_model, freq_chans=freq_chans,
-    old_loader=old_loader, nd_models=nd_models, ku_band=ku_band, channel_mask=channel_mask,keep_all=keep_all,
-    remove_spikes=remove_spikes,freq_centre=freq_centre)
+    fake_opts = FakeOptsForBatch(outfilebase=outfilebase, keepfilename=keepfilename,
+                                 baseline=baseline, mc_iterations=mc_iterations,
+                                 time_offset=time_offset, pointing_model=pointing_model,
+                                 freq_chans=freq_chans, old_loader=old_loader,
+                                 nd_models=nd_models, ku_band=ku_band,
+                                 channel_mask=channel_mask, keep_all=keep_all,
+                                 remove_spikes=remove_spikes, freq_centre=freq_centre)
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
 
     return dataset_antenna, output_data
-
-
-
