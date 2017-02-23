@@ -76,8 +76,13 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     temperature = np.mean(interp_sensor(compscan, 'temperature', 35.0)(compscan_times))
     pressure = np.mean(interp_sensor(compscan, 'pressure', 950.0)(compscan_times))
     humidity = np.mean(interp_sensor(compscan, 'humidity', 15.0)(compscan_times))
-    wind_speed = np.mean(interp_sensor(compscan, 'wind_speed', 0.0)(compscan_times))
-    wind_direction = np.degrees(np.angle(np.mean(np.exp(1j * np.radians(interp_sensor(compscan, 'wind_direction', 0.0)(compscan_times))))))  # Vector Mean
+    # Do a 2-D vector average of wind speed + direction
+    raw_wind_speed = interp_sensor(compscan, 'wind_speed', 0.0)(compscan_times)
+    raw_wind_direction = interp_sensor(compscan, 'wind_direction', 0.0)(compscan_times)
+    mean_north_wind = np.mean(raw_wind_speed * np.cos(np.radians(raw_wind_direction)))
+    mean_east_wind = np.mean(raw_wind_speed * np.sin(np.radians(raw_wind_direction)))
+    wind_speed = np.sqrt(mean_north_wind ** 2 + mean_east_wind ** 2)
+    wind_direction = np.degrees(np.arctan2(mean_east_wind, mean_north_wind))
     sun = katpoint.Target('Sun, special')
     # Calculate pointing offset
     # Obtain middle timestamp of compound scan, where all pointing calculations are done
@@ -324,7 +329,7 @@ def analyse_point_source_scans(filename, opts):
         kwargs['centre_freq'] = 12.5005e9
 
     if opts.freq_centre is not None:
-        kwargs['centre_freq'] = float(opts.freq_centre) * 10e6  # XXX
+        kwargs['centre_freq'] = float(opts.freq_centre) * 1e6
 
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
