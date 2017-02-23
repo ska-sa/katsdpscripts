@@ -143,7 +143,8 @@ def extract_cal_dataset(dataset):
                          dataset.antenna, dataset.antenna2, dataset.nd_h_model, dataset.nd_v_model, dataset.enviro)
 
 
-def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True, keep_all=True, **kwargs):
+def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True,
+                                     keep_all=True, num_compscans=0, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
     dataset = scape.DataSet(None, [dataset.compscans[compscan_index]], dataset.experiment_id, dataset.observer,
                             dataset.description, dataset.data_unit, dataset.corrconf,
@@ -152,8 +153,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     compscan = scan_dataset.compscans[0]
     if 'logger' in kwargs:
         kwargs['logger'].info("==== Processing compound scan %d of %d: '%s' ====",
-                              compscan_index + 1, len(scan_dataset.compscans),
-                              ' '.join(compscan_key(compscan)))
+                              compscan_index + 1, num_compscans, ' '.join(compscan_key(compscan)))
     # Build data set containing a single compound scan at a time (make copy, as reduction modifies it)
     scan_dataset.compscans = [compscan]
     # If there are no noise diode models assume that there are no noise diodes
@@ -184,9 +184,10 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
     var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
-    keep = batch and main_compscan.beam and (keep_all or main_compscan.beam.is_valid)
-    print("keep_all=%s, main_compscan.beam.is_valid=%s, keep=%s" %
-          (keep_all, main_compscan.beam.is_valid, keep))
+    keep = batch and main_compscan.beam is not None and (keep_all or main_compscan.beam.is_valid)
+    if 'logger' in kwargs:
+        kwargs['logger'].debug("keep_all=%s, main_compscan.beam.is_valid=%s, keep=%s",
+                               keep_all, main_compscan.beam is not None and main_compscan.beam.is_valid, keep)
     output_dict = {'keep': keep, 'compscan': main_compscan, 'unavg_dataset': unavg_compscan_dataset}
     output_dict.update(fixed)
     output_dict.update(var_mean)
@@ -252,7 +253,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan] = \
                 reduce_compscan_with_uncertainty(dataset, current_compscan, opts.mc_iterations,
-                                                 opts.batch, opts.keep_all, **kwargs)
+                                                 opts.batch, opts.keep_all, len(reduced_data), **kwargs)
 
     # Display compound scan
     if fig:
@@ -300,7 +301,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan + 1] = \
                 reduce_compscan_with_uncertainty(dataset, current_compscan + 1, opts.mc_iterations,
-                                                 opts.batch, opts.keep_all, **kwargs)
+                                                 opts.batch, opts.keep_all, len(reduced_data), **kwargs)
 
 
 def analyse_point_source_scans(filename, opts):
@@ -536,7 +537,7 @@ def analyse_point_source_scans(filename, opts):
 def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilename=None, baseline='sd',
                                           mc_iterations=1, time_offset=0.0, pointing_model=None,
                                           freq_chans=None, old_loader=None, nd_models=None,
-                                          ku_band=False, channel_mask=None, keep_all=None,
+                                          ku_band=False, channel_mask=None, keep_all=False,
                                           remove_spikes=False, freq_centre=None):
 
     class FakeOptsForBatch(object):
