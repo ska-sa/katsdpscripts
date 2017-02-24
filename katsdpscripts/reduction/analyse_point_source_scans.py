@@ -435,7 +435,6 @@ def analyse_point_source_scans(filename, opts):
             raise ImportError('Interactive use of this script requires matplotlib - '
                               'please install it or run in batch mode')
         # Set up figure with buttons
-        plt.ion()
         fig = plt.figure(1)
         plt.clf()
         if opts.plot_spectrum:
