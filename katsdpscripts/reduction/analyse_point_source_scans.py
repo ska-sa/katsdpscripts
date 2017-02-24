@@ -476,11 +476,15 @@ def analyse_point_source_scans(filename, opts):
                         button.label.set_color('k')
                     plt.draw()
 
-        all_buttons = DisableButtons()
+        # Store reference to widget.Buttons on figure to keep them from being
+        # garbage collected, resulting in unresponsive buttons. This is especially
+        # an issue with IPython where the script does not block on plt.show().
+        # See the docstring of matplotlib.widgets.AxesWidget for more details.
+        fig.temporarily_disable_all_buttons = DisableButtons()
 
         # Create buttons and their callbacks
         def spectrogram_callback(event):
-            with all_buttons:
+            with fig.temporarily_disable_all_buttons:
                 plt.figure(2)
                 plt.clf()
                 out = reduced_data[fig.current_compscan]
@@ -488,42 +492,42 @@ def analyse_point_source_scans(filename, opts):
                 ax.set_title(out['target'], size='medium')
         spectrogram_button = widgets.Button(plt.axes([0.37, 0.05, 0.1, 0.075]), 'Spectrogram')
         spectrogram_button.on_clicked(spectrogram_callback)
-        all_buttons.append(spectrogram_button)
+        fig.temporarily_disable_all_buttons.append(spectrogram_button)
 
         def keep_callback(event):
-            with all_buttons:
+            with fig.temporarily_disable_all_buttons:
                 reduced_data[fig.current_compscan]['keep'] = True
                 fig.current_compscan += 1
                 reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
         keep_button = widgets.Button(plt.axes([0.48, 0.05, 0.1, 0.075]), 'Keep')
         keep_button.on_clicked(keep_callback)
-        all_buttons.append(keep_button)
+        fig.temporarily_disable_all_buttons.append(keep_button)
 
         def discard_callback(event):
-            with all_buttons:
+            with fig.temporarily_disable_all_buttons:
                 reduced_data[fig.current_compscan]['keep'] = False
                 fig.current_compscan += 1
                 reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
         discard_button = widgets.Button(plt.axes([0.59, 0.05, 0.1, 0.075]), 'Discard')
         discard_button.on_clicked(discard_callback)
-        all_buttons.append(discard_button)
+        fig.temporarily_disable_all_buttons.append(discard_button)
 
         def back_callback(event):
-            with all_buttons:
+            with fig.temporarily_disable_all_buttons:
                 if fig.current_compscan > 0:
                     fig.current_compscan -= 1
                     reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
         back_button = widgets.Button(plt.axes([0.7, 0.05, 0.1, 0.075]), 'Back')
         back_button.on_clicked(back_callback)
-        all_buttons.append(back_button)
+        fig.temporarily_disable_all_buttons.append(back_button)
 
         def done_callback(event):
-            with all_buttons:
+            with fig.temporarily_disable_all_buttons:
                 fig.current_compscan = len(reduced_data)
                 reduce_and_plot(dataset, fig.current_compscan, reduced_data, opts, fig, logger=logger)
         done_button = widgets.Button(plt.axes([0.81, 0.05, 0.1, 0.075]), 'Done')
         done_button.on_clicked(done_callback)
-        all_buttons.append(done_button)
+        fig.temporarily_disable_all_buttons.append(done_button)
 
         # Start off the processing on the first compound scan
         fig.current_compscan = 0
