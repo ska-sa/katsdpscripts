@@ -53,10 +53,16 @@ with verify_and_connect(opts) as kat:
     # set the gain to a single non complex number if needed 
     if not opts.reset_gain is None:
         inputs = get_cbf_inputs(kat.data)
-        user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
-        for inp in inputs:
-            kat.data.req.cbf_gain(inp, opts.reset_gain)
-
+        if not inputs == [] :
+            user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
+            for inp in inputs:
+                user_logger.info("F-engine %s gain to %g",[inp,opts.reset_gain])
+                kat.data.req.cbf_gain(inp, opts.reset_gain)
+        else:
+            user_logger.error("Failed to get Input labels associated with correlator")
+            raise RuntimeError("Failed to get Input labels associated with correlator. "
+                             "cannot set the F-engine gains.")
+            
     observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
