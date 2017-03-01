@@ -7,10 +7,9 @@ import time
 
 import numpy as np
 import katpoint
-
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger)
-from katsdptelstate import TelescopeState
+                                collect_targets, start_session, user_logger,
+                                SessionSDP)
 
 
 class NoTargetsUpError(Exception):
@@ -19,12 +18,6 @@ class NoTargetsUpError(Exception):
 
 class NoGainsAvailableError(Exception):
     """No gain solutions are available from the cal pipeline."""
-
-
-def get_cbf_inputs(data):
-    """Input labels associated with correlator."""
-    reply = data.req.cbf_input_labels()
-    return reply.messages[0].arguments[1:] if reply.succeeded else []
 
 
 def get_cal_inputs(telstate):
@@ -37,47 +30,36 @@ def get_cal_inputs(telstate):
     return [ant + pol for pol in pols for ant in ants]
 
 
-def get_telstate(data, sub):
-    """Get TelescopeState object associated with current data product."""
-    subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(),
-                                        sub.sensor.product.get_value())
-    reply = data.req.spmc_telstate_endpoint(subarray_product)
-    return TelescopeState(reply.messages[0].arguments[1]) if reply.succeeded else {}
-
-
-def get_delaycal_solutions(telstate):
+def get_delaycal_solutions(session):
     """Retrieve delay calibration solutions from telescope state."""
-    inputs = get_cal_inputs(telstate)
-    if not inputs or 'cal_product_K' not in telstate:
+    inputs = get_cal_inputs(session.telstate)
+    if not inputs or 'cal_product_K' not in session.telstate:
         return {}
-    solutions,solution_ts = telstate.get_range('cal_product_K')[0]
-    obs_start_time = telstate.get_range('obs_params')[0][1]
-    if solution_ts < obs_start_time:
-      return {}
+    solutions, solution_ts = session.telstate.get_range('cal_product_K')[0]
+    if solution_ts < session.start_time:
+        return {}
     return dict(zip(inputs, solutions.real.flat))
 
 
-def get_bpcal_solutions(telstate):
+def get_bpcal_solutions(session):
     """Retrieve bandpass calibration solutions from telescope state."""
-    inputs = get_cal_inputs(telstate)
-    if not inputs or 'cal_product_B' not in telstate:
-        return {}    
-    solutions,solution_ts = telstate.get_range('cal_product_B')[0]
-    obs_start_time = telstate.get_range('obs_params')[0][1]
-    if solution_ts < obs_start_time:
-      return {}
+    inputs = get_cal_inputs(session.telstate)
+    if not inputs or 'cal_product_B' not in session.telstate:
+        return {}
+    solutions, solution_ts = session.telstate.get_range('cal_product_B')[0]
+    if solution_ts < session.start_time:
+        return {}
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
 
 
-def get_gaincal_solutions(telstate):
+def get_gaincal_solutions(session):
     """Retrieve gain calibration solutions from telescope state."""
-    inputs = get_cal_inputs(telstate)
-    if not inputs or 'cal_product_G' not in telstate:
+    inputs = get_cal_inputs(session.telstate)
+    if not inputs or 'cal_product_G' not in session.telstate:
         return {}
-    solutions,solution_ts = telstate.get_range('cal_product_G')[0]
-    obs_start_time = telstate.get_range('obs_params')[0][1]
-    if solution_ts < obs_start_time:
-      return {}
+    solutions, solution_ts = session.telstate.get_range('cal_product_G')[0]
+    if solution_ts < session.start_time:
+        return {}
     return dict(zip(inputs, solutions.flat))
 
 
@@ -130,33 +112,19 @@ with verify_and_connect(opts) as kat:
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
     if opts.reconfigure_sdp:
-        sub, data = kat.sub, kat.data
-        subarray_product, streams = data.sensor.stream_addresses.get_value().split(' ')
-        product = subarray_product.split('_')[-1]
-        resources = sub.sensor.pool_resources.get_value().split(',')
-        receptors = ','.join([res for res in resources if not res.startswith('data_')])
-        dump_rate = sub.sensor.dump_rate.get_value()
-        channels = 32768 if product.endswith('32k') else 4096
-        beams = 1 if product.startswith('b') else 0
-        user_logger.info("Deconfiguring SDP subsystem for subarray product %r",
-                         subarray_product)
-        data.req.spmc_data_product_configure(subarray_product, 0, timeout=30)
         user_logger.info("Reconfiguring SDP subsystem")
-        data.req.spmc_data_product_configure(subarray_product, receptors, channels,
-                                             dump_rate, beams, streams, timeout=200)
+        sdp = SessionSDP(kat)
+        sdp.req.data_product_reconfigure()
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        inputs = get_cbf_inputs(session.data)
-        # Assume correlator stream is bc product name without the 'b'
-        product = kat.sub.sensor.product.get_value()
-        corr_stream = product if product.startswith('c') else product[1:]
         if opts.fft_shift is not None:
-            session.data.req.cbf_fft_shift(opts.fft_shift)
-        session.data.req.capture_start(corr_stream)
+            session.cbf.fengine.req.fft_shift(opts.fft_shift)
+        session.cbf.fengine.req.capture_start()
+        session.cbf.correlator.req.capture_start()
 
         for target in [observation_sources.sort('el').targets[-1]]:
-            channels = 32768 if product.endswith('32k') else 4096
+            channels = 32768 if session.product.endswith('32k') else 4096
             if channels == 4096:
                 target.add_tags('bfcal single_accumulation')
                 opts.default_gain = 200
@@ -168,8 +136,8 @@ with verify_and_connect(opts) as kat:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
             user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                              opts.default_gain)
-            for inp in inputs:
-                session.data.req.cbf_gain(inp, opts.default_gain)
+            for inp in session.cbf.fengine.inputs:
+                session.cbf.fengine.req.gain(inp, opts.default_gain)
             session.label('un_corrected')
             user_logger.info("Initiating %g-second track on target '%s'",
                              opts.track_duration, target.name)
@@ -178,22 +146,22 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             time.sleep(180)
-            telstate = get_telstate(session.data, kat.sub)
-            delays = get_delaycal_solutions(telstate)
-            bp_gains = get_bpcal_solutions(telstate)
-            gains = get_gaincal_solutions(telstate)
+            delays = get_delaycal_solutions(session)
+            bp_gains = get_bpcal_solutions(session)
+            gains = get_gaincal_solutions(session)
             if not gains:
-                raise NoGainsAvailableError("No gain solutions found in telstate %r" % (telstate,))
+                raise NoGainsAvailableError("No gain solutions found in telstate %r"
+                                            % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
-            for inp in set(inputs) and set(gains):
+            for inp in set(session.cbf.fengine.inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:
                     orig_weights *= bp_gains[inp]
                 if inp in delays:
                     # XXX Hacky hack
                     centre_freq = 1284e6
-                    num_chans = 32768 if product.endswith('32k') else 4096
+                    num_chans = 32768 if session.product.endswith('32k') else 4096
                     sideband = 1
                     channel_width = 856e6 / num_chans
                     channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
@@ -205,11 +173,11 @@ with verify_and_connect(opts) as kat:
                 # Cop out on the gain amplitude but at least correct the phase
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
-                session.data.req.cbf_gain(inp, *weights_str)
+                session.cbf.fengine.req.gain(inp, *weights_str)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                              target.name, opts.track_duration)
             session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
-            for inp in inputs:
-                session.data.req.cbf_gain(inp, opts.default_gain)
+            for inp in session.cbf.fengine.inputs:
+                session.cbf.fengine.req.gain(inp, opts.default_gain)

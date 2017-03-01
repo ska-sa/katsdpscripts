@@ -9,11 +9,6 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 
 import numpy
 
-# needed to set the gain to a non-complex number for calibration of the delay model
-def get_cbf_inputs(data): # this will be handeled in katcorelib in the future. 
-    """Input labels associated with correlator."""
-    reply = data.req.cbf_input_labels()
-    return reply.messages[0].arguments[1:] if reply.succeeded else []
 
 # temporary hack to ensure antenna does not timeout for the moment
 def bad_ar1_alt_hack(target, duration, limit=88.):
@@ -50,19 +45,6 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    # set the gain to a single non complex number if needed 
-    if opts.reset_gain is not None:
-        inputs = get_cbf_inputs(kat.data)
-        if inputs:
-            user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
-            for inp in inputs:
-                user_logger.info("F-engine %s gain to %g",[inp,opts.reset_gain])
-                kat.data.req.cbf_gain(inp, opts.reset_gain)
-        else:
-            user_logger.error("Failed to get Input labels associated with correlator")
-            raise RuntimeError("Failed to get Input labels associated with correlator. "
-                             "cannot set the F-engine gains.")
-            
     observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -70,6 +52,16 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
+            # Set the gain to a single non complex number if needed
+            if opts.reset_gain is not None:
+                if not session.cbf.fengine.inputs:
+                    user_logger.error("Failed to get correlator input labels")
+                    raise RuntimeError("Failed to get correlator input labels, "
+                                       "cannot set the F-engine gains")
+                for inp in session.cbf.fengine.inputs:
+                    session.cbf.fengine.req.gain(inp, opts.reset_gain)
+                    user_logger.info("F-engine %s gain set to %g", inp, opts.reset_gain)
+
             session.standard_setup(**vars(opts))
             session.capture_start()
 
