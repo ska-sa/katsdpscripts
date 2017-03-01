@@ -10,7 +10,7 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 import numpy
 
 # needed to set the gain to a non-complex number for calibration of the delay model
-def get_cbf_inputs(data):
+def get_cbf_inputs(data): # this will be handeled in katcorelib in the future. 
     """Input labels associated with correlator."""
     reply = data.req.cbf_input_labels()
     return reply.messages[0].arguments[1:] if reply.succeeded else []
