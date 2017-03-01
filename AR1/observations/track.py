@@ -51,7 +51,7 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     # set the gain to a single non complex number if needed 
-    if not opts.reset_gain is None:
+    if opts.reset_gain is not None:
         inputs = get_cbf_inputs(kat.data)
         if not inputs == [] :
             user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
