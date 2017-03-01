@@ -53,7 +53,7 @@ with verify_and_connect(opts) as kat:
     # set the gain to a single non complex number if needed 
     if opts.reset_gain is not None:
         inputs = get_cbf_inputs(kat.data)
-        if not inputs == [] :
+        if inputs:
             user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
             for inp in inputs:
                 user_logger.info("F-engine %s gain to %g",[inp,opts.reset_gain])
