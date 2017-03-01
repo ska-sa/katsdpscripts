@@ -1,16 +1,15 @@
 #!/usr/bin/env python
 #
-# Observe either 1934-638 or 0408-65 to establish some basic health 
-# Properties of the MeerKAT AR1 system.
+# Observe either 1934-638 or 0408-65 to establish some basic health
+# properties of the MeerKAT AR1 system.
 
 import time
 
 import numpy as np
 
 import katpoint
-
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger)
+                                start_session, user_logger)
 
 
 class NoTargetsUpError(Exception):
@@ -63,7 +62,7 @@ def get_gaincal_solutions(session):
         return {}
     return dict(zip(inputs, solutions.flat))
 
-  
+
 # Set up standard script options
 usage = "%prog"
 description = 'Observe either 1934-638 or 0408-65 to establish some basic health ' \
@@ -73,20 +72,14 @@ parser = standard_script_options(usage, description)
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(observer='basic_health', nd_params='off', project_id='MKAIV-308',reduction_label='MKAIV-308',
-                    description='Basic health test of the system.',horizon=25,track_duration=30)
+parser.set_defaults(observer='basic_health', nd_params='off',
+                    project_id='MKAIV-308', reduction_label='MKAIV-308',
+                    description='Basic health test of the system.',
+                    horizon=25, track_duration=30)
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Very bad hack to circumvent SB verification issues
-# with anything other than session objects (e.g. kat.data).
-# The *near future* will be modelled CBF sessions.
-# The *distant future* will be fully simulated sessions via kattelmod.
-#if opts.dry_run:
-#    import sys
-#    sys.exit(0)
-
-# set of targets with flux models    
+# set of targets with flux models
 J1934 = 'PKS 1934-63 | J1939-6342, radec bfcal single_accumulation, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
 J0408 = 'PKS 0408-65 | J0408-6545, radec bfcal single_accumulation, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
 J1313 = '3C286      | J1331+3030, radec bfcal single_accumulation, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
@@ -94,7 +87,6 @@ J1313 = '3C286      | J1331+3030, radec bfcal single_accumulation, 13:31:08.29, 
 # ND states
 nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
 nd_on = {'diode': 'coupler', 'on': opts.track_duration, 'off': 0., 'period': 0.}
-
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -128,7 +120,7 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            #session.track('Nothing,special', duration=180, announce=False)
+            # session.track('Nothing,special', duration=180, announce=False)
             time.sleep(180)
             if not kat.dry_run:
                 delays = get_delaycal_solutions(session)
@@ -184,9 +176,8 @@ with verify_and_connect(opts) as kat:
                         session.track(target, duration=opts.track_duration, announce=False)
                     else:
                         time.sleep(opts.track_duration)  # Snooze
-            session.ants.req.offset_fixed(0,0, opts.projection) # reset any dangling offsets 
+            session.ants.req.offset_fixed(0, 0, opts.projection)  # reset any dangling offsets
 
-                        
             # Tsys and averaging
             user_logger.info("Performing Tsys and averaging tests")
             session.nd_params = nd_off
@@ -197,16 +188,10 @@ with verify_and_connect(opts) as kat:
                 user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd_on['diode'])
             session.nd_params = nd_off
             user_logger.info("Now capturing data - noise diode off")
-            session.track(target, duration=300) # get 5 mins of data to test averaging
+            session.track(target, duration=300)  # get 5 mins of data to test averaging
 
             # Single dish pointing ... to compare with interferometric
             user_logger.info("Performing single dish pointing tests")
-            # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-            if bad_ar1_alt_hack(target, 60.):
-                print 'Too high elevation, skipping target %s...' % target.name
-                continue
-            # RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-
             session.label('raster')
             user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
                              (target.description, target.azel()[0], target.azel()[1]))
@@ -214,8 +199,7 @@ with verify_and_connect(opts) as kat:
             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
                                 scan_spacing=0.25, scan_in_azimuth=True,
                                 projection=opts.projection)
-                        
-            # reset the gains always            
+            # reset the gains always
             user_logger.info("Resetting F-engine gains to %g" % (opts.default_gain,))
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)

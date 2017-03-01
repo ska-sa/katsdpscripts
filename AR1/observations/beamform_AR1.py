@@ -122,9 +122,9 @@ opts, args = parser.parse_args()
 # with anything other than session objects (e.g. kat.data).
 # The *near future* will be modelled CBF sessions.
 # The *distant future* will be fully simulated sessions via kattelmod.
-if opts.dry_run:
-    import sys
-    sys.exit(0)
+# if opts.dry_run:
+#     import sys
+#     sys.exit(0)
 
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:

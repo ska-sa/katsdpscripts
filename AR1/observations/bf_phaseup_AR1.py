@@ -89,9 +89,9 @@ opts, args = parser.parse_args()
 # with anything other than session objects (e.g. kat.data).
 # The *near future* will be modelled CBF sessions.
 # The *distant future* will be fully simulated sessions via kattelmod.
-if opts.dry_run:
-    import sys
-    sys.exit(0)
+# if opts.dry_run:
+#     import sys
+#     sys.exit(0)
 
 # set of targets with flux models
 J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
@@ -146,12 +146,13 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             time.sleep(180)
-            delays = get_delaycal_solutions(session)
-            bp_gains = get_bpcal_solutions(session)
-            gains = get_gaincal_solutions(session)
-            if not gains:
-                raise NoGainsAvailableError("No gain solutions found in telstate %r"
-                                            % (session.telstate,))
+            if not kat.dry_run:
+                delays = get_delaycal_solutions(session)
+                bp_gains = get_bpcal_solutions(session)
+                gains = get_gaincal_solutions(session)
+                if not gains:
+                    raise NoGainsAvailableError("No gain solutions found in telstate %r"
+                                                % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
             for inp in set(session.cbf.fengine.inputs) and set(gains):
