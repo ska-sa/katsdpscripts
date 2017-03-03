@@ -144,7 +144,7 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            time.sleep(180)
+            time.sleep(10)
             if not kat.dry_run:
                 delays = get_delaycal_solutions(session)
                 bp_gains = get_bpcal_solutions(session)
