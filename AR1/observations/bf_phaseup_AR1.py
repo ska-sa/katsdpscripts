@@ -120,7 +120,6 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
-        session.cbf.fengine.req.capture_start()
         session.cbf.correlator.req.capture_start()
 
         for target in [observation_sources.sort('el').targets[-1]]:

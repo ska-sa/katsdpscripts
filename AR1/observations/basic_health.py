@@ -101,7 +101,6 @@ with verify_and_connect(opts) as kat:
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        session.cbf.fengine.req.capture_start()
         session.cbf.correlator.req.capture_start()
 
         for target in [observation_sources.sort('el').targets[-1]]:
