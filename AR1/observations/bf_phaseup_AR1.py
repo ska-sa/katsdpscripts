@@ -157,7 +157,10 @@ with verify_and_connect(opts) as kat:
             for inp in set(session.cbf.fengine.inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:
-                    orig_weights *= bp_gains[inp]
+                    bp_gains_per_inp = bp_gains[inp]
+                    # Remove NaNs as the correlator does not like them
+                    bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
+                    orig_weights *= bp_gains_per_inp
                 if inp in delays:
                     # XXX Hacky hack
                     centre_freq = 1284e6
