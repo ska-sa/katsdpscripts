@@ -118,14 +118,6 @@ parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Very bad hack to circumvent SB verification issues
-# with anything other than session objects (e.g. kat.data).
-# The *near future* will be modelled CBF sessions.
-# The *distant future* will be fully simulated sessions via kattelmod.
-# if opts.dry_run:
-#     import sys
-#     sys.exit(0)
-
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
     raise ValueError("Please specify the target")
@@ -137,8 +129,12 @@ with verify_and_connect(opts) as kat:
         reply = stream.req.passband(int(opts.beam_bandwidth * 1e6),
                                     int(opts.beam_centre_freq * 1e6))
         if reply.succeeded:
-            actual_bandwidth = float(reply.messages[0].arguments[2])
-            actual_centre_freq = float(reply.messages[0].arguments[3])
+            try:
+                actual_bandwidth = float(reply.messages[0].arguments[2])
+                actual_centre_freq = float(reply.messages[0].arguments[3])
+            except IndexError:
+                # In a dry run the reply will succeed but with no return values
+                actual_bandwidth = actual_centre_freq = 0.0
             user_logger.info("Beamformer %r has bandwidth %g Hz and centre freq %g Hz",
                              stream.name, actual_bandwidth, actual_centre_freq)
         else:
