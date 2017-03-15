@@ -13,8 +13,8 @@ from __future__ import with_statement
 
 import time
 
-from katcorelib import standard_script_options, verify_and_connect, user_logger, start_session
-from katcorelib import cambuild, katconf
+from katcorelib import standard_script_options, verify_and_connect, user_logger
+from katcorelib import cambuild
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
@@ -23,9 +23,11 @@ parser = standard_script_options(usage="usage: %prog [options]",
                                  "Starts data stream from digitisers,\n" +
                                  "Resets capture destination to clear IP assignments")
 parser.add_option('--delayfile', type="string", default='pps_delays.csv',
-                  help='Specify the full path to the csv file containing receptor delays in the format m0xx, <delay> (default="%default")')
+                  help='Specify the full path to the csv file containing receptor '
+                       'delays in the format m0xx, <delay> (default="%default")')
 parser.add_option('--mcpsetband', type="string", default='',
-                  help='If specified, script will call cam.mcp.req.set_band() with given parameter (default="%default")')
+                  help='If specified, script will call cam.mcp.req.set_band() '
+                       'with given parameter (default="%default")')
 parser.add_option('--all', action="store_true", default=False,
                   help='Include all antennas in the global sync')
 # assume basic options passed from instruction_set
@@ -77,11 +79,12 @@ with verify_and_connect(opts) as kat:
             if opts.all:
                 ant_active = cam.ants
             else:
-                ant_active = [ant for ant in cam.ants if ant.name not in cam.katpool.sensor.resources_in_maintenance.get_value()]
+                ant_active = [ant for ant in cam.ants if ant.name not in
+                              cam.katpool.sensor.resources_in_maintenance.get_value()]
             print('Set PPS delay compensation for digitisers')
             for ant in ant_active:
                 print ant.name
-                #look at current delay and program in delay specified in CSV
+                # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (assuming L band)
                     try:
@@ -105,7 +108,7 @@ with verify_and_connect(opts) as kat:
             start_time = time.time()
             cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
             print("Duration of global sync: {} try number {}"
-                   .format(time.time() - start_time, 1))
+                  .format(time.time() - start_time, 1))
             etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
                 print("Verify epoch digitiser for antenna %s" % ant.name)
