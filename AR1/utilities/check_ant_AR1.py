@@ -23,6 +23,13 @@ def check_sensors(ped, sensor_list, test_false=False):
 	        user_logger.warning("Error detected: %s is %s" % (atr,getattr(ped, atr).get_value()))
     return errors_found
 
+def check_digitisers():
+    if ant.sensor.dig_selected_band.get_value() == "0":
+        user_logger.warning("digitiser is in %s band. expeceted u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
+    else:
+        print("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
+
+# Checking L-band receiver for now. will add more checks for UHF and others on the next push
 def check_receivers():
     if ant.sensor.rsc_rxl_startup_state.get_value() != "cold-operational":
         raise RuntimeError("rsc_rxl_startup_state is %s, cold-operational expected"% ant.sensor.rsc_rxl_startup_state.get_value())
@@ -57,10 +64,7 @@ parser = standard_script_options(usage="usage: %prog [options]",
                             description="AR1 antenna quick check")
 parser.add_option("--ant", type=str, default=None,
                   help="Antenna to check in the format m0xx. (default='%default')")
-parser.add_option("--tech", action="store_true", default=False,
-                  help="Extensive verification after antenna returned from technical maintenance")
-parser.add_option("--reset", action="store_true", default=False,
-                  help="Reset failure states on antennas before checking sensors")
+
 # assume basic options passed from instruction_set
 parser.set_defaults(description = "AR1 AP Quick Check")
 (opts, args) = parser.parse_args()
@@ -80,13 +84,13 @@ with verify_and_connect(opts) as kat:
             if not ant.sensor.comms_ok.get_value():
                 raise RuntimeError("AP comms is not okay")
             if ant.sensor.ap_control.get_value() != "remote":
-                raise RuntimeError("AP cannot be remotely controlled")
+                raise RuntimeError("AP is in %s mode. It cannot be remotely controlled" % ant.sensor.ap_control.get_value())
             if ant.sensor.ap_e_stop_reason.get_value() != "none":
-                raise RuntimeError("AP e_stop %s" % ant.sensor.ap_e_stop_reason.get_value())
+                raise RuntimeError("AP e_stop: %s" % ant.sensor.ap_e_stop_reason.get_value())
 
             # Verify that all the config data has been added from RTS
             print("\nBeginning a quick check of antenna %s" % ant.name)
-            # put start time
+            print("\nAP version: %s" % ant.sensor.ap_api_version.get_value())
             if ant.sensor.rsc_rxu_serial_number.get_value():
                 print("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())  
             if ant.sensor.rsc_rxl_serial_number.get_value(): 
@@ -98,6 +102,9 @@ with verify_and_connect(opts) as kat:
             
             print("\nChecking Receiver")
             check_receivers()
+	
+            print("\nChecking Digitisers")
+            check_digitisers()
 
             print("\nchecking acu encoder")
             enc=[
