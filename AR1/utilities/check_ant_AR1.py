@@ -25,7 +25,7 @@ def check_sensors(ped, sensor_list, test_false=False):
 
 def check_digitisers():
     if ant.sensor.dig_selected_band.get_value() not in ["u", "l", "s", "x"]:
-        user_logger.warning("digitiser is in %s band. expeceted u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
+        user_logger.warning("digitiser is in %s band. expected u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
     else:
         print("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
 
@@ -142,7 +142,7 @@ with verify_and_connect(opts) as kat:
             else:
                 print(":) AP Servo OK")
 
-            print("\nChecking breaks")
+            print("\nChecking brakes")
             breaks=[
                         "ap_azim_brake1_failed",
                         "ap_azim_brake2_failed",
@@ -174,7 +174,7 @@ with verify_and_connect(opts) as kat:
             else:
                 print(":) All Doors Closed")
 
-            print("\nChecking limits")
+            print("\nChecking AP drive limits")
             azim_limits=[
                         "ap_azim_emergency2_limit_ccw_reached",
                         "ap_azim_emergency2_limit_cw_reached",
