@@ -1,8 +1,9 @@
 #Add new row to 'RTS lband beam shape register' google spreadsheet, populating columns A-I:
 #https://docs.google.com/a/ska.ac.za/spreadsheets/d/1JI-RPBAyoEOsKYCqZPNuS5DXD8GPjBJH0A9WCxToBPI/edit?usp=sharing
 #and fill in row number below. Then restart kernel and run all cells.
-%pylab inline
 from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
+import optparse
 import socket
 import katholog
 import time
@@ -436,7 +437,6 @@ def makedebugreport(dataset):
 wks=opengooglespreadsheet()
 usecycle='best'
 filename=args[0]
-ignoreantennas=ignoreantennastring.split(',') if (len(ignoreantennastring)>0) else []
 extent=6
 clipextent=6
 bandwidth=4
@@ -461,7 +461,7 @@ for thefreq in freqs:
         beamemss[-1].mGy=beamemss[-1].Gy
 
 for scanantenna in availablescanantennas:
-    ignoreantennas=[ant for in availablescanantennas].remove(scanantenna)
+    ignoreantennas=[ant for ant in availablescanantennas].remove(scanantenna)
     if (usecycle=='best'):
         dataset=katholog.Dataset(filename,'meerkat',method='direct',dobandpass=True,onaxissampling=0.1,ignoreantennas=ignoreantennas)
         flags_hrs=dataset.findworstscanflags(freqMHz=freqs,dMHz=bandwidth,scanantennaname=dataset.radialscan_allantenna[dataset.scanantennas[0]],trackantennaname=dataset.radialscan_allantenna[dataset.trackantennas[0]],doplot=False)
