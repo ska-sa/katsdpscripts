@@ -461,7 +461,8 @@ for thefreq in freqs:
         beamemss[-1].mGy=beamemss[-1].Gy
 
 for scanantenna in availablescanantennas:
-    ignoreantennas=[ant for ant in availablescanantennas].remove(scanantenna)
+    ignoreantennas=[ant for ant in availablescanantennas]
+    ignoreantennas.remove(scanantenna)
     if (usecycle=='best'):
         dataset=katholog.Dataset(filename,'meerkat',method='direct',dobandpass=True,onaxissampling=0.1,ignoreantennas=ignoreantennas)
         flags_hrs=dataset.findworstscanflags(freqMHz=freqs,dMHz=bandwidth,scanantennaname=dataset.radialscan_allantenna[dataset.scanantennas[0]],trackantennaname=dataset.radialscan_allantenna[dataset.trackantennas[0]],doplot=False)
