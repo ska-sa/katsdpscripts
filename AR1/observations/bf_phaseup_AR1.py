@@ -85,15 +85,7 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Very bad hack to circumvent SB verification issues
-# with anything other than session objects (e.g. kat.data).
-# The *near future* will be modelled CBF sessions.
-# The *distant future* will be fully simulated sessions via kattelmod.
-# if opts.dry_run:
-#     import sys
-#     sys.exit(0)
-
-# set of targets with flux models
+# Set of targets with flux models
 J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
 J0408 = 'PKS 0408-65 | J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
 J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
@@ -145,6 +137,8 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             time.sleep(180)
+            delays = bp_gains = gains = {}
+            cal_channel_freqs = None
             if not kat.dry_run:
                 delays = get_delaycal_solutions(session)
                 bp_gains = get_bpcal_solutions(session)
@@ -152,6 +146,10 @@ with verify_and_connect(opts) as kat:
                 if not gains:
                     raise NoGainsAvailableError("No gain solutions found in telstate %r"
                                                 % (session.telstate,))
+                cal_channel_freqs = session.telstate.get('cal_channel_freqs')
+                if not cal_channel_freqs:
+                    user_logger.warning("No cal frequencies found in telstate %r, "
+                                        "refusing to correct delays", session.telstate)
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
             for inp in set(session.cbf.fengine.inputs) and set(gains):
@@ -161,14 +159,9 @@ with verify_and_connect(opts) as kat:
                     # Remove NaNs as the correlator does not like them
                     bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
                     orig_weights *= bp_gains_per_inp
-                if inp in delays:
-                    # XXX Hacky hack
-                    centre_freq = 1284e6
-                    num_chans = 32768 if session.product.endswith('32k') else 4096
-                    sideband = 1
-                    channel_width = 856e6 / num_chans
-                    channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
-                    delay_weights = np.exp(2.0j * np.pi * delays[inp] * channel_freqs)
+                if inp in delays and cal_channel_freqs:
+                    # XXX Eventually use CBF adjust_all_delays request
+                    delay_weights = np.exp(2.0j * np.pi * delays[inp] * cal_channel_freqs)
                     # Guess which direction to apply delays as katcal has a bug here
                     orig_weights *= delay_weights
                 amp_weights = np.abs(orig_weights)
