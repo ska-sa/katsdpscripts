@@ -147,7 +147,7 @@ with verify_and_connect(opts) as kat:
                     raise NoGainsAvailableError("No gain solutions found in telstate %r"
                                                 % (session.telstate,))
                 cal_channel_freqs = session.telstate.get('cal_channel_freqs')
-                if not cal_channel_freqs:
+                if cal_channel_freqs is None:
                     user_logger.warning("No cal frequencies found in telstate %r, "
                                         "refusing to correct delays", session.telstate)
             user_logger.info("Setting F-engine gains to phase up antennas")
@@ -159,7 +159,7 @@ with verify_and_connect(opts) as kat:
                     # Remove NaNs as the correlator does not like them
                     bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
                     orig_weights *= bp_gains_per_inp
-                if inp in delays and cal_channel_freqs:
+                if inp in delays and cal_channel_freqs is not None:
                     # XXX Eventually use CBF adjust_all_delays request
                     delay_weights = np.exp(2.0j * np.pi * delays[inp] * cal_channel_freqs)
                     # Guess which direction to apply delays as katcal has a bug here
