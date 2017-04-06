@@ -549,72 +549,77 @@ nice_filename =  fileprefix+ '_antenna_phase_stability'
 pp = PdfPages(nice_filename+'_summary.pdf')
 pp1 = PdfPages(nice_filename+'.pdf')
 
-
+valid_tags = ['gaincal','bpcal','delaycal','polcal','fluxcal']
 for target in h5.catalogue.targets :
-    for pol in ('h','v'):
-        scanbounds = []
-        h5.select(channels=~static_flags,pol=pol,scans='track',targets=target.name)
-        bandpass = {} #h5.vis[0:30,:,:].mean(axis=0)
-        #bandpass = bandpass[np.newaxis,:,:]
-        h5.antlist = [a.name for a in h5.ants]
-        h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
-        data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
-        i = 0
-        for scan in h5.scans():
+    valid_target = False
+    for tag in target.tags:
+            if tag in valid_tags and 'radec' in target.tags:
+                valid_target = True
+    if valid_target :
+        for pol in ('h','v'):
+            scanbounds = []
+            h5.select(channels=~static_flags,pol=pol,scans='track',targets=target.name)
+            bandpass = {} #h5.vis[0:30,:,:].mean(axis=0)
+            #bandpass = bandpass[np.newaxis,:,:]
+            h5.antlist = [a.name for a in h5.ants]
+            h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
+            data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
+            i = 0
+            for scan in h5.scans():
             
-            vis = read_and_select_file(h5, flags_file=rfi_flagging)#/bandpass
-            print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
-            bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
-            antA, antB = bl_ant_pairs
-            if not bandpass.has_key(scan[2].name):
-                print "Calculating bandpass for target:%s  "%(scan[2].name)
-                #bandpass[scan[2].name] = calprocs.g_fit(vis.mean(axis=0),h5.bls_lookup,refant=ref_ant_ind)
-                bandpass[scan[2].name] = vis.mean(axis=0)
-            bpfac = bandpass[scan[2].name][np.newaxis,:,:]
-            #bandpass[scan[2].name][np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[scan[2].name][np.newaxis,:,antB[:len(antB)//2]])
+                vis = read_and_select_file(h5, flags_file=rfi_flagging)#/bandpass
+                print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
+                bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
+                antA, antB = bl_ant_pairs
+                if not bandpass.has_key(scan[2].name):
+                    print "Calculating bandpass for target:%s  "%(scan[2].name)
+                    #bandpass[scan[2].name] = calprocs.g_fit(vis.mean(axis=0),h5.bls_lookup,refant=ref_ant_ind)
+                    bandpass[scan[2].name] = vis.mean(axis=0)
+                bpfac = bandpass[scan[2].name][np.newaxis,:,:]
+                #bandpass[scan[2].name][np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[scan[2].name][np.newaxis,:,antB[:len(antB)//2]])
             
-            cal_baselines = (vis/bpfac).mean(axis=1)
-            scanbounds.append(i+h5.shape[0])  
-            data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
-            #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
-            print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
-            i += h5.shape[0]
+                cal_baselines = (vis/bpfac).mean(axis=1)
+                scanbounds.append(i+h5.shape[0])  
+                data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
+                #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
+                print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
+                i += h5.shape[0]
         
-        g_title = "%s : %s  : %i->%i MHz "%(h5.name.split('/')[-1],target.name,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
+            g_title = "%s : %s  : %i->%i MHz "%(h5.name.split('/')[-1],target.name,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
 
-        fig = plt.figure()
-        plt.suptitle(g_title)
-        plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
-        plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
-        plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
-        plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
-        plt.colorbar()
-        for sb in scanbounds :
-            plt.hlines(sb,-.5,len(h5.antlist)-0.5,'k')
-        fig.savefig(pp,format='pdf')
-        plt.close(fig)
+            fig = plt.figure()
+            plt.suptitle(g_title)
+            plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
+            plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
+            plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
+            plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
+            plt.colorbar()
+            for sb in scanbounds :
+                plt.hlines(sb,-.5,len(h5.antlist)-0.5,'k')
+            fig.savefig(pp,format='pdf')
+            plt.close(fig)
 
-        fig = plt.figure()
-        plt.suptitle(g_title)
-        plt.title('Amplitude  in Antenna vs. Time for %s pol  '%(pol))
-        plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
-        plt.imshow((np.abs(data)),aspect='auto',interpolation='none')
-        plt.ylabel('Time');plt.xlabel('Antenna')
-        plt.colorbar()
-        for sb in scanbounds :
-            plt.hlines(sb,-.5,len(h5.antlist)-0.5,'k')
-        fig.savefig(pp,format='pdf')
-        plt.close(fig)
+            fig = plt.figure()
+            plt.suptitle(g_title)
+            plt.title('Amplitude  in Antenna vs. Time for %s pol  '%(pol))
+            plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
+            plt.imshow((np.abs(data)),aspect='auto',interpolation='none')
+            plt.ylabel('Time');plt.xlabel('Antenna')
+            plt.colorbar()
+            for sb in scanbounds :
+                plt.hlines(sb,-.5,len(h5.antlist)-0.5,'k')
+            fig.savefig(pp,format='pdf')
+            plt.close(fig)
 
-        for i,ant in  enumerate(h5.antlist):
-            print "Generating Stats on the Antenna %s"%(ant)
-            #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
-            mask = slice(0,data.shape[0])
-            g_title = "%s :  Antenna %s  :%s      frequency %i->%i MHz "%(h5.name.split('/')[-1],target.name,ant,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
-            returntext,pltfig = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=30,minsamples=30,title=g_title,noplot=noplot)
-            for plot_fig in pltfig:
-                plot_fig.savefig(pp1,format='pdf')
-                plt.close(plot_fig)
+            for i,ant in  enumerate(h5.antlist):
+                print "Generating Stats on the Antenna %s"%(ant)
+                #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
+                mask = slice(0,data.shape[0])
+                g_title = "%s :  Antenna %s  :%s      frequency %i->%i MHz "%(h5.name.split('/')[-1],target.name,ant,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
+                returntext,pltfig = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=30,minsamples=30,title=g_title,noplot=noplot)
+                for plot_fig in pltfig:
+                    plot_fig.savefig(pp1,format='pdf')
+                    plt.close(plot_fig)
 pp.close()
 pp1.close()
 plt.close('all')
