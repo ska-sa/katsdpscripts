@@ -7,6 +7,7 @@
 # 5 April 2017
 #
 
+import json
 import time
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
@@ -76,6 +77,8 @@ with verify_and_connect(opts) as kat:
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        user_logger.info("Zeroing all delay adjustments for starters")
+        session.cbf.req.adjust_all_delays()
         session.capture_start()
         user_logger.info("Target to be observed: %r", target.description)
         session.label('un_corrected')
@@ -92,13 +95,10 @@ with verify_and_connect(opts) as kat:
             if not delays:
                 raise NoDelaysAvailableError("No delay solutions found in telstate %r"
                                              % (session.telstate,))
-        user_logger.info("Delay solutions (sample rate = %f Hz):", sample_rate)
-        for inp, delay in delays.items():
-            user_logger.info("    %s: %.3f ns (%.3f samples)",
-                             inp, delay * 1e9, delay * sample_rate)
-        if opts.reset:
-            user_logger.info("Zeroing all delay adjustments")
-            session.cbf.fengine.req.adjust_all_delays()
-        else:
+        user_logger.info("Delay solutions (sample rate = %g Hz):", sample_rate)
+        for inp in sorted(delays):
+            user_logger.info(" - %s: %10.3f ns (%9.2f samples)",
+                             inp, delays[inp] * 1e9, delays[inp] * sample_rate)
+        if not opts.reset:
             user_logger.info("Adjusting delays on CBF proxy")
-            session.cbf.fengine.req.adjust_all_delays(delays)
+            session.cbf.req.adjust_all_delays(json.dumps(delays))
