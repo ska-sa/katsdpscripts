@@ -45,6 +45,9 @@ def get_delaycal_solutions(session):
     return dict(zip(inputs, solutions.real.flat))
 
 
+# Default F-engine gain as a function of number of channels
+DEFAULT_GAIN = {4096: 200, 32768: 4000}
+
 # Set up standard script options
 usage = "%prog [options] [<'target/catalogue'> ...]"
 description = 'Track the source with the highest elevation and calibrate ' \
@@ -53,7 +56,10 @@ parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=30.0,
                   help='Length of time to track the source, in seconds (default=%default)')
-parser.add_option('--reset', action='store_true', default=False,
+parser.add_option('--fengine-gain', type='int', default=0,
+                  help='Correlator F-engine gain, automatically set if 0 (the '
+                       'default) and left alone if negative')
+parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
@@ -80,14 +86,25 @@ with verify_and_connect(opts) as kat:
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        gain = opts.fengine_gain if not kat.dry_run else -1
+        # Obtain default gain based on channel count if none specified
+        if gain == 0:
+            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+            gain = DEFAULT_GAIN.get(num_channels, -1)
+        if gain > 0:
+            user_logger.info("Setting F-engine gains to %d" % (gain,))
+            for inp in session.cbf.fengine.inputs:
+                session.cbf.fengine.req.gain(inp, gain)
         user_logger.info("Zeroing all delay adjustments for starters")
         session.cbf.req.adjust_all_delays()
+
         session.capture_start()
         user_logger.info("Target to be observed: %r", target.description)
         session.label('un_corrected')
         session.track(target, duration=opts.track_duration)
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
+
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         time.sleep(30)
         sample_rate = 0.0
@@ -102,6 +119,6 @@ with verify_and_connect(opts) as kat:
         for inp in sorted(delays):
             user_logger.info(" - %s: %10.3f ns, %9.2f samples",
                              inp, delays[inp] * 1e9, delays[inp] * sample_rate)
-        if not opts.reset:
+        if not opts.reset_delays:
             user_logger.info("Adjusting delays on CBF proxy")
             session.cbf.req.adjust_all_delays(json.dumps(delays))
