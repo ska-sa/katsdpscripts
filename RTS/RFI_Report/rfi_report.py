@@ -10,7 +10,7 @@ parser = optparse.OptionParser(usage="Please specify the input file\nUSAGE: pyth
     description="Produce a report detailing RFI detected in the input dataset")
 
 parser.add_option("-a", "--antennas", type="string", default=None, help="Comma separated list of antennas to produce the report for, default is all antennas in file")
-parser.add_option("-t", "--targets", type="string", default=None, help="List of targets to produce report for, default is all targets in the file")
+parser.add_option("-t", "--targets", type="string", default=None, help="List of individual targets to produce report for, default is none, 'all'=all targets")
 parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 90% of the bandpass.")
 parser.add_option("-o", "--output_dir", default='.', help="Directory to place output .pdf report. Default is cwd")
 parser.add_option("-s", "--static_flags", default=None, help="Location of static flags pickle file.")
@@ -20,12 +20,13 @@ parser.add_option("--flags-only", action='store_true', help="Only calculate flag
 parser.add_option("--report-only", action='store_true', help="Only generate RFI report (use flags from file).")
 parser.add_option("--report-auto-only", action='store_false', default=True, help="Only report flags on auto-correlations")
 parser.add_option("--width-freq", type="float", default=1.0, help="Frequency width for background smoothing in MHz")
-parser.add_option("--width-time", type="float", default=2.0, help="Time width for background smoothing in seconds")
+parser.add_option("--width-time", type="float", default=4.0, help="Time width for background smoothing in seconds")
 parser.add_option("--freq-extend", type="int", default=3, help="Convolution width in channels to extend flags")
 parser.add_option("--time-extend", type="int", default=3, help="Convolution width in dumps to extend flags")
 parser.add_option("--outlier-sigma-freq", type="float", default=4.5, help="Number of sigma to threshold for flags in single channel sumthreshold iteration (frequency axis)")
 parser.add_option("--outlier-sigma-time", type="float", default=5.5, help="Number of sigma to threshold for flags in single channel sumthreshold iteration (time axis)")
 parser.add_option("--average-freq", type="int", default=1, help="Number of channels to average in the frequency axis before flagging (flags are subsequently extended to full width)")
+parser.add_option("--mask-non-tracks", action='store_true', help="Flag times when antennas are not slewing. Flags are stored in 'cam' flag bit.")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
@@ -50,13 +51,15 @@ else:
 if opts.flags_only:
 	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,
 						freq_chans=opts.freq_chans, outlier_sigma_freq=opts.outlier_sigma_freq, outlier_sigma_time=opts.outlier_sigma_time,
-						width_freq=opts.width_freq, width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend, speedup=opts.average_freq)
+						width_freq=opts.width_freq, width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend, 
+						mask_non_tracks=opts.mask_non_tracks, speedup=opts.average_freq)
 elif opts.report_only:
 	generate_rfi_report(filename,input_flags=None,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,
 						freq_chans=opts.freq_chans, do_cross=opts.report_auto_only)
 else:
 	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,
 						freq_chans=opts.freq_chans, outlier_sigma_freq=opts.outlier_sigma_freq, outlier_sigma_time=opts.outlier_sigma_time,
-						width_freq=opts.width_freq, width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend, speedup=opts.average_freq)
+						width_freq=opts.width_freq, width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend, 
+						mask_non_tracks=opts.mask_non_tracks, speedup=opts.average_freq)
 	generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,
 						freq_chans=opts.freq_chans, do_cross=opts.report_auto_only)

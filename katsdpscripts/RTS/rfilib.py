@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt #; plt.ioff()
 import matplotlib.gridspec as gridspec
 from matplotlib import ticker
 import matplotlib
-matplotlib.use('pdf')
 
 import numpy as np
 import optparse
@@ -202,38 +201,22 @@ def getbackground(data,in_flags=None,iterations=3,spike_width_time=10,spike_widt
         #Reject outliers
         residual=residual-np.median(residual[np.where(mask)])
         mask[np.abs(residual)>reject_threshold*np.nanstd(residual[np.where(mask)])]=0.0
-    weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0,truncate=3.0)
-    background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0,truncate=3.0)/weight
-    if interp_nonfinite:
-        #If requested fill in nonfinite values with background smoothed with gaussian width increased by a factor of 2. 
-        #Fill values with 0.0 if gaussian smoothing factor is larger than the scan size.
-        nonfinite_values=~np.isfinite(background)
-        denominator=5
-        while np.any(nonfinite_values):
-            denominator-=1
-            if denominator==0:
-            #If we really can't interpolate any values- just set nonfinite values to zero
-                background[nonfinite_values]=0.0
-                break
-            sigma=np.array([data.shape[0]//denominator,data.shape[1]//denominator])
-            weight=ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0)
-            interp_background=ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0)/weight
-            background[nonfinite_values]=interp_background[nonfinite_values]
-            nonfinite_values=~np.isfinite(background)
+    weight = ndimage.gaussian_filter(mask,sigma,mode='constant',cval=0.0,truncate=3.0)
+    background = ndimage.gaussian_filter(data*mask,sigma,mode='constant',cval=0.0,truncate=3.0)/weight
+
+    def linearly_interpolate_nans(y):
+        # Create X matrix for linreg with an intercept and an index
+        nan_locs = np.isnan(y)
+        if np.all(nan_locs):
+            y[:] = 0
+        else:
+            X = np.nonzero(~nan_locs)[0]
+            Y = y[X]
+            y[nan_locs] = np.interp(np.nonzero(nan_locs),X,Y)
+        return y
+
+    background = np.apply_along_axis(linearly_interpolate_nans, 1, background)
     return background
-
-
-def getbackground_opening_filter():
-    """ Determine the background in a 1d array of data using an opening filter.
-        This is the process of "erosion" - filtering the array by the minimum
-        of the elements in a small area around a given element
-        followed by the process of "dilation" -filtering the array by the minimum
-        of the elements in a small area around a given element
-        the size of the area chosen should correspond to the expected spike width
-        in the data.
-    """
-
-    return(thisfitted_data)
 
 def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
     if main:
@@ -289,8 +272,8 @@ def get_scan_flags(flagger,data,flags):
     return flagger._detect_spikes_sumthreshold(data,flags)
 
 class sumthreshold_flagger():
-    def __init__(self,background_iterations=1, spike_width_time=10, spike_width_freq=10, outlier_sigma_freq=4.0, outlier_sigma_time=5.5, 
-                background_reject=2.0, num_windows=5, average_time=1, average_freq=1, time_extend=3, freq_extend=3, debug=False):
+    def __init__(self,background_iterations=1, spike_width_time=10, spike_width_freq=10, outlier_sigma_freq=4.5, outlier_sigma_time=5.5, 
+                background_reject=2.0, num_windows=5, average_time=1, average_freq=1, time_extend=3, freq_extend=3, freq_chunks=7, debug=False):
         self.background_iterations=background_iterations
         self.spike_width_time=spike_width_time
         self.spike_width_freq=spike_width_freq
@@ -298,8 +281,8 @@ class sumthreshold_flagger():
         self.outlier_sigma_time=outlier_sigma_time
         self.background_reject=background_reject
         # Range of windows from 1 to 2*spike_width
-        self.window_size_freq=np.unique(np.logspace(0,max(0,np.log10(spike_width_freq + 0.00001)),num_windows,endpoint=True,dtype=np.int))
-        self.window_size_time=np.unique(np.logspace(0,max(0,np.log10(spike_width_time + 0.00001)),num_windows,endpoint=True,dtype=np.int))
+        self.window_size_freq=np.unique(np.logspace(0,max(0,np.log10(spike_width_freq + 1e-6)),num_windows,endpoint=True,dtype=np.int))
+        self.window_size_time=np.unique(np.logspace(0,max(0,np.log10(spike_width_time + 1e-6)),num_windows,endpoint=True,dtype=np.int))
         self.average_time=average_time
         self.average_freq=average_freq
         self.debug=debug
@@ -310,11 +293,12 @@ class sumthreshold_flagger():
         #Extend size of flags in time and frequency
         self.time_extend = time_extend
         self.freq_extend = freq_extend
-        #How many subbands to flag in frequency??
-        self.num_freq_chunks = 7
+        #Set up subbands in frequency
+        #Can be an int to equally subdivide into the required chunks, or a list which specifies the channels of the chunk edges.
+        self.freq_chunks = freq_chunks
         #Falloff exponent for sumthreshold
         self.rho = 1.3
-        if debug: 
+        if debug:
             print 'Initialise flagger:'
             print 'spike_width_time,spike_width_freq:', spike_width_time,spike_width_freq
             print 'window_size_time,window_size_freq:',self.window_size_freq,self.window_size_time
@@ -330,6 +314,8 @@ class sumthreshold_flagger():
             async_results.append(p.apply_async(get_scan_flags,(self,data[...,i],flags[...,i],)))
         p.close()
         p.join()
+        #for i in range(data.shape[-1]):
+        #    get_scan_flags(self,data[...,i],flags[...,i])
         for i,result in enumerate(async_results):
             out_flags[...,i]=result.get()     
         if self.debug: 
@@ -360,70 +346,98 @@ class sumthreshold_flagger():
             st_time=0.
         #Create flags array
         if in_flags is None:
-            in_flags = np.zeros(data.shape, dtype=np.bool)
+            in_flags = np.zeros(in_data.shape, dtype=np.bool)
         if self.average_time > 1 or self.average_freq > 1:
-            data, flags = self._average(in_data,in_flags)
+            in_data, in_flags = self._average(in_data,in_flags)
+        out_flags = np.zeros(in_data.shape, dtype=np.bool)
+        #Set up chunks
+        if type(self.freq_chunks) is int:
+            freq_chunks = np.linspace(0,in_data.shape[1],self.freq_chunks+1,dtype=np.int)
         else:
-            data, flags = in_data, in_flags
-        freq_chunk_overlap = max(self.window_size_freq)*3
-        chunk_size = int(np.ceil(data.shape[1]/float(self.num_freq_chunks)))
-        for chunk_num in range(self.num_freq_chunks):
+            #Assume it's an iterable and correct for averaging
+            freq_chunks = self.freq_chunks/self.average_freq
+            #Append the start and end of the channel range if not specified in input list
+            freq_chunks = np.unique(np.append(freq_chunks,[0,in_data.shape[1]]))
+            freq_chunks.sort()
+        #Number of channels to pad start and end of each chunk (factor of 3 is gaussian smoothing box size in getbackground)
+        freq_chunk_overlap = int(self.spike_width_freq)*3
+        #Loop over chunks
+        for chunk_num in range(len(freq_chunks)-1):
             if self.debug: back_start=time.time()
-            chunk_start = chunk_size*chunk_num
-            chunk=slice(chunk_start,chunk_start+chunk_size+freq_chunk_overlap)
-            next_chunk = slice(chunk_start+chunk_size,chunk_start+(2*chunk_size)+freq_chunk_overlap)
-            data_chunk = data[:,chunk]
-            if chunk_num==0:
-                flags_chunk = np.copy(flags[:,chunk])
-            else:
-                flags_chunk = next_flags_chunk
-            next_flags_chunk = np.copy(flags[:,next_chunk])
-            background_chunk = getbackground(data_chunk,in_flags=flags_chunk,iterations=self.background_iterations,spike_width_time=self.spike_width_time,\
-                                                spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,interp_nonfinite=False)
-            if self.debug: 
-                back_time += (time.time()-back_start)
+            #Chunk the input and create output chunk
+            chunk_start = freq_chunks[chunk_num]
+            chunk_end = freq_chunks[chunk_num+1]
+            chunk = slice(chunk_start-freq_chunk_overlap,chunk_end+freq_chunk_overlap) if chunk_num > 0 \
+                                                else slice(chunk_start,chunk_end+freq_chunk_overlap)
+            in_data_chunk = in_data[:,chunk]
+            #Copy in_flags- as we'll be changing them.
+            in_flags_chunk = in_flags[:,chunk]
+            out_flags_chunk = np.zeros_like(in_flags_chunk,dtype=np.bool)
+            #Flag a 1d median spectrum in frequency
+            spec_flags = np.all(in_flags_chunk,axis=0).reshape((1,-1,))
+            #Un-flag channels that are completely flagged in time to avoid nans in the median
+            in_flags_chunk[:,spec_flags[0]]=False
+            spec_data = np.nanmedian(np.where(in_flags_chunk,np.nan,in_data_chunk),axis=0).reshape((1,-1,))
+            #Re-flag channels that are completely flagged in time.
+            in_flags_chunk[:,spec_flags[0]]=True
+            spec_background = getbackground(spec_data,in_flags=spec_flags,iterations=self.background_iterations,spike_width_time=self.spike_width_time,\
+                                                spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,interp_nonfinite=True)
+            av_dev = spec_data - spec_background
+            spec_flags = self._sumthreshold(av_dev,spec_flags,1,self.window_size_freq,self.outlier_sigma_freq)
+            #Extend spec_flags to number of timestamps
+            out_flags_chunk[:] = spec_flags
+            #Use the spec flags in the mask
+            in_flags_chunk |= out_flags_chunk
+            #Flag the 2d data in a time,frequency view
+            background_chunk = getbackground(in_data_chunk,in_flags=in_flags_chunk,iterations=self.background_iterations,spike_width_time=self.spike_width_time,\
+                                                spike_width_freq=self.spike_width_freq,reject_threshold=self.background_reject,interp_nonfinite=True)
+            if self.debug:
+                back_time += (time.time() - back_start)
                 st_start = time.time()
-            flags_chunk = flags_chunk | ~np.isfinite(background_chunk)
             #Subtract background
-            av_dev = data_chunk-background_chunk
+            av_dev = in_data_chunk - background_chunk
             #Sumthershold along time axis
-            flags_chunk = self._sumthreshold(av_dev,flags_chunk,0,self.window_size_time,self.outlier_sigma_time)
-            #Sumthreshold along frequency axis
-            flags_chunk = self._sumthreshold(av_dev,flags_chunk,1,self.window_size_freq,self.outlier_sigma_freq)
-            flags[:,chunk] = flags_chunk
-            if self.debug: st_time += (time.time()-st_start)
-        #Extend flags in freq and time
+            time_flags_chunk = self._sumthreshold(av_dev,in_flags_chunk,0,self.window_size_time,self.outlier_sigma_time)
+            #Sumthreshold along frequency axis- with time flags in the mask
+            freq_flags_chunk = self._sumthreshold(av_dev,in_flags_chunk | time_flags_chunk,1,self.window_size_freq,self.outlier_sigma_freq)
+            #Combine all the flags
+            out_flags_chunk |= time_flags_chunk | freq_flags_chunk
+            out_flags[:,chunk_start:chunk_end] = out_flags_chunk[:,freq_chunk_overlap:freq_chunk_overlap+chunk_end-chunk_start] if chunk_num > 0 \
+                                                                    else out_flags_chunk[:,0:chunk_end-chunk_start]
+            if self.debug: st_time += time.time()-st_start
+        #Extend flags in freq and time (take into account averaging)
         if self.freq_extend > 1:
-            flags = ndimage.convolve1d(flags, [True]*self.freq_extend, axis=1, mode='reflect')
+            out_flags = ndimage.convolve1d(out_flags, [True]*(self.freq_extend/self.average_freq), axis=1, mode='reflect')
         if self.time_extend > 1:
-            flags = ndimage.convolve1d(flags, [True]*self.time_extend, axis=0, mode='reflect')
+            out_flags = ndimage.convolve1d(out_flags, [True]*(self.time_extend/self.average_time), axis=0, mode='reflect')
         #Flag all freqencies and times if too much is flagged.
-        flags[:,np.where(np.sum(flags,dtype=np.float,axis=0)/flags.shape[0] > self.flag_all_time_frac)[0]]=True
-        flags[np.where(np.sum(flags,dtype=np.float,axis=1)/flags.shape[1] > self.flag_all_freq_frac)]=True
+        out_flags[:,np.where(np.sum(out_flags,dtype=np.float,axis=0)/out_flags.shape[0] > self.flag_all_time_frac)[0]]=True
+        out_flags[np.where(np.sum(out_flags,dtype=np.float,axis=1)/out_flags.shape[1] > self.flag_all_freq_frac)]=True
         if self.average_freq > 1:
-            flags=np.repeat(flags,self.average_freq,axis=1)
+            out_flags=np.repeat(out_flags,self.average_freq,axis=1)
         if self.average_time > 1:
-            flags=np.repeat(flags,self.average_time,axis=0)
+            out_flags=np.repeat(out_flags,self.average_time,axis=0)
         if self.debug:
             end_time=time.time()
-            print "Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(data.shape[0], data.shape[1], back_time, st_time, end_time-start_time)
-        return flags
+            print "Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(in_data.shape[0], in_data.shape[1], back_time, st_time, end_time-start_time)
+        return out_flags
 
 
     def _sumthreshold(self,input_data,flags,axis,window_bl,sigma):
 
         sd_mask = (input_data==0.) | ~np.isfinite(input_data) | flags
         #Get standard deviations along the axis using MAD
-        estm_stdev = 1.4826 * np.nanmedian(np.abs(np.ma.MaskedArray(input_data,mask=sd_mask).filled(fill_value=np.nan)),axis=axis)
+        estm_stdev = 1.4826 * np.nanmedian(np.abs(np.where(sd_mask,np.nan,input_data)),axis=axis)
         # Identify initial outliers (again based on normal assumption), and replace them with local median
         threshold = sigma * estm_stdev
+        output_flags = np.zeros_like(flags,dtype=np.bool)
         for window in window_bl:
             if window>input_data.shape[axis]: break
             #The threshold for this iteration is calculated from the initial threshold
             #using the equation from Offringa (2010).
             thisthreshold = np.expand_dims(threshold / pow(self.rho,(math.log(window)/math.log(2.0))), axis).repeat(input_data.shape[axis],axis=axis)
             #Set already flagged values to be the value of this threshold if they are nans or greater than the threshold.
-            bl_mask = np.logical_and(flags,np.logical_or(thisthreshold<input_data,~np.isfinite(input_data)))  
+            bl_mask = np.logical_and(output_flags,np.logical_or(thisthreshold<np.abs(input_data),~np.isfinite(input_data)))
             bl_data = np.where(bl_mask,thisthreshold,input_data)
             #Calculate a rolling average array from the data with a windowsize for this iteration
             avgarray = running_mean(bl_data, window, axis=axis)
@@ -436,8 +450,8 @@ class sumthreshold_flagger():
             convwindow = np.ones(window, dtype=np.bool)
             this_flags = np.apply_along_axis(np.convolve, axis, this_flags, convwindow)
             #"OR" the flags with the flags from the previous iteration.
-            flags = flags | this_flags
-        return flags
+            output_flags = output_flags | this_flags
+        return output_flags
 
 
 def detect_spikes_mad(data,blarray=None,spike_width=20,outlier_sigma=3):
@@ -667,10 +681,10 @@ def get_flag_stats(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=
     data = np.ma.MaskedArray(thisdata,mask=flags,copy=False).filled(fill_value=np.nan)
     offset = np.nanmedian(data,axis=1)
     #Remove the DC height
-    weights = np.logical_not(flags).view(np.int8)
+    weights = np.logical_not(flags).astype(np.int8)
     data /= np.expand_dims(offset,axis=1)
     #Get the results for all of the data
-    weightsum = weights.sum(axis=0,dtype=np.int).squeeze()
+    weightsum = weights.sum(axis=0,dtype=np.int)
     averagespec = np.nanmean(data,axis=0)
     flagfrac = 1. - weightsum/h5.shape[0].astype(np.float)
     flag_stats['all_data'] = {'spectrum': averagespec, 'numrecords_tot': h5.shape[0], 'flagfrac': flagfrac, 'channel_freqs': h5.channel_freqs, \
@@ -686,7 +700,7 @@ def get_flag_stats(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=
     h5.select(reset='T')
     return flag_stats
 
-def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
+def plot_flag_data(label,spectrum,flagfrac,freqs,pdf,mask=None):
     """
     Produce a plot of the average spectrum in H and V 
     after flagging and attach it to the pdf output.
@@ -697,41 +711,44 @@ def plot_flag_data(label,hspectrum,hflagfrac,vspectrum,vflagfrac,freqs,pdf):
     repo_info = git_info() 
 
     #Set up the figure
-    fig = plt.figure(figsize=(8.3,11.7))
-    plt.suptitle(label,fontsize=14)
-    outer_grid = gridspec.GridSpec(2,1)
-    spectrum = {'HH': hspectrum, 'VV': vspectrum}
-    flagfrac = {'HH': hflagfrac, 'VV': vflagfrac}
-    for num,pol in enumerate(['HH','VV']):
-        inner_grid = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer_grid[num-1], hspace=0.0)
-        #Plot the spectrum for each target
-        ax1 = plt.subplot(inner_grid[0])
-        ax1.text(0.01, 0.90,repo_info, horizontalalignment='left',fontsize=10,transform=ax1.transAxes)
-        ax1.set_title(pol +' polarisation')
-        plt.plot(freqs,spectrum[pol])
-        plot_RFI_mask(ax1)
-        ticklabels=ax1.get_xticklabels()
-        plt.setp(ticklabels,visible=False)
-        ticklabels=ax1.get_yticklabels()
-        plt.setp(ticklabels,visible=False)
-        plt.xlim((min(freqs),max(freqs)))
-        plt.ylabel('Mean amplitude\n(arbitrary units)')
-        #Plot the average flags
-        ax = plt.subplot(inner_grid[1],sharex=ax1)
-        plt.plot(freqs,flagfrac[pol],'r-')
-        plt.ylim((0.,1.))
-        plot_RFI_mask(ax)
-        plt.xlim((min(freqs),max(freqs)))
-        plt.ylabel('Fraction flagged')
-        ticklabels=ax.get_yticklabels()
-        #Convert ticks to MHZ
-        ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
-        ax.xaxis.set_major_formatter(ticks)
-        plt.xlabel('Frequency (MHz)')
+    fig = plt.figure(figsize=(11.7,8.3))
+
+    #Plot the spectrum
+    ax1 = fig.add_subplot(211)
+    ax1.text(0.01, 0.90,repo_info, horizontalalignment='left',fontsize=10,transform=ax1.transAxes)
+    ax1.set_title(label)
+    plt.plot(freqs,spectrum,linewidth=.5)
+
+    #plot_RFI_mask(ax1)
+    ticklabels=ax1.get_xticklabels()
+    plt.setp(ticklabels,visible=False)
+    ticklabels=ax1.get_yticklabels()
+    plt.setp(ticklabels,visible=False)
+    plt.xlim((min(freqs),max(freqs)))
+    plt.ylabel('Mean amplitude\n(arbitrary units)')
+    #Plot the mask
+    #plot_RFI_mask(ax1,mask,freqs[1]-freqs[0])
+    #Plot the flags occupancies
+    ax = fig.add_subplot(212,sharex=ax1)
+    plt.plot(freqs,flagfrac,'r-',linewidth=.5)
+    plt.ylim((0.,1.))
+    plt.axhline(0.8,color='red',linestyle='dashed',linewidth=.5)
+    #plot_RFI_mask(ax,mask,freqs[1]-freqs[0])
+    plt.xlim((min(freqs),max(freqs)))
+    minorLocator = ticker.MultipleLocator(10e6)
+    plt.ylabel('Fraction flagged')
+    ticklabels=ax.get_yticklabels()
+    #Convert ticks to MHZ
+    ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
+    ax.xaxis.set_major_formatter(ticks)
+    ax.xaxis.set_minor_locator(minorLocator)
+    plt.xlabel('Frequency (MHz)')
+    plt.tight_layout()
+    fig.subplots_adjust(hspace=0)
     pdf.savefig(fig)
     plt.close('all')
 
-def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label='', resolution=300):
+def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label='', resolution=150, output=None):
     """
     Make a waterfall plot from visdata with flags overplotted. 
     """
@@ -786,7 +803,11 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
     ticks = ticker.FuncFormatter(lambda x, pos: '{:4.0f}'.format(x/1.e6))
     ax.xaxis.set_major_formatter(ticks)
     plt.xlabel('Frequency (MHz)')
-    return(fig)
+    if output:
+        output.savefig(fig)
+    else:
+        plt.show()
+    plt.close('all')
 
 
 def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
@@ -818,8 +839,9 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
-def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=None,use_file_flags=True,outlier_sigma_freq=5.0, outlier_sigma_time=5.5,
-                        width_freq=1.0, width_time=2.0,time_extend=3,freq_extend=3,max_scan=600,write_into_input=False,speedup=1,debug=True):
+def generate_flag_table(input_file,output_root='.', static_flags=None, freq_chans=None, use_file_flags=True, outlier_sigma_freq=4.5, 
+                        outlier_sigma_time=5.5, width_freq=1.0, width_time=4.0, time_extend=3, freq_extend=5, max_scan=600, 
+                        write_into_input=False, speedup=1, mask_non_tracks=False, debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -848,6 +870,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
         flags_dataset = outfile['flags']
 
     freq_length = h5.shape[1]
+    
     #Read static flags from pickle
     if static_flags:
         sff = open(static_flags)
@@ -856,6 +879,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
     else:
         #Create dummy static flag array if no static flags are specified. 
         static_flags=np.zeros(h5.shape[1],dtype=np.bool)
+    
     #Set up the mask for broadcasting
     mask_array = static_flags[np.newaxis,:,np.newaxis]
 
@@ -869,23 +893,29 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
     #loop through scans
     num_bl = h5.shape[-1]
     cores_to_use = min(num_bl, (cpu_count-2))
-    #Are we KAT7 or MeerKAT
-    if h5.inputs[0][0]=='m':
-        #MeerKAT
-        flagger = sumthreshold_flagger(outlier_sigma_freq=outlier_sigma_freq,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,
-                                        outlier_sigma_time=outlier_sigma_time,time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,debug=debug)
-        cut_chans = (h5.shape[1]//20,h5.shape[1]-h5.shape[1]//20,) if freq_chans is None \
-                        else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
-    else:
-        #kat-7
-        flagger = sumthreshold_flagger(outlier_sigma_freq=outlier_sigma_freq,background_reject=4.5,spike_width_freq=width_freq_channel,
-                                        outlier_sigma_time=outlier_sigma_time,spike_width_time=width_time_dumps,average_freq=average_freq,debug=debug)
-        cut_chans = (h5.shape[1]//7,h5.shape[1]-h5.shape[1]//7,) if freq_chans is None \
+    cut_chans = (h5.shape[1]//20,h5.shape[1]-h5.shape[1]//20,) if freq_chans is None \
                         else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
 
     #Make sure final size of array divides into averaging width
     remainder = (cut_chans[1]-cut_chans[0])%average_freq
-    freq_range = slice(cut_chans[0]-(remainder//2),cut_chans[1]-(remainder-(remainder//2)))
+    freq_range = slice(cut_chans[0]+(remainder//2),cut_chans[1]-(remainder//2))
+
+    #Set up frequency chunks for meerkat/RTS 4k or 32k in L band 
+    #  - it's a horrible kludge to get this info!!!
+    if h5.version >= 3.0 and np.abs(h5.channel_freqs[len(h5.channel_freqs)//2] - 1284.e6) < 10.e6:
+        freq_chunks = np.array([700,1000,1320,2200,2750,3100,3700])
+        #Extend for 32k mode.
+        if h5.shape[1] > 4096: freq_chunks *= 8 
+        #remove extraneous chunks
+        freq_chunks = freq_chunks[np.nonzero(np.logical_and(freq_chunks>=freq_range.start,freq_chunks<=freq_range.stop))]
+        freq_chunks -= freq_range.start
+    else:
+        freq_chunks = 7
+
+    flagger = sumthreshold_flagger(outlier_sigma_freq=outlier_sigma_freq,spike_width_freq=width_freq_channel,spike_width_time=width_time_dumps,
+                                    outlier_sigma_time=outlier_sigma_time,time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq,
+                                    freq_chunks=freq_chunks,debug=debug)
+
     for scan, state, target in h5.scans():
         #Take slices through scan if it is too large for memory
         if h5.shape[0]>max_scan:
@@ -920,6 +950,15 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
             flags = np.zeros((this_slice.stop-this_slice.start,h5.shape[1],h5.shape[2],),dtype=np.uint8)
             #Add mask to 'static' flags
             flags += mask_array.astype(np.uint8)*2
+            #Flag non-tracks and add to 'cam' flags
+            if mask_non_tracks:
+                #Set up mask for cam flags (assumtion here is that these are unused up to now)
+                cam_mask = np.zeros((this_slice.stop-this_slice.start,h5.shape[2],),dtype=np.bool)
+                for ant in h5.ants:
+                    ant_corr_prods = [index for index,corr_prod in enumerate(h5.corr_products) if ant.name in str(corr_prod)]
+                    non_track_dumps = np.nonzero(h5.sensor['Antennas/%s/activity'%ant.name][this_slice] != 'track' )[0]
+                    cam_mask[non_track_dumps[:,np.newaxis],ant_corr_prods] = True
+                flags += cam_mask[:,np.newaxis,:].astype(np.uint8)*(2**2)
             #Add detected flags to 'cal_rfi'
             flags[:,freq_range,:] += detected_flags.astype(np.uint8)*(2**6)
             flags_dataset[h5.dumps[this_slice],:,:] += flags
@@ -927,7 +966,7 @@ def generate_flag_table(input_file,output_root='.',static_flags=None,freq_chans=
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,flags_to_show='cal_rfi',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -939,7 +978,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='cal_rfi',outp
     flags_to_show - select which flag bits to plot. ('all'=all flags)
     output_root - directory where output is to be placed - defailt cwd
     antenna - which antenna to produce report on - default all in file
-    targets - which target to produce report on - default all
+    targets - which target to produce report on - default None
     time_range - Time range of input file to report. sequence of 2 (Start_time,End_time)
                 Format: 'YYYY-MM-DD HH:MM:SS.SSS', katpoint.Target or ephem.Date object or float in UTC seconds since Unix epoch
     freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
@@ -963,83 +1002,20 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='cal_rfi',outp
         end_chan = int(freq_chans.split(',')[1])
     chan_range = range(start_chan,end_chan+1)
 
-    if targets is None: targets = h5.catalogue.targets
-
-    for ant in ants:
-        # Set up the output file
-        basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ant + '_RFI')
-        pdf = PdfPages(basename+'.pdf')
-        #Only select single pol
-        corrprodselect=[[ant+'h']*2,[ant+'v']*2]
-        h5.select(reset='TFB',corrprods=corrprodselect)
-        vis=np.empty(h5.shape,dtype=np.float32)
-        flags=np.empty(h5.shape,dtype=np.bool)
-        #Get required vis and flags up front to avoid multiple reads of the data
-        h5.select(flags=flags_to_show)
-        for dump in range(h5.shape[0]):
-            vis[dump]=np.abs(h5.vis[dump])
-            flags[dump]=h5.flags[dump]
-        #Populate data_dict
-        data_dict=get_flag_stats(h5,thisdata=vis,flags=flags)
-        #Output to h5 file
-        outfile=h5py.File(basename+'.h5','w')
-        for targetname, targetdata in data_dict.iteritems():
-            #Create a group in the h5 file corresponding to the target
-            grp=outfile.create_group(targetname)
-            #populate the group with the data
-            for datasetname, data in targetdata.iteritems(): grp.create_dataset(datasetname,data=data)
-        outfile.close()
-
-        # Loop through targets
-        for target in targets:
-            #Get the target name if it is a target object
-            if isinstance(target, katpoint.Target):
-                target = target.name
-            #Extract target and time range from file
-            h5.select(targets=target,scans='track',ants=ant,channels=chan_range)
-            if h5.shape[0]==0:
-                print 'No data to process for ' + target
-                continue
-            label = 'Flag info for Target: ' + target + ', Antenna: ' + ant +', '+str(data_dict[target]['numrecords_tot'])+' records'
-            #Get index of HH and VV data
-            hh_index=np.all(h5.corr_products==ant+'h',axis=1)
-            vv_index=np.all(h5.corr_products==ant+'v',axis=1)
-            plot_flag_data(label,data_dict[target]['spectrum'][chan_range][:,hh_index],data_dict[target]['flagfrac'][chan_range][:,hh_index], \
-                            data_dict[target]['spectrum'][chan_range][:,vv_index],data_dict[target]['flagfrac'][chan_range][:,vv_index], \
-                            h5.channel_freqs,pdf)
-            pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,hh_index],flags[h5.dumps[:,np.newaxis],h5.channels,hh_index], \
-                                            h5.channel_freqs,None,label+'\nHH polarisation'))
-            pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,vv_index],flags[h5.dumps[:,np.newaxis],h5.channels,vv_index], \
-                                            h5.channel_freqs,None,label+'\nVV polarisation'))
-            plt.close('all')
-
-        #Reset the selection
-        h5.select(reset='TFB',corrprods=corrprodselect,channels=chan_range)
-
-        #Plot the flags for all data in the file
-        label = 'Flag info for all data, Antenna: ' + ant +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
-        #Get index of HH and VV data
-        hh_index=np.all(h5.corr_products==ant+'h',axis=1)
-        vv_index=np.all(h5.corr_products==ant+'v',axis=1)
-        plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range,hh_index],data_dict['all_data']['flagfrac'][chan_range,hh_index], \
-                        data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
-        pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,hh_index],flags[h5.dumps[:,np.newaxis],h5.channels,hh_index], \
-                                            h5.channel_freqs,h5.timestamps,label+'\nHH polarisation'))
-        pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,vv_index],flags[h5.dumps[:,np.newaxis],h5.channels,vv_index], \
-                                        h5.channel_freqs,h5.timestamps,label+'\nVV polarisation'))
-        plt.close('all')
-
-        #close the plot
-        pdf.close()
+    if targets is 'all': targets = h5.catalogue.targets
+    if targets is None: targets = []
 
     #Report cross correlations if requested
-    all_blines = [list(pair) for pair in itertools.combinations(ants,2) if do_cross]
-
+    if do_cross:
+        all_blines = [list(pair) for pair in itertools.combinations_with_replacement(ants,2)]
+    else:
+        all_blines = [[a,a] for a in ants]
     for bline in all_blines:
         # Set up the output file
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ','.join(bline) + '_RFI')
         pdf = PdfPages(basename+'.pdf')
-        corrprodselect=[[bline[0]+'h',bline[1]+'h'],[bline[0]+'v',bline[1]+'v']]
+####        corrprodselect=[[bline[0]+'h',bline[1]+'h'],[bline[0]+'v',bline[1]+'v']]
+        corrprodselect=[[bline[0]+'h',bline[1]+'h']]
         h5.select(reset='TFB',corrprods=corrprodselect)
         vis=np.empty(h5.shape,dtype=np.float32)
         flags=np.empty(h5.shape,dtype=np.bool)
@@ -1071,26 +1047,32 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='cal_rfi',outp
                 continue
             #Get HH and VV cross pol indices
             hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
-            vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
+            vv_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
+####            vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
             label = 'Flag info for Target: ' + target + ', Baseline: ' + ','.join(bline) +', '+str(data_dict[target]['numrecords_tot'])+' records'
-            plot_flag_data(label,data_dict[target]['spectrum'][chan_range,hh_index],data_dict[target]['flagfrac'][chan_range,hh_index], \
-                        data_dict[target]['spectrum'][chan_range,vv_index],data_dict[target]['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
-            pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,hh_index],flags[h5.dumps[:,np.newaxis],h5.channels,hh_index], \
-                                                    h5.channel_freqs,None,label+'\nHH polarisation'))
-            pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,vv_index],flags[h5.dumps[:,np.newaxis],h5.channels,vv_index], \
-                                                    h5.channel_freqs,None,label+'\nVV polarisation'))  
+            plot_flag_data(label + ' H Pol', data_dict[target]['spectrum'][chan_range,hh_index], \
+                            data_dict[target]['flagfrac'][chan_range,hh_index], h5.channel_freqs, pdf)
+            plot_flag_data(label + ' V Pol', data_dict[target]['spectrum'][chan_range,vv_index], \
+                            data_dict[target]['flagfrac'][chan_range,vv_index], h5.channel_freqs, pdf)
+            plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,hh_index],flags[h5.dumps[:,np.newaxis],h5.channels,hh_index], \
+                                                    h5.channel_freqs,None,label+'\nHH polarisation',output=pdf)
+            plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,vv_index],flags[h5.dumps[:,np.newaxis],h5.channels,vv_index], \
+                                                    h5.channel_freqs,None,label+'\nVV polarisation',output=pdf)
         #Reset the selection
         h5.select(reset='TFB',corrprods=corrprodselect,channels=chan_range)
 
         #Plot the flags for all data in the file
         hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
-        vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
+        vv_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
+####        vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
         label = 'Flag info for all data, Baseline: ' + ','.join(bline) +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
-        plot_flag_data(label,data_dict['all_data']['spectrum'][chan_range,hh_index],data_dict['all_data']['flagfrac'][chan_range,hh_index], \
-                        data_dict['all_data']['spectrum'][chan_range,vv_index],data_dict['all_data']['flagfrac'][chan_range,vv_index],h5.channel_freqs,pdf)
-        pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,hh_index],flags[h5.dumps[:,np.newaxis],h5.channels,hh_index], \
-                                                h5.channel_freqs,h5.timestamps,label+'\nHH polarisation'))
-        pdf.savefig(plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,vv_index],flags[h5.dumps[:,np.newaxis],h5.channels,vv_index], \
-                                                h5.channel_freqs,h5.timestamps,label+'\nVV polarisation'))  
+        plot_flag_data(label + ' H Pol', data_dict['all_data']['spectrum'][chan_range,hh_index], \
+                        data_dict['all_data']['flagfrac'][chan_range,hh_index], h5.channel_freqs, pdf)
+        plot_flag_data(label + ' V Pol', data_dict['all_data']['spectrum'][chan_range,vv_index], \
+                        data_dict['all_data']['flagfrac'][chan_range,vv_index], h5.channel_freqs, pdf)
+        plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,hh_index],flags[h5.dumps[:,np.newaxis],h5.channels,hh_index], \
+                                                h5.channel_freqs,h5.timestamps,label+'\nHH polarisation',output=pdf)
+        plot_waterfall_subsample(vis[h5.dumps[:,np.newaxis],h5.channels,vv_index],flags[h5.dumps[:,np.newaxis],h5.channels,vv_index], \
+                                                h5.channel_freqs,h5.timestamps,label+'\nVV polarisation',output=pdf)  
         #close the plot
         pdf.close()
