@@ -144,11 +144,11 @@ with verify_and_connect(opts) as kat:
                 bp_gains = get_bpcal_solutions(session)
                 gains = get_gaincal_solutions(session)
                 if not gains:
-                    raise NoGainsAvailableError("No gain solutions found in telstate %r"
+                    raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
                                                 % (session.telstate,))
                 cal_channel_freqs = session.telstate.get('cal_channel_freqs')
                 if cal_channel_freqs is None:
-                    user_logger.warning("No cal frequencies found in telstate %r, "
+                    user_logger.warning("No cal frequencies found in telstate '%s', "
                                         "refusing to correct delays", session.telstate)
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
