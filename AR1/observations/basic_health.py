@@ -121,6 +121,8 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # session.track('Nothing,special', duration=180, announce=False)
             time.sleep(180)
+            delays = bp_gains = gains = {}
+            cal_channel_freqs = None
             if not kat.dry_run:
                 delays = get_delaycal_solutions(session)
                 bp_gains = get_bpcal_solutions(session)
@@ -128,19 +130,21 @@ with verify_and_connect(opts) as kat:
                 if not gains:
                     raise NoGainsAvailableError("No gain solutions found in telstate %r"
                                                 % (session.telstate,))
+                cal_channel_freqs = session.telstate.get('cal_channel_freqs')
+                if cal_channel_freqs is None:
+                    user_logger.warning("No cal frequencies found in telstate %r, "
+                                        "refusing to correct delays", session.telstate)
                 user_logger.info("Setting F-engine gains to phase up antennas")
                 for inp in set(session.cbf.fengine.inputs) and set(gains):
                     orig_weights = gains[inp]
                     if inp in bp_gains:
-                        orig_weights *= bp_gains[inp]
-                    if inp in delays:
-                        # XXX Hacky hack
-                        centre_freq = 1284e6
-                        num_chans = 32768 if session.product.endswith('32k') else 4096
-                        sideband = 1
-                        channel_width = 856e6 / num_chans
-                        channel_freqs = centre_freq + sideband * channel_width * (np.arange(num_chans) - num_chans / 2)
-                        delay_weights = np.exp(2.0j * np.pi * delays[inp] * channel_freqs)
+                        bp_gains_per_inp = bp_gains[inp]
+                        # Remove NaNs as the correlator does not like them
+                        bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
+                        orig_weights *= bp_gains_per_inp
+                    if inp in delays and cal_channel_freqs is not None:
+                        # XXX Eventually use CBF adjust_all_delays request
+                        delay_weights = np.exp(2.0j * np.pi * delays[inp] * cal_channel_freqs)
                         # Guess which direction to apply delays as katcal has a bug here
                         orig_weights *= delay_weights
                     amp_weights = np.abs(orig_weights)
