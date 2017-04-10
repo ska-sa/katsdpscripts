@@ -113,8 +113,9 @@ with verify_and_connect(opts) as kat:
             sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
             delays = get_delaycal_solutions(session)
             if not delays:
-                raise NoDelaysAvailableError("No delay solutions found in telstate %r"
-                                             % (session.telstate,))
+                msg = "No delay solutions found in telstate '%s'" % \
+                      (session.telstate,)
+                raise NoDelaysAvailableError(msg)
         user_logger.info("Delay solutions (sample rate = %g Hz):", sample_rate)
         for inp in sorted(delays):
             user_logger.info(" - %s: %10.3f ns, %9.2f samples",
