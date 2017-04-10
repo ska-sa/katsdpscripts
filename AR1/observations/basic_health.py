@@ -134,25 +134,25 @@ with verify_and_connect(opts) as kat:
                 if cal_channel_freqs is None:
                     user_logger.warning("No cal frequencies found in telstate %r, "
                                         "refusing to correct delays", session.telstate)
-                user_logger.info("Setting F-engine gains to phase up antennas")
-                for inp in set(session.cbf.fengine.inputs) and set(gains):
-                    orig_weights = gains[inp]
-                    if inp in bp_gains:
-                        bp_gains_per_inp = bp_gains[inp]
-                        # Remove NaNs as the correlator does not like them
-                        bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
-                        orig_weights *= bp_gains_per_inp
-                    if inp in delays and cal_channel_freqs is not None:
-                        # XXX Eventually use CBF adjust_all_delays request
-                        delay_weights = np.exp(2.0j * np.pi * delays[inp] * cal_channel_freqs)
-                        # Guess which direction to apply delays as katcal has a bug here
-                        orig_weights *= delay_weights
-                    amp_weights = np.abs(orig_weights)
-                    phase_weights = orig_weights / amp_weights
-                    # Cop out on the gain amplitude but at least correct the phase
-                    new_weights = opts.default_gain * phase_weights.conj()
-                    weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
-                    session.cbf.fengine.req.gain(inp, *weights_str)
+            user_logger.info("Setting F-engine gains to phase up antennas")
+            for inp in set(session.cbf.fengine.inputs) and set(gains):
+                orig_weights = gains[inp]
+                if inp in bp_gains:
+                    bp_gains_per_inp = bp_gains[inp]
+                    # Remove NaNs as the correlator does not like them
+                    bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
+                    orig_weights *= bp_gains_per_inp
+                if inp in delays and cal_channel_freqs is not None:
+                    # XXX Eventually use CBF adjust_all_delays request
+                    delay_weights = np.exp(2.0j * np.pi * delays[inp] * cal_channel_freqs)
+                    # Guess which direction to apply delays as katcal has a bug here
+                    orig_weights *= delay_weights
+                amp_weights = np.abs(orig_weights)
+                phase_weights = orig_weights / amp_weights
+                # Cop out on the gain amplitude but at least correct the phase
+                new_weights = opts.default_gain * phase_weights.conj()
+                weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
+                session.cbf.fengine.req.gain(inp, *weights_str)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked" %
                              (target.name, opts.track_duration))
             session.track(target, duration=opts.track_duration, announce=False)
