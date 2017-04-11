@@ -22,6 +22,24 @@ class NoDelaysAvailableError(Exception):
     """No delay solutions are available from the cal pipeline."""
 
 
+# Default F-engine gain as a function of number of channels
+DEFAULT_GAIN = {4096: 200, 32768: 4000}
+
+
+def set_fengine_gain(session, gain):
+    """Set F-engine gain to *gain* if positive, or automatic default if 0."""
+    if session.kat.dry_run:
+        gain = -1
+    # Obtain default gain based on channel count if none specified
+    if gain == 0:
+        num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+        gain = DEFAULT_GAIN.get(num_channels, -1)
+    if gain > 0:
+        user_logger.info("Setting F-engine gains to %d" % (gain,))
+        for inp in session.cbf.fengine.inputs:
+            session.cbf.fengine.req.gain(inp, gain)
+
+
 def get_cal_inputs(telstate):
     """Input labels associated with calibration products."""
     if 'cal_antlist' not in telstate or 'cal_pol_ordering' not in telstate:
@@ -44,9 +62,6 @@ def get_delaycal_solutions(session):
     solutions = -solutions
     return dict(zip(inputs, solutions.real.flat))
 
-
-# Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
@@ -85,15 +100,7 @@ with verify_and_connect(opts) as kat:
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        gain = opts.fengine_gain if not kat.dry_run else -1
-        # Obtain default gain based on channel count if none specified
-        if gain == 0:
-            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            gain = DEFAULT_GAIN.get(num_channels, -1)
-        if gain > 0:
-            user_logger.info("Setting F-engine gains to %d" % (gain,))
-            for inp in session.cbf.fengine.inputs:
-                session.cbf.fengine.req.gain(inp, gain)
+        set_fengine_gain(session, opts.fengine_gain)
         user_logger.info("Zeroing all delay adjustments for starters")
         session.cbf.req.adjust_all_delays()
         session.capture_start()
