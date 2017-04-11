@@ -97,11 +97,11 @@ with verify_and_connect(opts) as kat:
                 session.cbf.fengine.req.gain(inp, gain)
         user_logger.info("Zeroing all delay adjustments for starters")
         session.cbf.req.adjust_all_delays()
-
         session.capture_start()
-        user_logger.info("Target to be observed: %r", target.description)
+        user_logger.info("Initiating %g-second track on target %r",
+                         opts.track_duration, target.description)
         session.label('un_corrected')
-        session.track(target, duration=opts.track_duration)
+        session.track(target, duration=opts.track_duration, announce=False)
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
 
@@ -120,6 +120,13 @@ with verify_and_connect(opts) as kat:
         for inp in sorted(delays):
             user_logger.info(" - %s: %10.3f ns, %9.2f samples",
                              inp, delays[inp] * 1e9, delays[inp] * sample_rate)
-        if not opts.reset_delays:
-            user_logger.info("Adjusting delays on CBF proxy")
-            session.cbf.req.adjust_all_delays(json.dumps(delays))
+        user_logger.info("Adjusting delays on CBF proxy")
+        session.cbf.req.adjust_all_delays(json.dumps(delays))
+
+        user_logger.info("Revisiting target %r for %g seconds to see if "
+                         "delays are fixed", target.name, opts.track_duration)
+        session.label('corrected')
+        session.track(target, duration=opts.track_duration, announce=False)
+        if opts.reset_delays:
+            user_logger.info("Zeroing all delay adjustments on CBF proxy")
+            session.cbf.req.adjust_all_delays()
