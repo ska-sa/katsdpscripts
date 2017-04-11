@@ -49,9 +49,9 @@ def get_delaycal_solutions(session):
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
 # Set up standard script options
-usage = "%prog [options] [<'target/catalogue'> ...]"
+usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
 description = 'Track the source with the highest elevation and calibrate ' \
-              'delays based on it. Pick a standard calibrator if none given.'
+              'delays based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=30.0,
@@ -67,11 +67,10 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Default catalogue is a set of primary calibrator targets with flux models
 if len(args) == 0:
-    args.append('PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)')
-    args.append('PKS 0408-65 | J0408-6545, radec, 04:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)')
-    args.append('3C286       | J1331+3030, radec, 13:31:08.29, +30:30:33.0, (800.0 43200.0 0.956 0.584 -0.1644)')
+    raise ValueError("Please specify at least one target argument via name "
+                     "('Cygnus A'), description ('azel, 20, 30') or catalogue "
+                     "file name ('sources.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
