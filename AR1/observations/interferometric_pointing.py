@@ -64,7 +64,10 @@ with verify_and_connect(opts) as kat:
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.set_target(target)
                     session.label('interferometric_pointing')
-                    session.track(target, duration=opts.track_duration, announce=False)
+                    # Skip the rest of this iteration if the session detects
+                    # that the target will soon set below the given horizon
+                    if not session.track(target, duration=opts.track_duration, announce=False):
+                        continue
                     for direction in {'x', 'y'}:
                         for offset in np.linspace(-opts.max_extent, opts.max_extent, opts.number_of_steps // 2):
                             if direction == 'x':
