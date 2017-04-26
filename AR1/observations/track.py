@@ -5,23 +5,10 @@
 from __future__ import with_statement
 
 import time
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
-import numpy
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger)
 
-# needed to set the gain to a non-complex number for calibration of the delay model
-def get_cbf_inputs(data): # this will be handeled in katcorelib in the future. 
-    """Input labels associated with correlator."""
-    reply = data.req.cbf_input_labels()
-    return reply.messages[0].arguments[1:] if reply.succeeded else []
-
-# temporary hack to ensure antenna does not timeout for the moment
-def bad_ar1_alt_hack(target, duration, limit=88.):
-    [az, el] = target.azel()
-    delta_transit = duration * (15. / 3600.)
-    if (numpy.rad2deg(float(el)) + delta_transit + delta_transit) > limit:
-        return True
-    return False
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
@@ -37,9 +24,7 @@ parser.add_option('--repeat', action="store_true", default=False,
                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 parser.add_option('--reset-gain', type='int', default=None,
                   help='Value for the reset of the correlator F-engine gain (default=%default)')
-
 # Set default value for any option (both standard and experiment-specific options)
-# parser.set_defaults(description='Target track',dump_rate=0.1)
 parser.set_defaults(description='Target track')
 # Parse the command line
 opts, args = parser.parse_args()
@@ -50,19 +35,6 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    # set the gain to a single non complex number if needed 
-    if opts.reset_gain is not None:
-        inputs = get_cbf_inputs(kat.data)
-        if inputs:
-            user_logger.info("Resetting F-engine gains to %g", opts.reset_gain)
-            for inp in inputs:
-                user_logger.info("F-engine %s gain to %g",[inp,opts.reset_gain])
-                kat.data.req.cbf_gain(inp, opts.reset_gain)
-        else:
-            user_logger.error("Failed to get Input labels associated with correlator")
-            raise RuntimeError("Failed to get Input labels associated with correlator. "
-                             "cannot set the F-engine gains.")
-            
     observation_sources = collect_targets(kat, args)
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
@@ -70,6 +42,17 @@ with verify_and_connect(opts) as kat:
     else:
         # Start capture session, which creates HDF5 file
         with start_session(kat, **vars(opts)) as session:
+            # Set the gain to a single non complex number if needed
+            if opts.reset_gain is not None:
+                if not session.cbf.fengine.inputs:
+                    user_logger.error("Failed to get correlator input labels")
+                    raise RuntimeError("Failed to get correlator input labels, "
+                                       "cannot set the F-engine gains")
+                for inp in session.cbf.fengine.inputs:
+                    session.cbf.fengine.req.gain(inp, opts.reset_gain)
+                    user_logger.info("F-engine %s gain set to %g",
+                                     inp, opts.reset_gain)
+
             session.standard_setup(**vars(opts))
             session.capture_start()
 
@@ -82,18 +65,9 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-#       	         if bad_ar1_alt_hack(target, opts.track_duration):
-#   	                 user_logger.info('Too high elevation, skipping target %s...' % target.name)
-#                        user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
-#   		             continue
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-
                     session.label('track')
-                    user_logger.info("Initiating %g-second track on target '%s'" % (opts.track_duration, target.name,))
-# # RvR -- Debug output to try and track down timeout due to pointing
-#                     user_logger.info("Target Az/El coordinates '%s'" % (str(target.azel())))
-# # RvR -- Debug output to try and track down timeout due to pointing
+                    user_logger.info("Initiating %g-second track on target %r",
+                                     opts.track_duration, target.name)
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
                     total_track_time = 0.
@@ -108,12 +82,14 @@ with verify_and_connect(opts) as kat:
                             break
                         total_track_time += next_track
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
-                                            (opts.max_duration,))
+                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
+                                            opts.max_duration)
                         keep_going = False
                         break
                     targets_observed.append(target.name)
                 if keep_going and len(targets_observed) == targets_before_loop:
-                    user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
+                    user_logger.warning("No targets are currently visible - "
+                                        "stopping script instead of hanging around")
                     keep_going = False
-            user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+            user_logger.info("Targets observed : %d (%d unique)",
+                             len(targets_observed), len(set(targets_observed)))
