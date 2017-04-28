@@ -6,28 +6,8 @@ import argparse
 import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger)
-from katsdptelstate import TelescopeState
-
-
-def get_telstate(data, sub):
-    """Get TelescopeState object associated with current data product."""
-    subarray_product = 'array_%s_%s' % (sub.sensor.sub_nr.get_value(),
-                                        sub.sensor.product.get_value())
-    reply = data.req.spmc_telstate_endpoint(subarray_product)
-    if not reply.succeeded:
-        raise ValueError("Could not access telescope state for subarray_product %r",
-                         subarray_product)
-    return TelescopeState(reply.messages[0].arguments[1])
-
-
-def bf_inputs(data, stream):
-    """Input labels associated with specified beamformer stream."""
-    reply = data.req.cbf_input_labels()  # do away with once get CAM sensor
-    if not reply.succeeded:
-        return []
-    inputs = reply.messages[0].arguments[1:]
-    return inputs[0::2] if stream.endswith('x') else inputs[1::2]
+                                collect_targets, start_session, user_logger,
+                                SessionCBF, SessionSDP)
 
 
 def verify_digifits_backend_args(backend_args):
@@ -138,37 +118,32 @@ parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Very bad hack to circumvent SB verification issues
-# with anything other than session objects (e.g. kat.data).
-# The *near future* will be modelled CBF sessions.
-# The *distant future* will be fully simulated sessions via kattelmod.
-if opts.dry_run:
-    import sys
-    sys.exit(0)
-
 # Check options and arguments and connect to KAT proxies and devices
 if len(args) == 0:
     raise ValueError("Please specify the target")
 
 with verify_and_connect(opts) as kat:
     bf_ants = opts.ants.split(',') if opts.ants else [ant.name for ant in kat.ants]
-    # These are hardcoded for now...
-    bf_streams = ('beam_0x', 'beam_0y')
-    for stream in bf_streams:
-        reply = kat.data.req.cbf_beam_passband(stream, int(opts.beam_bandwidth * 1e6),
-                                               int(opts.beam_centre_freq * 1e6))
+    cbf = SessionCBF(kat)
+    for stream in cbf.beamformers:
+        reply = stream.req.passband(int(opts.beam_bandwidth * 1e6),
+                                    int(opts.beam_centre_freq * 1e6))
         if reply.succeeded:
-            actual_bandwidth = float(reply.messages[0].arguments[2])
-            actual_centre_freq = float(reply.messages[0].arguments[3])
+            try:
+                actual_bandwidth = float(reply.messages[0].arguments[2])
+                actual_centre_freq = float(reply.messages[0].arguments[3])
+            except IndexError:
+                # In a dry run the reply will succeed but with no return values
+                actual_bandwidth = actual_centre_freq = 0.0
             user_logger.info("Beamformer %r has bandwidth %g Hz and centre freq %g Hz",
-                             stream, actual_bandwidth, actual_centre_freq)
+                             stream.name, actual_bandwidth, actual_centre_freq)
         else:
             raise ValueError("Could not set beamformer %r passband - (%s)" %
-                             (stream, ' '.join(reply.messages[0].arguments)))
-        user_logger.info('Setting beamformer weights for stream %r:', stream)
-        for inp in bf_inputs(kat.data, stream):
+                             (stream.name, ' '.join(reply.messages[0].arguments)))
+        user_logger.info('Setting beamformer weights for stream %r:', stream.name)
+        for inp in stream.inputs:
             weight = 1.0 / np.sqrt(len(bf_ants)) if inp[:-1] in bf_ants else 0.0
-            reply = kat.data.req.cbf_beam_weights(stream, inp, weight)
+            reply = stream.req.weights(inp, weight)
             if reply.succeeded:
                 user_logger.info('  input %r got weight %f', inp, weight)
             else:
@@ -190,10 +165,12 @@ with verify_and_connect(opts) as kat:
         verify_digifits_backend_args(opts.backend_args)
 
     # Save script parameters before session capture-init's the SDP subsystem
-    telstate = get_telstate(kat.data, kat.sub)
+    sdp = SessionSDP(kat)
+    if not sdp.telstate:
+        raise ValueError("Could not connect to telstate on " + str(sdp))
     script_args = vars(opts)
     script_args['targets'] = args
-    telstate.add('obs_script_arguments', script_args)
+    sdp.telstate.add('obs_script_arguments', script_args)
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
@@ -223,9 +200,9 @@ with verify_and_connect(opts) as kat:
             # Perform SNR test by cycling through all inputs to the beamformer
             for n, ant in enumerate(bf_ants):
                 # Switch on selected antenna only
-                for stream in bf_streams:
-                    for inp in bf_inputs(session.data, stream):
+                for stream in cbf.beamformers:
+                    for inp in stream.inputs:
                         weight = 1.0 if inp[:-1] == ant else 0.0
-                        kat.data.req.cbf_beam_weights(stream, inp, weight)
+                        stream.req.weights(inp, weight)
                 session.label('snr_' + ant)
                 session.track(target, duration=duration_per_slot)
