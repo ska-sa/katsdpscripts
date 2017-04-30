@@ -96,7 +96,7 @@ with verify_and_connect(opts) as kat:
                                "please re-run the script later")
     # Pick source with the highest elevation as our target
     target = observation_sources.sort('el').targets[-1]
-    target.add_tags('delaycal single_accumulation')
+    target.add_tags('bfcal single_accumulation')
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
