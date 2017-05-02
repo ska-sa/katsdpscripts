@@ -9,7 +9,7 @@ def parse_arguments():
     parser.add_option("-b", "--baseline", type="string", default=None, help="Baseline to load (e.g. 'ant1,ant1' for antenna 1 auto-corr), default is first single-dish baseline in file.")
     parser.add_option("-t", "--target", type="string", default=None, help="Target to plot spectrum of, default is the first target in the file.")
     parser.add_option("-c", "--freqaverage", type="float", default=1.0, help="Frequency averaging interval in MHz. Default is 1 MHz.")
-    parser.add_option("-d", "--timeaverage", type="float", default=60.0, help="Time averageing interval in minutes. Default is 60 minutes.")
+    parser.add_option("-d", "--timeaverage", type="float", default=5.0, help="Time averageing interval in minutes. Default is 5 minutes.")
     parser.add_option("-f", "--freq-chans", help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 90% of the bandpass.")
     parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
     parser.add_option("-l","--flags-file", default=None, help="Name of h5 file containing flags (output by rfi_report.py)")
