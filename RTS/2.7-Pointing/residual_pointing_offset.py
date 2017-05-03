@@ -497,26 +497,26 @@ if not opts.no_plot :
         plt.close(fig)
 
     
-    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
+    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 1 :
         suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
         fig = plots_histogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
-    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 0 :
+    if ((output_data['condition'] == 2) + (output_data['condition'] == 3)).sum() > 1 :
         suptitle = '%s offset-pointing accuracy with kde (normal conditions)' %ant.name.upper()
         fig ,text= plots_cuhistogram(output_data[ (output_data['condition'] == 2) + (output_data['condition'] == 3)],suptitle)
         for line in text : textString.insert(0,line)        
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
-    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
+    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 1 :
         suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
         fig = plots_histogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
-    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 0 :
+    if ((output_data['condition'] == 1) + (output_data['condition'] == 0)).sum() > 1 :
         suptitle = '%s offset-pointing accuracy with kde (optimal conditions)' %ant.name.upper()
         fig, text = plots_cuhistogram(output_data[(output_data['condition'] == 1) + (output_data['condition'] == 0)],suptitle)
         for line in text : textString.insert(0,line)        
