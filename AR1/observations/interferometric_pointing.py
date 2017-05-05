@@ -22,7 +22,6 @@ parser.add_option('--max-extent', type='float', default=1.0,
                   help='Maximum extent in degrees, the script will scan ')
 parser.add_option('--number-of-steps', type='int', default=10,
                   help='Number of pointings to do while scaning , the script will scan ')
-
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Inferometric Pointing offset track')
 # Parse the command line
@@ -31,6 +30,8 @@ opts, args = parser.parse_args()
 if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+# Ensure that the lowest offset pointing will also be up if target is up
+opts.horizon += opts.max_extent
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -62,12 +63,13 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    session.set_target(target)
-                    session.label('interferometric_pointing')
-                    # Skip the rest of this iteration if the session detects
-                    # that the target will soon set below the given horizon
-                    if not session.track(target, duration=opts.track_duration, announce=False):
+                    # Check if all offset pointings in compound scan will be up
+                    compound_steps = 1 + 2 * (opts.number_of_steps // 2)
+                    compound_duration = compound_steps * opts.track_duration
+                    if not session.target_visible(target, duration=compound_duration):
                         continue
+                    session.label('interferometric_pointing')
+                    session.track(target, duration=opts.track_duration, announce=False)
                     for direction in {'x', 'y'}:
                         for offset in np.linspace(-opts.max_extent, opts.max_extent, opts.number_of_steps // 2):
                             if direction == 'x':
@@ -77,7 +79,6 @@ with verify_and_connect(opts) as kat:
                             user_logger.info("Initiating %g-second track on target '%s'" %
                                              (opts.track_duration, target.name,))
                             user_logger.info("Offset of %f,%f degrees " % (offset_target[0], offset_target[1]))
-                            session.set_target(target)
                             if not kat.dry_run:
                                 session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
                             nd_params = session.nd_params
