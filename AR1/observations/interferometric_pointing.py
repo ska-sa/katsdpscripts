@@ -65,7 +65,9 @@ with verify_and_connect(opts) as kat:
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     # Check if all offset pointings in compound scan will be up
                     compound_steps = 1 + 2 * (opts.number_of_steps // 2)
-                    compound_duration = compound_steps * opts.track_duration
+                    # Add some extra time for slews between pointings
+                    step_duration = opts.track_duration + 4.
+                    compound_duration = compound_steps * step_duration
                     if not session.target_visible(target, duration=compound_duration):
                         continue
                     session.label('interferometric_pointing')
