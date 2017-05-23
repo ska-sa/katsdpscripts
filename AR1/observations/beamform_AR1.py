@@ -207,3 +207,8 @@ with verify_and_connect(opts) as kat:
                         stream.req.weights(inp, weight)
                 session.label('snr_' + ant)
                 session.track(target, duration=duration_per_slot)
+        # XXX Clear the script arguments in telstate as these may inadvertently
+        # start an unwanted backend on a future SDP capture-init in the same
+        # subarray product (since it keeps the same telstate). A more elegant
+        # solution needed? See Jira ticket SR-822.
+        sdp.telstate.add('obs_script_arguments', {})
