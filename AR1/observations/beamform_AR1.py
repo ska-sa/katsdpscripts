@@ -107,7 +107,8 @@ parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
 parser.add_option('--test-snr', action='store_true', default=False,
                   help="Perform SNR test by switching off inputs (default=no)")
 parser.add_option('--backend', type='choice', default='digifits',
-                  choices=['digifits', 'dspsr', 'dada_dbdisk'],
+                  choices=['digifits', 'dspsr', 'dada_dbdisk',
+                           'digifits profile', 'dspsr profile'],
                   help="Choose backend (default=%default)")
 parser.add_option('--backend-args',
                   help="Arguments for backend processing")
@@ -159,9 +160,9 @@ with verify_and_connect(opts) as kat:
         raise ValueError("The target %r is below the horizon" % (target.description,))
 
     # Verify backend_args
-    if opts.backend == "dspsr" and opts.backend_args:
+    if opts.backend.split(' ')[0] == "dspsr" and opts.backend_args:
         verify_dspsr_backend_args(opts.backend_args)
-    elif opts.backend == "digifits" and opts.backend_args:
+    elif opts.backend.split(' ')[0] == "digifits" and opts.backend_args:
         verify_digifits_backend_args(opts.backend_args)
 
     # Save script parameters before session capture-init's the SDP subsystem
@@ -206,3 +207,8 @@ with verify_and_connect(opts) as kat:
                         stream.req.weights(inp, weight)
                 session.label('snr_' + ant)
                 session.track(target, duration=duration_per_slot)
+        # XXX Clear the script arguments in telstate as these may inadvertently
+        # start an unwanted backend on a future SDP capture-init in the same
+        # subarray product (since it keeps the same telstate). A more elegant
+        # solution needed? See Jira ticket SR-822.
+        sdp.telstate.add('obs_script_arguments', {})
