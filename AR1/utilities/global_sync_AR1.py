@@ -8,6 +8,9 @@
 # Tiyani replaced dig_sync_epoch with dig_l_band_time_sync
 # Reset capture destination
 # Cleanup by Martin to remove redundant instructions now handled by CAM
+# Tiyani: wait for dmc to update epoch before resetting capture destinations and
+#         querying digitiser epoch
+
 
 from __future__ import with_statement
 
@@ -15,6 +18,7 @@ import time
 
 from katcorelib import standard_script_options, verify_and_connect, user_logger
 from katcorelib import cambuild
+
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
@@ -103,12 +107,21 @@ with verify_and_connect(opts) as kat:
                         response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
                         print(ant.name + ' L-band PPS delay offset : ' + str(response))
 
+            init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             print('Performing global sync on AR1 ...')
             serial_sync_timeout = 300  # seconds
             start_time = time.time()
             cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
             print("Duration of global sync: {} try number {}"
                   .format(time.time() - start_time, 1))
+
+            wait_time = 0
+            while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
+                time.sleep(2)
+                wait_time += 1
+                if wait_time == 30:
+                    raise RuntimeError("dmc could not sync, investigation is required...")
+
             etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
                 print("Verify epoch digitiser for antenna %s" % ant.name)
@@ -116,11 +129,11 @@ with verify_and_connect(opts) as kat:
                 if int(ant_epoch) != int(etime):
                     raise RuntimeError('System not synced, investigation is required...')
                 else:
-                    print '%s sync epoch:  %d' % (ant.name, ant_epoch)
+                    print('%s sync epoch:  %d' % (ant.name, ant_epoch))
                 print("Resetting capture destination %s" % ant.name)
                 response = ant.req.deactivate()
                 print(ant.req.dig_capture_list())
-            print '\n'
+            print('\n')
             print("Script complete")
     finally:
         if cam:
