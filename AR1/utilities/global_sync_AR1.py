@@ -126,7 +126,7 @@ with verify_and_connect(opts) as kat:
             for ant in ant_active:
                 print("Verify epoch digitiser for antenna %s" % ant.name)
                 ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
-                if int(ant_epoch) != int(etime):
+                if ant_epoch != etime:
                     raise RuntimeError('System not synced, investigation is required...')
                 else:
                     print('%s sync epoch:  %d' % (ant.name, ant_epoch))
