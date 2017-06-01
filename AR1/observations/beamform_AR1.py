@@ -2,6 +2,7 @@
 # Dual polarisation beamforming: Track target for beamforming.
 
 import argparse
+import time
 
 import numpy as np
 import katpoint
@@ -175,6 +176,11 @@ with verify_and_connect(opts) as kat:
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+
+        # Temporary fix to stop AP from swallowing track commands after
+        # session is created
+        time.sleep(5)
+
         # Force delay tracking to be on
         opts.no_delays = False
         session.standard_setup(**vars(opts))
