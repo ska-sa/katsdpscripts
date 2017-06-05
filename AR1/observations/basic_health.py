@@ -75,7 +75,7 @@ parser.add_option('--default-gain', type='int', default=200,
 parser.set_defaults(observer='basic_health', nd_params='off',
                     project_id='MKAIV-308', reduction_label='MKAIV-308',
                     description='Basic health test of the system.',
-                    horizon=25, track_duration=30)
+                    horizon=25, track_duration=64)
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -191,7 +191,7 @@ with verify_and_connect(opts) as kat:
                 user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd_on['diode'])
             session.nd_params = nd_off
             user_logger.info("Now capturing data - noise diode off")
-            session.track(target, duration=300)  # get 5 mins of data to test averaging
+            session.track(target, duration=320)  # get 5 mins of data to test averaging
 
             # Single dish pointing ... to compare with interferometric
             user_logger.info("Performing single dish pointing tests")
@@ -199,7 +199,7 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
                              (target.description, target.azel()[0], target.azel()[1]))
             # Do different raster scan on strong and weak targets
-            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
+            session.raster_scan(target, num_scans=5, scan_duration=80, scan_extent=6.0,
                                 scan_spacing=0.25, scan_in_azimuth=True,
                                 projection=opts.projection)
             # reset the gains always
