@@ -5,7 +5,6 @@
 from __future__ import with_statement
 
 import time
-
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger)
 
@@ -82,8 +81,8 @@ with verify_and_connect(opts) as kat:
                             break
                         total_track_time += next_track
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
-                                            opts.max_duration)
+                        user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
+                                            (opts.max_duration,))
                         keep_going = False
                         break
                     targets_observed.append(target.name)
