@@ -26,7 +26,6 @@ parser.add_option('--max-elevation', type='float', default=90.0,
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Tipping Curve')
-
 # Parse the command line
 opts, args = parser.parse_args()
 
