@@ -114,6 +114,14 @@ parser.add_option('--backend-args',
                   help="Arguments for backend processing")
 parser.add_option('--drift-scan', action='store_true', default=False,
                   help="Perform drift scan instead of standard track (default=no)")
+parser.add_option('--noise-source', type=str, default=None,
+                  help="Initiate a noise diode pattern on all antennas, '<cycle_length_sec>,<on_fraction>'")
+nd_cycles = ['all', 'cycle']
+parser.add_option('--noise-cycle', type=str, default=None,
+                  help="How to apply the noise diode pattern: \
+'%s' to set the pattern to all dishes simultaneously (default), \
+'%s' to set the pattern so loop through the antennas in some fashion, \
+'m0xx' to set the pattern to a single selected antenna." % (nd_cycles[0], nd_cycles[1]))
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Beamformer observation', nd_params='off')
 # Parse the command line
@@ -152,6 +160,13 @@ with verify_and_connect(opts) as kat:
 
     # We are only interested in first target
     user_logger.info('Looking up main beamformer target...')
+    tgt_with_spaces = [tgt for tgt in args[:1] if len(tgt.strip().split()) > 1]
+    if len(tgt_with_spaces)>0:
+        user_logger.error("Please replace '%s' with '%s'" %
+                         ('& '.join(tgt_with_spaces),
+                          '& '.join([''.join(tgt.strip().split()) for tgt in tgt_with_spaces])))
+        raise ValueError('Found spaces in target names, which will cause and error in digifits')
+
     target = collect_targets(kat, args[:1]).targets[0]
 
     # Ensure that the target is up
@@ -178,6 +193,33 @@ with verify_and_connect(opts) as kat:
         # Force delay tracking to be on
         opts.no_delays = False
         session.standard_setup(**vars(opts))
+
+        user_logger.info('Set noise-source pattern')
+        if opts.noise_source is not None:
+            import time
+            cycle_length, on_fraction=np.array([el.strip() for el in opts.noise_source.split(',')], dtype=float)
+            user_logger.info('Setting noise source pattern to %.3f [sec], %.3f fraction on' % (cycle_length, on_fraction))
+            if opts.noise_cycle is None or opts.noise_cycle == 'all':
+                # Noise Diodes are triggered on all antennas in array simultaneously
+                timestamp = time.time() + 1  # add a second to ensure all digitisers set at the same time
+                user_logger.info('Set all noise diode with timestamp %d (%s)' % (int(timestamp), time.ctime(timestamp)))
+                kat.ants.req.dig_noise_source(timestamp, on_fraction, cycle_length)
+            elif opts.noise_cycle in bf_ants:
+                # Noise Diodes are triggered for only one antenna in the array
+                ant_name = opts.noise_cycle.strip()
+                user_logger.info('Set noise diode for antenna %s' % ant_name)
+                ped = getattr(kat, ant_name)
+                ped.req.dig_noise_source('now', on_fraction, cycle_length)
+            elif opts.noise_cycle == 'cycle':
+                timestamp = time.time() + 1  # add a second to ensure all digitisers set at the same time
+                for ant in bf_ants:
+                    user_logger.info('Set noise diode for antenna %s with timestamp %f' % (ant, timestamp))
+                    ped = getattr(kat, ant)
+                    ped.req.dig_noise_source(timestamp, on_fraction, cycle_length)
+                    timestamp += cycle_length*on_fraction
+            else:
+                raise ValueError("Unknown ND cycle option, please select: %s or any one of %s" % (', '.join(nd_cycles), ', '.join(bf_ants)))
+
         # Get onto beamformer target
         session.track(target, duration=0)
         # Perform a drift scan if selected
@@ -212,3 +254,8 @@ with verify_and_connect(opts) as kat:
         # subarray product (since it keeps the same telstate). A more elegant
         # solution needed? See Jira ticket SR-822.
         sdp.telstate.add('obs_script_arguments', {})
+
+    # switch noise-source pattern off
+    if opts.noise_source is not None:
+        user_logger.info('Ending noise source pattern')
+        kat.ants.req.dig_noise_source('now', 0)
