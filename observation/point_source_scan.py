@@ -10,19 +10,9 @@ from cStringIO import StringIO
 import datetime
 import time
 
-import numpy
-
 from katcorelib import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
-
-# temporary hack to ensure antenna does not timeout for the moment
-def bad_ar1_alt_hack(target, duration, limit=88.):
-    [az, el] = target.azel()
-    delta_transit = duration * (15. / 3600.)
-    if (numpy.rad2deg(float(el)) + delta_transit + delta_transit) > limit:
-        return True
-    return False
 
 # Set up standard script options
 parser = standard_script_options(
@@ -98,13 +88,7 @@ with verify_and_connect(opts) as kat:
             while keep_going:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
-                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon + 3.0):
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-                    if bad_ar1_alt_hack(target, 60.):
-                        print 'Too high elevation, skipping target %s...' % target.name
-                        continue
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-
+                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label('raster')
                     user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
                                      (target.description, target.azel()[0], target.azel()[1]))
@@ -112,7 +96,7 @@ with verify_and_connect(opts) as kat:
                     if not opts.quick and not opts.fine:
                         if opts.source_strength == 'strong' or \
                            (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
-                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
+                            session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
                         else:
@@ -121,7 +105,7 @@ with verify_and_connect(opts) as kat:
                                                 projection=opts.projection)
                     else:  # The branch for Quick and Fine scans
                         if opts.quick:
-                            session.raster_scan(target, num_scans=3, scan_duration=30, scan_extent=5.0,
+                            session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                                 scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
                         if opts.fine:
