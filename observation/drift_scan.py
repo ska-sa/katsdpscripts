@@ -35,6 +35,7 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
+
     # Quit early if there are no sources to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         user_logger.warning("No targets are currently visible - please re-run the script later")
