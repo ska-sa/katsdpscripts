@@ -17,21 +17,25 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              "of 'target'.")
 # Add experiment-specific options
 parser.add_option('-t', '--target-duration', type='float', default=300,
-                  help='Minimum duration to track the imaging target per visit, in seconds (default="%default")')
+                  help='Minimum duration to track the imaging target per visit, in seconds '
+                       '(default="%default")')
 parser.add_option('-b', '--bpcal-duration', type='float', default=300,
-                  help='Minimum duration to track bandpass calibrator per visit, in seconds (default="%default")')
+                  help='Minimum duration to track bandpass calibrator per visit, in seconds '
+                       '(default="%default")')
 parser.add_option('-i', '--bpcal-interval', type='float',
                   help='Minimum interval between bandpass calibrator visits, in seconds '
                        '(visits each source in turn by default)')
 parser.add_option('-g', '--gaincal-duration', type='float', default=60,
-                  help='Minimum duration to track gain calibrator per visit, in seconds (default="%default")')
+                  help='Minimum duration to track gain calibrator per visit, in seconds '
+                       '(default="%default")')
 parser.add_option('-m', '--max-duration', type='float',
-                  help='Maximum duration of script, in seconds (the default is to keep '
-                       'observing until all sources have set)')
+                  help='Maximum duration of script, in seconds '
+                       '(the default is to keep observing until all sources have set)')
 
 # Set default value for any option (both standard and experiment-specific options)
-# parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1',dump_rate=0.1)
+# parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1', dump_rate=0.1)
 parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1')
+
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -43,6 +47,7 @@ if len(args) == 0:
 
 with verify_and_connect(opts) as kat:
     sources = collect_targets(kat, args)
+
     user_logger.info("Imaging targets are [%s]" %
                      (', '.join([("'%s'" % (target.name,)) for target in sources.filter(['~bpcal', '~gaincal'])]),))
     user_logger.info("Bandpass calibrators are [%s]" %
@@ -59,6 +64,7 @@ with verify_and_connect(opts) as kat:
         # If bandpass interval is specified, force the first visit to be to the bandpass calibrator(s)
         time_of_last_bpcal = 0
         loop = True
+
         while loop:
             source_observed = [False] * len(sources)
             # Loop over sources in catalogue in sequence
@@ -73,10 +79,12 @@ with verify_and_connect(opts) as kat:
                 # If there are no targets specified, assume the calibrators are the targets, else
                 targets = [target for target in sources.filter(['~bpcal', '~gaincal'])]
                 if opts.bpcal_interval is None or 'bpcal' not in source.tags or not targets:
+                # if opts.bpcal_interval is None or 'bpcal' not in source.tags:
                     # Set the default track duration for a target with no recognised tags
                     track_duration = opts.target_duration
                     for tag in source.tags:
                         track_duration = duration.get(tag, track_duration)
+                    session.label('track')
                     source_observed[n] = session.track(source, duration=track_duration)
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
                     user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
