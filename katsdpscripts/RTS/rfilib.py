@@ -207,12 +207,13 @@ def getbackground(data,in_flags=None,iterations=3,spike_width_time=10,spike_widt
     def linearly_interpolate_nans(y):
         # Create X matrix for linreg with an intercept and an index
         nan_locs = np.isnan(y)
+        
         if np.all(nan_locs):
             y[:] = 0
         else:
             X = np.nonzero(~nan_locs)[0]
             Y = y[X]
-            y[nan_locs] = np.interp(np.nonzero(nan_locs),X,Y)
+            y[nan_locs] = np.interp(np.nonzero(nan_locs),X,Y)[0]
         return y
 
     background = np.apply_along_axis(linearly_interpolate_nans, 1, background)
@@ -275,6 +276,8 @@ class sumthreshold_flagger():
     def __init__(self,background_iterations=1, spike_width_time=10, spike_width_freq=10, outlier_sigma_freq=4.5, outlier_sigma_time=5.5, 
                 background_reject=2.0, num_windows=5, average_time=1, average_freq=1, time_extend=3, freq_extend=3, freq_chunks=7, debug=False):
         self.background_iterations=background_iterations
+        spike_width_time/=average_time
+        spike_width_freq/=average_freq
         self.spike_width_time=spike_width_time
         self.spike_width_freq=spike_width_freq
         self.outlier_sigma_freq=outlier_sigma_freq
@@ -295,15 +298,16 @@ class sumthreshold_flagger():
         self.freq_extend = freq_extend
         #Set up subbands in frequency
         #Can be an int to equally subdivide into the required chunks, or a list which specifies the channels of the chunk edges.
-        self.freq_chunks = freq_chunks
+        self.freq_chunks = np.array(freq_chunks)//average_freq
         #Falloff exponent for sumthreshold
         self.rho = 1.3
         if debug:
             print 'Initialise flagger:'
             print 'spike_width_time,spike_width_freq:', spike_width_time,spike_width_freq
-            print 'window_size_time,window_size_freq:',self.window_size_freq,self.window_size_time
+            print 'window_size_time,window_size_freq:',self.window_size_time,self.window_size_freq
+            print 'Frequency splitting channels:',self.freq_chunks
 
-    def get_flags(self,data,flags=None,num_cores=6):
+    def get_flags(self,data,flags=None,num_cores=8):
         if self.debug: start_time=time.time()
         if flags is None:
             in_flags = np.repeat(None,in_data.shape[0]).reshape((in_data.shape[0]))
@@ -355,7 +359,7 @@ class sumthreshold_flagger():
             freq_chunks = np.linspace(0,in_data.shape[1],self.freq_chunks+1,dtype=np.int)
         else:
             #Assume it's an iterable and correct for averaging
-            freq_chunks = self.freq_chunks/self.average_freq
+            freq_chunks = self.freq_chunks
             #Append the start and end of the channel range if not specified in input list
             freq_chunks = np.unique(np.append(freq_chunks,[0,in_data.shape[1]]))
             freq_chunks.sort()
@@ -405,18 +409,18 @@ class sumthreshold_flagger():
             out_flags[:,chunk_start:chunk_end] = out_flags_chunk[:,freq_chunk_overlap:freq_chunk_overlap+chunk_end-chunk_start] if chunk_num > 0 \
                                                                     else out_flags_chunk[:,0:chunk_end-chunk_start]
             if self.debug: st_time += time.time()-st_start
-        #Extend flags in freq and time (take into account averaging)
-        if self.freq_extend > 1:
-            out_flags = ndimage.convolve1d(out_flags, [True]*(self.freq_extend/self.average_freq), axis=1, mode='reflect')
-        if self.time_extend > 1:
-            out_flags = ndimage.convolve1d(out_flags, [True]*(self.time_extend/self.average_time), axis=0, mode='reflect')
-        #Flag all freqencies and times if too much is flagged.
-        out_flags[:,np.where(np.sum(out_flags,dtype=np.float,axis=0)/out_flags.shape[0] > self.flag_all_time_frac)[0]]=True
-        out_flags[np.where(np.sum(out_flags,dtype=np.float,axis=1)/out_flags.shape[1] > self.flag_all_freq_frac)]=True
         if self.average_freq > 1:
             out_flags=np.repeat(out_flags,self.average_freq,axis=1)
         if self.average_time > 1:
             out_flags=np.repeat(out_flags,self.average_time,axis=0)
+        #Extend flags in freq and time (take into account averaging)
+        if self.freq_extend > 1:
+            out_flags = ndimage.convolve1d(out_flags, [True]*self.freq_extend, axis=1, mode='reflect')
+        if self.time_extend > 1:
+            out_flags = ndimage.convolve1d(out_flags, [True]*self.time_extend, axis=0, mode='reflect')
+        #Flag all freqencies and times if too much is flagged.
+        out_flags[:,np.where(np.sum(out_flags,dtype=np.float,axis=0)/out_flags.shape[0] > self.flag_all_time_frac)[0]]=True
+        out_flags[np.where(np.sum(out_flags,dtype=np.float,axis=1)/out_flags.shape[1] > self.flag_all_freq_frac)]=True
         if self.debug:
             end_time=time.time()
             print "Shape %d x %d, BG Time %f, ST Time %f, Tot Time %f"%(in_data.shape[0], in_data.shape[1], back_time, st_time, end_time-start_time)
@@ -840,8 +844,8 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
         plt.savefig(output)
 
 def generate_flag_table(input_file,output_root='.', static_flags=None, freq_chans=None, use_file_flags=True, outlier_sigma_freq=4.5, 
-                        outlier_sigma_time=5.5, width_freq=1.0, width_time=4.0, time_extend=3, freq_extend=5, max_scan=600, 
-                        write_into_input=False, speedup=1, mask_non_tracks=False, debug=False):
+                        outlier_sigma_time=5.5, width_freq=1.0, width_time=100.0, time_extend=3, freq_extend=5, max_scan=600, 
+                        write_into_input=False, speedup=1, mask_non_tracks=False, tracks_only=False, debug=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -887,12 +891,12 @@ def generate_flag_table(input_file,output_root='.', static_flags=None, freq_chan
     average_freq = speedup
 
     #Convert spike width from frequency and time to channel and dump for the flagger.
-    width_freq_channel = width_freq*1.e6/h5.channel_width/average_freq
+    width_freq_channel = width_freq*1.e6/h5.channel_width
     width_time_dumps = width_time/h5.dump_period
 
     #loop through scans
     num_bl = h5.shape[-1]
-    cores_to_use = min(num_bl, (cpu_count-2))
+    cores_to_use = min(num_bl, cpu_count)
     cut_chans = (h5.shape[1]//20,h5.shape[1]-h5.shape[1]//20,) if freq_chans is None \
                         else (int(freq_chans.split(',')[0]),int(freq_chans.split(',')[1]),)
 
@@ -917,6 +921,7 @@ def generate_flag_table(input_file,output_root='.', static_flags=None, freq_chan
                                     freq_chunks=freq_chunks,debug=debug)
 
     for scan, state, target in h5.scans():
+        if tracks_only and state!='track': continue
         #Take slices through scan if it is too large for memory
         if h5.shape[0]>max_scan:
             scan_slices = [slice(i,i+max_scan,1) for i in range(0,h5.shape[0],max_scan)]
@@ -936,6 +941,8 @@ def generate_flag_table(input_file,output_root='.', static_flags=None, freq_chan
             #OR the mask flags with the flags already in the h5 file
             flags = np.logical_or(flags,mask_array[:,freq_range,:])
             detected_flags = flagger.get_flags(this_data,flags,num_cores=cores_to_use)
+            print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%"% \
+                        (scan,target.name,h5.shape[0],(np.sum(detected_flags)*100.)/detected_flags.size,)
             del this_data
             #Flags are 8 bit:
             #1: 'reserved0' = 0
