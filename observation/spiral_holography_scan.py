@@ -106,13 +106,13 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             dt[:len(repl)-1]=repl[1:]
             dt[1-len(repl):]=repl[:0:-1]
             dt=dt/np.sum(dt)
-            sdt=np.float(slowtime)/np.float(sampletime)*np.ones(slewtime/sampletime,dtype='float')
+            sdt=np.float(slowtime)/np.float(sampletime)*np.ones(int(slewtime/sampletime),dtype='float')
             sdt[:len(repl)-1]=repl[1:]
             sdt[1-len(repl):]=repl[:0:-1]
             sdt=sdt/np.sum(sdt)
         else:
             dt=1.0/ntime*np.ones(ntime)
-            sdt=1.0/(slewtime/sampletime)*np.ones(slewtime/sampletime)
+            sdt=1.0/(slewtime/sampletime)*np.ones(int(slewtime/sampletime))
         scan=np.cumsum(dt)
         scan=((scan-scan[0])/(scan[-1]-scan[0])-0.5)*radextent*2
         slew=np.cumsum(sdt)
