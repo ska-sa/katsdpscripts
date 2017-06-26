@@ -2,9 +2,7 @@
 # Silly script to check the antennas
 #
 # Initial script
-# Quick check: run check_ant_AR1.py -o ruby
-# Better check after technical maintenance: run check_ant_AR1.py -o ruby --tech
-# Better check and reset all failure states: run check_ant_AR1.py -o ruby --tech --reset
+# Quick check: run check_ant_AR1.py -o ruby --ant m0xx
 # Tiyani adding sensors: Indexer pos, safe key switch, acu encoders
 # will include receiver band selection to query the selected receiver and dititiser band later
 
