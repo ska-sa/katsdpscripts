@@ -16,7 +16,7 @@ def select_and_average(filename, average_time):
         raw_wind_speed = data.sensor.get('Enviro/asc.wind.speed')
         raw_temperature = data.sensor.get('Enviro/asc.air.temperature')
     else:
-        raw_wind_speed = data.sensor.get('Enviro/wind_speed')
+        raw_wind_speed = data.sensor.get('Enviro/mean_wind_speed')
         raw_temperature = data.sensor.get('Enviro/air_temperature')
     raw_dumptime = data.dump_period
 
