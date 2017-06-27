@@ -252,8 +252,9 @@ for filename in args:
 # Choose Data 
 target_list = np.array(list(set(data['target'])))
 np.random.shuffle(target_list)
-sample_number = np.floor(len(set(data['target']))*0.2)
-offsetdata = target_list[0:sample_number]
+sample_number = np.floor(len(set(data['target']))*0.2)  # Choose 20% of the unique targets
+offsetdata = target_list[0:int(sample_number)]
+print sample_number,offsetdata
 keep = np.ones((len(data)),dtype=np.bool)
 for key,target in enumerate(data['target']):
     keep[key] = target not in set(offsetdata)
@@ -286,7 +287,7 @@ antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
 if old_model is None:
     old_model = antenna.pointing_model
 targets = data['target']
-keep = data['keep'].astype(np.bool) if 'keep' in data.dtype.fields else np.tile(True, len(targets))
+#keep = data['keep'].astype(np.bool) if 'keep' in data.dtype.fields else np.tile(True, len(targets))
 
 ##########################################
 # Initialise new pointing model and set 
