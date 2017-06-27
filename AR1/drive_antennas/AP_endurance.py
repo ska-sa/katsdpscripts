@@ -197,12 +197,16 @@ def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
                 ridx_brakes_released = ant.sensor.ap_ridx_brakes_released.get_value()
                 if ridx_current_position != pos:
 
-                    user_logger.error("Timed out while waiting %s seconds "
-                                      "for indexer to reach '%s' position. "
-                                      "Last position reading was %s degrees. "
+                    user_logger.error("Indexer error after %s seconds! "
+                                      "Requested position: '%s'. "
+                                      "Current position: '%s'. "
+                                      "Encoder reading is %s degrees. "
+                                      "Position error: %.6f degrees. "
                                       "Brakes released: '%s'. ",
                                       time_to_index, pos.upper(),
+                                      ridx_current_position,
                                       ridx_position_raw,
+                                      abs(ridx_angle[pos] - ridx_position_raw),
                                       ridx_brakes_released)
 
                     user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
