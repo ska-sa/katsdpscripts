@@ -241,7 +241,6 @@ text = []
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 filename = args[0]
-
 data = None
 for filename in args:
     if data is None:
@@ -249,12 +248,12 @@ for filename in args:
     else:
         data = np.r_[data,read_offsetfile(filename)]
 
+
 # Choose Data 
-target_list = np.array(list(set(data['target'])))
+target_list = np.unique(data['target'])
 np.random.shuffle(target_list)
-sample_number = np.floor(len(set(data['target']))*0.2)  # Choose 20% of the unique targets
-offsetdata = target_list[0:int(sample_number)]
-print sample_number,offsetdata
+sample_number = np.floor(target_list.shape[0]*0.2).astype(int) # Choose 20% of the unique targets
+offsetdata = target_list[0:sample_number]
 keep = np.ones((len(data)),dtype=np.bool)
 for key,target in enumerate(data['target']):
     keep[key] = target not in set(offsetdata)
