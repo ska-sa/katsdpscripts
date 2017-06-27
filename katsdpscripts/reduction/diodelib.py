@@ -103,7 +103,7 @@ def plot_ts(h5,on_ts=None):
     else :
         on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
     ts = h5.timestamps - h5.timestamps[0]
-    plt.plot(ts,on*4000,'g',label='katdal ND sensor')
+    plt.plot(ts,np.array(on).astype(float)*4000,'g',label='katdal ND sensor')
     plt.title("Timeseries for antenna %s - %s"%(a.name,git_info()))
     plt.legend()
     return fig
