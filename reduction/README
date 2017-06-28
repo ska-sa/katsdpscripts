@@ -1,1 +1,0 @@
-MKAIV-186.py is the reduction program for baseline phase stability. This code can run on any file that has a track of a point source. it will assume any tracks are point sources , it will use the flags in the file as well as a spectral mask if it is avalible.  
