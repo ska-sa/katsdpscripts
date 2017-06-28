@@ -10,19 +10,8 @@ from cStringIO import StringIO
 import datetime
 import time
 
-import numpy
-
 from katcorelib import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
-
-
-# temporary hack to ensure antenna does not timeout for the moment
-def bad_ar1_alt_hack(target, duration, limit=88.):
-    [az, el] = target.azel()
-    delta_transit = duration * (15. / 3600.)
-    if (numpy.rad2deg(float(el)) + delta_transit + delta_transit) > limit:
-        return True
-    return False
 
 # Set up standard script options
 parser = standard_script_options(
@@ -43,20 +32,12 @@ parser.add_option('-z', '--skip-catalogue',
 parser.add_option('--source-strength', type='choice', default='auto', choices=('strong', 'weak', 'auto'),
                   help="Scanning strategy based on source strength, one of 'strong', 'weak' or 'auto' (default). "
                        "Auto is based on flux density specified in catalogue.")
-parser.add_option('--quick', action="store_true", default=False,
+parser.add_option( '--quick', action="store_true" , default=False,
                   help='Do a quick "Zorro" type scan, which is 3 5-degree scans lasting 15 seconds each and '
                        'spaced 0.5 degrees apart with 2 Hz dump rate.')
-parser.add_option('--fine', action="store_true", default=False,
-                  help='Do a fine grained pointscan with an extent of 1 degree and a duration of 60 seconds.'
-                  'The intention of this is for use in Ku-band observations where the beam is 8 arc-min .')
-parser.add_option('--search-fine', action="store_true", default=False,
-                  help='Do a fine grained pointscan with an extent of 2 degree and a duration of 60 seconds.'
-                  'The intention of this is for use in Ku-band observations where the beam is 8 arc-min .')
-
 parser.set_defaults(description='Point source scan')
 # Parse the command line
 opts, args = parser.parse_args()
-
 if opts.quick:
     opts.dump_rate = 2.0
 
@@ -85,7 +66,7 @@ with verify_and_connect(opts) as kat:
     else:
         # Observed targets will be written back to catalogue file, or into the void
         skip_file = file(opts.skip_catalogue, "a") \
-            if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
+                    if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
             session.standard_setup(**vars(opts))
             session.capture_start()
@@ -98,40 +79,23 @@ with verify_and_connect(opts) as kat:
             while keep_going:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
-                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon + 3.0):
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-                    if bad_ar1_alt_hack(target, 60.):
-                        print 'Too high elevation, skipping target %s...' % target.name
-                        continue
-# RvR -- Very bad hack to keep from tracking above 89deg until AR1 AP can handle out of range values better
-
+                for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label('raster')
-                    user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
-                                     (target.description, target.azel()[0], target.azel()[1]))
                     # Do different raster scan on strong and weak targets
-                    if not opts.quick and not opts.fine:
+                    if not opts.quick:
                         if opts.source_strength == 'strong' or \
                            (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
-                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=6.0,
+                            session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
                         else:
                             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
                                                 scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                    else:  # The branch for Quick and Fine scans
-                        if opts.quick:
-                            session.raster_scan(target, num_scans=3, scan_duration=30, scan_extent=5.0,
-                                                scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
-                        if opts.fine:
-                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
-                                                scan_spacing=4. / 60., scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
-                        else:  # if opts.search_fine:
-                            session.raster_scan(target, num_scans=9, scan_duration=60, scan_extent=2.0,
-                                                scan_spacing=5. / 60., scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
+                    else:
+                        session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
+                                            scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
+                                            projection=opts.projection)
 
                     targets_observed.append(target.name)
                     skip_file.write(target.description + "\n")
