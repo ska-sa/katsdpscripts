@@ -171,7 +171,7 @@ def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
         #       state after a few cycles of operating the drive. Revisit
         #       this after feedback from Nico
         if ridx_last_position == ridx_sequence[0]:
-            ridx_sequencei = ridx_sequence[1:]
+            ridx_sequence = ridx_sequence[1:]
 
         if not dry_run:
             for pos in ridx_sequence:
@@ -183,6 +183,7 @@ def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
                 # Wait for indexer brakes to open
                 time.sleep(2)
                 try:
+                    # Wait for indexer brakes to engage again
                     ant.wait('ap.ridx-brakes-released', False, timeout=60)
                 except:
                     raise
