@@ -38,8 +38,7 @@ parser.add_option(
     help='Pressure to which the vacuum must go when pump operating (default=%default)')
 parser.add_option(
     '--email_to', type='str',
-    #default='blunsky@ska.ac.za,bjordaan@ska.ac.za,jvanstaden@emss.co.za,bjordaan@emss.co.za,operators@ska.ac.za,jvanstaden@emss.co.za',
-    default='blunsky@ska.ac.za',
+    default='blunsky@ska.ac.za,bjordaan@ska.ac.za,jvanstaden@emss.co.za,bjordaan@emss.co.za,operators@ska.ac.za,jvanstaden@emss.co.za',
     help='Comma separated email list of people to send report to (default=%default)')
 
 parser.set_defaults(description='Lubricate Vacuum Pumps on Receivers')
@@ -176,10 +175,8 @@ def group_consecutives(vals, step=1):
     return result
 
 
-with verify_and_connect(opts) as kat:
+with verify_and_connect(opts) as kat1:
     print "_______________________"
-    print kat.controlled_objects
-    print kat.ants.clients
     print opts
     print "_______________________"
     log_message("Opts:\n{}\n".format(opts))
@@ -211,7 +208,7 @@ with verify_and_connect(opts) as kat:
             "Aborting - Sys did not sync \n{}\n\n".format(kat.get_status()))
 
     # Ambient should be above 16 deg c.
-    if (kat.anc.sensor.air_temperature.get_value() < 12) and not(kat.dry_run):
+    if (kat.anc.sensor.air_temperature.get_value() < 16) and not(kat1.dry_run):
         log_message(
             "Aborting script - ambient temperature is below 16 deg C", 'error')
         raise RuntimeError(
@@ -243,10 +240,52 @@ with verify_and_connect(opts) as kat:
         server = 'portal.mkat-rts.karoo.kat.ac.za'
     else:
         server = 'portal.mkat.karoo.kat.ac.za'
+        
+    err_results = []
+    # check that vacuum pumps are ready:
+    log_message('Checking that receptor vacuum pumps are ready')
+    for ant in kat.ants:
+        if ant.name in ant_active:
+            try:
+                if not(ant.sensor.rsc_rsc_vac_pump_ready.get_value()):
+                    ant_active.remove(ant.name)
+                    err_results.append(ant.name)
+                    log_message(
+                        '{} - Vacuum pump not ready. {} removed from vacuum pump lubrication run.'
+                        .format(ant.name, ant.name), 'warn')
+            except AttributeError:
+                ant_active.remove(ant.name)
+                err_results.append(ant.name)
+                log_message(
+                    '{} - Vacuum pump not ready. {} removed from vacuum pump lubrication run.'
+                    .format(ant.name, ant.name), 'warn')
 
-    if not(kat.dry_run):
+    log_message('Remaining active antennas : {}\n'
+                .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
+                
+    # check that receptors are below max_elevation before starting:
+    log_message(
+        'Checking that receptors are below elevation of {} degrees (within 1 deg)'
+        .format(opts.max_elevation))
+    for ant in kat.ants:
+        if ant.name in ant_active:
+            if ant.sensor.ap_requested_elev.get_value() > (opts.max_elevation + 1):
+                ant_active.remove(ant.name)
+                err_results.append(ant.name)
+                log_message(
+                    '{} at elevation of {:0.1f}. {} removed from vacuum pump lubrication run.'
+                    .format(ant.name, ant.sensor.ap_requested_elev.get_value(), ant.name), 'warn')
+            else:
+                log_message('{} at elevation of {:0.1f}.'.format(
+                    ant.name, ant.sensor.ap_requested_elev.get_value()))
+
+    log_message('Remaining active antennas : {}\n'
+                .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
+
+    if ant_active and not(kat1.dry_run):
         # Check which receptors should be included in the run (based on
         # lubrication frequency and run duration during that time)
+        log_message('Checking vacuum pump lubrication history on remaining active antennas')
         temp_ant_active = [ant for ant in ant_active]
         for ant in ant_active:
             try:
@@ -272,15 +311,22 @@ with verify_and_connect(opts) as kat:
                     if vacpump_run_timestamp:
                         log_message('{} last test completed : '.format(ant), 'info')
                         for i, x in enumerate(vacpump_run_timestamp):
-                            elev_vals = fetch_archive_sensor_data(
-                                '{}_ap_requested_elev'.format(ant),
-                                x - (vacpump_run_duration[i] * 60),
-                                x, data_type="S100,f8,f8", server=server)
-                            vacpump_elevation_dict[x] = np.mean(elev_vals['Value'])
-                            log_message('\t{} minutes duration,\t {} days ago \t {:0.2f} Average Elevation'
-                                        .format(int(vacpump_run_duration[i]),
-                                                 int((time.time() - x) / 3600 / 24),
-                                                 vacpump_elevation_dict[x]))
+                            #Only print elevation information if it's relevant because it takes time to look up
+                            if ((vacpump_run_duration[i] >= opts.run_duration) and 
+                                    (int((time.time() - x) / 3600 / 24) <= opts.lubrication_frequency)):
+                                elev_vals = fetch_archive_sensor_data(
+                                    '{}_ap_requested_elev'.format(ant),
+                                    x - (vacpump_run_duration[i] * 60),
+                                    x, data_type="S100,f8,f8", server=server)
+                                vacpump_elevation_dict[x] = np.mean(elev_vals['Value'])
+                                log_message('\t{} minutes duration,\t {} days ago \t {:0.2f} Average Elevation'
+                                            .format(int(vacpump_run_duration[i]),
+                                                     int((time.time() - x) / 3600 / 24),
+                                                     vacpump_elevation_dict[x]))
+                            else:
+                                log_message('\t{} minutes duration,\t {} days ago'
+                                            .format(int(vacpump_run_duration[i]),
+                                                     int((time.time() - x) / 3600 / 24)))
                         vacpump_recent_runs = np.where(
                             np.array(vacpump_run_timestamp) >=
                             time.time() - (60 * 60 * 24 * (opts.lubrication_frequency)))[0]
@@ -315,50 +361,10 @@ with verify_and_connect(opts) as kat:
         log_message('Remaining active antennas : {}\n'.format(', '.join(ant_active)),
                     boldtype=False, colourtext='blue')
 
-    err_results = []
-    # check that vacuum pumps are ready:
-    log_message('Checking that receptor vacuum pumps are ready')
-    for ant in kat.ants:
-        if ant.name in ant_active:
-            try:
-                if not(ant.sensor.rsc_rsc_vac_pump_ready.get_value()):
-                    ant_active.remove(ant.name)
-                    err_results.append(ant.name)
-                    log_message(
-                        '{} - Vacuum pump not ready. {} removed from vacuum pump lubrication run.'
-                        .format(ant.name, ant.name), 'warn')
-            except AttributeError:
-                ant_active.remove(ant.name)
-                err_results.append(ant.name)
-                log_message(
-                    '{} - Vacuum pump not ready. {} removed from vacuum pump lubrication run.'
-                    .format(ant.name, ant.name), 'warn')
-
-    log_message('Remaining active antennas : {}\n'
-                .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
-
-    # check that receptors are below max_elevation before starting:
-    log_message(
-        'Checking that receptors are below elevation of {} degrees (within 1 deg)'
-        .format(opts.max_elevation))
-    for ant in kat.ants:
-        if ant.name in ant_active:
-            if ant.sensor.ap_requested_elev.get_value() > (opts.max_elevation + 1):
-                ant_active.remove(ant.name)
-                log_message(
-                    '{} at elevation of {:0.1f}. {} removed from vacuum pump lubrication run.'
-                    .format(ant.name, ant.sensor.ap_requested_elev.get_value(), ant.name), 'warn')
-            else:
-                log_message('{} at elevation of {:0.1f}.'.format(
-                    ant.name, ant.sensor.ap_requested_elev.get_value()))
-
-    log_message('Remaining active antennas : {}\n'
-                .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
-
-    reached_pressure = []
-    # begin lubrication process.  Only use Receptors that are locked on
-    # target
-    if ant_active and not(kat.dry_run):
+        reached_pressure = []
+        # begin lubrication process.  Only use Receptors that are locked on
+        # target
+    
         # log RSC L band Manifold Pressure
         log_message(
             'Capturing L band manifold pressure before starting vacuum pumps')
@@ -382,15 +388,15 @@ with verify_and_connect(opts) as kat:
             rsc_device = connect_to_rsc(ant, 7148)
             if rsc_device != []:
                 log_message('{} : set vacuum pump to ITC'.format(ant))
-                #response = rsc_device.req.rsc_vac_pump('itc')
-                response = rsc_device.sensor.rxl_rfe1_temp_select.get_value()
+                response = rsc_device.req.rsc_vac_pump('itc')
+                #response = rsc_device.sensor.rxl_rfe1_temp_select.get_value()
                 log_message('{} - {}'.format(ant, str(response)),
                             boldtype=True, colourtext='blue')
-                if not kat.dry_run:
+                if not kat1.dry_run:
                     time.sleep(2)
                 log_message('{} : Start Vacuum Pump'.format(ant))
-                response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
-                #response = rsc_device.req.rsc_vac_pump('start')
+                #response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
+                response = rsc_device.req.rsc_vac_pump('start')
                 log_message('{} - {}'.format(ant, str(response)),
                             boldtype=True, colourtext='blue')
                 rsc_device.stop()
@@ -445,7 +451,7 @@ with verify_and_connect(opts) as kat:
                 count = 0
 
         log_message('{} out of {} minutes completed'.format(
-                    (int(opts.run_duration), int(opts.run_duration))))
+                    int(opts.run_duration), int(opts.run_duration)))
         log_message('Vacuum pump lubrication completed\n')
 
         # Enable the vacuum pump again
@@ -455,8 +461,8 @@ with verify_and_connect(opts) as kat:
             rsc_device = connect_to_rsc(ant, 7148)
             if rsc_device != []:
                 log_message('{} - Enable vacuum pump'.format(ant))
-                response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
-                #response = rsc_device.req.rsc_vac_pump('enable')
+                #response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
+                response = rsc_device.req.rsc_vac_pump('enable')
                 log_message('{} - {}'.format(ant, str(response)),
                             boldtype=True, colourtext='blue')
                 rsc_device.stop()
@@ -501,11 +507,15 @@ with verify_and_connect(opts) as kat:
             log_message(
                 '{} - Vacuum pump lubrication failed on Receptor {}'.format(ant, ant), 'error')
     else:
-        log_message(
-            'No receptors to run vacuum pump lubrication on.\n', 'warn')
+        if kat1.dry_run:
+            log_message(
+                'Dry Run only\n')
+        else:
+            log_message(
+                'No receptors to run vacuum pump lubrication on.\n', 'warn')
 
     log_message("Vacuum Pump Lubrication: stop", boldtype=True)
 
-    if not(kat.dry_run):
+    if not(kat1.dry_run):
         send_email(email_msg, '{} - {} - Vac Pump Lubrication Report'.format(
                    str(kat.katconfig.site), opts.sb_id_code))

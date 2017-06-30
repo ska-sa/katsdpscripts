@@ -18,8 +18,6 @@ parser.add_option(
 parser.set_defaults(description='Lubricate Vacuum Pumps on Receivers')
 (opts, args) = parser.parse_args()
 
-email_msg = []
-
 
 def timestamp():
     # create log timestamp format
@@ -55,6 +53,7 @@ def enable_vac_pump(ant):
         response = rsc_device.req.rsc_vac_pump('enable')
         log_message('{} - {}'.format(ant, str(response)))
         rsc_device.stop()
+
 
 if __name__ == "__main__":
     if opts.receptors is None:
