@@ -208,7 +208,7 @@ with verify_and_connect(opts) as kat1:
             "Aborting - Sys did not sync \n{}\n\n".format(kat.get_status()))
 
     # Ambient should be above 16 deg c.
-    if (kat.anc.sensor.air_temperature.get_value() < 16) and not(kat1.dry_run):
+    if (kat.anc.sensor.air_temperature.get_value() < 12) and not(kat1.dry_run):
         log_message(
             "Aborting script - ambient temperature is below 16 deg C", 'error')
         raise RuntimeError(
@@ -282,7 +282,7 @@ with verify_and_connect(opts) as kat1:
     log_message('Remaining active antennas : {}\n'
                 .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
 
-    if ant_active and not(kat1.dry_run):
+    if not(kat1.dry_run):
         # Check which receptors should be included in the run (based on
         # lubrication frequency and run duration during that time)
         log_message('Checking vacuum pump lubrication history on remaining active antennas')
@@ -360,162 +360,167 @@ with verify_and_connect(opts) as kat1:
 
         log_message('Remaining active antennas : {}\n'.format(', '.join(ant_active)),
                     boldtype=False, colourtext='blue')
-
-        reached_pressure = []
-        # begin lubrication process.  Only use Receptors that are locked on
-        # target
+        
+        if ant_active:
+            reached_pressure = []
+            # begin lubrication process.  Only use Receptors that are locked on
+            # target
     
-        # log RSC L band Manifold Pressure
-        log_message(
-            'Capturing L band manifold pressure before starting vacuum pumps')
-        for ant in ant_active:
-            ant_proxy = getattr(kat, ant)
-            try:
-                log_message('{} L band manifold pressure is {:0.5f} mBar'.format(
-                    ant, ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value()))
-            except AttributeError:
-                log_message(
-                    '{} - Error reading manifold pressure'.format(ant), 'warn')
-
-        send_email(['About to start Vacuum Pump Lubrication.',
-                    'Beginning of report is as follows:  \n\n\n'] + email_msg,
-                   '{} - {} - PRELIMINARY EMAIL FOR VAC PUMP LUBRICATION REPORT'
-                   .format(str(kat.katconfig.site), opts.sb_id_code))
-
-        log_message('Begin vacuum pump lubrication on active receptors. Lubrication will take {} minutes'
-                    .format(int(opts.run_duration)), boldtype=True,)
-        for ant in ant_active:
-            rsc_device = connect_to_rsc(ant, 7148)
-            if rsc_device != []:
-                log_message('{} : set vacuum pump to ITC'.format(ant))
-                response = rsc_device.req.rsc_vac_pump('itc')
-                #response = rsc_device.sensor.rxl_rfe1_temp_select.get_value()
-                log_message('{} - {}'.format(ant, str(response)),
-                            boldtype=True, colourtext='blue')
-                if not kat1.dry_run:
-                    time.sleep(2)
-                log_message('{} : Start Vacuum Pump'.format(ant))
-                #response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
-                response = rsc_device.req.rsc_vac_pump('start')
-                log_message('{} - {}'.format(ant, str(response)),
-                            boldtype=True, colourtext='blue')
-                rsc_device.stop()
-
-        log_message('Confirm that vacuum pumps are running')
-        for ant in ant_active:
-            ant_proxy = getattr(kat, ant)
-            try:
-                if ant_proxy.sensor.rsc_rsc_vac_pump_running:
-                    log_message('{} - confirmed: vacuum pump running'.format(ant),
-                                boldtype=True)
-                else:
-                    log_message('{} - Vacuum pump NOT running'.format(ant), 'warn')
-                    err_results.append(ant)
-            except AttributeError:
-                log_message('{} - Unable to read vacuum pump running sensor'
-                            .format(ant), 'warn')
-
-        # wait for run_duration minutes
-        start_run_duration = time.time()
-        count = 0
-        while (time.time() - start_run_duration < (opts.run_duration * 60)):
-            if int(time.time() - start_run_duration) % 60 == 0:
-                log_message('{} out of {} minutes completed'.format(
-                    int((time.time() - start_run_duration) / 60),
-                    int(opts.run_duration)))
-            time.sleep(1)
-            count = count + 1
-            # Check every 5 seconds that receptors remain below
-            # max_elevation during the vacuum pump run
-            if count == 5:
-                for ant in ant_active:
-                    if (ant not in err_results):
-                        ant_proxy = getattr(kat, ant)
-                        if ant_proxy.sensor.ap_requested_elev.get_value() > opts.max_elevation:
-                            log_message(
-                                '{} - Test failed - receptor currently at {:0.1f} degrees elevation'
-                                .format(ant_proxy.name, ant_proxy.sensor.ap_requested_elev.get_value()),
-                                'error')
-                            err_results.append(ant)
-                        if (ant_proxy.name not in reached_pressure):
-                            try:
-                                pressure = ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value()
-                                if pressure <= opts.ideal_vac_pressure:
-                                    reached_pressure.append(ant_proxy.name)
-                                    log_message('{} L band manifold pressure reached {:0.5f} mBar'
-                                                .format(ant_proxy.name, pressure),
-                                                boldtype=False, colourtext='blue')
-                            except:
-                                log_message('{} - Error reading manifold pressure'
-                                            .format(ant_proxy.name), 'warn')
-                count = 0
-
-        log_message('{} out of {} minutes completed'.format(
-                    int(opts.run_duration), int(opts.run_duration)))
-        log_message('Vacuum pump lubrication completed\n')
-
-        # Enable the vacuum pump again
-        final_pressure = dict()
-        for ant in ant_active:
-            ant_proxy = getattr(kat, ant)
-            rsc_device = connect_to_rsc(ant, 7148)
-            if rsc_device != []:
-                log_message('{} - Enable vacuum pump'.format(ant))
-                #response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
-                response = rsc_device.req.rsc_vac_pump('enable')
-                log_message('{} - {}'.format(ant, str(response)),
-                            boldtype=True, colourtext='blue')
-                rsc_device.stop()
-            try:
-                final_pressure[
-                    ant] = ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value()
-            except AttributeError:
-                final_pressure[ant] = -1
-        log_message('Completed enabling vacuum pumps\n\n')
-
-        log_message('Final L band manifold pressure',
-                    boldtype=True, colourtext='green')
-        for ant in final_pressure.keys():
-            if final_pressure[ant] != -1:
-                if final_pressure[ant] <= opts.ideal_vac_pressure:
-                    log_message('{} - Final L band manifold pressure is {:0.5f} mBar'
-                                .format(ant, final_pressure[ant]), colourtext='green')
-                else:
-                    log_message('{} - Final L band manifold pressure is {:0.5f} mBar'
-                                .format(ant, final_pressure[ant]), 'warn')
-            else:
-                log_message(
-                    '{} - Error reading manifold pressure'.format(ant), 'warn')
-
-        time.sleep(5)
-
-        # Read back vacuum pump state
-        for ant in ant_active:
-            ant_proxy = getattr(kat, ant)
-            try:
-                log_message(
-                    '{} - Vacuum pump state: {}'
-                    .format(ant, ant_proxy.sensor.rsc_rsc_vac_pump_state.get_value()),
-                    boldtype=False, colourtext='blue')
-            except AttributeError:
-                log_message(
-                    '{} - Error reading vacuum pump state'.format(ant), 'warn')
-
-        # Print the receptors where an error occurred (eg. went above max
-        # elevation)
-        for ant in err_results:
+            # log RSC L band Manifold Pressure
             log_message(
-                '{} - Vacuum pump lubrication failed on Receptor {}'.format(ant, ant), 'error')
+                'Capturing L band manifold pressure before starting vacuum pumps')
+            for ant in ant_active:
+                ant_proxy = getattr(kat, ant)
+                try:
+                    log_message('{} L band manifold pressure is {:0.5f} mBar'.format(
+                        ant, ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value()))
+                except AttributeError:
+                    log_message(
+                        '{} - Error reading manifold pressure'.format(ant), 'warn')
+
+            send_email(['About to start Vacuum Pump Lubrication.',
+                        'Beginning of report is as follows:  \n\n\n'] + email_msg,
+                       '{} - {} - PRELIMINARY EMAIL FOR VAC PUMP LUBRICATION REPORT'
+                       .format(str(kat.katconfig.site), opts.sb_id_code))
+
+            log_message('Begin vacuum pump lubrication on active receptors. Lubrication will take {} minutes'
+                        .format(int(opts.run_duration)), boldtype=True,)
+            try:
+                for ant in ant_active:
+                    rsc_device = connect_to_rsc(ant, 7148)
+                    if rsc_device != []:
+                        log_message('{} : set vacuum pump to ITC'.format(ant))
+                        response = rsc_device.req.rsc_vac_pump('itc')
+                        #response = rsc_device.sensor.rxl_rfe1_temp_select.get_value()
+                        log_message('{} - {}'.format(ant, str(response)),
+                                    boldtype=True, colourtext='blue')
+                        if not kat1.dry_run:
+                            time.sleep(2)
+                        log_message('{} : Start Vacuum Pump'.format(ant))
+                        #response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
+                        response = rsc_device.req.rsc_vac_pump('start')
+                        log_message('{} - {}'.format(ant, str(response)),
+                                    boldtype=True, colourtext='blue')
+                        rsc_device.stop()
+
+                log_message('Confirm that vacuum pumps are running')
+                for ant in ant_active:
+                    ant_proxy = getattr(kat, ant)
+                    try:
+                        if ant_proxy.sensor.rsc_rsc_vac_pump_running:
+                            log_message('{} - confirmed: vacuum pump running'.format(ant),
+                                        boldtype=True)
+                        else:
+                            log_message('{} - Vacuum pump NOT running'.format(ant), 'warn')
+                            err_results.append(ant)
+                    except AttributeError:
+                        log_message('{} - Unable to read vacuum pump running sensor'
+                                    .format(ant), 'warn')
+
+                # wait for run_duration minutes
+                start_run_duration = time.time()
+                count = 0
+                while (time.time() - start_run_duration < (opts.run_duration * 60)):
+                    if int(time.time() - start_run_duration) % 60 == 0:
+                        log_message('{} out of {} minutes completed'.format(
+                            int((time.time() - start_run_duration) / 60),
+                            int(opts.run_duration)))
+                    time.sleep(1)
+                    count = count + 1
+                    # Check every 5 seconds that receptors remain below
+                    # max_elevation during the vacuum pump run
+                    if count == 5:
+                        for ant in ant_active:
+                            if (ant not in err_results):
+                                ant_proxy = getattr(kat, ant)
+                                if ant_proxy.sensor.ap_requested_elev.get_value() > opts.max_elevation:
+                                    log_message(
+                                        '{} - Test failed - receptor currently at {:0.1f} degrees elevation'
+                                        .format(ant_proxy.name, ant_proxy.sensor.ap_requested_elev.get_value()),
+                                        'error')
+                                    err_results.append(ant)
+                                if (ant_proxy.name not in reached_pressure):
+                                    try:
+                                        pressure = ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value()
+                                        if pressure <= opts.ideal_vac_pressure:
+                                            reached_pressure.append(ant_proxy.name)
+                                            log_message('{} L band manifold pressure reached {:0.5f} mBar'
+                                                        .format(ant_proxy.name, pressure),
+                                                        boldtype=False, colourtext='blue')
+                                    except:
+                                        log_message('{} - Error reading manifold pressure'
+                                                    .format(ant_proxy.name), 'warn')
+                        count = 0
+
+                log_message('{} out of {} minutes completed'.format(
+                            int(opts.run_duration), int(opts.run_duration)))
+                log_message('Vacuum pump lubrication completed\n')
+
+            finally:
+                # Enable the vacuum pump again
+                final_pressure = dict()
+                for ant in ant_active:
+                    ant_proxy = getattr(kat, ant)
+                    rsc_device = connect_to_rsc(ant, 7148)
+                    if rsc_device != []:
+                        log_message('{} - Enable vacuum pump'.format(ant))
+                        #response = rsc_device.sensor.rsc_he_compressor_pcb_current.get_value()
+                        response = rsc_device.req.rsc_vac_pump('enable')
+                        log_message('{} - {}'.format(ant, str(response)),
+                                    boldtype=True, colourtext='blue')
+                        rsc_device.stop()
+                    try:
+                        final_pressure[
+                            ant] = ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value()
+                    except AttributeError:
+                        final_pressure[ant] = -1
+                log_message('Completed enabling vacuum pumps\n\n')
+
+                log_message('Final L band manifold pressure',
+                            boldtype=True, colourtext='green')
+                for ant in final_pressure.keys():
+                    if final_pressure[ant] != -1:
+                        if final_pressure[ant] <= opts.ideal_vac_pressure:
+                            log_message('{} - Final L band manifold pressure is {:0.5f} mBar'
+                                        .format(ant, final_pressure[ant]), colourtext='green')
+                        else:
+                            log_message('{} - Final L band manifold pressure is {:0.5f} mBar'
+                                        .format(ant, final_pressure[ant]), 'warn')
+                    else:
+                        log_message(
+                            '{} - Error reading manifold pressure'.format(ant), 'warn')
+
+                time.sleep(5)
+
+                # Read back vacuum pump state
+                for ant in ant_active:
+                    ant_proxy = getattr(kat, ant)
+                    try:
+                        log_message(
+                            '{} - Vacuum pump state: {}'
+                            .format(ant, ant_proxy.sensor.rsc_rsc_vac_pump_state.get_value()),
+                            boldtype=False, colourtext='blue')
+                    except AttributeError:
+                        log_message(
+                            '{} - Error reading vacuum pump state'.format(ant), 'warn')
+
+                # Print the receptors where an error occurred (eg. went above max
+                # elevation)
+                for ant in err_results:
+                    log_message(
+                        '{} - Vacuum pump lubrication failed on Receptor {}'.format(ant, ant), 'error')
+            
+                log_message("Vacuum Pump Lubrication: stop", boldtype=True)
+                
+                send_email(email_msg, '{} - {} - Vac Pump Lubrication Report'.format(
+                           str(kat.katconfig.site), opts.sb_id_code))
+        else:
+            log_message(
+                'No receptors to run vacuum pump lubrication on.\n', 'warn')
+            send_email(email_msg, 'Unsuccessful - {} - {} - Vac Pump Lubrication Report'.format(
+                       str(kat.katconfig.site), opts.sb_id_code))
+                
     else:
         if kat1.dry_run:
             log_message(
                 'Dry Run only\n')
-        else:
-            log_message(
-                'No receptors to run vacuum pump lubrication on.\n', 'warn')
-
-    log_message("Vacuum Pump Lubrication: stop", boldtype=True)
-
-    if not(kat1.dry_run):
-        send_email(email_msg, '{} - {} - Vac Pump Lubrication Report'.format(
-                   str(kat.katconfig.site), opts.sb_id_code))
