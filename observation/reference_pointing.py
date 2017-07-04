@@ -108,8 +108,7 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
         bp_gains = get_bpcal_solution(telstate, offset_start, offset_end)
         gains = get_gaincal_solution(telstate, offset_start, offset_end)
         # Iterate over receptors
-        for a in range(len(session.ants)):
-            ant = session.ants[a]
+        for a, ant in enumerate(session.observers):
             pol_gain = np.zeros(NUM_CHUNKS)
             pol_weight = np.zeros(NUM_CHUNKS)
             # Iterate over polarisations (effectively over inputs)
@@ -180,7 +179,7 @@ def fit_primary_beams(session, data_points):
     for a in data_points:
         data = np.rec.fromrecords(data_points[a], names='x,y,freq,gain,weight')
         data = data.reshape(-1, NUM_CHUNKS)
-        ant = session.ants[a]
+        ant = session.observers[a]
         # Iterate over frequency chunks
         for chunk in range(NUM_CHUNKS):
             chunk_data = data[:, chunk]
@@ -249,8 +248,7 @@ def calc_pointing_offsets(session, beams, target, middle_time,
     """
     pointing_offsets = {}
     # Iterate over receptors
-    for a in range(len(session.ants)):
-        ant = session.ants[a]
+    for a, ant in enumerate(session.observers):
         beams_freq = beams[ant.name]
         beams_freq = [b for b in beams_freq if b is not None and b.is_valid]
         if not beams_freq:
@@ -318,7 +316,7 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
     """
     user_logger.info("Ant, requested (az, el),   full offset incl PM,  "
                      "extra offset on top of PM,  standard dev")
-    for ant in session.ants:
+    for ant in session.observers:
         try:
             offsets = pointing_offsets[ant.name].copy()
         except KeyError:
@@ -354,8 +352,7 @@ def plot_primary_beam_fits(session, beams, max_extent):
     ax[-1, 0].set_xlabel('Pointings along x / az (degrees)')
     ax[-1, 1].set_xlabel('Pointings along y / el (degrees)')
     # Iterate over receptors
-    for a in range(len(session.ants)):
-        ant = session.ants[a]
+    for a, ant in enumerate(session.observers):
         beams_freq = beams[ant.name]
         ax_x = ax[a, 0]
         ax_y = ax[a, 1]
