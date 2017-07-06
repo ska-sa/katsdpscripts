@@ -38,7 +38,7 @@ parser.add_option(
     help='Pressure to which the vacuum must go when pump operating (default=%default)')
 parser.add_option(
     '--email_to', type='str',
-    default='blunsky@ska.ac.za,bjordaan@ska.ac.za,jvanstaden@emss.co.za,bjordaan@emss.co.za,operators@ska.ac.za',
+    default='blunsky@ska.ac.za,bjordaan@ska.ac.za,operators@ska.ac.za',
     help='Comma separated email list of people to send report to (default=%default)')
 
 parser.set_defaults(description='Lubricate Vacuum Pumps on Receivers')
