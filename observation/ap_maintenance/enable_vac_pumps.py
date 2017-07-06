@@ -43,12 +43,12 @@ def connect_to_rsc(ant, port):
         return rsc_device
     except:
         log_message('Failed to connect to RSC on {}'.format(ant), ('error'))
-        return []
+        return None
 
 
 def enable_vac_pump(ant):
     rsc_device = connect_to_rsc(ant, 7148)
-    if rsc_device != []:
+    if rsc_device:
         log_message('{} - Enable vacuum pump'.format(ant))
         response = rsc_device.req.rsc_vac_pump('enable')
         log_message('{} - {}'.format(ant, str(response)))
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     else:
         ants = opts.receptors.replace(' ', '')
         for x in ants.split(','):
-            if x[0] != 'm':
+            if not x.startswith('m'):
                 print("Error. Illegal antenna name: {}".format(x))
             else:
                 enable_vac_pump(x)
