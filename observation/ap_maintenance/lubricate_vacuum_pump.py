@@ -175,6 +175,75 @@ def group_consecutives(vals, step=1):
         expect = v + step
     return result
 
+def read_sensor_history(ants):
+#read through sensor history and report when vac pump last lubricated and at what elevation
+    for ant in ants:
+        try:
+            vac_running = []
+            vac_running = fetch_archive_sensor_data(
+                '{}_rsc_rsc_vac_pump_running'.format(ant),
+                time.time() - (60 * 60 * 24 * (opts.archive_search)),
+                time.time(), data_type="S100,f8,Bool", server=server)
+            if len(vac_running) != 0:
+                vac_running_true = np.where(vac_running['Value'])[0]
+                groups = group_consecutives(vac_running_true)
+                vacpump_run_duration = []
+                vacpump_run_timestamp = []
+                vacpump_elevation_dict = dict()
+
+                for x in groups:
+                    if x != []:
+                        vacpump_run_duration.append(
+                            (vac_running['Timestamp'][x[-1] + 1] -
+                             vac_running['Timestamp'][x[0]]) / 60.0)
+                        vacpump_run_timestamp.append(
+                            vac_running['Timestamp'][x[-1] + 1])
+                if vacpump_run_timestamp:
+                    log_message('{} last test completed : '.format(ant), 'info')
+                    for i, x in enumerate(vacpump_run_timestamp):
+                        #Only print elevation information if it's relevant because it takes time to look up
+                        if ((vacpump_run_duration[i] >= opts.run_duration) and 
+                                (int((time.time() - x) / 3600 / 24) <= opts.lubrication_frequency)):
+                            elev_vals = fetch_archive_sensor_data(
+                                '{}_ap_requested_elev'.format(ant),
+                                x - (vacpump_run_duration[i] * 60),
+                                x, data_type="S100,f8,f8", server=server)
+                            vacpump_elevation_dict[x] = np.mean(elev_vals['Value'])
+                            log_message('\t{} minutes duration,\t {} days ago \t {:0.2f} Average Elevation'
+                                        .format(int(vacpump_run_duration[i]),
+                                                 int((time.time() - x) / 3600 / 24),
+                                                 vacpump_elevation_dict[x]))
+                        else:
+                            log_message('\t{} minutes duration,\t {} days ago'
+                                        .format(int(vacpump_run_duration[i]),
+                                                 int((time.time() - x) / 3600 / 24)))
+                    vacpump_recent_runs = np.where(
+                        np.array(vacpump_run_timestamp) >=
+                        time.time() - (60 * 60 * 24 * (opts.lubrication_frequency)))[0]
+                    need_to_run = True
+                    for x in vacpump_recent_runs:
+                        if ((vacpump_run_duration[x] >= opts.run_duration) and
+                                (vacpump_elevation_dict[vacpump_run_timestamp[x]] <= (opts.max_elevation + 1))):
+                            need_to_run = False
+                            break
+                    if need_to_run:
+                        log_message(
+                            '{} - No runs '
+                            'long enough below specified elevation\n'.format(ant))
+                    else:
+                        log_message(
+                            '{} - Vacuum Pump Lubrication not required\n'.format(ant), boldtype=True)
+                else:
+                    log_message(
+                        '{} - No record over the last {} days\n'
+                        .format(ant, opts.archive_search))
+            else:
+                log_message(
+                    '{} - Unable to extract '
+                    'sensor data from archive\n'.format(ant), 'warn')
+        except ValueError:
+            log_message(
+                '{} - Error reading and processing sensor data.'.format(ant), 'error')
 
 with verify_and_connect(opts) as kat1:
     print "_______________________"
@@ -198,7 +267,7 @@ with verify_and_connect(opts) as kat1:
     if opts.receptors == 'all':
         kat = tbuild(conn_clients='all')
     else:
-        kat = tbuild(conn_clients=str(opts.receptors) + ',sys')
+        kat = tbuild(conn_clients=str(opts.receptors) + ',sys,katpool,anc')
     
     log_message("Waiting for sys to sync\n", 'info')
     ok = kat.sys.until_synced(timeout=15)
@@ -438,74 +507,11 @@ with verify_and_connect(opts) as kat1:
 
                 # Check which receptors should be included in the run (based on
                 # lubrication frequency and run duration during that time)
-                log_message('Checking history on failed lubrication runs')
-                for ant in err_results:
-                    try:
-                        vac_running = []
-                        vac_running = fetch_archive_sensor_data(
-                            '{}_rsc_rsc_vac_pump_running'.format(ant),
-                            time.time() - (60 * 60 * 24 * (opts.archive_search)),
-                            time.time(), data_type="S100,f8,Bool", server=server)
-                        if len(vac_running) != 0:
-                            vac_running_true = np.where(vac_running['Value'])[0]
-                            groups = group_consecutives(vac_running_true)
-                            vacpump_run_duration = []
-                            vacpump_run_timestamp = []
-                            vacpump_elevation_dict = dict()
-
-                            for x in groups:
-                                if x != []:
-                                    vacpump_run_duration.append(
-                                        (vac_running['Timestamp'][x[-1] + 1] -
-                                         vac_running['Timestamp'][x[0]]) / 60.0)
-                                    vacpump_run_timestamp.append(
-                                        vac_running['Timestamp'][x[-1] + 1])
-                            if vacpump_run_timestamp:
-                                log_message('{} last test completed : '.format(ant), 'info')
-                                for i, x in enumerate(vacpump_run_timestamp):
-                                    #Only print elevation information if it's relevant because it takes time to look up
-                                    if ((vacpump_run_duration[i] >= opts.run_duration) and 
-                                            (int((time.time() - x) / 3600 / 24) <= opts.lubrication_frequency)):
-                                        elev_vals = fetch_archive_sensor_data(
-                                            '{}_ap_requested_elev'.format(ant),
-                                            x - (vacpump_run_duration[i] * 60),
-                                            x, data_type="S100,f8,f8", server=server)
-                                        vacpump_elevation_dict[x] = np.mean(elev_vals['Value'])
-                                        log_message('\t{} minutes duration,\t {} days ago \t {:0.2f} Average Elevation'
-                                                    .format(int(vacpump_run_duration[i]),
-                                                             int((time.time() - x) / 3600 / 24),
-                                                             vacpump_elevation_dict[x]))
-                                    else:
-                                        log_message('\t{} minutes duration,\t {} days ago'
-                                                    .format(int(vacpump_run_duration[i]),
-                                                             int((time.time() - x) / 3600 / 24)))
-                                vacpump_recent_runs = np.where(
-                                    np.array(vacpump_run_timestamp) >=
-                                    time.time() - (60 * 60 * 24 * (opts.lubrication_frequency)))[0]
-                                need_to_run = True
-                                for x in vacpump_recent_runs:
-                                    if ((vacpump_run_duration[x] >= opts.run_duration) and
-                                            (vacpump_elevation_dict[vacpump_run_timestamp[x]] <= (opts.max_elevation + 1))):
-                                        need_to_run = False
-                                        break
-                                if need_to_run:
-                                    log_message(
-                                        '{} - No runs '
-                                        'long enough below specified elevation\n'.format(ant))
-                                else:
-                                    log_message(
-                                        '{} - Vacuum Pump Lubrication not required\n'.format(ant), boldtype=True)
-                            else:
-                                log_message(
-                                    '{} - No record over the last {} days\n'
-                                    .format(ant, opts.archive_search))
-                        else:
-                            log_message(
-                                '{} - Scheduling for Vacuum Pump Lubrication - unable to extract '
-                                'sensor data from archive\n'.format(ant), 'warn')
-                    except ValueError:
-                        log_message(
-                            '{} - Error reading and processing sensor data.'.format(ant), 'error')
+                log_message('Checking history on failed lubrication runs\n', boldtype=True)
+                read_sensor_history(err_results)
+                
+                log_message('Checking history on antennas in maintenance\n', boldtype=True)
+                read_sensor_history(kat.katpool.sensor.resources_in_maintenance.get_value().split(','))
 
                 log_message("Vacuum Pump Lubrication: stop", boldtype=True)
                 
