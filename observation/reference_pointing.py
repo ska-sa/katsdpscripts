@@ -241,12 +241,17 @@ def calc_pointing_offsets(session, beams, target, middle_time,
 
     Returns
     -------
-    pointing_offsets : dict mapping receptor name to offset data (8 floats)
-        Pointing offsets per receptor, stored as a sequence of
-          - requested (az, el),
-          - full (az, el) adjustment (including pointing model contribution),
-          - extra (az, el) adjustment (on top of pointing model), and
-          - rough uncertainty of (az, el) adjustment.
+    pointing_offsets : dict mapping receptor name to offset data (10 floats)
+        Pointing offsets per receptor in degrees, stored as a sequence of
+          - requested (az, el) after refraction (input to the pointing model),
+          - full (az, el) offset, including contributions of existing pointing
+            model, any existing adjustment and newly fitted adjustment
+            (useful for fitting new pointing models as it is independent),
+          - full (az, el) adjustment on top of existing pointing model,
+            replacing any existing adjustment (useful for reference pointing),
+          - relative (az, el) adjustment on top of existing pointing model and
+            adjustment (useful for verifying reference pointing), and
+          - rough uncertainty (standard deviation) of (az, el) adjustment.
 
     """
     pointing_offsets = {}
@@ -268,6 +273,11 @@ def calc_pointing_offsets(session, beams, target, middle_time,
         user_logger.debug("%s x=%+7.2f'+-%.2f' y=%+7.2f'+-%.2f'", ant.name,
                           pointing_offset[0] * 60, pointing_offset_std[0] * 60,
                           pointing_offset[1] * 60, pointing_offset_std[1] * 60)
+        # Get existing pointing adjustment
+        receptor = getattr(session.kat, ant.name)
+        az_adjust = receptor.sensor.pos_adjust_pointm_azim.get_value()
+        el_adjust = receptor.sensor.pos_adjust_pointm_elev.get_value()
+        existing_adjustment = deg2rad(np.array((az_adjust, el_adjust)))
         # Start with requested (az, el) coordinates, as they apply
         # at the middle time for a moving target
         requested_azel = target.azel(timestamp=middle_time, antenna=ant)
@@ -277,29 +287,33 @@ def calc_pointing_offsets(session, beams, target, middle_time,
         def refract(az, el):  # noqa: E301, E306
             """Apply refraction correction as at the middle of scan."""
             return [az, rc.apply(el, temperature, pressure, humidity)]
-        requested_azel = np.array(refract(*requested_azel))
-        pointed_azel = np.array(ant.pointing_model.apply(*requested_azel))
+        refracted_azel = np.array(refract(*requested_azel))
+        # More stages that apply existing pointing model and/or adjustment
+        pointed_azel = np.array(ant.pointing_model.apply(*refracted_azel))
+        adjusted_azel = pointed_azel + existing_adjustment
         # Convert fitted offset back to spherical (az, el) coordinates
         pointing_offset = deg2rad(np.array(pointing_offset))
         beam_center_azel = target.plane_to_sphere(*pointing_offset,
                                                   timestamp=middle_time,
                                                   antenna=ant)
-        # Now correct the measured (az, el) for refraction and then
-        # apply the old pointing model to get a "raw" measured (az, el)
-        # at the output of the pointing model
+        # Now correct the measured (az, el) for refraction and then apply the
+        # existing pointing model and adjustment to get a "raw" measured
+        # (az, el) at the output of the pointing model stage
         beam_center_azel = refract(*beam_center_azel)
         beam_center_azel = ant.pointing_model.apply(*beam_center_azel)
+        beam_center_azel = np.array(beam_center_azel) + existing_adjustment
         # Make sure the offset is a small angle around 0 degrees
-        full_offset_azel = wrap_angle(beam_center_azel - requested_azel)
-        extra_offset_azel = wrap_angle(beam_center_azel - pointed_azel)
+        full_offset_azel = wrap_angle(beam_center_azel - refracted_azel)
+        full_adjust_azel = wrap_angle(beam_center_azel - pointed_azel)
+        relative_adjust_azel = wrap_angle(beam_center_azel - adjusted_azel)
         # Cheap 'n' cheerful way to convert cross-el uncertainty to azim form
         offset_azel_std = pointing_offset_std / \
-            np.array([np.cos(requested_azel[1]), 1.])
-        # We store both the "full" offset including pointing model effects
-        # (useful for fitting new PMs) and the "extra" offset on top of the
-        # existing PM (actual adjustment for reference pointing)
-        point_data = np.r_[rad2deg(requested_azel), rad2deg(full_offset_azel),
-                           rad2deg(extra_offset_azel), offset_azel_std]
+            np.array([np.cos(refracted_azel[1]), 1.])
+        # We store all variants of the pointing offset since we have it all
+        # at our fingertips here
+        point_data = np.r_[rad2deg(refracted_azel), rad2deg(full_offset_azel),
+                           rad2deg(full_adjust_azel),
+                           rad2deg(relative_adjust_azel), offset_azel_std]
         pointing_offsets[ant.name] = point_data
     return pointing_offsets
 
@@ -311,19 +325,21 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
     ----------
     session : :class:`katcorelib.observe.CaptureSession` object
         The active capture session
-    pointing_offsets : dict mapping receptor name to offset data (8 floats)
-        Pointing offsets per receptor
+    pointing_offsets : dict mapping receptor name to offset data (10 floats)
+        Pointing offsets per receptor, in degrees
     middle_time : float
         Unix timestamp at the middle of sequence of offset pointings
 
     """
-    user_logger.info("Ant, requested (az, el),   full offset incl PM,  "
-                     "extra offset on top of PM,  standard dev")
+    user_logger.info("Ant  refracted (az, el)    relative adjustment     "
+                     "standard dev")
+    user_logger.info("---  ------------------    -------------------     "
+                     "------------")
     for ant in session.observers:
         try:
             offsets = pointing_offsets[ant.name].copy()
         except KeyError:
-            user_logger.info('%s has no valid primary beam fit',
+            user_logger.warn('%s has no valid primary beam fit',
                              ant.name)
         else:
             sensor_name = '%s_pointing_offsets' % (ant.name,)
@@ -331,8 +347,8 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
             # Display all offsets in arcminutes
             offsets[2:] *= 60.
             user_logger.info(u"%s (%+6.2f\u00B0, %5.2f\u00B0) -> "
-                             "(%+7.2f', %+7.2f')  =  (%+7.2f', %+7.2f') "
-                             "+- (%.2f', %.2f')", ant.name, *offsets)
+                             "(%+7.2f', %+7.2f') +- (%.2f', %.2f')",
+                             ant.name, *offsets[[0, 1, 6, 7, 8, 9]])
 
 
 def plot_primary_beam_fits(session, beams, max_extent):
