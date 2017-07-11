@@ -17,7 +17,10 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
 from katpoint import (rad2deg, deg2rad, lightspeed, wrap_angle,
                       RefractionCorrection)
 from scape.beam_baseline import BeamPatternFit
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 
 # Group the frequency channels into this many sections to obtain pointing fits
@@ -465,5 +468,6 @@ with verify_and_connect(opts) as kat:
             beams = fit_primary_beams(session, data_points)
             pointing_offsets = calc_pointing_offsets(session, beams, target,
                                                      middle_time, **weather)
-            save_pointing_offsets(session, pointing_offsets)
-            # plot_primary_beam_fits(session, beams, opts.max_extent)
+            save_pointing_offsets(session, pointing_offsets, middle_time)
+            # if plt:
+            #     plot_primary_beam_fits(session, beams, opts.max_extent)
