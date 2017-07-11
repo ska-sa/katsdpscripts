@@ -1,9 +1,0 @@
-# Get newest pointing models
-git clone git@github.com:ska-sa/katconfig.git
-
-# Show all options
-python beamrotation.py -h
-
-# Show engineering test results
-python beamrotation.py katconfig/user/pointing-models/mkat/m0*.l.pm.csv --full -n 100 -v --nopngs --vlbi
-
