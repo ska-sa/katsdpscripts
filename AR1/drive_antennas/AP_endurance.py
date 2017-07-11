@@ -146,7 +146,7 @@ def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
 
         # Only need this bit if we are not doing indexer test
         #if not dry_run:
-	#   time.sleep(228)
+        #   time.sleep(228)
 
         ant.req.mode('STOP')
         # Add a sleep since the indexer portion of the script does not
@@ -156,66 +156,78 @@ def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
            time.sleep(3)
 
         indexer_timeout = 120
-        ridx_angle={'s':0,'l':40,'x':80,'u':120} 
+        # Position raw changed after indexer configurations
+        ridx_angle={'s':-0.618,'l':39.248,'x':79.143,'u':119.405}
         ridx_sequence = ['s','l','x','u']
 
-        #If we are closer to 'u' than 's', then start from 'u' instead
+        # If we are closer to 'u' than 's', then start from 'u' instead
         if ant.sensor.ap_indexer_position_raw.get_value() > 60:
             ridx_sequence.reverse()
 
+        ridx_last_position = ant.sensor.ap_indexer_position.get_value()
+
+        # NOTE: we skip the first position in the list if we are already
+        #       there because the indexer seems to end up in a 'moving'
+        #       state after a few cycles of operating the drive. Revisit
+        #       this after feedback from Nico
+        if ridx_last_position == ridx_sequence[0]:
+            ridx_sequence = ridx_sequence[1:]
+
         if not dry_run:
-           for pos in ridx_sequence:
-               ridx_last_position = ant.sensor.ap_indexer_position.get_value()
+            for pos in ridx_sequence:
 
-               # NOTE: we skip the first position in the list if we are already
-               #       there because the indexer seems to end up in a 'moving'
-               #       state after a few cycles of operating the drive. Revisit
-               #       this after feedback from Nico
-               if ridx_last_position == ridx_sequence[0]:
-                   ridx_sequence=ridx_sequence[1:]
+                ridx_movement_start_time = time.time()
+                user_logger.info("--- Moving RI to position: '%s' ---", pos.upper())
+                ant.req.ap_set_indexer_position(pos)
 
-               ridx_movement_start_time = time.time()
-               user_logger.info("--- Moving RI to position: '%s' ---", pos.upper())
-               ant.req.ap_set_indexer_position(pos)
-               result = wait_until_sensor_equals(indexer_timeout,
-                                              ant.name + '_ap_indexer_position',
-                                              pos)
-               user_logger.debug("Request result: '%s', "
-                                 "last sensor reading: '%s'",
-                                 result[0], result[1])
+                # Wait for indexer brakes to open
+                time.sleep(2)
+                try:
+                    # Wait for indexer brakes to engage again
+                    ant.wait('ap.ridx-brakes-released', False, timeout=60)
+                except:
+                    raise
 
-               ridx_current_position = ant.sensors.ap_indexer_position.get_value()
-               time_to_index = time.time() - ridx_movement_start_time
+                # Wait for power to encoder to switch off
+                time.sleep(5)
 
-               ridx_position_raw = ant.sensor.ap_indexer_position_raw.get_value()
-               ridx_brakes_released = ant.sensor.ap_ridx_brakes_released.get_value()
-               if result[0] == False:
-                   if abs(ridx_angle[pos]- ridx_position_raw) > 1:
+                ridx_current_position = ant.sensors.ap_indexer_position.get_value()
+                time_to_index = time.time() - ridx_movement_start_time
 
-                   	user_logger.error("Timed out while waiting %s seconds "
-                                     "for indexer to reach '%s' position. "
-                                     "Last position reading was %s degrees. "
-                                     "Brakes released: '%s'. ",
-                                     time_to_index, pos.upper(),
-                                     ridx_position_raw,
-                                     ridx_brakes_released)
+                ridx_position_raw = ant.sensor.ap_indexer_position_raw.get_value()
+                ridx_brakes_released = ant.sensor.ap_ridx_brakes_released.get_value()
+                if ridx_current_position != pos:
 
-                   	user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
-                   	user_logger.info("26/23 deg slews: az - '%s', el - '%s' ", az_26_deg_slews, el_23_deg_slews)
-                   	user_logger.info("Total degrees travelled: az - '%s', el - '%s' ", az_total_angle, el_total_angle)
+                    user_logger.error("Indexer error after %s seconds! "
+                                      "Requested position: '%s'. "
+                                      "Current position: '%s'. "
+                                      "Encoder reading is %s degrees. "
+                                      "Position error: %.6f degrees. "
+                                      "Brakes released: '%s'. ",
+                                      time_to_index, pos.upper(),
+                                      ridx_current_position,
+                                      ridx_position_raw,
+                                      abs(ridx_angle[pos] - ridx_position_raw),
+                                      ridx_brakes_released)
 
-                   	raise UndefinedPosition("Indexer is stuck in an undefined position.") 
-               else:
-		    user_logger.info("The difference between the requested position : '%s'" "and the actual position : '%s'" "is %s degree(s)",
-			            pos.upper(),ridx_current_position.upper(),abs(ridx_angle[pos]- ridx_position_raw))
-                    user_logger.info("RIDX from '%s' to '%s' position "
+                    user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
+                    user_logger.info("26/23 deg slews: az - '%s', el - '%s' ", az_26_deg_slews, el_23_deg_slews)
+                    user_logger.info("Total degrees travelled: az - '%s', el - '%s' ", az_total_angle, el_total_angle)
+
+                    raise UndefinedPosition("Indexer failed to reach the requested position.") 
+                else:
+                    user_logger.info("Brake engaged. The offset from the requested position: "
+                                     "'%s' is %.6f degree(s)",
+			                         pos.upper(),
+                                     abs(ridx_angle[pos]- ridx_position_raw))
+                    user_logger.info("Request for angle '%s' to final angle '%s' "
                                      "took '%s' seconds.",
-                                     ridx_last_position.upper(),
-                                     ridx_current_position.upper(),
+                                     ridx_angle[pos],
+                                     ridx_position_raw,
                                      time_to_index)
 
-               # Wait a little before requesting next indexer position
-               time.sleep(5)
+                # Wait a little before requesting next indexer position
+                time.sleep(5)
                    
     # Print out slew numbers once all cycles are completed 
     user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
@@ -263,8 +275,9 @@ with verify_and_connect(opts) as kat:
 
     # Set sensor strategies"
     kat.ants.set_sampling_strategy("lock", "event")
-    kat.ants.set_sampling_strategy("ap.indexer-position", "event")
+    kat.ants.set_sampling_strategy("ap.indexer-position", "period 0.1")
     kat.ants.set_sampling_strategy("ap.on-target", "event")
+    kat.ants.set_sampling_strategy("ap.ridx-brakes-released","period 0.1")
 
     if not kat.dry_run and receptor.req.mode('STOP'):
         user_logger.info("Setting Antenna Mode to 'STOP', "

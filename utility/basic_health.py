@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 #
-# Track calibrator target for a specified time.
-# Obtain calibrated gains and apply them to the F-engine afterwards.
+# Observe either 1934-638 or 0408-65 to establish some basic health
+# properties of the MeerKAT AR1 system.
 
 import time
 
 import numpy as np
+
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger,
-                                SessionSDP)
+                                start_session, user_logger)
 
 
 class NoTargetsUpError(Exception):
@@ -64,78 +64,62 @@ def get_gaincal_solutions(session):
 
 
 # Set up standard script options
-usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track one or more sources for a specified time and calibrate ' \
-              'gains based on them. At least one target must be specified.'
+usage = "%prog"
+description = 'Observe either 1934-638 or 0408-65 to establish some basic health ' \
+              'Properties of the MeerKAT AR1 system.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=60.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
-parser.add_option('--reset', action='store_true', default=False,
-                  help='Reset the gains to the default value afterwards')
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
-parser.add_option('--fft-shift', type='int',
-                  help='Set correlator F-engine FFT shift (default=leave as is)')
-parser.add_option('--reconfigure-sdp', action="store_true", default=False,
-                  help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
-                    description='Phase-up observation that sets the F-engine weights')
+parser.set_defaults(observer='basic_health', nd_params='off',
+                    project_id='MKAIV-308', reduction_label='MKAIV-308',
+                    description='Basic health test of the system.',
+                    horizon=25, track_duration=64)
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Set of targets with flux models
-J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
-J0408 = 'PKS 0408-65 | J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
-J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
+# set of targets with flux models
+J1934 = 'PKS 1934-63 | J1939-6342, radec bfcal single_accumulation, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
+J0408 = 'PKS 0408-65 | J0408-6545, radec bfcal single_accumulation, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
+J1313 = '3C286      | J1331+3030, radec bfcal single_accumulation, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
 
+# ND states
+nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
+nd_on = {'diode': 'coupler', 'on': opts.track_duration, 'off': 0., 'period': 0.}
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    if len(args) == 0:
-        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-        observation_sources.add(J1934)
-        observation_sources.add(J0408)
-        observation_sources.add(J1331)
-    else:
-        observation_sources = collect_targets(kat, args)
-    # Quit early if there are no sources to observe
+    observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+    observation_sources.add(J1934)
+    observation_sources.add(J0408)
+    observation_sources.add(J1313)
+    user_logger.info(observation_sources.visibility_list())
+    # Quit early if there are no sources to observe ... use 25 degrees to alow time to observe
     if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
         raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
-    if opts.reconfigure_sdp:
-        user_logger.info("Reconfiguring SDP subsystem")
-        sdp = SessionSDP(kat)
-        sdp.req.data_product_reconfigure()
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
-        if opts.fft_shift is not None:
-            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
 
         for target in [observation_sources.sort('el').targets[-1]]:
-            channels = 32768 if session.product.endswith('32k') else 4096
-            if channels == 4096:
-                target.add_tags('bfcal single_accumulation')
-                opts.default_gain = 200
-            elif channels == 32768:
-                target.add_tags('delaycal gaincal single_accumulation')
-                opts.default_gain = 4000
-            user_logger.info("Target to be observed: %s", target.description)
+            # Calibration tests
+            user_logger.info("Performing calibration tests")
             if target.flux_model is None:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
-            user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                             opts.default_gain)
+            user_logger.info("Resetting F-engine gains to %g to allow phasing up"
+                             % (opts.default_gain,))
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
-            session.label('un_corrected')
-            user_logger.info("Initiating %g-second track on target '%s'",
-                             opts.track_duration, target.name)
+            session.label('calibration')
+            user_logger.info("Initiating %g-second track on target '%s'" %
+                             (opts.track_duration, target.name,))
             session.track(target, duration=opts.track_duration, announce=False)
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
+            # session.track('Nothing,special', duration=180, announce=False)
             time.sleep(180)
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
@@ -151,7 +135,6 @@ with verify_and_connect(opts) as kat:
                     user_logger.warning("No cal frequencies found in telstate '%s', "
                                         "refusing to correct delays", session.telstate)
             user_logger.info("Setting F-engine gains to phase up antennas")
-            session.label('corrected')
             for inp in set(session.cbf.fengine.inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:
@@ -170,10 +153,56 @@ with verify_and_connect(opts) as kat:
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
-            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
-                             target.name, opts.track_duration)
+            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked" %
+                             (target.name, opts.track_duration))
             session.track(target, duration=opts.track_duration, announce=False)
-        if opts.reset:
-            user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
+
+            # interferometric pointing
+            user_logger.info("Performing interferometric pointing tests")
+            session.label('interferometric_pointing')
+            session.track(target, duration=opts.track_duration, announce=False)
+            for direction in {'x', 'y'}:
+                for offset in np.linspace(-1, 1, 10 // 2):
+                    if direction == 'x':
+                        offset_target = [offset, 0.0]
+                    else:
+                        offset_target = [0.0, offset]
+                    user_logger.info("Initiating %g-second track on target '%s'" %
+                                     (opts.track_duration, target.name,))
+                    user_logger.info("Offset of %f,%f degrees " % (offset_target[0], offset_target[1]))
+                    session.set_target(target)
+                    if not kat.dry_run:
+                        session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
+                    nd_params = session.nd_params
+                    session.fire_noise_diode(announce=True, **nd_params)
+                    if kat.dry_run:
+                        session.track(target, duration=opts.track_duration, announce=False)
+                    else:
+                        time.sleep(opts.track_duration)  # Snooze
+            session.ants.req.offset_fixed(0, 0, opts.projection)  # reset any dangling offsets
+
+            # Tsys and averaging
+            user_logger.info("Performing Tsys and averaging tests")
+            session.nd_params = nd_off
+            session.track(target, duration=0)  # get onto the source
+            user_logger.info("Now capturing data - diode %s on" % nd_on['diode'])
+            session.label('%s' % (nd_on['diode'],))
+            if not session.fire_noise_diode(announce=True, **nd_on):
+                user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd_on['diode'])
+            session.nd_params = nd_off
+            user_logger.info("Now capturing data - noise diode off")
+            session.track(target, duration=320)  # get 5 mins of data to test averaging
+
+            # Single dish pointing ... to compare with interferometric
+            user_logger.info("Performing single dish pointing tests")
+            session.label('raster')
+            user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
+                             (target.description, target.azel()[0], target.azel()[1]))
+            # Do different raster scan on strong and weak targets
+            session.raster_scan(target, num_scans=5, scan_duration=80, scan_extent=6.0,
+                                scan_spacing=0.25, scan_in_azimuth=True,
+                                projection=opts.projection)
+            # reset the gains always
+            user_logger.info("Resetting F-engine gains to %g" % (opts.default_gain,))
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
