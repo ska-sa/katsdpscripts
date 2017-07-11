@@ -10,8 +10,9 @@ import katpoint
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Perfrom a drift scan on one or more sources for a specified time. At least one '
-                                             'target must be specified. Note also some **required** options below.')
+                                 description='Perfrom a drift scan on one or more sources for a '
+                                             'specified time. At least one target must be specified. '
+                                             'Note also some **required** options below.')
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of the drift scan for each source, in seconds (default=%default)')
@@ -22,7 +23,8 @@ parser.add_option('--repeat', action="store_true", default=False,
                   help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
 
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Drift scan',dump_rate=0.1)
+# parser.set_defaults(description='Drift scan',dump_rate=0.1)
+parser.set_defaults(description='Drift scan')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -52,10 +54,12 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    target_future_azel = target.azel(timestamp=time.time()+opts.track_duration/2)
-                    target = katpoint.construct_azel_target(katpoint.wrap_angle(target_future_azel[0]),katpoint.wrap_angle(target_future_azel[1]))
+                    target_future_azel = target.azel(timestamp=time.time() + opts.track_duration / 2)
+                    target = katpoint.construct_azel_target(katpoint.wrap_angle(target_future_azel[0]),
+                                                            katpoint.wrap_angle(target_future_azel[1]))
                     session.label('track')
-                    user_logger.info("Initiating %g-second drift scan on target '%s'" % (opts.track_duration, target.name,))
+                    user_logger.info("Initiating %g-second drift scan on target '%s'" %
+                                     (opts.track_duration, target.name,))
                     # Split the total track on one target into segments lasting as long as the noise diode period
                     # This ensures the maximum number of noise diode firings
                     total_track_time = 0.
