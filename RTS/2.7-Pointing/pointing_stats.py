@@ -241,6 +241,7 @@ text = []
 if len(args) < 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Correct File not passed to program. File should be csv file')
 filename = args[0]
+
 data = None
 for filename in args:
     if data is None:
@@ -248,11 +249,10 @@ for filename in args:
     else:
         data = np.r_[data,read_offsetfile(filename)]
 
-
 # Choose Data 
-target_list = np.unique(data['target'])
+target_list = np.array(list(set(data['target'])))
 np.random.shuffle(target_list)
-sample_number = np.floor(target_list.shape[0]*0.2).astype(int) # Choose 20% of the unique targets
+sample_number = np.floor(len(set(data['target']))*0.2)
 offsetdata = target_list[0:sample_number]
 keep = np.ones((len(data)),dtype=np.bool)
 for key,target in enumerate(data['target']):
@@ -286,7 +286,7 @@ antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
 if old_model is None:
     old_model = antenna.pointing_model
 targets = data['target']
-#keep = data['keep'].astype(np.bool) if 'keep' in data.dtype.fields else np.tile(True, len(targets))
+keep = data['keep'].astype(np.bool) if 'keep' in data.dtype.fields else np.tile(True, len(targets))
 
 ##########################################
 # Initialise new pointing model and set 
