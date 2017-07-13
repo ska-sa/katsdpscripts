@@ -52,7 +52,6 @@ def log_info(response):
         user_logger.info(response)
 
 with verify_and_connect(opts) as kat:
-    time.sleep(30)
     print("_______________________")
     print(kat.controlled_objects)
     print(kat.ants.clients)
@@ -70,7 +69,7 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
             print('Building CAM object')
             cam = cambuild(password="camcam", full_control="all")
-            time.sleep(30)
+            cam.until_synced()
 
             delay_list = {}
             try:
