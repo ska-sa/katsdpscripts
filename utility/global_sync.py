@@ -74,7 +74,7 @@ with verify_and_connect(opts) as kat:
             delay_list = {}
             try:
                 try:
-                    delay_values=katconf.resource_string(opts.configdelayfile)
+                    delay_values=katconf.resource_string(opts.configdelayfile).split('\n')
                 except ValueError:
                     print ('Failed to read delay values from config. Using local delays instead')
                     delay_values = open(opts.localdelayfile))
