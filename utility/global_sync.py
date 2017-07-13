@@ -52,6 +52,7 @@ def log_info(response):
         user_logger.info(response)
 
 with verify_and_connect(opts) as kat:
+    time.sleep(30)
     print("_______________________")
     print(kat.controlled_objects)
     print(kat.ants.clients)
@@ -69,15 +70,15 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
             print('Building CAM object')
             cam = cambuild(password="camcam", full_control="all")
-            time.sleep(5)
+            time.sleep(30)
 
             delay_list = {}
             try:
                 try:
                     delay_values=katconf.resource_string(opts.configdelayfile).split('\n')
-                except ValueError:
+                except:
                     print ('Failed to read delay values from config. Using local delays instead')
-                    delay_values = open(opts.localdelayfile))
+                    delay_values = open(opts.localdelayfile)
                 for line in delay_values:
                     x = ((line.strip('\n')).split(','))
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
