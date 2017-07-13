@@ -18,6 +18,7 @@ import time
 
 from katcorelib import standard_script_options, verify_and_connect, user_logger
 from katcorelib import cambuild
+import katconf
 
 
 # Parse command-line options that allow the defaults to be overridden
@@ -26,7 +27,10 @@ parser = standard_script_options(usage="usage: %prog [options]",
                                  "Performs a global sync,\n" +
                                  "Starts data stream from digitisers,\n" +
                                  "Resets capture destination to clear IP assignments")
-parser.add_option('--delayfile', type="string", default='pps_delays.csv',
+parser.add_option('--configdelayfile', type="string", default='katconfig/user/delay-models/mkat/pps_delays.csv',
+                  help='Specify the katconfig path to the csv file containing receptor '
+                       'delays in the format m0xx, <delay> (default="%default")')
+parser.add_option('--localdelayfile', type="string", default='pps_delays.csv',
                   help='Specify the full path to the csv file containing receptor '
                        'delays in the format m0xx, <delay> (default="%default")')
 parser.add_option('--mcpsetband', type="string", default='',
@@ -69,7 +73,12 @@ with verify_and_connect(opts) as kat:
 
             delay_list = {}
             try:
-                for line in open(opts.delayfile):
+                try:
+                    delay_values=katconf.resource_string(opts.configdelayfile)
+                except ValueError:
+                    print ('Failed to read delay values from config. Using local delays instead')
+                    delay_values = open(opts.localdelayfile))
+                for line in delay_values:
                     x = ((line.strip('\n')).split(','))
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
                         delay_list[x[0]] = int(x[1])
