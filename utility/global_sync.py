@@ -129,7 +129,7 @@ with verify_and_connect(opts) as kat:
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
                 time.sleep(2)
                 wait_time += 1
-                if wait_time == 30:
+                if wait_time == 60:
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
             etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
