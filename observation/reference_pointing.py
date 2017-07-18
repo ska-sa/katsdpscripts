@@ -17,10 +17,6 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
 from katpoint import (rad2deg, deg2rad, lightspeed, wrap_angle,
                       RefractionCorrection)
 from scape.beam_baseline import BeamPatternFit
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    plt = None
 
 
 # Group the frequency channels into this many sections to obtain pointing fits
@@ -351,62 +347,6 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
                              ant.name, *offsets[[0, 1, 6, 7, 8, 9]])
 
 
-def plot_primary_beam_fits(session, beams, max_extent):
-    """Plot primary beam fits per receptors (x and y scan directions).
-
-    Parameters
-    ----------
-    session : :class:`katcorelib.observe.CaptureSession` object
-        The active capture session
-    beams : dict mapping receptor name to list of :class:`scape.beam_baseline.BeamPatternFit`
-        Fitted primary beams, per receptor and per frequency chunk
-    max_extent : float
-        Maximum distance of pointings away from target, in degrees
-
-    """
-    fine_scan = np.linspace(-1.2 * max_extent, 1.2 * max_extent, 200)
-    fine_offsets_along_x = np.c_[fine_scan, np.zeros_like(fine_scan)]
-    fine_offsets_along_y = np.c_[np.zeros_like(fine_scan), fine_scan]
-    fig, ax = plt.subplots(len(beams), 2, sharex=True, sharey=True)
-    ax[-1, 0].set_xlabel('Pointings along x / az (degrees)')
-    ax[-1, 1].set_xlabel('Pointings along y / el (degrees)')
-    # Iterate over receptors
-    for a, ant in enumerate(session.observers):
-        beams_freq = beams[ant.name]
-        ax_x = ax[a, 0]
-        ax_y = ax[a, 1]
-        ax_y.set_ylabel(ant.name, rotation='horizontal', ha='right', va='top')
-        # Iterate over frequency chunks
-        for chunk in range(NUM_CHUNKS):
-            beam = beams_freq[chunk]
-            if beam is None:
-                continue
-            np.nonzero(beam.x[0])[0]
-            alpha = 1.0 if beam.is_valid else 0.3
-            ls = '-' if beam.is_valid else '--'
-            marker = 'o' if beam.is_valid else 's'
-            fine_x_gains = beam(fine_offsets_along_x.T)
-            scale = fine_x_gains.max()
-            active_points = np.nonzero(beam.x[0])[0]
-            x_dir = slice(active_points[0], active_points[-1] + 1)
-            active_points = np.nonzero(beam.x[1])[0]
-            y_dir = slice(active_points[0], active_points[-1] + 1)
-            ax_x.plot(fine_scan, fine_x_gains / scale,
-                      linestyle=ls, alpha=alpha)
-            ax_x.plot(beam.x[0, x_dir], beam.y[x_dir] / scale,
-                      marker=marker, alpha=alpha)
-            ax_x.set_ylim(0, 1.1)
-            ax_x.set_yticks([])
-            fine_y_gains = beam(fine_offsets_along_y.T)
-            scale = fine_y_gains.max()
-            ax_y.plot(fine_scan, fine_y_gains / scale,
-                      linestyle=ls, alpha=alpha)
-            ax_y.plot(beam.x[1, y_dir], beam.y[y_dir] / scale,
-                      marker=marker, alpha=alpha)
-            ax_y.set_ylim(0, 1.1)
-            ax_y.set_yticks([])
-
-
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
 description = 'Perform offset pointings on the first source and obtain ' \
@@ -485,5 +425,3 @@ with verify_and_connect(opts) as kat:
             pointing_offsets = calc_pointing_offsets(session, beams, target,
                                                      middle_time, **weather)
             save_pointing_offsets(session, pointing_offsets, middle_time)
-            # if plt:
-            #     plot_primary_beam_fits(session, beams, opts.max_extent)
