@@ -548,9 +548,15 @@ with verify_and_connect(opts) as kat:
                 weather = {'temperature': temperature, 'pressure': pressure,
                            'humidity': humidity}
                 middle_time = offset_end_times[n]
-                user_logger.info("reference time = %f, weather = "
+                user_logger.info("reference time = %.1f, weather = "
                                  "%.1f deg C | %.1f hPa | %.1f %",
                                  middle_time, temperature, pressure, humidity)
+        # Clear offsets in order to jiggle cal pipeline to drop its final gains
+        # XXX We assume that the final entry in `offsets` is not the origin
+        session.ants.req.offset_fixed(0., 0., opts.projection)
+        user_logger.info("Waiting for gains to materialise in cal pipeline")
+        # XXX Use the same sleep as bf_phaseup for now
+        time.sleep(180)
 
         # Perform basic interferometric pointing reduction
         if not kat.dry_run:
