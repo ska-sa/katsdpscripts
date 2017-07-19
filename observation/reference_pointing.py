@@ -548,6 +548,9 @@ with verify_and_connect(opts) as kat:
                 weather = {'temperature': temperature, 'pressure': pressure,
                            'humidity': humidity}
                 middle_time = offset_end_times[n]
+                user_logger.info("reference time = %f, weather = "
+                                 "%.1f deg C | %.1f hPa | %.1f %",
+                                 middle_time, temperature, pressure, humidity)
 
         # Perform basic interferometric pointing reduction
         if not kat.dry_run:
