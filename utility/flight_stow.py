@@ -3,7 +3,6 @@
 
 from katcorelib import (standard_script_options, verify_and_connect, user_logger)
 from katcorelib import (cambuild,  katconf)
-from random import randint
 import time
 
 def point_ants(ants, dry_run=False):
