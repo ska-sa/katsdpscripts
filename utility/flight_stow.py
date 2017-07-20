@@ -4,6 +4,19 @@
 from katcorelib import (standard_script_options, verify_and_connect, user_logger)
 import time
 
+def start_ants(ants, dry_run=False):
+    wait_for_ants = []
+    if not dry_run and ants.req.mode('STOP'):
+        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
+        time.sleep(5)
+        for ant in ants:
+            if ant.sensor.mode.get_value() != 'STOP':
+                wait_for_ants.append(ant.name)
+        if wait_for_ants:
+            user_logger.warn("{} not in 'STOP' mode".format(wait_for_ants))
+            user_logger.warn('waiting 60 seconds for the warning horn to stop')
+            time.sleep(60)
+
 def point_ants(ants, dry_run=False):
     ant_diff = ['m057', 'm058', 'm059']
     for ant in ants:
@@ -39,16 +52,10 @@ user_logger.info('start receptor flight stow\n')
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     user_logger.info('receptor flight stow begin')
-    if not kat.dry_run and kat.ants.req.mode('STOP'):
-        user_logger.info("Setting Antenna Mode to 'STOP', Powering on Antenna Drives.")
-        time.sleep(5)
-    else:
-        if not kat.dry_run :
-            user_logger.warn("Unable to set Antenna mode to 'STOP'.")
-  
+    # start antenna drives
+    start_ants(kat.ants, dry_run=kat.dry_run)
     # set AP sampling strategy
     kat.ants.set_sampling_strategy('lock', 'event')
-
     # point antennas
     point_ants(kat.ants, dry_run=kat.dry_run)
     user_logger.info('receptor flight stow completed')
