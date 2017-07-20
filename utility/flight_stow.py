@@ -2,7 +2,6 @@
 # Script to lower antennas in preparation for a flight arrival or departure from site
 
 from katcorelib import (standard_script_options, verify_and_connect, user_logger)
-from katcorelib import (cambuild,  katconf)
 import time
 
 def point_ants(ants, dry_run=False):
