@@ -262,16 +262,10 @@ class BeamPatternFit(ScatterFit):
         self.std_center = self._interp.std_mean
         self.std_width = sigma_to_fwhm(self._interp.std_std)
         self.std_height = self._interp.std_height
-        self.is_valid = not np.any(np.isnan(self.center)) and (self.height > 0.0)
+        self.is_valid = not any(np.isnan(self.center)) and self.height > 0.
         # XXX: POTENTIAL TWEAK
-        if np.isscalar(self.width):
-            self.is_valid = self.is_valid and (self.width > 0.9 * self.expected_width) and \
-                                              (self.width < 1.25 * self.expected_width)
-        else:
-            self.is_valid = self.is_valid and (self.width[0] > 0.9 * self.expected_width[0]) and \
-                                              (self.width[0] < 1.25 * self.expected_width[0]) and \
-                                              (self.width[1] > 0.9 * self.expected_width[1]) and \
-                                              (self.width[1] < 1.25 * self.expected_width[1])
+        norm_width = self.width / self.expected_width
+        self.is_valid &= all(norm_width > 0.9) and all(norm_width < 1.25)
 
     def __call__(self, x):
         """Evaluate fitted beam pattern function on new target coordinates.
@@ -312,8 +306,8 @@ def fit_primary_beams(session, data_points):
         data = np.rec.fromrecords(data_points[a], names='x,y,freq,gain,weight')
         data = data.reshape(-1, NUM_CHUNKS)
         ant = session.observers[a]
-        # Iterate over frequency chunks
-        for chunk in range(NUM_CHUNKS):
+        # Iterate over frequency chunks but discard typically dodgy band edges
+        for chunk in range(1, NUM_CHUNKS - 1):
             chunk_data = data[:, chunk]
             is_valid = np.nonzero(~np.isnan(chunk_data['gain']) &
                                   (chunk_data['weight'] > 0.))[0]
