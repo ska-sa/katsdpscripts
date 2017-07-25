@@ -454,10 +454,8 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
         Unix timestamp at the middle of sequence of offset pointings
 
     """
-    user_logger.info("Ant  refracted (az, el)      relative adjustment     "
-                     "standard dev")
-    user_logger.info("---- --------------------    --------------------    "
-                     "--------------")
+    user_logger.info("Ant  refracted (az, el)      relative adjustment")
+    user_logger.info("---- --------------------    --------------------")
     for ant in session.observers:
         try:
             offsets = pointing_offsets[ant.name].copy()
