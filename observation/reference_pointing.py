@@ -540,7 +540,7 @@ with verify_and_connect(opts) as kat:
             # effective duration is less for first pointing in each direction
             time.sleep(opts.track_duration)
             offset_end_times[n] = time.time()
-            if n == len(offsets) // 2:
+            if n == len(offsets) // 2 - 1:
                 # Get weather data for refraction correction at middle time
                 temperature = kat.sensor.anc_air_temperature.get_value()
                 pressure = kat.sensor.anc_air_pressure.get_value()
@@ -549,7 +549,7 @@ with verify_and_connect(opts) as kat:
                            'humidity': humidity}
                 middle_time = offset_end_times[n]
                 user_logger.info("reference time = %.1f, weather = "
-                                 "%.1f deg C | %.1f hPa | %.1f %",
+                                 "%.1f deg C | %.1f hPa | %.1f %%",
                                  middle_time, temperature, pressure, humidity)
         # Clear offsets in order to jiggle cal pipeline to drop its final gains
         # XXX We assume that the final entry in `offsets` is not the origin
