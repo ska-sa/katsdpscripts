@@ -117,39 +117,39 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
                 gain = gains.get(inp)
                 if bp_gain is None or gain is None:
                     continue
-                masked = np.ma.masked_invalid(bp_gain * gain)
-                chunked = masked.reshape(NUM_CHUNKS, -1)
-                abs_chunked = np.abs(chunked)
-                abs_chunked_mean = np.ma.mean(abs_chunked, axis=1)
-                abs_chunked_std = np.ma.std(abs_chunked, axis=1)
-                stats_m = []
-                stats_s = []
-                for m, s in zip(abs_chunked_mean.filled(np.nan),
-                                abs_chunked_std.filled(np.nan)):
-                    stats_m.append("%4.2f" % (m,))
-                    stats_s.append("%4.2f" % (s,))
-                stats_m = ' '.join(stats_m)
-                stats_s = ' '.join(stats_s)
+                masked_gain = np.ma.masked_invalid(bp_gain * gain)
+                abs_gain_chunked = np.abs(masked_gain).reshape(NUM_CHUNKS, -1)
+                abs_gain_mean = abs_gain_chunked.mean(axis=1)
+                abs_gain_std = abs_gain_chunked.std(axis=1)
+                abs_gain_var = abs_gain_std.filled(np.inf) ** 2
+                # Number of valid samples going into statistics
+                abs_gain_N = (~abs_gain_chunked.mask).sum(axis=1)
+                # Generate standard precision weights based on empirical stdev
+                abs_gain_weight = abs_gain_N / abs_gain_var
+                # Prepare some debugging output
+                stats_mean = ' '.join("%4.2f" % (m,) for m in
+                                      abs_gain_mean.filled(np.nan))
+                stats_std = ' '.join("%4.2f" % (s,) for s in
+                                     abs_gain_std.filled(np.nan))
+                stats_N = ' '.join("%4d" % (n,) for n in abs_gain_N)
                 bp_mean = np.nanmean(np.abs(bp_gain))
-                user_logger.debug("%s %s %4.2f %s",
-                                  tuple(offset), inp, np.abs(gain), stats_m)
-                user_logger.debug("%s %s %4.2f %s",
-                                  tuple(offset), inp, bp_mean, stats_s)
-                avg_gain, weight = np.ma.average(np.abs(chunked),
-                                                 axis=1, returned=True)
+                user_logger.debug("%s %s %4.2f mean | %s",
+                                  tuple(offset), inp, np.abs(gain), stats_mean)
+                user_logger.debug("%s %s %4.2f std  | %s",
+                                  tuple(offset), inp, bp_mean, stats_std)
+                user_logger.debug("%s %s      N    | %s",
+                                  tuple(offset), inp, stats_N)
                 # Blend new gains into existing via weighted averaging.
                 # XXX We currently combine HH and VV gains at the start to get
                 # Stokes I gain but in future it might be better to fit
                 # separate beams to HH and VV.
                 pol_gain, pol_weight = np.ma.average(
-                    np.c_[pol_gain, avg_gain], axis=1,
-                    weights=np.c_[pol_weight, weight], returned=True)
+                    np.c_[pol_gain, abs_gain_mean], axis=1,
+                    weights=np.c_[pol_weight, abs_gain_weight], returned=True)
             if pol_weight.sum() > 0:
                 data = data_points.get(a, [])
-                for freq, gain, weight in zip(chunk_freqs, pol_gain,
-                                              pol_weight):
-                    data.append((offset[0], offset[1],
-                                 freq, gain, weight))
+                for freq, gain, weight in zip(chunk_freqs, pol_gain, pol_weight):
+                    data.append((offset[0], offset[1], freq, gain, weight))
                 data_points[a] = data
     if not data_points:
         raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
@@ -336,13 +336,13 @@ def fit_primary_beams(session, data_points):
             except TypeError:
                 continue
             beamwidth_norm = beam.width / np.array(expected_width)
-            user_logger.debug("%s %2d %2d (%6.2f, %6.2f) %s",
-                              ant.name, chunk, len(y), beamwidth_norm[0],
-                              beamwidth_norm[1], beam.is_valid)
-            # Store data points on beam object to simplify plotting later on
-            beam.x = x
-            beam.y = y
-            beam.std_y = std_y
+            center_norm = beam.center / beam.std_center
+            user_logger.debug("%s %2d %2d: height=%4.2f width=(%4.2f, %4.2f) "
+                              "center=(%7.2f, %7.2f)%s",
+                              ant.name, chunk, len(y), beam.height,
+                              beamwidth_norm[0], beamwidth_norm[1],
+                              center_norm[0], center_norm[1],
+                              ' X' if not beam.is_valid else '')
             # Store beam per frequency chunk and per receptor
             beams_freq = beams.get(ant.name, [None] * NUM_CHUNKS)
             beams_freq[chunk] = beam
@@ -399,9 +399,9 @@ def calc_pointing_offsets(session, beams, target, middle_time,
                              returned=True)
         pointing_offset = results[0]
         pointing_offset_std = np.sqrt(1. / results[1])
-        user_logger.debug("%s x=%+7.2f'+-%.2f' y=%+7.2f'+-%.2f'", ant.name,
-                          pointing_offset[0] * 60, pointing_offset_std[0] * 60,
-                          pointing_offset[1] * 60, pointing_offset_std[1] * 60)
+        user_logger.debug("%s x=%+7.2f'+-%.2f\" y=%+7.2f'+-%.2f\"", ant.name,
+                          pointing_offset[0] * 60, pointing_offset_std[0] * 3600,
+                          pointing_offset[1] * 60, pointing_offset_std[1] * 3600)
         # Get existing pointing adjustment
         receptor = getattr(session.kat, ant.name)
         az_adjust = receptor.sensor.pos_adjust_pointm_azim.get_value()
@@ -475,9 +475,8 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
             session.telstate.add(sensor_name, offsets, middle_time)
             # Display all offsets in arcminutes
             offsets[2:] *= 60.
-            user_logger.info("%s (%+6.2f, %5.2f) deg -> "
-                             "(%+7.2f', %+7.2f') +- (%.2f', %.2f')",
-                             ant.name, *offsets[[0, 1, 6, 7, 8, 9]])
+            user_logger.info("%s (%+6.2f, %5.2f) deg -> (%+7.2f', %+7.2f')",
+                             ant.name, *offsets[[0, 1, 6, 7]])
 
 
 # Set up standard script options
