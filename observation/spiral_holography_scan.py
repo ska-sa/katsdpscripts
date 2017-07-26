@@ -133,6 +133,8 @@ def SplitArray(x,y,doplot=False):
         plt.plot(x[GroupA],y[GroupA],'.r')
         plt.plot(x[GroupB],y[GroupB],'.g')
         plt.axis('equal')
+    GroupA.sort()
+    GroupB.sort()
     return GroupA,GroupB
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
