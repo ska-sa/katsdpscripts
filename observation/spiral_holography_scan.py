@@ -35,6 +35,7 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 import numpy as np
 import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
+import matplotlib.pyplot as plt
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
 def plane_to_sphere_holography(targetaz,targetel,ll,mm):
@@ -57,6 +58,82 @@ def spiral(params,indep):
     x=r*np.cos(2.0*np.pi*r)
     y=r*np.sin(2.0*np.pi*r)
     return np.sqrt((x-x0)**2+(y-y0)**2)
+
+def SplitArray(x,y,doplot=False):
+    #groups antennas into two groups that ensures that shortest possible baselines are used for long baseline antennas
+    dist=np.zeros(len(x))
+    mindist=np.zeros(len(x))
+    nmindist=np.zeros(len(x))
+    imindist=[0 for c in range(len(x))]
+    for ix in range(len(x)):
+        dists=np.sqrt((x[ix]-x)**2+(y[ix]-y)**2)
+        dists[ix]=np.nan
+        mindist[ix]=np.nanmin(dists)
+        imindist[ix]=np.nanargmin(dists)
+
+    if (doplot):
+        plt.figure()
+        plt.clf()
+        for ix in range(len(x)):
+            plt.text(x[ix],y[ix],' %d'%(ix))
+
+    oppositegroups=[]
+    for cix in range(len(x)):
+        ix=np.nanargmax(mindist)
+        oppositegroups.append((ix,imindist[ix]))
+        mindist[ix]=np.nan
+    # print oppositegroups
+    GroupA=[oppositegroups[0][0]]
+    GroupB=[oppositegroups[0][1]]
+    oppositegroups.pop(0)
+    while (len(oppositegroups)):
+        exited=False
+        for io,pair in enumerate(oppositegroups):
+            if (pair[0] in GroupA):
+                if (pair[1] not in GroupB):
+                     GroupB.append(pair[1])
+                oppositegroups.pop(io)
+                exited=True
+                break
+            if (pair[1] in GroupA):
+                if (pair[0] not in GroupB):
+                    GroupB.append(pair[0])
+                oppositegroups.pop(io)
+                exited=True
+                break
+            if (pair[0] in GroupB):
+                if (pair[1] not in GroupA):
+                    GroupA.append(pair[1])
+                oppositegroups.pop(io)
+                exited=True
+                break
+            if (pair[1] in GroupB):
+                if (pair[0] not in GroupA):
+                    GroupA.append(pair[0])
+                oppositegroups.pop(io)
+                exited=True
+                break
+        if (exited is False):#so no more absolute exclusions clear at this point
+            #is pair[0] closer to closest antenna from group A or group B compared to pair[1]?
+            # print oppositegroups
+            pair=oppositegroups.pop(0)
+            distsA0=np.sqrt((x[GroupA]-x[pair[0]])**2+(y[GroupA]-y[pair[0]])**2)
+            distsB0=np.sqrt((x[GroupB]-x[pair[0]])**2+(y[GroupB]-y[pair[0]])**2)
+            distsA1=np.sqrt((x[GroupA]-x[pair[1]])**2+(y[GroupA]-y[pair[1]])**2)
+            distsB1=np.sqrt((x[GroupB]-x[pair[1]])**2+(y[GroupB]-y[pair[1]])**2)
+            # print np.min(distsA0),np.min(distsB1),np.min(distsA1),np.min(distsB0)
+            if (np.max([np.min(distsA0),np.min(distsB1)])<np.max([np.min(distsA1),np.min(distsB0)])):
+                GroupA.append(pair[0])
+                GroupB.append(pair[1])
+            else:
+                GroupA.append(pair[1])
+                GroupB.append(pair[0])
+
+    if (doplot):
+        plt.plot(x[GroupA],y[GroupA],'.r')
+        plt.plot(x[GroupB],y[GroupB],'.g')
+        plt.axis('equal')
+    return GroupA,GroupB
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
@@ -270,7 +347,7 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              'option) perform a scan on the target. Note also some '
                                              '**required** options below.')
 # Add experiment-specific options
-parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
+parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically.')
 parser.add_option('--track-ants', help='Subset of all antennas that will track source (default=all non-scanning antennas)')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
@@ -294,10 +371,10 @@ parser.add_option('--sampletime', type='float', default=1.0,
                   help='time in seconds to spend on pointing (default=%default)')
 parser.add_option('--spacetime', type='float', default=1.0,
                   help='time in seconds used to equalize arm spacing, match with dumprate for equal two-dimensional sample spacing (default=%default)')
-parser.add_option('--prepopulatetime', type='float', default=20.0,
+parser.add_option('--prepopulatetime', type='float', default=10.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
 parser.add_option('--slew-to-target-time', type='float', default=60.0,
-                  help='time in seconds to allow antennas to slew to target initially (default=%default)')
+                  help='DEPRACATED: time in seconds to allow antennas to slew to target initially (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
 #parser.add_option('--no-delays', action="store_true", default=False,
@@ -342,8 +419,13 @@ with verify_and_connect(opts) as kat:
                 user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
-        # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
-        scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
+
+        if (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupb'):
+            GroupA,GroupB=SplitArray(np.array([ant.position_enu[0] for ant in session.ants]),np.array([ant.position_enu[1] for ant in session.ants]),doplot=False)
+            scan_ants = ant_array(kat, [session.ants[ant] for ant in GroupA if (opts.scan_ants.lower()=='groupa') else GroupB], 'scan_ants')
+        else:
+            # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
+            scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
         # Assign rest of antennas to tracking antenna subarray (or use given antennas)
         track_ants = opts.track_ants if opts.track_ants else [ant for ant in all_ants if ant not in scan_ants]
         track_ants = ant_array(kat, track_ants, 'track_ants')
@@ -362,33 +444,22 @@ with verify_and_connect(opts) as kat:
                 cy=compositey
                 if (targetel<opts.horizon):
                     user_logger.info("Exiting because target is %g degrees below horizon limit of %g."%((opts.horizon-targetel),opts.horizon))
-                    break;# else it is ok that target just above horizon limit
+                    break# else it is ok that target just above horizon limit
             else:#target is setting - scan bottom half of pattern first
                 cx=ncompositex
                 cy=ncompositey
                 if (targetel<opts.horizon+(opts.scan_extent/2.0)):
                     user_logger.info("Exiting because target is %g degrees too low to accommodate a scan extent of %g degrees above the horizon limit of %g."%((opts.horizon+(opts.scan_extent/2.0)-targetel),opts.scan_extent,opts.horizon))
-                    break;
+                    break
             user_logger.info("Performing scan cycle %d."%(cycle+1))
             #print("Using all antennas: %s" % (' '.join([ant  for ant in ants]),))
             user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
             scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
             track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
-            session.ants = all_ants
             #get both antennas to target ASAP
-            session.ants = scan_ants            
-            target.antenna = scan_observer
-            scan_track = gen_track(np.arange(opts.slew_to_target_time)+time.time(),target)
-            if not kat.dry_run:
-                session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-            session.ants = track_ants
-            target.antenna = track_observer
-            scan_track = gen_track(scan_track[:,0],target)
-            if not kat.dry_run:
-                session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-            scan_data=scan_track
-            time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
-            lasttime = scan_data[-1,0]
+            session.ants = all_ants
+            session.track(target, duration=0, announce=False)
+            lasttime = time.time()+opts.prepopulatetime
             for iarm in range(len(cx)):#spiral arm index
                 user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
                 session.ants = scan_ants
