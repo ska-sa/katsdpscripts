@@ -459,7 +459,7 @@ with verify_and_connect(opts) as kat:
             #get both antennas to target ASAP
             session.ants = all_ants
             session.track(target, duration=0, announce=False)
-            lasttime = time.time()+opts.prepopulatetime
+            lasttime = time.time()
             for iarm in range(len(cx)):#spiral arm index
                 user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
                 session.ants = scan_ants
