@@ -373,12 +373,8 @@ parser.add_option('--spacetime', type='float', default=1.0,
                   help='time in seconds used to equalize arm spacing, match with dumprate for equal two-dimensional sample spacing (default=%default)')
 parser.add_option('--prepopulatetime', type='float', default=10.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
-parser.add_option('--slew-to-target-time', type='float', default=60.0,
-                  help='DEPRACATED: time in seconds to allow antennas to slew to target initially (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
-#parser.add_option('--no-delays', action="store_true", default=False,
-#                  help='Do not use delay tracking, and zero delays')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -403,20 +399,6 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
-        if not opts.no_delays and not kat.dry_run :
-            if session.cbf.req.auto_delay('on'):
-                user_logger.info("Turning on delay tracking.")
-            else:
-                user_logger.error('Unable to turn on delay tracking.')
-        elif opts.no_delays and not kat.dry_run:
-            if session.cbf.req.auto_delay('off'):
-                user_logger.info("Turning off delay tracking.")
-            else:
-                user_logger.error('Unable to turn off delay tracking.')
-            if session.cbf.req.zero_delay():
-                user_logger.info("Zeroed the delay values.")
-            else:
-                user_logger.error('Unable to zero delay values.')
 
         all_ants = session.ants
 
