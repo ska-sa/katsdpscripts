@@ -421,7 +421,7 @@ with verify_and_connect(opts) as kat:
         all_ants = session.ants
 
         if (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupb'):
-            GroupA,GroupB=SplitArray(np.array([ant.position_enu[0] for ant in session.ants]),np.array([ant.position_enu[1] for ant in session.ants]),doplot=False)
+            GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
             scan_ants = ant_array(kat, [session.ants[ant] for ant in (GroupA if (opts.scan_ants.lower()=='groupa') else GroupB)], 'scan_ants')
         else:
             # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
