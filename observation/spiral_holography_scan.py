@@ -133,8 +133,6 @@ def SplitArray(x,y,doplot=False):
         plt.plot(x[GroupA],y[GroupA],'.r')
         plt.plot(x[GroupB],y[GroupB],'.g')
         plt.axis('equal')
-    GroupA.sort()
-    GroupB.sort()
     return GroupA,GroupB
 
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
@@ -425,7 +423,7 @@ with verify_and_connect(opts) as kat:
         if (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupb'):
             GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
             scan_ants = ant_array(kat, [session.ants[ant] for ant in (GroupA if (opts.scan_ants.lower()=='groupa') else GroupB)], 'scan_ants')
-            session.obs_params['scan_ants']=','.join([session.ants[ant].name for ant in (GroupA if (opts.scan_ants.lower()=='groupa') else GroupB)])
+            session.obs_params['scan_ants']=','.join([session.ants[ant].name for ant in (GroupA if (opts.scan_ants.lower()=='groupa') else GroupB)].sort())
         else:
             # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
             scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
