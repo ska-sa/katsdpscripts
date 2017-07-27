@@ -20,6 +20,10 @@ class NoGainsAvailableError(Exception):
     """No gain solutions are available from the cal pipeline."""
 
 
+# Default F-engine gain as a function of number of channels
+DEFAULT_GAIN = {4096: 200, 32768: 4000}
+
+
 def get_cal_inputs(telstate):
     """Input labels associated with calibration products."""
     if 'cal_antlist' not in telstate or 'cal_pol_ordering' not in telstate:
@@ -73,8 +77,9 @@ parser.add_option('-t', '--track-duration', type='float', default=60.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
-parser.add_option('--default-gain', type='int', default=200,
-                  help='Default correlator F-engine gain (default=%default)')
+parser.add_option('--default-gain', type='int', default=0,
+                  help='Default correlator F-engine gain, '
+                       'automatically set if 0 (default=%default)')
 parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
@@ -115,13 +120,10 @@ with verify_and_connect(opts) as kat:
         session.cbf.correlator.req.capture_start()
 
         for target in [observation_sources.sort('el').targets[-1]]:
-            channels = 32768 if session.product.endswith('32k') else 4096
-            if channels == 4096:
-                target.add_tags('bfcal single_accumulation')
-                opts.default_gain = 200
-            elif channels == 32768:
-                target.add_tags('delaycal gaincal single_accumulation')
-                opts.default_gain = 4000
+            target.add_tags('bfcal single_accumulation')
+            if not opts.default_gain:
+                channels = 32768 if session.product.endswith('32k') else 4096
+                opts.default_gain = DEFAULT_GAIN[channels]
             user_logger.info("Target to be observed: %s", target.description)
             if target.flux_model is None:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
