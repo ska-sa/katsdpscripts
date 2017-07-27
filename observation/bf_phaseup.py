@@ -73,7 +73,7 @@ description = 'Track one or more sources for a specified time and calibrate ' \
               'gains based on them. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=60.0,
+parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
@@ -138,7 +138,7 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            time.sleep(180)
+            time.sleep(60)
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
             if not kat.dry_run:

@@ -488,7 +488,7 @@ description = 'Perform offset pointings on the first source and obtain ' \
               'one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=20.0,
+parser.add_option('-t', '--track-duration', type='float', default=16.0,
                   help='Duration of each offset pointing, in seconds (default=%default)')
 parser.add_option('--max-extent', type='float', default=1.0,
                   help='Maximum distance of offset from target, in degrees')
@@ -557,7 +557,7 @@ with verify_and_connect(opts) as kat:
         session.ants.req.offset_fixed(0., 0., opts.projection)
         user_logger.info("Waiting for gains to materialise in cal pipeline")
         # XXX Use the same sleep as bf_phaseup for now
-        time.sleep(180)
+        time.sleep(60)
 
         # Perform basic interferometric pointing reduction
         if not kat.dry_run:

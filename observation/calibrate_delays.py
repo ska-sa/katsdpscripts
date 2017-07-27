@@ -69,7 +69,7 @@ description = 'Track the source with the highest elevation and calibrate ' \
               'delays based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=30.0,
+parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track the source, in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain, automatically set if 0 (the '
