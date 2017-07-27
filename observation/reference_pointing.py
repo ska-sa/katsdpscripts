@@ -535,10 +535,10 @@ with verify_and_connect(opts) as kat:
         session.track(target, duration=0, announce=False)
         # Point to the requested offsets and collect extra data at middle time
         for n, offset in enumerate(offsets):
-            user_logger.info("pointing to offset of (%g, %g) degrees", *offset)
+            user_logger.info("slewing to offset of (%g, %g) degrees", *offset)
             session.ants.req.offset_fixed(offset[0], offset[1], opts.projection)
-            # This track time actually includes the slew to the pointing so the
-            # effective duration is less for first pointing in each direction
+            session.wait(session.ants, 'lock', True, timeout=10)
+            user_logger.info("tracking offset for %g seconds", opts.track_duration)
             time.sleep(opts.track_duration)
             offset_end_times[n] = time.time()
             if n == len(offsets) // 2 - 1:
