@@ -118,6 +118,8 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
             sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
             delays = get_delaycal_solutions(session)
+            # JSON does not like NumPy types
+            delays = {inp: float(d) for inp, d in delays.items()}
             if not delays:
                 msg = "No delay solutions found in telstate '%s'" % \
                       (session.telstate,)
