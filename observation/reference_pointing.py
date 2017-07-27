@@ -122,6 +122,13 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
                 abs_gain_mean = abs_gain_chunked.mean(axis=1)
                 abs_gain_std = abs_gain_chunked.std(axis=1)
                 abs_gain_var = abs_gain_std.filled(np.inf) ** 2
+                # Replace any zero variance with the smallest non-zero variance
+                # across chunks, but if all are zero it is fishy and ignored.
+                zero_var = abs_gain_var == 0.
+                if all(zero_var):
+                    abs_gain_var = np.ones_like(abs_gain_var) * np.inf
+                else:
+                    abs_gain_var[zero_var] = abs_gain_var[~zero_var].min()
                 # Number of valid samples going into statistics
                 abs_gain_N = (~abs_gain_chunked.mask).sum(axis=1)
                 # Generate standard precision weights based on empirical stdev
@@ -147,6 +154,9 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
                     np.c_[pol_gain, abs_gain_mean], axis=1,
                     weights=np.c_[pol_weight, abs_gain_weight], returned=True)
             if pol_weight.sum() > 0:
+                # Turn masked values into NaNs pre-emptively to avoid warning
+                # when recarray in beam fitting routine forces this later on.
+                pol_gain = pol_gain.filled(np.nan)
                 data = data_points.get(a, [])
                 for freq, gain, weight in zip(chunk_freqs, pol_gain, pol_weight):
                     data.append((offset[0], offset[1], freq, gain, weight))
