@@ -420,6 +420,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second cycles extending %g degrees) on target '%s'"
                          % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
         session.set_target(target)
+        lasttime = time.time()
         for cycle in range(opts.num_cycles):
             targetel=target.azel()[1]*180.0/np.pi
             if (targetel>lasttargetel):#target is rising - scan top half of pattern first
