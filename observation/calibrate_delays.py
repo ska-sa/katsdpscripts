@@ -69,7 +69,7 @@ description = 'Track the source with the highest elevation and calibrate ' \
               'delays based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=30.0,
+parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track the source, in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain, automatically set if 0 (the '
@@ -118,6 +118,8 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
             sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
             delays = get_delaycal_solutions(session)
+            # JSON does not like NumPy types
+            delays = {inp: float(d) for inp, d in delays.items()}
             if not delays:
                 msg = "No delay solutions found in telstate '%s'" % \
                       (session.telstate,)

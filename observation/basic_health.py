@@ -120,7 +120,7 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # session.track('Nothing,special', duration=180, announce=False)
-            time.sleep(180)
+            time.sleep(60)
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
             if not kat.dry_run:
