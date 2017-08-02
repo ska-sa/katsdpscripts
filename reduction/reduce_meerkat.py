@@ -57,7 +57,7 @@ def get_archive_info(archive):
     backend_delay = archive.get_backend_delay()
     low_freq = archive.get_centre_frequency() - archive.get_bandwidth() / 2.0
     high_freq = archive.get_centre_frequency() + archive.get_bandwidth() / 2.0
-    print '\nfile             Name of the file                           %s' % file_name
+    print 'file             Name of the file                           %s' % file_name
     print 'nbin             Number of pulse phase bins                 %s' % nbin
     print 'nchan            Number of frequency channels               %s' % nchan
     print 'npol             Number of polarizations                    %s' % npol
@@ -84,7 +84,7 @@ def get_archive_info(archive):
     print 'be:delay         Backend propn delay from digi. input.      %s\n' % backend_delay
 
 
-def get_zero_weights(archive, psrsh, verbose = False):
+def get_zero_weights(archive, psrsh, verbose=False):
     '''Query the number of subint-channels with zeroed
        weights (i.e. cleaned) in TimerArchive/PSRFITS file.
        Input:
@@ -115,12 +115,12 @@ def get_zero_weights(archive, psrsh, verbose = False):
             percent_subint = (float(spectrum) / float(nchan)) * 100
             print 'Subint %s has %s channels (%.2f%%) set to zero. %s' % (i, spectrum, percent_subint, empty_channels)
         for k in range(len(empty_channels)):
-            #print 'zap such %d,%d' % (i, empty_channels[k])
+            # print 'zap such %d,%d' % (i, empty_channels[k])
             np.savetxt(psrsh_file, np.c_[i, empty_channels[k]], fmt='zap such %d,%d')
-    total_percent = (float(counter)/float(weights.size)) * 100
+    total_percent = (float(counter) / float(weights.size)) * 100
     if verbose:
-      print '%s data points out of %s with weights set to zero.' % (counter, weights.size)
-      print '%.2f%% data points set to zero.' % (total_percent)
+        print '%s data points out of %s with weights set to zero.' % (counter, weights.size)
+        print '%.2f%% data points set to zero.' % (total_percent)
 
 
 def replace_nth(string, source, target, position):
@@ -138,9 +138,9 @@ def replace_nth(string, source, target, position):
     if len(indices) < position:
         # or maybe raise an error
         return
-    # can't assign to string slices. So, let's listify
+    # Can't assign to string slices. So, let's listify.
     string = list(string)
-    # do position-1 because we start from the first occurrence of the string, not the 0-th
+    # Do position-1 because we start from the first occurrence of the string, not the 0-th.
     string[indices[position - 1]:indices[position - 1] + len(source)] = target
     return ''.join(string)
 
@@ -148,20 +148,20 @@ def replace_nth(string, source, target, position):
 # Main body of the script.
 if __name__ == '__main__':
     # Parsing the command line options.
-    parser = argparse.ArgumentParser(usage = 'reduce_meerkat.py --indir=<input_dir> [options]',
-                                     description = 'Reduce MeerKAT TimerArchive/PSRFITS data.',
-                                     formatter_class = lambda prog: argparse.HelpFormatter(prog, max_help_position = 100, width = 250),
-                                     epilog = 'Copyright (C) 2017 by Maciej Serylak')
-    parser.add_argument('--indir', dest = 'input_dir', metavar = '<input_dir>', default = '', help = 'specify input directory')
-    parser.add_argument('--outdir', dest = 'output_dir', metavar = '<output_dir>', default = '', help = 'specify output directory')
-    parser.add_argument('--eph', dest = 'ephem_file', metavar = '<ephem_file>', default = '', help = 'use ephemeris file to update archives')
-    parser.add_argument('--psrsh', dest = 'psrsh_save', action = 'store_true', help = 'write zap commands to psrsh script file')
-    parser.add_argument('--clean', dest = 'clean_rfi', action = 'store_true', help = 'clean data from RFI using CoastGuard\'s clean.py')
-    parser.add_argument('--fscr', dest = 'fscr', action = 'store_true', help = 'dedisperse, frequency scrunch and write out the file')
-    parser.add_argument('--tscr', dest = 'tscr', action = 'store_true', help = 'dedisperse, time scrunch and write out the file')
-    parser.add_argument('--ntscr', dest = 'tscr_nsub', nargs = 1, help = 'dedisperse, time scrunch to n-subints and write out the file')
-    parser.add_argument('--verbose', dest = 'verbose', action = 'store_true', help = 'print debugging information')
-    args = parser.parse_args() # Reading command line options.
+    parser = argparse.ArgumentParser(usage='reduce_meerkat.py --indir=<input_dir> [options]',
+                                     description='Reduce MeerKAT TimerArchive/PSRFITS data.',
+                                     formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=100, width=250),
+                                     epilog='Copyright (C) 2017 by Maciej Serylak')
+    parser.add_argument('--indir', dest='input_dir', metavar='<input_dir>', default='', help='specify input directory')
+    parser.add_argument('--outdir', dest='output_dir', metavar='<output_dir>', default='', help='specify output directory')
+    parser.add_argument('--eph', dest='ephem_file', metavar='<ephem_file>', default='', help='use ephemeris file to update archives')
+    parser.add_argument('--psrsh', dest='psrsh_save', action='store_true', help='write zap commands to psrsh script file')
+    parser.add_argument('--clean', dest='clean_rfi', action='store_true', help='clean data from RFI using CoastGuard\'s clean.py')
+    parser.add_argument('--fscr', dest='fscr', action='store_true', help='dedisperse, frequency scrunch and write out the file')
+    parser.add_argument('--tscr', dest='tscr', action='store_true', help='dedisperse, time scrunch and write out the file')
+    parser.add_argument('--ntscr', dest='tscr_nsub', nargs=1, help='dedisperse, time scrunch to n-subints and write out the file')
+    parser.add_argument('--verbose', dest='verbose', action='store_true', help='print debugging information')
+    args = parser.parse_args()  # Reading command line options.
 
     # Start timing the script.
     script_start_time = time.time()
@@ -235,7 +235,7 @@ if __name__ == '__main__':
     if args.verbose:
         print '\nFile attributes:'
         get_archive_info(raw_archive)
-    filename_stem = raw_archive.get_source() + '_D' + replace_nth(os.path.split(raw_archive.get_filename())[-1], '-', 'T', 3).replace('-','').replace(':','')[:-3]
+    filename_stem = raw_archive.get_source() + '_D' + replace_nth(os.path.split(raw_archive.get_filename())[-1], '-', 'T', 3).replace('-', '').replace(':', '')[:-3]
     if args.verbose:
         print '\nUsing filename stem: %s\n' % filename_stem
     raw_archive.unload(output_dir + '/' + filename_stem + '.ar')
