@@ -29,8 +29,8 @@ opts, args = parser.parse_args()
 
 opts.description = ("Basic RFI Scan: %s" % (opts.description,)) if opts.description != "Basic RFI Scan" else opts.description
 
-el_start =  3.1
-el_end =15.1
+el_start =  15.1#3.1
+el_end =27.1#15.1
 scan_spacing = 6.0
 num_scans = 3
 scan_duration = 180.
