@@ -40,10 +40,11 @@ def generate_ipynb_bf_obs_report(directory, template):
     print 'jupyter nbconvert --to html --template full %s' % obs_report_command.split()[-1]
     call('jupyter nbconvert --to html --template full %s'%obs_report_command.split()[-1], shell = True)
 
-parser = argparse.ArgumentParser(description = 'Runs the docker IPython beamformer observation report on a directory.')
+parser = argparse.ArgumentParser(description = 'Runs the docker for IPython beamformer observation report.')
 parser.add_argument('directory', nargs = 1)
-parser.add_argument('--template', dest = 'template', default = '/usr/local/src/katsdpscripts/reduction/obs_report/bf_obs_report_template.ipynb')
+parser.add_argument('--template', dest = 'template', default = '/home/kat/software/katsdpscripts/reduction/obs_report/bf_obs_report_template.ipynb')
 args, unknown = parser.parse_known_args()
+
 if args.directory[0] == '':
     raise RuntimeError('Please specify a directory from which files will be loaded.')
 if not os.path.isfile(args.template):
