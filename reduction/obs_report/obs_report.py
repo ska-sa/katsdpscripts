@@ -26,7 +26,10 @@ def build_ipynb_obs_report_command(datafile,template):
     nbformat.write(nb,file_out)
     file_in.close()
     file_out.close()
-    return 'runipy -o -s %s' % obs_report_output_filename
+#     gen_ipynb_cmd = 'runipy -o -s %s' % obs_report_output_filename
+#     gen_ipynb_cmd = 'jupyter nbconvert --ExecutePreprocessor.timeout=600 --to notebook --allow-errors --inplace --execute'
+    gen_ipynb_cmd = 'jupyter nbconvert --ExecutePreprocessor.timeout=600 --to notebook --ExecutePreprocessor.allow_errors=True --inplace --execute'
+    return gen_ipynb_cmd + ' ' + obs_report_output_filename
 
 def generate_ipynb_obs_report(datafile,template):
     # call obs report
@@ -37,7 +40,7 @@ def generate_ipynb_obs_report(datafile,template):
     call(obs_report_command, shell=True)
     print 'jupyter nbconvert --to html --template full %s'%obs_report_command.split()[-1]
     call('jupyter nbconvert --to html --template full %s'%obs_report_command.split()[-1], shell=True)
-    
+
 parser = argparse.ArgumentParser(description="Runs the docker ipython obs-report on a file")
 parser.add_argument("filename", nargs=1)
 parser.add_argument("--template", default='/var/kat/katsdpscripts/AR1/obs_report/AR1_obs_report_template.ipynb')
