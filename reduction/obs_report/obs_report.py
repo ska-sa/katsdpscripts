@@ -27,7 +27,6 @@ def build_ipynb_obs_report_command(datafile,template):
     file_in.close()
     file_out.close()
 #     gen_ipynb_cmd = 'runipy -o -s %s' % obs_report_output_filename
-#     gen_ipynb_cmd = 'jupyter nbconvert --ExecutePreprocessor.timeout=600 --to notebook --allow-errors --inplace --execute'
     gen_ipynb_cmd = 'jupyter nbconvert --ExecutePreprocessor.timeout=600 --to notebook --ExecutePreprocessor.allow_errors=True --inplace --execute'
     return gen_ipynb_cmd + ' ' + obs_report_output_filename
 
