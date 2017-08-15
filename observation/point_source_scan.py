@@ -92,8 +92,8 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
                     session.label('raster')
-                    user_logger.info("Doing scan of '%s' with current azel (%s,%s)",
-                                     target.description, target.azel()[0], target.azel()[1])
+                    user_logger.info("Doing scan of '%s' with current azel (%s, %s)",
+                                     target.description, *target.azel())
                     # Do different raster scan on strong and weak targets
                     if not opts.quick and not opts.fine:
                         if opts.source_strength == 'strong' or \

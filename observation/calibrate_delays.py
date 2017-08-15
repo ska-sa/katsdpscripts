@@ -35,7 +35,7 @@ def set_fengine_gain(session, gain):
         num_channels = session.cbf.fengine.sensor.n_chans.get_value()
         gain = DEFAULT_GAIN.get(num_channels, -1)
     if gain > 0:
-        user_logger.info("Setting F-engine gains to %d" % (gain,))
+        user_logger.info("Setting F-engine gains to %d", gain)
         for inp in session.cbf.fengine.inputs:
             session.cbf.fengine.req.gain(inp, gain)
 

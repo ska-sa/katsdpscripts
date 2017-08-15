@@ -109,13 +109,13 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Performing calibration tests")
             if target.flux_model is None:
                 user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
-            user_logger.info("Resetting F-engine gains to %g to allow phasing up"
-                             % (opts.default_gain,))
+            user_logger.info("Resetting F-engine gains to %g to allow phasing up",
+                             opts.default_gain)
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
             session.label('calibration')
-            user_logger.info("Initiating %g-second track on target '%s'" %
-                             (opts.track_duration, target.name,))
+            user_logger.info("Initiating %g-second track on target '%s'",
+                             opts.track_duration, target.name)
             session.track(target, duration=opts.track_duration, announce=False)
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
@@ -129,8 +129,8 @@ with verify_and_connect(opts) as kat:
                 bp_gains = get_bpcal_solutions(session)
                 gains = get_gaincal_solutions(session)
                 if not gains:
-                    raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
-                                                % (session.telstate,))
+                    raise NoGainsAvailableError("No gain solutions found in telstate '%s'",
+                                                session.telstate)
                 cal_channel_freqs = session.telstate.get('cal_channel_freqs')
                 if cal_channel_freqs is None:
                     user_logger.warning("No cal frequencies found in telstate '%s', "
@@ -154,8 +154,8 @@ with verify_and_connect(opts) as kat:
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
-            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked" %
-                             (target.name, opts.track_duration))
+            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
+                             target.name, opts.track_duration)
             session.track(target, duration=opts.track_duration, announce=False)
 
             # interferometric pointing
@@ -168,9 +168,9 @@ with verify_and_connect(opts) as kat:
                         offset_target = [offset, 0.0]
                     else:
                         offset_target = [0.0, offset]
-                    user_logger.info("Initiating %g-second track on target '%s'" %
-                                     (opts.track_duration, target.name,))
-                    user_logger.info("Offset of %f,%f degrees " % (offset_target[0], offset_target[1]))
+                    user_logger.info("Initiating %g-second track on target '%s'",
+                                     opts.track_duration, target.name)
+                    user_logger.info("Offset of (%f, %f) degrees", *offset_target)
                     session.set_target(target)
                     if not kat.dry_run:
                         session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
@@ -186,10 +186,10 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Performing Tsys and averaging tests")
             session.nd_params = nd_off
             session.track(target, duration=0)  # get onto the source
-            user_logger.info("Now capturing data - diode %s on" % nd_on['diode'])
+            user_logger.info("Now capturing data - diode %s on", nd_on['diode'])
             session.label('%s' % (nd_on['diode'],))
             if not session.fire_noise_diode(announce=True, **nd_on):
-                user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd_on['diode'])
+                user_logger.error("Noise diode %s did not fire", nd_on['diode'])
             session.nd_params = nd_off
             user_logger.info("Now capturing data - noise diode off")
             session.track(target, duration=320)  # get 5 mins of data to test averaging
@@ -197,13 +197,13 @@ with verify_and_connect(opts) as kat:
             # Single dish pointing ... to compare with interferometric
             user_logger.info("Performing single dish pointing tests")
             session.label('raster')
-            user_logger.info("Doing scan of '%s' with current azel (%s,%s) " %
-                             (target.description, target.azel()[0], target.azel()[1]))
+            user_logger.info("Doing scan of '%s' with current azel (%s, %s)",
+                             target.description, *target.azel())
             # Do different raster scan on strong and weak targets
             session.raster_scan(target, num_scans=5, scan_duration=80, scan_extent=6.0,
                                 scan_spacing=0.25, scan_in_azimuth=True,
                                 projection=opts.projection)
             # reset the gains always
-            user_logger.info("Resetting F-engine gains to %g" % (opts.default_gain,))
+            user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
