@@ -90,15 +90,15 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
-    # Quit early if there are no sources to observe
-    if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
-        raise NoTargetsUpError("No targets are currently visible - "
-                               "please re-run the script later")
-    # Pick source with the highest elevation as our target
-    target = observation_sources.sort('el').targets[-1]
-    target.add_tags('bfcal single_accumulation')
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+        # Quit early if there are no sources to observe
+        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+            raise NoTargetsUpError("No targets are currently visible - "
+                                   "please re-run the script later")
+        # Pick source with the highest elevation as our target
+        target = observation_sources.sort('el').targets[-1]
+        target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
         set_fengine_gain(session, opts.fengine_gain)
         user_logger.info("Zeroing all delay adjustments for starters")

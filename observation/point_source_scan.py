@@ -14,6 +14,10 @@ from katcorelib import collect_targets, standard_script_options, verify_and_conn
 import katpoint
 
 
+class NoTargetsUpError(Exception):
+    """No targets are above the horizon at the start of the observation."""
+
+
 # Set up standard script options
 parser = standard_script_options(
     usage="%prog [options] [<'target/catalogue'> ...]",
@@ -70,13 +74,15 @@ with verify_and_connect(opts) as kat:
     # Quit early if there are no sources to observe
     if len(pointing_sources) == 0:
         user_logger.warning("Empty point source catalogue or all targets are skipped")
-    elif len(pointing_sources.filter(el_limit_deg=opts.horizon)) == 0:
-        user_logger.warning("No targets are currently visible - please re-run the script later")
     else:
         # Observed targets will be written back to catalogue file, or into the void
         skip_file = file(opts.skip_catalogue, "a") \
             if opts.skip_catalogue is not None and not kat.dry_run else StringIO()
         with start_session(kat, **vars(opts)) as session:
+            # Quit early if there are no sources to observe
+            if len(pointing_sources.filter(el_limit_deg=opts.horizon)) == 0:
+                raise NoTargetsUpError("No targets are currently visible - "
+                                       "please re-run the script later")
             session.standard_setup(**vars(opts))
             session.capture_start()
 

@@ -95,11 +95,12 @@ with verify_and_connect(opts) as kat:
     observation_sources.add(J0408)
     observation_sources.add(J1313)
     user_logger.info(observation_sources.visibility_list())
-    # Quit early if there are no sources to observe ... use 25 degrees to alow time to observe
-    if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
-        raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
+        # Quit early if there are no sources to observe
+        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+            raise NoTargetsUpError("No targets are currently visible - "
+                                   "please re-run the script later")
         session.standard_setup(**vars(opts))
         session.cbf.correlator.req.capture_start()
 
