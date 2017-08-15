@@ -35,7 +35,10 @@ from katcorelib import standard_script_options, verify_and_connect, collect_targ
 import numpy as np
 import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
 def plane_to_sphere_holography(targetaz,targetel,ll,mm):
