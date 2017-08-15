@@ -157,7 +157,7 @@ with verify_and_connect(opts) as kat:
 
         targets_observed = []
         for cycle in range(opts.num_cycles):
-            for target in targets.iterfilter(el_limit_deg=opts.horizon+(opts.scan_extent/2.0)):
+            for target in targets.iterfilter(el_limit_deg=opts.horizon + opts.scan_extent / 2.):
                 session.label('holo')
                 user_logger.info("Performing circular scan cycles (%g-second cycles extending %g degrees) on target '%s'"
                                  % (opts.cycle_duration, opts.scan_extent, target.name))

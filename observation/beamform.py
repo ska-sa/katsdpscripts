@@ -170,11 +170,6 @@ with verify_and_connect(opts) as kat:
 
     target = collect_targets(kat, args[:1]).targets[0]
 
-    # Ensure that the target is up
-    target_elevation = np.degrees(target.azel()[1])
-    if target_elevation < opts.horizon:
-        raise ValueError("The target %r is below the horizon" % (target.description,))
-
     # Verify backend_args
     if opts.backend.split(' ')[0] == "dspsr" and opts.backend_args:
         verify_dspsr_backend_args(opts.backend_args)
@@ -191,6 +186,10 @@ with verify_and_connect(opts) as kat:
 
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+        # Ensure that the target is up
+        target_elevation = np.degrees(target.azel()[1])
+        if target_elevation < opts.horizon:
+            raise ValueError("The target %r is below the horizon" % (target.description,))
         # Force delay tracking to be on
         opts.no_delays = False
         session.standard_setup(**vars(opts))
