@@ -1,11 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Drift scan on target(s) for a specified time.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 import time
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger)
 import katpoint
 
 
@@ -62,8 +61,8 @@ with verify_and_connect(opts) as kat:
                 target = katpoint.construct_azel_target(katpoint.wrap_angle(target_future_azel[0]),
                                                         katpoint.wrap_angle(target_future_azel[1]))
                 session.label('track')
-                user_logger.info("Initiating %g-second drift scan on target '%s'" %
-                                 (opts.track_duration, target.name,))
+                user_logger.info("Initiating %g-second drift scan on target '%s'",
+                                 opts.track_duration, target.name)
                 # Split the total track on one target into segments lasting as long as the noise diode period
                 # This ensures the maximum number of noise diode firings
                 total_track_time = 0.
@@ -78,12 +77,14 @@ with verify_and_connect(opts) as kat:
                         break
                     total_track_time += next_track
                 if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                    user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
-                                        (opts.max_duration,))
+                    user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
+                                        opts.max_duration)
                     keep_going = False
                     break
                 targets_observed.append(target.name)
             if keep_going and len(targets_observed) == targets_before_loop:
-                user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
+                user_logger.warning("No targets are currently visible - "
+                                    "stopping script instead of hanging around")
                 keep_going = False
-        user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+        user_logger.info("Targets observed : %d (%d unique)",
+                         len(targets_observed), len(set(targets_observed)))

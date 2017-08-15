@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Perform spiral holography scan on specified target(s). Mostly used for beam pattern measurement.
 #
 # to run on simulator:
@@ -23,19 +23,17 @@
 #obs.sb.instruction_set="run-obs-script ~/scripts/observation/spiral_holography_scan.py -f 1722 -b ant5 --scan-extent 6 --cycle-duration 6000 --num-cycles 1 --kind 'uniform' '3C 286' --stow-when-done"
 #look on http://kat-flap.control.kat.ac.za/kat/KatGUI.swf and connect to 'karoo from site'
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 import time
-import katpoint
 
+import katpoint
 # Import script helper functions from observe.py
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
-                       start_session, user_logger, ant_array
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger, ant_array)
 import numpy as np
 import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
 import matplotlib.pyplot as plt
+
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
 def plane_to_sphere_holography(targetaz,targetel,ll,mm):
@@ -417,8 +415,10 @@ with verify_and_connect(opts) as kat:
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         session.capture_start()
         session.label('holo')
-        user_logger.info("Initiating spiral holography scan cycles (%d %g-second cycles extending %g degrees) on target '%s'"
-                         % (opts.num_cycles, opts.cycle_duration, opts.scan_extent, target.name))
+        user_logger.info("Initiating spiral holography scan cycles (%d %g-second "
+                         "cycles extending %g degrees) on target '%s'",
+                         opts.num_cycles, opts.cycle_duration,
+                         opts.scan_extent, target.name)
         session.set_target(target)
         lasttime = time.time()
         for cycle in range(opts.num_cycles):
@@ -427,17 +427,21 @@ with verify_and_connect(opts) as kat:
                 cx=compositex
                 cy=compositey
                 if (targetel<opts.horizon):
-                    user_logger.info("Exiting because target is %g degrees below horizon limit of %g."%((opts.horizon-targetel),opts.horizon))
-                    break# else it is ok that target just above horizon limit
-            else:#target is setting - scan bottom half of pattern first
+                    user_logger.info("Exiting because target is %g degrees below horizon limit of %g.",
+                                     opts.horizon - targetel, opts.horizon)
+                    break  # else it is ok that target just above horizon limit
+            else:  #target is setting - scan bottom half of pattern first
                 cx=ncompositex
                 cy=ncompositey
                 if (targetel<opts.horizon+(opts.scan_extent/2.0)):
-                    user_logger.info("Exiting because target is %g degrees too low to accommodate a scan extent of %g degrees above the horizon limit of %g."%((opts.horizon+(opts.scan_extent/2.0)-targetel),opts.scan_extent,opts.horizon))
+                    user_logger.info("Exiting because target is %g degrees too low "
+                                     "to accommodate a scan extent of %g degrees above the horizon limit of %g.",
+                                     opts.horizon + opts.scan_extent / 2. - targetel,
+                                     opts.scan_extent, opts.horizon)
                     break
-            user_logger.info("Performing scan cycle %d."%(cycle+1))
-            #print("Using all antennas: %s" % (' '.join([ant  for ant in ants]),))
-            user_logger.info("Using all antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+            user_logger.info("Performing scan cycle %d", cycle + 1)
+            user_logger.info("Using all antennas: %s",
+                             ' '.join([ant.name for ant in session.ants]))
             scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
             track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
             #get both antennas to target ASAP
@@ -445,17 +449,19 @@ with verify_and_connect(opts) as kat:
             session.track(target, duration=0, announce=False)
             lasttime = time.time()
             for iarm in range(len(cx)):#spiral arm index
-                user_logger.info("Performing scan arm %d of %d."%(iarm+1,len(cx)))
+                user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
                 session.ants = scan_ants
                 target.antenna = scan_observer
                 scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                user_logger.info("Using Scan antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                user_logger.info("Using Scan antennas: %s",
+                                 ' '.join([ant.name for ant in session.ants]))
                 if not kat.dry_run:
                     session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                 session.ants = track_ants
                 target.antenna = track_observer
                 scan_track = gen_track(scan_data[:,0],target)
-                user_logger.info("Using Track antennas: %s" % (' '.join([ant.name  for ant in session.ants]),))
+                user_logger.info("Using Track antennas: %s",
+                                 ' '.join([ant.name for ant in session.ants]))
                 if not kat.dry_run:
                     session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
                 time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
@@ -463,4 +469,3 @@ with verify_and_connect(opts) as kat:
         time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
         session.ants = all_ants
-

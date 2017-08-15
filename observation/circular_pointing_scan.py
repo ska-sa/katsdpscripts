@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Perform spiral holography scan on specified target(s). Mostly used for beam pattern measurement.
 #
 # to run on simulator:
@@ -23,16 +23,13 @@
 #obs.sb.instruction_set="run-obs-script ~/scripts/observation/spiral_holography_scan.py -f 1722 -b ant5 --scan-extent 6 --cycle-duration 6000 --num-cycles 1 --kind 'uniform' '3C 286' --stow-when-done"
 #look on http://kat-flap.control.kat.ac.za/kat/KatGUI.swf and connect to 'karoo from site'
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 import time
-import katpoint
 
 # Import script helper functions from observe.py
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
-                       start_session, user_logger, ant_array
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger, ant_array)
 import numpy as np
+
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
 def plane_to_sphere_holography(targetaz,targetel,ll,mm):

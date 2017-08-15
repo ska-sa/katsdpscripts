@@ -1,10 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Track target(s) for a specified time.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-import numpy as np
 import time
+
+import numpy as np
 from katcorelib import collect_targets, standard_script_options, verify_and_connect, start_session, user_logger
 import katpoint
 
@@ -75,14 +74,15 @@ with verify_and_connect(opts) as kat:
                 session.label('interferometric_pointing')
                 session.track(target, duration=opts.track_duration, announce=False)
                 for direction in {'x', 'y'}:
-                    for offset in np.linspace(-opts.max_extent, opts.max_extent, opts.number_of_steps // 2):
+                    for offset in np.linspace(-opts.max_extent, opts.max_extent,
+                                              opts.number_of_steps // 2):
                         if direction == 'x':
                             offset_target = [offset, 0.0]
                         else:
                             offset_target = [0.0, offset]
-                        user_logger.info("Initiating %g-second track on target '%s'" %
-                                         (opts.track_duration, target.name,))
-                        user_logger.info("Offset of %f,%f degrees " % (offset_target[0], offset_target[1]))
+                        user_logger.info("Initiating %g-second track on target '%s'",
+                                         opts.track_duration, target.name)
+                        user_logger.info("Offset of (%f, %f) degrees", *offset_target)
                         if not kat.dry_run:
                             session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
                         nd_params = session.nd_params
@@ -93,12 +93,14 @@ with verify_and_connect(opts) as kat:
                             time.sleep(opts.track_duration)  # Snooze
                 targets_observed.append(target.name)
                 if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                    user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script" %
-                                        (opts.max_duration,))
+                    user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
+                                        opts.max_duration)
                     keep_going = False
                     break
 
             if keep_going and len(targets_observed) == targets_before_loop:
-                user_logger.warning("No targets are currently visible - stopping script instead of hanging around")
+                user_logger.warning("No targets are currently visible - "
+                                    "stopping script instead of hanging around")
                 keep_going = False
-        user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+        user_logger.info("Targets observed : %d (%d unique)",
+                         len(targets_observed), len(set(targets_observed)))

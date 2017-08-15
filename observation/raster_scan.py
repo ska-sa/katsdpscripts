@@ -1,16 +1,16 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Perform raster scan on specified target(s). Mostly used for beam pattern mapping.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session)
 
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
 
 # Set up standard script options
+description = 'Perform raster scan across one or more sources. ' \
+              'Mostly used for beam pattern mapping and on-the-fly mapping. ' \
+              'Some options are **required**.'
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Perform raster scan across one or more sources. Mostly used for '
-                                             'beam pattern mapping and on-the-fly mapping. Some options are '
-                                             '**required**.')
+                                 description=description)
 # Add experiment-specific options
 parser.add_option('-k', '--num-scans', type='int', default=-1,
                   help='Number of scans across target, usually an odd number (the default automatically selects '
@@ -46,7 +46,6 @@ if opts.scan_duration <= 0.0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
-
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
@@ -54,6 +53,9 @@ with verify_and_connect(opts) as kat:
 
         for target in observation_sources:
             session.label('raster')
-            session.raster_scan(target, num_scans=opts.num_scans, scan_duration=opts.scan_duration,
-                                scan_extent=opts.scan_extent, scan_spacing=opts.scan_spacing,
-                                scan_in_azimuth=not opts.scan_in_elevation, projection=opts.projection)
+            session.raster_scan(target, num_scans=opts.num_scans,
+                                scan_duration=opts.scan_duration,
+                                scan_extent=opts.scan_extent,
+                                scan_spacing=opts.scan_spacing,
+                                scan_in_azimuth=not opts.scan_in_elevation,
+                                projection=opts.projection)
