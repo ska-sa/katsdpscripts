@@ -105,15 +105,16 @@ with verify_and_connect(opts) as kat:
         observation_sources.add(J1331)
     else:
         observation_sources = collect_targets(kat, args)
-    # Quit early if there are no sources to observe
-    if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
-        raise NoTargetsUpError("No targets are currently visible - please re-run the script later")
     if opts.reconfigure_sdp:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
         sdp.req.data_product_reconfigure()
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
+        # Quit early if there are no sources to observe
+        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+            raise NoTargetsUpError("No targets are currently visible - "
+                                   "please re-run the script later")
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)

@@ -1,20 +1,20 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Track target and calibrators for imaging.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 import time
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger)
 
 
 # Set up standard script options
+description = "Perform an imaging run of a specified target, visiting the " \
+              "bandpass and gain calibrators along the way. The calibrators " \
+              "are identified by tags in their description strings ('bpcal' " \
+              "and 'gaincal', respectively), while the imaging targets may " \
+              "optionally have a tag of 'target'."
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description="Perform an imaging run of a specified target, visiting the bandpass " +
-                                             "and gain calibrators along the way. The calibrators are identified " +
-                                             "by tags in their description strings ('bpcal' and 'gaincal', " +
-                                             "respectively), while the imaging targets may optionally have a tag " +
-                                             "of 'target'.")
+                                 description=description)
 # Add experiment-specific options
 parser.add_option('-t', '--target-duration', type='float', default=300,
                   help='Minimum duration to track the imaging target per visit, in seconds '
@@ -31,14 +31,11 @@ parser.add_option('-g', '--gaincal-duration', type='float', default=60,
 parser.add_option('-m', '--max-duration', type='float',
                   help='Maximum duration of script, in seconds '
                        '(the default is to keep observing until all sources have set)')
-
 # Set default value for any option (both standard and experiment-specific options)
 # parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1', dump_rate=0.1)
-parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1')
-
+parser.set_defaults(description='Imaging run', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
-
 
 # Check options and arguments, and build KAT configuration, connecting to proxies and devices
 if len(args) == 0:
@@ -48,13 +45,14 @@ if len(args) == 0:
 with verify_and_connect(opts) as kat:
     sources = collect_targets(kat, args)
 
-    user_logger.info("Imaging targets are [%s]" %
-                     (', '.join([("'%s'" % (target.name,)) for target in sources.filter(['~bpcal', '~gaincal'])]),))
-    user_logger.info("Bandpass calibrators are [%s]" %
-                     (', '.join([("'%s'" % (bpcal.name,)) for bpcal in sources.filter('bpcal')]),))
-    user_logger.info("Gain calibrators are [%s]" %
-                     (', '.join([("'%s'" % (gaincal.name,)) for gaincal in sources.filter('gaincal')]),))
-    duration = {'target': opts.target_duration, 'bpcal': opts.bpcal_duration, 'gaincal': opts.gaincal_duration}
+    user_logger.info("Imaging targets are [%s]",
+                     ', '.join([repr(target.name) for target in sources.filter(['~bpcal', '~gaincal'])]))
+    user_logger.info("Bandpass calibrators are [%s]",
+                     ', '.join([repr(bpcal.name) for bpcal in sources.filter('bpcal')]))
+    user_logger.info("Gain calibrators are [%s]",
+                     ', '.join([repr(gaincal.name) for gaincal in sources.filter('gaincal')]))
+    duration = {'target': opts.target_duration, 'bpcal': opts.bpcal_duration,
+                'gaincal': opts.gaincal_duration}
 
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
@@ -75,11 +73,11 @@ with verify_and_connect(opts) as kat:
                     for bpcal in sources.filter('bpcal'):
                         session.label('track')
                         session.track(bpcal, duration=duration['bpcal'])
-                # Visit source if it is not a bandpass calibrator (or bandpass calibrators are not treated specially)
+                # Visit source if it is not a bandpass calibrator
+                # (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
                 targets = [target for target in sources.filter(['~bpcal', '~gaincal'])]
                 if opts.bpcal_interval is None or 'bpcal' not in source.tags or not targets:
-                # if opts.bpcal_interval is None or 'bpcal' not in source.tags:
                     # Set the default track duration for a target with no recognised tags
                     track_duration = opts.target_duration
                     for tag in source.tags:
@@ -87,9 +85,11 @@ with verify_and_connect(opts) as kat:
                     session.label('track')
                     source_observed[n] = session.track(source, duration=track_duration)
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
-                    user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
+                    user_logger.info('Maximum script duration (%d s) exceeded, stopping script',
+                                     opts.max_duration)
                     loop = False
                     break
             if loop and not any(source_observed):
-                user_logger.warning('All imaging targets and gain cals are currently below horizon, stopping script')
+                user_logger.warning('All imaging targets and gain cals are '
+                                    'currently below horizon, stopping script')
                 loop = False
