@@ -250,7 +250,7 @@ parser.add_option('--num-repeat', type='int',
                   default=1,
                   help='The number of times to repeat the sequence (once by by default)')
 parser.add_option('--ap', type='str',                                   
-                  default="m036",                                                    
+                  default="m036",
                   help='Receptor under test (default is m036)')
 
 # Parse the command line
@@ -258,10 +258,6 @@ opts, args = parser.parse_args()
 
 if opts.observer is None:
     raise RuntimeError("No observer provided script")
-
-if len(args) == 0:
-    raise RuntimeError("No targets and indexer positions"
-                       "provided to the script")
 
 receptor = None
 
