@@ -46,7 +46,6 @@ with verify_and_connect(opts) as kat:
         # Set the gain to a single non complex number if needed
         if opts.reset_gain is not None:
             if not session.cbf.fengine.inputs:
-                user_logger.error("Failed to get correlator input labels")
                 raise RuntimeError("Failed to get correlator input labels, "
                                    "cannot set the F-engine gains")
             for inp in session.cbf.fengine.inputs:
