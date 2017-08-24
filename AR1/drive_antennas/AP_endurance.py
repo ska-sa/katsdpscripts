@@ -210,11 +210,11 @@ def track(ant, taz, tel, total=1, dry_run=False):
                                       abs(ridx_angle[pos] - ridx_position_raw),
                                       ridx_brakes_released)
 
-                    user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
-                    user_logger.info("26/23 deg slews: az - '%s', el - '%s' ", az_26_deg_slews, el_23_deg_slews)
-                    user_logger.info("Total degrees travelled: az - '%s', el - '%s' ", az_total_angle, el_total_angle)
+                    #user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
+                    #user_logger.info("26/23 deg slews: az - '%s', el - '%s' ", az_26_deg_slews, el_23_deg_slews)
+                    #user_logger.info("Total degrees travelled: az - '%s', el - '%s' ", az_total_angle, el_total_angle)
 
-                    raise UndefinedPosition("Indexer failed to reach the requested position.") 
+                    # raise UndefinedPosition("Indexer failed to reach the requested position.") 
                 else:
                     user_logger.info("Brake engaged. The offset from the requested position: "
                                      "'%s' is %.6f degree(s)",
