@@ -33,4 +33,4 @@ setup(name="katsdpscripts",
       package_data={'': ['RTS/gsm/gsm.f']},
       setup_requires=['katversion'],
       use_katversion=True,
-      install_requires=['numpy', 'katpoint', 'katcp'])
+      install_requires=['numpy', 'katpoint', 'katcp', 'futures'])

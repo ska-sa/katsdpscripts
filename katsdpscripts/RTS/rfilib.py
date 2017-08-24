@@ -1,14 +1,12 @@
 #Library to contain RFI flagging routines and other RFI related functions
-import warnings
 import os
 import shutil
 import time
 import itertools
+import multiprocessing
 
 import katdal
 import katpoint
-
-warnings.simplefilter('ignore')
 
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt #; plt.ioff()
@@ -16,6 +14,7 @@ from matplotlib import ticker
 import numpy as np
 import pickle
 import h5py
+import concurrent.futures
 
 from katsdpsigproc.rfi.twodflag import SumThresholdFlagger
 
@@ -383,7 +382,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                     flags[index] = h5.flags[dump,freq_range]
             #OR the mask flags with the flags already in the h5 file
             flags = np.logical_or(flags,mask_array[:,freq_range,:])
-            detected_flags = flagger.get_flags(this_data,flags)
+            with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
+                detected_flags = flagger.get_flags(this_data,flags,pool)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%"% \
                         (scan,target.name,h5.shape[0],(np.sum(detected_flags)*100.)/detected_flags.size,)
             del this_data
