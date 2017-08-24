@@ -180,8 +180,8 @@ def track(ant, taz, tel, total=1, dry_run=False):
                 user_logger.info("--- Moving RI to position: '%s' ---", pos.upper())
                 ant.req.ap_set_indexer_position(pos)
 
-                # Wait for indexer brakes to open
-                time.sleep(2)
+                # Wait for indexer brakes to open.
+                time.sleep(5)
                 try:
                     # Wait for indexer brakes to engage again
                     ant.wait('ap.ridx-brakes-released', False, timeout=60)
