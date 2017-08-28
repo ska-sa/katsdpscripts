@@ -1,7 +1,8 @@
 #!/usr/bin/python -W ignore
-import warnings
-warnings.simplefilter('ignore')
 import optparse
+# Avoid depending on an interactive matplotlib backend
+import matplotlib
+matplotlib.use('PDF')
 from katsdpscripts.RTS import generate_flag_table, generate_rfi_report
 import os
 
