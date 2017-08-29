@@ -309,7 +309,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     try:
         d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models,band=band_input)
     except IOError:
-        nd = scape.gaincal.NoiseDiodeModel(freq=[800,2000],temp=[20,20])
+        nd = scape.gaincal.NoiseDiodeModel(freq=[1,2000],temp=[20,20])
         warnings.warn('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         print('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd ,band=band_input)
