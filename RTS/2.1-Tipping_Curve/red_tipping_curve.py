@@ -211,17 +211,17 @@ class Rec_Temp:
         try:
             receiver_h = (np.loadtxt(filenameH,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz # discard the gain col
             a800 = np.zeros((2,np.shape(receiver_h)[-1]+1))
-            a800[:,0] = [800,receiver_h[1,0]]
+            a800[:,0] = [receiver_h[0,0]-100,receiver_h[1,0]]  # Extend the model by 100 MHz
             a800[:,1:] = receiver_h
             receiver_h = a800
             receiver_v = (np.loadtxt(filenameV,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz  # discard the gain col
             a800 = np.zeros((2,np.shape(receiver_v)[-1]+1))
-            a800[:,0] = [800,receiver_v[1,0]]
+            a800[:,0] = [receiver_v[0,0]-100,receiver_v[1,0]] # Extend the model by 100 MHz
             a800[:,1:] = receiver_v
             receiver_v = a800
         except IOError:
-            receiver_h = np.array([[800.,2000],[20.,20.]])
-            receiver_v = np.array([[800.,2000],[20.,20.]])
+            receiver_h = np.array([[1.,2000],[20.,20.]])  
+            receiver_v = np.array([[1.,2000],[20.,20.]])
             warnings.warn('Warning: Failed to load Receiver models, setting models to 20 K ')
             print('Warning: Failed to load Receiver models, setting models to 20 K ')
         #Assume  Provided models are a function of zenith angle & frequency
