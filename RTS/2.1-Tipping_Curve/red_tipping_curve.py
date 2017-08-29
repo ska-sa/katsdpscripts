@@ -699,7 +699,7 @@ for ant in h5.ants:
             i = (np.abs(freq_list-freq)).argmin()
             lineval = 42
             if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,d.freqs[i]),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
             plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
             plt.close(fig)
