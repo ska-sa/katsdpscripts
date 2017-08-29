@@ -93,8 +93,9 @@ class Spill_Temp:
                and return tempreture in Kelven.
         """
 #TODO Need to sort out better frequency interpolation & example
-        try:
-            datafile =np.loadtxt(filename)
+        #try:
+        if True :
+            datafile =np.loadtxt(filename)#  First line is Frequencys, First Col is deg from zenith after that cols are in alternating pol
             elevation = datafile[1:,0]
             numfreqs = (datafile.shape[1]-1)//2
             freqs= datafile[0,1::2]
@@ -102,26 +103,32 @@ class Spill_Temp:
             freq_list = np.array(())
             data_list = np.array(())
             elevation_list = np.r_[elevation_list,elevation]
-            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0] ## Hard code the lower limit to avoid nans
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.min()-100)] ## Extend the lower limit to avoid nans
             data_list = np.r_[data_list,datafile[1:,1+0*2]]
             for x in range(numfreqs):
                 elevation_list = np.r_[elevation_list,elevation]
                 freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
                 data_list = np.r_[data_list,datafile[1:,1+x*2]]
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.max()+100)] ## Extend the upper limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+numfreqs*2]]
 
             T_H = fit.Delaunay2DScatterFit()
             T_H.fit((90.-elevation_list,freq_list),data_list)
-
+            #raise RuntimeError('Stop for some Reason')
             elevation_list = np.array(())
             freq_list = np.array(())
             data_list = np.array(())
             elevation_list = np.r_[elevation_list,elevation]
-            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0]  ## Hard code the lower limit to avoid nans
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.min()-100)]  ## Extend the lower limit to avoid nans
             data_list = np.r_[data_list,datafile[1:,1+0*2+1]]
             for x in range(numfreqs):
                 elevation_list = np.r_[elevation_list,elevation]
                 freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
-                data_list = np.r_[data_list,datafile[1:,1+x*2+1]]
+                data_list = np.r_[data_list,datafile[1:,1+x*2+1]] 
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.max()+100)] ## Extend the upper limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+numfreqs*2+1]]
             T_V = fit.Delaunay2DScatterFit()
             T_V.fit((90.-elevation_list,freq_list),data_list)
             self.spill = {}
@@ -129,9 +136,9 @@ class Spill_Temp:
             self.spill['VV'] = T_V
             #print self.spill['HH']((90.-elevation_list,freq_list))
 
-        except IOError:
-            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
-            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
+        #except IOError:
+            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
+            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
             spillover_H[0]= 90-spillover_H[0]
             spillover_V[0]= 90-spillover_V[0]
             T_H = fit.Delaunay2DScatterFit()
