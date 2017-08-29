@@ -521,7 +521,7 @@ def receptor_UHFband_limit(frequency,elevation): # APH added elevation
     return return_array+DT_elevation
     
 
-def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
+def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None,band='L'):
     fig = plt.figure(figsize=(16,9))
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
@@ -551,12 +551,16 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     high_lim = np.max(high_lim)
     high_lim = np.max((high_lim , 46*1.3))
     plt.ylim(low_lim,high_lim)
-    plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-    if np.min(frequency) <= 1420 :
-        plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
-    if np.max(frequency) >=1420 :
-        plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
+    if band=='L':
+        plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        if np.min(frequency) <= 1420 :
+            plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
+        if np.max(frequency) >=1420 :
+            plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
+    if band=='U':
+        plt.vlines(580,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        plt.vlines(1050,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
@@ -702,7 +706,7 @@ for ant in h5.ants:
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency,band=str.upper(Band))
         plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
