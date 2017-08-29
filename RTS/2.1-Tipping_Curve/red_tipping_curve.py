@@ -573,8 +573,8 @@ parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
 parser.add_option("-b", "--freq-bw", default=10.0,type="float",
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
-parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat',
-                  help="Name of FIle containing spillover models default= %default")
+parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/',
+                  help="Name of Directory containing spillover models default= %default")
 parser.add_option( "--receiver-models",default='/var/kat/katconfig/user/receiver-models/mkat/',
                   help="Name of Directory containing receiver models default= %default")
 parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-models/mkat/',
@@ -589,7 +589,6 @@ parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rf
                   help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 
 (opts, args) = parser.parse_args()
-
 
 if len(args) < 1:
     raise RuntimeError('Please specify the data file to reduce')
@@ -609,13 +608,11 @@ freq_bw = opts.freq_bw
 channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
 n_chans = h5.shape[1]
 
-
 fix_opacity = opts.fix_opacity
 freq_chans = opts.freq_chans
 
 for ant in h5.ants:
     #Load the data file
-
     rec = h5.receivers[ant.name]
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
@@ -628,15 +625,15 @@ for ant in h5.ants:
         Band = 'L'
         SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model
         warnings.warn('Warning: Failed to find Receiver model, setting band to L  ')
-        print('Warning: Failed to find Receiver model, setting band to L ')
-        
-        
+        print('Warning: Failed to find Receiver model, setting band to L ')       
 
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
+    spill_over_model_path = "%s/MK_%s_Tspill_AsBuilt_atm_mask.dat"%(spill_over_models,str.upper(Band))
+    SpillOver = Spill_Temp(filename=spill_over_model_path) #/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat
 
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
@@ -650,8 +647,7 @@ for ant in h5.ants:
 
     tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
     tant = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
-
-    SpillOver = Spill_Temp(filename=spill_over_models)
+    
     receiver = Rec_Temp(receiver_model_H, receiver_model_V)
     elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
     ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
@@ -664,7 +660,6 @@ for ant in h5.ants:
     #freq loop
     for i,freq_val in enumerate(d.freqs):
         if not d is None:
-
             d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
             #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
