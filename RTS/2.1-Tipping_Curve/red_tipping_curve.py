@@ -110,7 +110,7 @@ class Spill_Temp:
                 data_list = np.r_[data_list,datafile[1:,1+x*2]]
             elevation_list = np.r_[elevation_list,elevation]
             freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.max()+100)] ## Extend the upper limit to avoid nans
-            data_list = np.r_[data_list,datafile[1:,1+numfreqs*2]]
+            data_list = np.r_[data_list,datafile[1:,1+(numfreqs-1)*2]]
 
             T_H = fit.Delaunay2DScatterFit()
             T_H.fit((90.-elevation_list,freq_list),data_list)
@@ -127,7 +127,7 @@ class Spill_Temp:
                 data_list = np.r_[data_list,datafile[1:,1+x*2+1]] 
             elevation_list = np.r_[elevation_list,elevation]
             freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.max()+100)] ## Extend the upper limit to avoid nans
-            data_list = np.r_[data_list,datafile[1:,1+numfreqs*2+1]]
+            data_list = np.r_[data_list,datafile[1:,1+(numfreqs-1)*2+1]]
             T_V = fit.Delaunay2DScatterFit()
             T_V.fit((90.-elevation_list,freq_list),data_list)
             self.spill = {}
@@ -263,7 +263,7 @@ class System_Temp:
         self.ra = ra[valid_el]
         self.dec = dec[valid_el]
         self.surface_temperature = surface_temperature# Extract surface temperature from weather data
-        self.freq = d.freqs[0]  #MHz Centre frequency of observation
+        self.freq = freqs  #MHz Centre frequency of observation
         for pol in ['HH','VV']:
             power_stats = [scape.stats.mu_sigma(s.pol(pol)[:,freq_index]) for s in d.scans]
             tipping_mu, tipping_sigma = np.array([s[0] for s in power_stats]), np.array([s[1] for s in power_stats])
@@ -280,7 +280,7 @@ class System_Temp:
         self.Tsky = TmpSky
 
     def sky_fig(self,freq=1328):
-        T_skytemp = Sky_temp(freq)
+        T_skytemp = Sky_temp(nu=freq)
         return T_skytemp.plot_sky(self.ra,self.dec)
 
 
@@ -687,7 +687,7 @@ for ant in h5.ants:
             #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
 
 
-    fig = T_SysTemp.sky_fig()
+    fig = T_SysTemp.sky_fig(freq=freq_val.min())
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
