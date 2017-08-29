@@ -567,7 +567,7 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='900,1440,1670,1840',
+parser.add_option("-r", "--select-freq", default='600,700,800,900,1440,1670,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
