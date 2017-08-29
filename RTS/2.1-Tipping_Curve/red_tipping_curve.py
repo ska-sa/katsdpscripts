@@ -93,8 +93,7 @@ class Spill_Temp:
                and return tempreture in Kelven.
         """
 #TODO Need to sort out better frequency interpolation & example
-        #try:
-        if True :
+        try:
             datafile =np.loadtxt(filename)#  First line is Frequencys, First Col is deg from zenith after that cols are in alternating pol
             elevation = datafile[1:,0]
             numfreqs = (datafile.shape[1]-1)//2
@@ -136,7 +135,7 @@ class Spill_Temp:
             self.spill['VV'] = T_V
             #print self.spill['HH']((90.-elevation_list,freq_list))
 
-        #except IOError:
+        except IOError:
             spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
             spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
             spillover_H[0]= 90-spillover_H[0]
