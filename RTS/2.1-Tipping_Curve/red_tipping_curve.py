@@ -467,9 +467,12 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
     lim_min = r_lim([np.percentile(Tsys[:,0:2],10),np.percentile(Tant[:,0:2],10),-5.])
-    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1],np.max)
-    plt.ylim(lim_min,lim_max)
-    plt.hlines(line, elevation.min(), elevation.max(), colors='k')
+    if line is not None:
+        linev = line
+    else:
+        linev= 0
+    if line is not None:
+        plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
         recLim_apEffH = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['HH'](frequency)
         recLim_apEffV = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['VV'](frequency)
@@ -479,6 +482,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         for error_margin in [0.9,1.1]:
             plt.plot(elevation,recLim_apEffH*error_margin, lw=1.1,c='g',linestyle='--')
             plt.plot(elevation,recLim_apEffV*error_margin, lw=1.1,c='g',linestyle='--')
+    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90)*1.1,np.max(recLim_apEffH)*1.2,linev*1.1],np.max)
+    plt.ylim(lim_min,lim_max)
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
@@ -697,8 +702,12 @@ for ant in h5.ants:
         title = ""
         if np.abs(freq_list-freq).min() < freq_bw*1.1 :
             i = (np.abs(freq_list-freq)).argmin()
-            lineval = 42
-            if freq > 1420 : lineval = 46
+            lineval = None
+            if str.upper(Band) == 'L':
+                if freq > 1420 :
+                    lineval = 46
+                else:
+                    lineval = 42
             fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,d.freqs[i]),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
             plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
