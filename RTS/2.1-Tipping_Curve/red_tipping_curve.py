@@ -166,21 +166,21 @@ class aperture_efficiency_models:
         try:
             aperture_eff_h = np.loadtxt(filenameH,comments='#')# Change units to fraction
             a800 = np.zeros((aperture_eff_h.shape[0]+2,2))
-            a800[0,:] = [800,aperture_eff_h[0,1]]
+            a800[0,:] = [aperture_eff_h[0,0]-100,aperture_eff_h[0,1]]# Extend the model by 100 MHz
             a800[1:-1,:] = aperture_eff_h
-            a800[-1,:] = [2000,aperture_eff_h[-1,1]]
+            a800[-1,:] = [aperture_eff_h[-1,0]+100,aperture_eff_h[-1,1]]# Extend the model by 100 MHz
             aperture_eff_h = a800
 
             aperture_eff_v = np.loadtxt(filenameV,comments='#')# Change units to fraction
             a800 = np.zeros((aperture_eff_v.shape[0]+2,2))
-            a800[0,:] = [800,aperture_eff_v[0,1]]
+            a800[0,:] = [aperture_eff_v[0,0]-100,aperture_eff_v[0,1]]# Extend the model by 100 MHz
             a800[1:-1,:] = aperture_eff_v
-            a800[-1,:] = [2000,aperture_eff_v[-1,1]]
+            a800[-1,:] = [aperture_eff_v[-1,0]+100,aperture_eff_v[-1,1]]# Extend the model by 100 MHz
             aperture_eff_v = a800
 
         except IOError:
-            aperture_eff_h = np.array([[800.,2000],[75.,75.]])
-            aperture_eff_v = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_h = np.array([[1.,2000],[75.,75.]])
+            aperture_eff_v = np.array([[1.,2000],[75.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
             print('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
