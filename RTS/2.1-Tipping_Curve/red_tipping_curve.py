@@ -627,7 +627,10 @@ for ant in h5.ants:
     else:
         Band = 'L'
         SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model
-
+        warnings.warn('Warning: Failed to find Receiver model, setting band to L  ')
+        print('Warning: Failed to find Receiver model, setting band to L ')
+        
+        
 
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
