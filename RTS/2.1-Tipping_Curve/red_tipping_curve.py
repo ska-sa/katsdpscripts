@@ -183,10 +183,10 @@ class aperture_efficiency_models:
             a800[1:-1,:] = aperture_eff_v
             a800[-1,:] = [aperture_eff_v[-1,0]+100,aperture_eff_v[-1,1]]# Extend the model by 100 MHz
             aperture_eff_v = a800
-
+            raise RuntimeError('sdfsdf')
         except IOError:
-            aperture_eff_h = np.array([[1.,2000],[75.,75.]])
-            aperture_eff_v = np.array([[1.,2000],[75.,75.]])
+            aperture_eff_h = np.array([[1.,75.],[2000.,75.]])
+            aperture_eff_v = np.array([[1.,75.],[2000.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
             print('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
@@ -226,8 +226,8 @@ class Rec_Temp:
             a800[:,1:] = receiver_v
             receiver_v = a800
         except IOError:
-            receiver_h = np.array([[1.,2000],[20.,20.]])  
-            receiver_v = np.array([[1.,2000],[20.,20.]])
+            receiver_h = np.array([[1.,20.],[2000.,20.]])
+            receiver_v = np.array([[1.,20.],[2000.,20.]])
             warnings.warn('Warning: Failed to load Receiver models, setting models to 20 K ')
             print('Warning: Failed to load Receiver models, setting models to 20 K ')
         #Assume  Provided models are a function of zenith angle & frequency
