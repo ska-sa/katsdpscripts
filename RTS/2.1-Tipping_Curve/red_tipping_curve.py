@@ -94,7 +94,7 @@ class Spill_Temp:
         """
 #TODO Need to sort out better frequency interpolation & example
         try:
-            datafile =np.loadtxt(filename)
+            datafile =np.loadtxt(filename)#  First line is Frequencys, First Col is deg from zenith after that cols are in alternating pol
             elevation = datafile[1:,0]
             numfreqs = (datafile.shape[1]-1)//2
             freqs= datafile[0,1::2]
@@ -102,26 +102,31 @@ class Spill_Temp:
             freq_list = np.array(())
             data_list = np.array(())
             elevation_list = np.r_[elevation_list,elevation]
-            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0] ## Hard code the lower limit to avoid nans
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.min()-100)] ## Extend the lower limit to avoid nans
             data_list = np.r_[data_list,datafile[1:,1+0*2]]
             for x in range(numfreqs):
                 elevation_list = np.r_[elevation_list,elevation]
                 freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
                 data_list = np.r_[data_list,datafile[1:,1+x*2]]
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.max()+100)] ## Extend the upper limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+(numfreqs-1)*2]]
 
             T_H = fit.Delaunay2DScatterFit()
             T_H.fit((90.-elevation_list,freq_list),data_list)
-
             elevation_list = np.array(())
             freq_list = np.array(())
             data_list = np.array(())
             elevation_list = np.r_[elevation_list,elevation]
-            freq_list = np.r_[freq_list,np.ones_like(elevation)*800.0]  ## Hard code the lower limit to avoid nans
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.min()-100)]  ## Extend the lower limit to avoid nans
             data_list = np.r_[data_list,datafile[1:,1+0*2+1]]
             for x in range(numfreqs):
                 elevation_list = np.r_[elevation_list,elevation]
                 freq_list = np.r_[freq_list,np.ones_like(elevation)*freqs[x]]
-                data_list = np.r_[data_list,datafile[1:,1+x*2+1]]
+                data_list = np.r_[data_list,datafile[1:,1+x*2+1]] 
+            elevation_list = np.r_[elevation_list,elevation]
+            freq_list = np.r_[freq_list,np.ones_like(elevation)*(freqs.max()+100)] ## Extend the upper limit to avoid nans
+            data_list = np.r_[data_list,datafile[1:,1+(numfreqs-1)*2+1]]
             T_V = fit.Delaunay2DScatterFit()
             T_V.fit((90.-elevation_list,freq_list),data_list)
             self.spill = {}
@@ -130,8 +135,8 @@ class Spill_Temp:
             #print self.spill['HH']((90.-elevation_list,freq_list))
 
         except IOError:
-            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
-            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[900.,900.,2000.,2000.]])
+            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
+            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
             spillover_H[0]= 90-spillover_H[0]
             spillover_V[0]= 90-spillover_V[0]
             T_H = fit.Delaunay2DScatterFit()
@@ -166,21 +171,20 @@ class aperture_efficiency_models:
         try:
             aperture_eff_h = np.loadtxt(filenameH,comments='#')# Change units to fraction
             a800 = np.zeros((aperture_eff_h.shape[0]+2,2))
-            a800[0,:] = [800,aperture_eff_h[0,1]]
+            a800[0,:] = [aperture_eff_h[0,0]-100,aperture_eff_h[0,1]]# Extend the model by 100 MHz
             a800[1:-1,:] = aperture_eff_h
-            a800[-1,:] = [2000,aperture_eff_h[-1,1]]
+            a800[-1,:] = [aperture_eff_h[-1,0]+100,aperture_eff_h[-1,1]]# Extend the model by 100 MHz
             aperture_eff_h = a800
 
             aperture_eff_v = np.loadtxt(filenameV,comments='#')# Change units to fraction
             a800 = np.zeros((aperture_eff_v.shape[0]+2,2))
-            a800[0,:] = [800,aperture_eff_v[0,1]]
+            a800[0,:] = [aperture_eff_v[0,0]-100,aperture_eff_v[0,1]]# Extend the model by 100 MHz
             a800[1:-1,:] = aperture_eff_v
-            a800[-1,:] = [2000,aperture_eff_v[-1,1]]
+            a800[-1,:] = [aperture_eff_v[-1,0]+100,aperture_eff_v[-1,1]]# Extend the model by 100 MHz
             aperture_eff_v = a800
-
         except IOError:
-            aperture_eff_h = np.array([[800.,2000],[75.,75.]])
-            aperture_eff_v = np.array([[800.,2000],[75.,75.]])
+            aperture_eff_h = np.array([[1.,75.],[2000.,75.]])
+            aperture_eff_v = np.array([[1.,75.],[2000.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
             print('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
@@ -211,17 +215,17 @@ class Rec_Temp:
         try:
             receiver_h = (np.loadtxt(filenameH,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz # discard the gain col
             a800 = np.zeros((2,np.shape(receiver_h)[-1]+1))
-            a800[:,0] = [800,receiver_h[1,0]]
+            a800[:,0] = [receiver_h[0,0]-100,receiver_h[1,0]]  # Extend the model by 100 MHz
             a800[:,1:] = receiver_h
             receiver_h = a800
             receiver_v = (np.loadtxt(filenameV,comments='%',delimiter=',')[:,[0,2] ]/(1e6,1.)).T # Change units to MHz  # discard the gain col
             a800 = np.zeros((2,np.shape(receiver_v)[-1]+1))
-            a800[:,0] = [800,receiver_v[1,0]]
+            a800[:,0] = [receiver_v[0,0]-100,receiver_v[1,0]] # Extend the model by 100 MHz
             a800[:,1:] = receiver_v
             receiver_v = a800
         except IOError:
-            receiver_h = np.array([[800.,2000],[20.,20.]])
-            receiver_v = np.array([[800.,2000],[20.,20.]])
+            receiver_h = np.array([[1.,20.],[2000.,20.]])
+            receiver_v = np.array([[1.,20.],[2000.,20.]])
             warnings.warn('Warning: Failed to load Receiver models, setting models to 20 K ')
             print('Warning: Failed to load Receiver models, setting models to 20 K ')
         #Assume  Provided models are a function of zenith angle & frequency
@@ -257,7 +261,7 @@ class System_Temp:
         self.ra = ra[valid_el]
         self.dec = dec[valid_el]
         self.surface_temperature = surface_temperature# Extract surface temperature from weather data
-        self.freq = d.freqs[0]  #MHz Centre frequency of observation
+        self.freq = freqs  #MHz Centre frequency of observation
         for pol in ['HH','VV']:
             power_stats = [scape.stats.mu_sigma(s.pol(pol)[:,freq_index]) for s in d.scans]
             tipping_mu, tipping_sigma = np.array([s[0] for s in power_stats]), np.array([s[1] for s in power_stats])
@@ -274,7 +278,7 @@ class System_Temp:
         self.Tsky = TmpSky
 
     def sky_fig(self,freq=1328):
-        T_skytemp = Sky_temp(freq)
+        T_skytemp = Sky_temp(nu=freq)
         return T_skytemp.plot_sky(self.ra,self.dec)
 
 
@@ -303,7 +307,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     try:
         d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models,band=band_input)
     except IOError:
-        nd = scape.gaincal.NoiseDiodeModel(freq=[800,2000],temp=[20,20])
+        nd = scape.gaincal.NoiseDiodeModel(freq=[1,2000],temp=[20,20])
         warnings.warn('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         print('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd ,band=band_input)
@@ -461,9 +465,12 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.title('Tipping curve: %s' % (title))
     plt.xlabel('Elevation (degrees)')
     lim_min = r_lim([np.percentile(Tsys[:,0:2],10),np.percentile(Tant[:,0:2],10),-5.])
-    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90),line*1.1],np.max)
-    plt.ylim(lim_min,lim_max)
-    plt.hlines(line, elevation.min(), elevation.max(), colors='k')
+    if line is not None:
+        linev = line
+    else:
+        linev= 0
+    if line is not None:
+        plt.hlines(line, elevation.min(), elevation.max(), colors='k')
     if aperture_efficiency is not None:
         recLim_apEffH = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['HH'](frequency)
         recLim_apEffV = receptor_band_limit(frequency,elevation)/aperture_efficiency.eff['VV'](frequency)
@@ -473,6 +480,8 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
         for error_margin in [0.9,1.1]:
             plt.plot(elevation,recLim_apEffH*error_margin, lw=1.1,c='g',linestyle='--')
             plt.plot(elevation,recLim_apEffV*error_margin, lw=1.1,c='g',linestyle='--')
+    lim_max = r_lim([np.percentile(Tsys[:,0:2],90),np.percentile(Tant[:,0:2],90)*1.1,np.max(recLim_apEffH)*1.2,linev*1.1],np.max)
+    plt.ylim(lim_min,lim_max)
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
@@ -515,7 +524,7 @@ def receptor_UHFband_limit(frequency,elevation): # APH added elevation
     return return_array+DT_elevation
     
 
-def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
+def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None,band='L'):
     fig = plt.figure(figsize=(16,9))
     line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
     plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
@@ -545,12 +554,16 @@ def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None):
     high_lim = np.max(high_lim)
     high_lim = np.max((high_lim , 46*1.3))
     plt.ylim(low_lim,high_lim)
-    plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-    plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-    if np.min(frequency) <= 1420 :
-        plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
-    if np.max(frequency) >=1420 :
-        plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
+    if band=='L':
+        plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        if np.min(frequency) <= 1420 :
+            plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
+        if np.max(frequency) >=1420 :
+            plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
+    if band=='U':
+        plt.vlines(580,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        plt.vlines(1050,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
     plt.grid()
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
@@ -561,14 +574,14 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='900,1440,1670,1840',
+parser.add_option("-r", "--select-freq", default='600,700,800,900,1440,1670,1840',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
 parser.add_option("-b", "--freq-bw", default=10.0,type="float",
                   help="Bandwidth of frequency channels to average in MHz (, default= %default MHz)")
-parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat',
-                  help="Name of FIle containing spillover models default= %default")
+parser.add_option("-s", "--spill-over-models",default='/var/kat/katconfig/user/spillover-models/mkat/',
+                  help="Name of Directory containing spillover models default= %default")
 parser.add_option( "--receiver-models",default='/var/kat/katconfig/user/receiver-models/mkat/',
                   help="Name of Directory containing receiver models default= %default")
 parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-models/mkat/',
@@ -583,7 +596,6 @@ parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rf
                   help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 
 (opts, args) = parser.parse_args()
-
 
 if len(args) < 1:
     raise RuntimeError('Please specify the data file to reduce')
@@ -603,13 +615,11 @@ freq_bw = opts.freq_bw
 channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
 n_chans = h5.shape[1]
 
-
 fix_opacity = opts.fix_opacity
 freq_chans = opts.freq_chans
 
 for ant in h5.ants:
     #Load the data file
-
     rec = h5.receivers[ant.name]
     nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
@@ -621,13 +631,16 @@ for ant in h5.ants:
     else:
         Band = 'L'
         SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model
-
+        warnings.warn('Warning: Failed to find Receiver model, setting band to L  ')
+        print('Warning: Failed to find Receiver model, setting band to L ')       
 
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency_v = "%s/ant_eff_%s_V_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
     aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
+    spill_over_model_path = "%s/MK_%s_Tspill_AsBuilt_atm_mask.dat"%(spill_over_models,str.upper(Band))
+    SpillOver = Spill_Temp(filename=spill_over_model_path) #/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat
 
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
@@ -641,8 +654,7 @@ for ant in h5.ants:
 
     tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
     tant = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
-
-    SpillOver = Spill_Temp(filename=spill_over_models)
+    
     receiver = Rec_Temp(receiver_model_H, receiver_model_V)
     elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
     ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
@@ -655,7 +667,6 @@ for ant in h5.ants:
     #freq loop
     for i,freq_val in enumerate(d.freqs):
         if not d is None:
-
             d.filename = [filename]
             nu = d.freqs  #MHz Centre frequency of observation
             #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
@@ -681,7 +692,7 @@ for ant in h5.ants:
             #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
 
 
-    fig = T_SysTemp.sky_fig()
+    fig = T_SysTemp.sky_fig(freq=freq_val.min())
     fig.savefig(pp,format='pdf')
     plt.close(fig)
 
@@ -689,16 +700,20 @@ for ant in h5.ants:
         title = ""
         if np.abs(freq_list-freq).min() < freq_bw*1.1 :
             i = (np.abs(freq_list-freq)).argmin()
-            lineval = 42
-            if freq > 1420 : lineval = 46
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,freq),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+            lineval = None
+            if str.upper(Band) == 'L':
+                if freq > 1420 :
+                    lineval = 46
+                else:
+                    lineval = 42
+            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,d.freqs[i]),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
             plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
             plt.close(fig)
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency)
+        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency,band=str.upper(Band))
         plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
