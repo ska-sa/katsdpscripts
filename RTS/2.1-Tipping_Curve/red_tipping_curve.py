@@ -114,7 +114,6 @@ class Spill_Temp:
 
             T_H = fit.Delaunay2DScatterFit()
             T_H.fit((90.-elevation_list,freq_list),data_list)
-            #raise RuntimeError('Stop for some Reason')
             elevation_list = np.array(())
             freq_list = np.array(())
             data_list = np.array(())
@@ -183,7 +182,6 @@ class aperture_efficiency_models:
             a800[1:-1,:] = aperture_eff_v
             a800[-1,:] = [aperture_eff_v[-1,0]+100,aperture_eff_v[-1,1]]# Extend the model by 100 MHz
             aperture_eff_v = a800
-            raise RuntimeError('sdfsdf')
         except IOError:
             aperture_eff_h = np.array([[1.,75.],[2000.,75.]])
             aperture_eff_v = np.array([[1.,75.],[2000.,75.]])
