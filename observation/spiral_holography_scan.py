@@ -36,6 +36,10 @@ try:
     import matplotlib.pyplot as plt
 except:
     pass
+try:
+    import pickle
+except:
+    pass
 
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
@@ -348,8 +352,8 @@ parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'
                                              'option) perform a scan on the target. Note also some '
                                              '**required** options below.')
 # Add experiment-specific options
-parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically.')
-parser.add_option('--track-ants', help='Subset of all antennas that will track source (default=all non-scanning antennas)')
+parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically. GroupAB to alternate between GroupA and GroupB. An integer specifies number of scanning antennas, chosen automatically.')
+parser.add_option('--track-ants', help='Subset of all antennas that will track source. An integer specifies number of tracking antennas, chosen automatically. (default=all non-scanning antennas)')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
 parser.add_option('--num-scans', type='int', default=None,
@@ -376,6 +380,8 @@ parser.add_option('--prepopulatetime', type='float', default=10.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
+parser.add_option('--debug', action="store_true", default=False,
+                  help='Writes to file timestamps and az-el coordinates for debugging (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -402,73 +408,106 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
 
         all_ants = session.ants
-
-        if (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupb'):
+        session.obs_params['num_scans'] = len(compositex)
+        grouprange = [0]
+        if (opts.track_ants and opts.track_ants.isdigit()):
             GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
-            scan_ants = ant_array(kat, [session.ants[ant] for ant in (GroupA if (opts.scan_ants.lower()=='groupa') else GroupB)], 'scan_ants')
-            session.obs_params['scan_ants']=','.join(np.sort([session.ants[ant].name for ant in (GroupA if (opts.scan_ants.lower()=='groupa') else GroupB)]))
+            GroupA.extend(GroupB[::-1])
+            GroupA=GroupA[:-int(opts.track_ants)]
+            scan_ants = ant_array(kat, [session.ants[ant] for ant in GroupA], 'scan_ants')
+        elif (opts.track_ants):
+            track_ants = ant_array(kat, opts.track_ants, 'track_ants')
+            scan_ants = [ant for ant in all_ants if ant not in track_ants]
+            scan_ants = ant_array(kat, scan_ants, 'scan_ants')
+        elif (opts.scan_ants.isdigit()):
+            GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
+            GroupA.extend(GroupB[::-1])
+            GroupA=GroupA[:int(opts.scan_ants)]
+            scan_ants = ant_array(kat, [session.ants[ant] for ant in GroupA], 'scan_ants')
+        elif (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupab' or opts.scan_ants.lower()=='groupb'):
+            GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
+            scan_ants = ant_array(kat, [session.ants[ant] for ant in (GroupA if (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupab') else GroupB)], 'scan_ants')
+            if (opts.scan_ants.lower()=='groupab'):
+                grouprange = range(2)
         else:
             # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
             scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
+
         # Assign rest of antennas to tracking antenna subarray (or use given antennas)
-        track_ants = opts.track_ants if opts.track_ants else [ant for ant in all_ants if ant not in scan_ants]
+        track_ants = [ant for ant in all_ants if ant not in scan_ants]
         track_ants = ant_array(kat, track_ants, 'track_ants')
+        # Add metadata
+        session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
+        session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
+        session.telstate.add('obs_label','cycle.group.scan')
         session.capture_start()
-        session.label('holo')
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second "
                          "cycles extending %g degrees) on target '%s'",
                          opts.num_cycles, opts.cycle_duration,
                          opts.scan_extent, target.name)
         session.set_target(target)
         lasttime = time.time()
+        if (opts.debug):
+            fp=open('/home/kat/usersnfs/mattieu/spiral_holography_scan_debug','wb')
         for cycle in range(opts.num_cycles):
-            targetel=target.azel()[1]*180.0/np.pi
-            if (targetel>lasttargetel):#target is rising - scan top half of pattern first
-                cx=compositex
-                cy=compositey
-                if (targetel<opts.horizon):
-                    user_logger.info("Exiting because target is %g degrees below horizon limit of %g.",
-                                     opts.horizon - targetel, opts.horizon)
-                    break  # else it is ok that target just above horizon limit
-            else:  #target is setting - scan bottom half of pattern first
-                cx=ncompositex
-                cy=ncompositey
-                if (targetel<opts.horizon+(opts.scan_extent/2.0)):
-                    user_logger.info("Exiting because target is %g degrees too low "
-                                     "to accommodate a scan extent of %g degrees above the horizon limit of %g.",
-                                     opts.horizon + opts.scan_extent / 2. - targetel,
-                                     opts.scan_extent, opts.horizon)
-                    break
-            user_logger.info("Performing scan cycle %d", cycle + 1)
+            user_logger.info("Performing scan cycle %d of %d", cycle + 1, opts.num_cycles)
             user_logger.info("Using all antennas: %s",
                              ' '.join([ant.name for ant in session.ants]))
-            scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
-            track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
-            #get both antennas to target ASAP
-            session.ants = all_ants
-            session.track(target, duration=0, announce=False)
-            lasttime = time.time()
-            for iarm in range(len(cx)):#spiral arm index
-                user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
-                session.ants = scan_ants
-                target.antenna = scan_observer
-                scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                user_logger.info("Using Scan antennas: %s",
-                                 ' '.join([ant.name for ant in session.ants]))
-                if not kat.dry_run:
-                    session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                session.ants = track_ants
-                target.antenna = track_observer
-                scan_track = gen_track(scan_data[:,0],target)
-                user_logger.info("Using Track antennas: %s",
-                                 ' '.join([ant.name for ant in session.ants]))
-                if not kat.dry_run:
-                    session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-                time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
-                lasttime = scan_data[-1,0]
+            for igroup in grouprange:
+                targetel=target.azel()[1]*180.0/np.pi
+                if (targetel>lasttargetel):#target is rising - scan top half of pattern first
+                    cx=compositex
+                    cy=compositey
+                    if (targetel<opts.horizon):
+                        user_logger.info("Exiting because target is %g degrees below horizon limit of %g.",
+                                         opts.horizon - targetel, opts.horizon)
+                        break  # else it is ok that target just above horizon limit
+                else:  #target is setting - scan bottom half of pattern first
+                    cx=ncompositex
+                    cy=ncompositey
+                    if (targetel<opts.horizon+(opts.scan_extent/2.0)):
+                        user_logger.info("Exiting because target is %g degrees too low "
+                                         "to accommodate a scan extent of %g degrees above the horizon limit of %g.",
+                                         opts.horizon + opts.scan_extent / 2. - targetel,
+                                         opts.scan_extent, opts.horizon)
+                        break
+                scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
+                track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
+                #get both antennas to target ASAP
+                session.ants = all_ants
+                session.track(target, duration=0, announce=False)
+                lasttime = time.time()
+                for iarm in range(len(cx)):#spiral arm index
+                    user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
+                    session.ants = scan_ants
+                    target.antenna = scan_observer
+                    scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                    user_logger.info("Using Scan antennas: %s",
+                                     ' '.join([ant.name for ant in session.ants]))
+                    if not kat.dry_run:
+                        session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                    session.ants = track_ants
+                    target.antenna = track_observer
+                    scan_track = gen_track(scan_data[:,0],target)
+                    user_logger.info("Using Track antennas: %s",
+                                     ' '.join([ant.name for ant in session.ants]))
+                    if not kat.dry_run:
+                        session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                    session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
+                    if (opts.debug):
+                        pickle.dump(scan_data,fp)
+                    time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
+                    lasttime = scan_data[-1,0]
+                #swap scanning and tracking antennas
+                swap=track_ants
+                track_ants=scan_ants
+                scan_ants=swap
+
         time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
         session.ants = all_ants
+        if (opts.debug):
+            fp.close()
