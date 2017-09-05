@@ -42,11 +42,11 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = collect_targets(kat, args)
+    targets = collect_targets(kat, args)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe
-        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         # Set the gain to a single non complex number if needed
@@ -70,31 +70,21 @@ with verify_and_connect(opts) as kat:
             keep_going = (opts.max_duration is not None) and opts.repeat
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                session.label('track')
-                user_logger.info("Initiating %g-second track on target %r",
-                                 opts.track_duration, target.name)
-                # Split the total track on one target into segments lasting as
-                # long as the noise diode period
-                # This ensures the maximum number of noise diode firings
-                total_track_time = 0.
-                while total_track_time < opts.track_duration:
-                    next_track = opts.track_duration - total_track_time
-                    # Cut the track short if time ran out
-                    if opts.max_duration is not None:
-                        next_track = min(next_track, opts.max_duration - (time.time() - start_time))
-                    if opts.nd_params['period'] > 0:
-                        next_track = min(next_track, opts.nd_params['period'])
-                    if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
+            for target in targets.iterfilter(el_limit_deg=opts.horizon):
+                # Cut the track short if time ran out
+                duration = opts.track_duration
+                if opts.max_duration is not None:
+                    time_left = opts.max_duration - (time.time() - start_time)
+                    if time_left <= 0.:
+                        user_logger.warning("Maximum duration of %g seconds "
+                                            "has elapsed - stopping script",
+                                            opts.max_duration)
+                        keep_going = False
                         break
-                    total_track_time += next_track
-                if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                    user_logger.warning("Maximum duration of %g seconds has "
-                                        "elapsed - stopping script",
-                                        opts.max_duration)
-                    keep_going = False
-                    break
-                targets_observed.append(target.name)
+                    duration = min(duration, time_left)
+                session.label('track')
+                if session.track(target, duration=duration):
+                    targets_observed.append(target.name)
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - "
                                     "stopping script instead of hanging around")
