@@ -12,27 +12,33 @@ class NoTargetsUpError(Exception):
 
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Track one or more sources for a specified time. At least one '
-                                             'target must be specified. Note also some **required** options below.')
+usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
+description = 'Track one or more sources for a specified time. At least one ' \
+              'target must be specified. Note also some **required** options below.'
+parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
+                  help='Length of time to track each source, in seconds '
+                       '(default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=None,
-                  help='Maximum duration of the script in seconds, after which script will end '
-                       'as soon as the current track finishes (no limit by default)')
+                  help='Maximum duration of the script in seconds, after which '
+                       'script will end as soon as the current track finishes '
+                       '(no limit by default)')
 parser.add_option('--repeat', action="store_true", default=False,
-                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
+                  help='Repeatedly loop through the targets until maximum '
+                       'duration (which must be set for this)')
 parser.add_option('--reset-gain', type='int', default=None,
-                  help='Value for the reset of the correlator F-engine gain (default=%default)')
+                  help='Value for the reset of the correlator F-engine gain '
+                       '(default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track')
 # Parse the command line
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
-                     "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+    raise ValueError("Please specify at least one target argument via name "
+                     "('Cygnus A'), description ('azel, 20, 30') or catalogue "
+                     "file name ('sources.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -68,7 +74,8 @@ with verify_and_connect(opts) as kat:
                 session.label('track')
                 user_logger.info("Initiating %g-second track on target %r",
                                  opts.track_duration, target.name)
-                # Split the total track on one target into segments lasting as long as the noise diode period
+                # Split the total track on one target into segments lasting as
+                # long as the noise diode period
                 # This ensures the maximum number of noise diode firings
                 total_track_time = 0.
                 while total_track_time < opts.track_duration:
