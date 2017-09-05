@@ -31,7 +31,7 @@ parser.add_option('--reset-gain', type='int', default=None,
                   help='Value for the reset of the correlator F-engine gain '
                        '(default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Target track')
+parser.set_defaults(description='Target track', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -84,7 +84,7 @@ with verify_and_connect(opts) as kat:
                     duration = min(duration, time_left)
                 session.label('track')
                 if session.track(target, duration=duration):
-                    targets_observed.append(target.name)
+                    targets_observed.append(target.description)
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - "
                                     "stopping script instead of hanging around")
