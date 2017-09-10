@@ -302,16 +302,18 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         ncompositey[ia]=ny
     if (nextraslew>0):
         for ia in range(0,narms,2):
-            interx=np.linspace(compositex[ia][-1],compositex[ia+1][0],2+nextraslew*2)
+            inter=np.cumsum(np.r_[np.linspace(0,1,1+nextraslew,endpoint=False),np.linspace(1,0,1+nextraslew,endpoint=False)])
+            inter/=inter[-1]
+            interx=compositex[ia][-1]+(compositex[ia+1][0]-compositex[ia][-1])*inter
             compositex[ia]=np.r_[compositex[ia],interx[1:1+nextraslew]]
             compositex[ia+1]=np.r_[interx[1+nextraslew:-1],compositex[ia+1]]
-            intery=np.linspace(compositey[ia][-1],compositey[ia+1][0],2+nextraslew*2)
+            intery=compositey[ia][-1]+(compositey[ia+1][0]-compositey[ia][-1])*inter
             compositey[ia]=np.r_[compositey[ia],intery[1:1+nextraslew]]
             compositey[ia+1]=np.r_[intery[1+nextraslew:-1],compositey[ia+1]]
-            ninterx=np.linspace(ncompositex[ia][-1],ncompositex[ia+1][0],2+nextraslew*2)
+            ninterx=ncompositex[ia][-1]+(ncompositex[ia+1][0]-ncompositex[ia][-1])*inter
             ncompositex[ia]=np.r_[ncompositex[ia],ninterx[1:1+nextraslew]]
             ncompositex[ia+1]=np.r_[ninterx[1+nextraslew:-1],ncompositex[ia+1]]
-            nintery=np.linspace(ncompositey[ia][-1],ncompositey[ia+1][0],2+nextraslew*2)
+            nintery=ncompositey[ia][-1]+(ncompositey[ia+1][0]-ncompositey[ia][-1])*inter
             ncompositey[ia]=np.r_[ncompositey[ia],nintery[1:1+nextraslew]]
             ncompositey[ia+1]=np.r_[nintery[1+nextraslew:-1],ncompositey[ia+1]]
     if (mirrorx):
