@@ -241,7 +241,7 @@ def read_sensor_history(ants):
                 log_message(
                     '{} - Unable to extract '
                     'sensor data from archive\n'.format(ant), 'warn')
-        except ValueError:
+        except:
             log_message(
                 '{} - Error reading and processing sensor data.'.format(ant), 'error')
 

@@ -12,35 +12,41 @@ class NoTargetsUpError(Exception):
 
 
 # Set up standard script options
-parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Track one or more sources for a specified time. At least one '
-                                             'target must be specified. Note also some **required** options below.')
+usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
+description = 'Track one or more sources for a specified time. At least one ' \
+              'target must be specified. Note also some **required** options below.'
+parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=60.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
+                  help='Length of time to track each source, in seconds '
+                       '(default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=None,
-                  help='Maximum duration of the script in seconds, after which script will end '
-                       'as soon as the current track finishes (no limit by default)')
+                  help='Maximum duration of the script in seconds, after which '
+                       'script will end as soon as the current track finishes '
+                       '(no limit by default)')
 parser.add_option('--repeat', action="store_true", default=False,
-                  help='Repeatedly loop through the targets until maximum duration (which must be set for this)')
+                  help='Repeatedly loop through the targets until maximum '
+                       'duration (which must be set for this)')
 parser.add_option('--reset-gain', type='int', default=None,
-                  help='Value for the reset of the correlator F-engine gain (default=%default)')
+                  help='Value for the reset of the correlator F-engine gain '
+                       '(default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Target track')
+parser.set_defaults(description='Target track', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
-                     "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+    raise ValueError("Please specify at least one target argument via name "
+                     "('Cygnus A'), description ('azel, 20, 30') or catalogue "
+                     "file name ('sources.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = collect_targets(kat, args)
+    targets = collect_targets(kat, args)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe
-        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         # Set the gain to a single non complex number if needed
@@ -64,30 +70,21 @@ with verify_and_connect(opts) as kat:
             keep_going = (opts.max_duration is not None) and opts.repeat
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                session.label('track')
-                user_logger.info("Initiating %g-second track on target %r",
-                                 opts.track_duration, target.name)
-                # Split the total track on one target into segments lasting as long as the noise diode period
-                # This ensures the maximum number of noise diode firings
-                total_track_time = 0.
-                while total_track_time < opts.track_duration:
-                    next_track = opts.track_duration - total_track_time
-                    # Cut the track short if time ran out
-                    if opts.max_duration is not None:
-                        next_track = min(next_track, opts.max_duration - (time.time() - start_time))
-                    if opts.nd_params['period'] > 0:
-                        next_track = min(next_track, opts.nd_params['period'])
-                    if next_track <= 0 or not session.track(target, duration=next_track, announce=False):
+            for target in targets.iterfilter(el_limit_deg=opts.horizon):
+                # Cut the track short if time ran out
+                duration = opts.track_duration
+                if opts.max_duration is not None:
+                    time_left = opts.max_duration - (time.time() - start_time)
+                    if time_left <= 0.:
+                        user_logger.warning("Maximum duration of %g seconds "
+                                            "has elapsed - stopping script",
+                                            opts.max_duration)
+                        keep_going = False
                         break
-                    total_track_time += next_track
-                if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
-                    user_logger.warning("Maximum duration of %g seconds has "
-                                        "elapsed - stopping script",
-                                        opts.max_duration)
-                    keep_going = False
-                    break
-                targets_observed.append(target.name)
+                    duration = min(duration, time_left)
+                session.label('track')
+                if session.track(target, duration=duration):
+                    targets_observed.append(target.description)
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - "
                                     "stopping script instead of hanging around")
