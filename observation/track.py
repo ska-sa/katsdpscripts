@@ -30,6 +30,9 @@ parser.add_option('--repeat', action="store_true", default=False,
 parser.add_option('--reset-gain', type='int', default=None,
                   help='Value for the reset of the correlator F-engine gain '
                        '(default=%default)')
+parser.add_option('--fft-shift', type='int',
+                  help='Set correlator F-engine FFT shift (default=leave as is)')
+
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track', nd_params='off')
 # Parse the command line
@@ -60,6 +63,8 @@ with verify_and_connect(opts) as kat:
                                  inp, opts.reset_gain)
 
         session.standard_setup(**vars(opts))
+        if opts.fft_shift is not None:
+            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.capture_start()
 
         start_time = time.time()
