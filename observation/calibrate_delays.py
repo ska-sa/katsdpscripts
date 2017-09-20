@@ -112,7 +112,7 @@ with verify_and_connect(opts) as kat:
         session.ants.req.target('')
 
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        time.sleep(30)
+        time.sleep(90)
         sample_rate = 0.0
         delays = {}
         if not kat.dry_run:
