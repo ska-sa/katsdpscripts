@@ -29,7 +29,7 @@ def get_reduction_metadata(filename, reduction_name=None):
 
 def plot_flags(timestamps,freqs,flags):
     """timestamps is an array of unix timstamps
-    freqs is an array of frequencys in Hz
+    freqs is an array of frequencys in MHz
     flags is a 3D array of boolean with [time,freq,baseline]
     it plots the percentage of the data flagged 
     as a function of time vs frequency  """
@@ -41,7 +41,7 @@ def plot_flags(timestamps,freqs,flags):
     plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(timestamps[0]).local(),))
     plt.ylabel('Frequency/[MHz]')
     plt.xlim(0,timestamps[-1]-timestamps[0])
-    plt.ylim(freqs[0]/1e6,freqs[-1]/1e6)
+    plt.ylim(freqs[0],freqs[-1])
     plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     return fig 
 
