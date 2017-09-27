@@ -82,6 +82,7 @@ def plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_
     #plot timeseries,spectrograph and spectrum for each antenna
     #for p,active_pol in enumerate(['H','V']):
     print 'active_pol',active_pol
+    return_figs = []
     for i in range(num_ants):
         print 'Antenna name', data.corr_products[i][0],i
         ant_name = data.corr_products[i][0]
@@ -125,7 +126,8 @@ def plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_
         ax4.set_title('Pointing')
         ax4.set_xlabel('Azimuth/[Degrees]')
         ax4.set_ylabel('Elevation/[Degrees]')
-    return fig
+        return_figs.append(fig) # I hope the garbage collector does not get this .
+    return return_figs
     
 def phase_plot(phasedata,baseline_names,num_chans,scan_timestamps,num_bls):
     """phasedata is an array consiting of phase information for all correlation products,
@@ -260,9 +262,10 @@ else:
             sp[active_pol]=np.hstack(scan_phase) 
                 
             #Calling function timeseries plot
-            fig=plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_vis,scan_freqinds,scan_autos)
-            fig.savefig(pp,format='pdf')
-            plt.close(fig)
+            fig_list=plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_vis,scan_freqinds,scan_autos)
+            for fig in fig_list :
+                fig.savefig(pp,format='pdf')
+                plt.close(fig)
 
         #Calling function timeseries plot
         fig=phase_plot(sp,baseline_names,num_chans,scan_timestamps,num_bls)
