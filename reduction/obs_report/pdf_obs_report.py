@@ -50,7 +50,7 @@ def plot_flagtype(flag_dat,labels):
     lables is a list of str corresponting to the bits in flags"""
     fig=plt.figure(figsize=(10,5))
     flag_dat = flag_dat.flatten()
-    plt.xticks(range(len(labels)), labels, rotation='vertical')
+    plt.xticks(range(len(labels)), labels, rotation=38)
     plt.ylabel('Percentage Flagged')
     plt.title('Flag Types (%i samples)'%(np.shape(flag_dat)[0]))
     plt.plot(np.unpackbits(flag_dat[:,np.newaxis],axis=1).sum(axis=0)/np.float(np.shape(labels)[0])*100, '*')
@@ -229,6 +229,7 @@ else:
         #Calling fuction plot flagtype
         flag_labels = list(data.file['/Data/flags_description'][:,0])
         fig= plot_flagtype(data.file['Data/flags'][:,slice(start_chan,end_chan),:],flag_labels)
+        fig.set_size_inches(10,8)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
 
