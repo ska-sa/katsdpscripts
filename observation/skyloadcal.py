@@ -1,31 +1,32 @@
-#!/usr/bin/python
-# Track SCP  for a specified time for hotbox tests.
-
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
+#!/usr/bin/env python
+# Track SCP for a specified time for hotbox tests.
 
 import time
-from katcorelib import standard_script_options, verify_and_connect, start_session, user_logger
+
+from katcorelib import (standard_script_options, verify_and_connect,
+                        start_session, user_logger)
 import katpoint
 from katpoint import wrap_angle
 import numpy as np
 
+
 # Set up standard script options
+description = 'Perform a mesurement of system tempreture using hot and cold ' \
+              'on sky loads. Over 6 frequency ranges. Note also some ' \
+              '**required** options below.'
 parser = standard_script_options(usage="%prog [options] hotload or coldload",
-                                 description='Perform a mesurement of system tempreture using hot and cold on sky loads'
-                                             'Over 6 frequency ranges. Note also some **required** options below.')
+                                 description=description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=30.0,
                   help='Length of time for each loading, in seconds (default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=-1,
                   help='Maximum duration of script, in seconds (the default is to observing all sources once)')
-
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Hotload and Coldload observation', dump_rate=1.0 / 0.512)
 # Parse the command line
 opts, args = parser.parse_args()
 
-if not opts.description == 'Hotload and Coldload observation':
+if opts.description != 'Hotload and Coldload observation':
     opts.description = 'Hotload and Coldload observation:' + opts.description
 
 nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
@@ -68,19 +69,20 @@ with verify_and_connect(opts) as kat:
             sources.add(off2)
             sources.add(off1)
             txtlist = ', '.join(["'%s'" % (target.name,) for target in sources])
-            user_logger.info("Calibration targets are [%s]" % (txtlist,))
+            user_logger.info("Calibration targets are [%s]", txtlist)
             for target in sources:
                 session.nd_params = nd_off
                 for nd in [nd_coupler]:
                     session.nd_params = nd_off
                     session.track(target, duration=0)  # get onto the source
-                    user_logger.info("Now capturing data - diode %s on" % nd['diode'])
+                    user_logger.info("Now capturing data - diode %s on", nd['diode'])
                     session.label('%s' % (nd['diode'],))
                     if not session.fire_noise_diode(announce=True, **nd):
-                        user_logger.error("Noise Diode did not Fire , (%s did not fire)" % nd['diode'])
+                        user_logger.error("Noise diode %s did not fire", nd['diode'])
                 session.nd_params = nd_off
                 user_logger.info("Now capturing data - noise diode off")
                 session.label('track')
                 session.track(target, duration=opts.track_duration)
         if opts.max_duration and time.time() > start_time + opts.max_duration:
-            user_logger.info('Maximum script duration (%d s) exceeded, stopping script' % (opts.max_duration,))
+            user_logger.info('Maximum script duration (%d s) exceeded, stopping script',
+                             opts.max_duration)

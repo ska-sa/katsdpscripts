@@ -35,7 +35,7 @@ def set_fengine_gain(session, gain):
         num_channels = session.cbf.fengine.sensor.n_chans.get_value()
         gain = DEFAULT_GAIN.get(num_channels, -1)
     if gain > 0:
-        user_logger.info("Setting F-engine gains to %d" % (gain,))
+        user_logger.info("Setting F-engine gains to %d", gain)
         for inp in session.cbf.fengine.inputs:
             session.cbf.fengine.req.gain(inp, gain)
 
@@ -69,7 +69,7 @@ description = 'Track the source with the highest elevation and calibrate ' \
               'delays based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=30.0,
+parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track the source, in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain, automatically set if 0 (the '
@@ -90,15 +90,15 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
-    # Quit early if there are no sources to observe
-    if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
-        raise NoTargetsUpError("No targets are currently visible - "
-                               "please re-run the script later")
-    # Pick source with the highest elevation as our target
-    target = observation_sources.sort('el').targets[-1]
-    target.add_tags('bfcal single_accumulation')
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+        # Quit early if there are no sources to observe
+        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+            raise NoTargetsUpError("No targets are currently visible - "
+                                   "please re-run the script later")
+        # Pick source with the highest elevation as our target
+        target = observation_sources.sort('el').targets[-1]
+        target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
         set_fengine_gain(session, opts.fengine_gain)
         user_logger.info("Zeroing all delay adjustments for starters")
@@ -112,12 +112,14 @@ with verify_and_connect(opts) as kat:
         session.ants.req.target('')
 
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        time.sleep(30)
+        time.sleep(90)
         sample_rate = 0.0
         delays = {}
         if not kat.dry_run:
             sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
             delays = get_delaycal_solutions(session)
+            # JSON does not like NumPy types
+            delays = {inp: float(d) for inp, d in delays.items()}
             if not delays:
                 msg = "No delay solutions found in telstate '%s'" % \
                       (session.telstate,)

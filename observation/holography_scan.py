@@ -1,21 +1,20 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Template script
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 # Import script helper functions from observe.py
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
-                             start_session, user_logger, ant_array
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger, ant_array)
 import numpy as np
 
+
 # Set up standard script options
+description = 'This script performs a holography scan on one or more targets. ' \
+              'All the antennas initially track the target, whereafter a ' \
+              'subset of the antennas (the "scan antennas" specified by the ' \
+              '--scan-ants option) perform a raster scan on the target. Note ' \
+              'also some **required** options below.'
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='This script performs a holography scan on one or more targets. '
-                                             'All the antennas initially track the target, whereafter a subset '
-                                             'of the antennas (the "scan antennas" specified by the --scan-ants '
-                                             'option) perform a raster scan on the target. Note also some '
-                                             '**required** options below.')
+                                 description=description)
 # Add experiment-specific options
 parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
 parser.add_option('-k', '--num-scans', type='int', default=1,
@@ -48,7 +47,6 @@ scan_ends = zip(stepping_coord, scanning_coord) if opts.scan_in_elevation else z
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
-
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
@@ -60,13 +58,16 @@ with verify_and_connect(opts) as kat:
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         session.capture_start()
-        user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+        user_logger.info("Using all antennas: %s",
+                         ' '.join([ant.name for ant in session.ants]))
 
         for target in targets:
             # The entire sequence of commands on the same target forms a single compound scan
             session.label('holo')
-            user_logger.info("Initiating holography scan (%d %g-second scans extending %g degrees) on target '%s'"
-                             % (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
+            user_logger.info("Initiating holography scan (%d %g-second scans "
+                             "extending %g degrees) on target '%s'",
+                             opts.num_scans, opts.scan_duration,
+                             opts.scan_extent, target.name)
             # Slew all antennas onto the target (don't spend any more time on it though)
             session.track(target, duration=0, announce=False)
             # Provide opportunity for noise diode to fire on all antennas
@@ -74,10 +75,13 @@ with verify_and_connect(opts) as kat:
             # Perform multiple scans across the target with the scan antennas only
             for scan_index, (start, end) in enumerate(zip(scan_starts, scan_ends)):
                 session.ants = scan_ants
-                user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
-                session.scan(target, duration=opts.scan_duration, start=start, end=end,
+                user_logger.info("Using scan antennas: %s",
+                                 ' '.join([ant.name for ant in session.ants]))
+                session.scan(target, duration=opts.scan_duration,
+                             start=start, end=end,
                              index=scan_index, projection=opts.projection)
                 # Provide opportunity for noise diode to fire on all antennas
                 session.ants = all_ants
-                user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                user_logger.info("Using all antennas: %s",
+                                 ' '.join([ant.name for ant in session.ants]))
                 session.fire_noise_diode(announce=False, **nd_params)

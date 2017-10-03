@@ -39,7 +39,7 @@ def wait_until_sensor_equals(timeout, sensorname, value,
     return (success, lastval)
 
 
-def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
+def track(ant, taz, tel, total=1, dry_run=False):
   
     # Direction variable ie. up/down, clockwise/anti-clockwise
     h_direction = 1
@@ -240,14 +240,17 @@ def track(ant, taz, tel, ridx_position, duration=10, total=1, dry_run=False):
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description="Exercise the receiver indexer drive at different elevations.")
 
-parser.add_option('--dwell-time', type='float',
-                  default=5.0,
-                  help='Time between changing indexer positions in seconds (default=%default)')
+parser.add_option('--start-az', type='float',
+                  default=-135.0,
+                  help='Starting azimuth for slew sequence (default=%default)')
+parser.add_option('--start-el', type='float',
+                  default=15.0,
+                  help='Starting elevation for slew sequence (default=%default)')
 parser.add_option('--num-repeat', type='int',
                   default=1,
                   help='The number of times to repeat the sequence (once by by default)')
 parser.add_option('--ap', type='str',                                   
-                  default="m036",                                                    
+                  default="m036",
                   help='Receptor under test (default is m036)')
 
 # Parse the command line
@@ -256,13 +259,8 @@ opts, args = parser.parse_args()
 if opts.observer is None:
     raise RuntimeError("No observer provided script")
 
-if len(args) == 0:
-    raise RuntimeError("No targets and indexer positions"
-                       "provided to the script")
-
 receptor = None
-for argstr in args:
-    temp, taz, tel, band = argstr.split(',')
+
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     
@@ -288,5 +286,5 @@ with verify_and_connect(opts) as kat:
             user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
  
-    track(receptor, int(taz), int(tel), ridx_position=band, duration=10,
+    track(receptor, float(opts.start_az), float(opts.start_el),
           total=int(opts.num_repeat), dry_run=kat.dry_run)
