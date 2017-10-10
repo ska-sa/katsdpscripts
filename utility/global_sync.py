@@ -53,9 +53,9 @@ def log_info(response):
 
 with verify_and_connect(opts) as kat:
     user_logger.info("_______________________")
-    user_logger.info(kat.controlled_objects)
-    user_logger.info(kat.ants.clients)
-    user_logger.info(opts)
+    user_logger.info(str(kat.controlled_objects))
+    user_logger.info(str(kat.ants.clients))
+    user_logger.info(str(opts))
     user_logger.info("_______________________")
 
     subarrays = kat.katpool.sensor.subarrays.get_value()
@@ -142,13 +142,12 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Resetting capture destination %s" % ant.name)
                 response = ant.req.deactivate()
                 print(ant.req.dig_capture_list())
-            user_logger.info('\n')
             user_logger.info("Script complete")
     finally:
         if cam:
             user_logger.info("Cleaning up cam object")
             cam.disconnect()
 
-    user_logger.info("\nGlobal Sync Date %s" % time.ctime(etime))
+    user_logger.info("Global Sync Date %s" % time.ctime(etime))
 
 # -fin-
