@@ -247,7 +247,7 @@ def read_sensor_history(ants):
 
 with verify_and_connect(opts) as kat1:
     user_logger.info("_______________________")
-    user_logger.info(opt)
+    user_logger.info(str(opt))
     user_logger.info("_______________________")
     log_message("Opts:\n{}\n".format(opts))
 
