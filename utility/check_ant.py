@@ -87,8 +87,8 @@ with verify_and_connect(opts) as kat:
                 raise RuntimeError("AP e_stop: %s" % ant.sensor.ap_e_stop_reason.get_value())
 
             # Verify that all the config data has been added from RTS
-            user_logger.info("\nBeginning a quick check of antenna %s" % ant.name)
-            user_logger.info("\nAP version: %s" % ant.sensor.ap_api_version.get_value())
+            user_logger.info("Beginning a quick check of antenna %s" % ant.name)
+            user_logger.info("AP version: %s" % ant.sensor.ap_api_version.get_value())
             if ant.sensor.rsc_rxu_serial_number.get_value():
                 user_logger.info("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())  
             if ant.sensor.rsc_rxl_serial_number.get_value(): 
@@ -98,13 +98,13 @@ with verify_and_connect(opts) as kat:
             if ant.sensor.rsc_rxx_serial_number.get_value():
                 user_logger.info("X-band serial number: %s" % ant.sensor.rsc_rxx_serial_number.get_value()) 
             
-            user_logger.info("\nChecking Receiver")
+            user_logger.info("Checking Receiver")
             check_receivers()
 	
-            user_logger.info("\nChecking Digitisers")
+            user_logger.info("Checking Digitisers")
             check_digitisers()
 
-            user_logger.info("\nchecking acu encoder")
+            user_logger.info("checking acu encoder")
             enc=[
                         "ap_azim_enc_failed",
                         "ap_elev_enc_failed"
@@ -114,7 +114,7 @@ with verify_and_connect(opts) as kat:
             else:
                 user_logger.info(":) ACU encoders OK")
 
-            user_logger.info("\nchecking antenna key lock switch")
+            user_logger.info("checking antenna key lock switch")
             safe_pos=[
                         "ap_key_switch_safe1_enabled",
                         "ap_key_switch_safe2_enabled"
@@ -124,7 +124,7 @@ with verify_and_connect(opts) as kat:
             else:
                 user_logger.info(":) antenna is unlocked")
 
-            user_logger.info("\nChecking motion")
+            user_logger.info("Checking motion")
             amps=[
                         "ap_azim_amp1_failed",
                         "ap_azim_amp2_failed",
@@ -140,7 +140,7 @@ with verify_and_connect(opts) as kat:
             else:
                 user_logger.info(":) AP Servo OK")
 
-            user_logger.info("\nChecking brakes")
+            user_logger.info("Checking brakes")
             breaks=[
                         "ap_azim_brake1_failed",
                         "ap_azim_brake2_failed",
@@ -161,7 +161,7 @@ with verify_and_connect(opts) as kat:
             else:
                 user_logger.info(":) Brakes released")
                 
-            user_logger.info("\nChecking doors")
+            user_logger.info("Checking doors")
             doors=[
                         "ap_hatch_door_open", 
                         "ap_ped_door_open", 
@@ -172,7 +172,7 @@ with verify_and_connect(opts) as kat:
             else:
                 user_logger.info(":) All Doors Closed")
 
-            user_logger.info("\nChecking AP drive limits")
+            user_logger.info("Checking AP drive limits")
             azim_limits=[
                         "ap_azim_emergency2_limit_ccw_reached",
                         "ap_azim_emergency2_limit_cw_reached",
@@ -211,9 +211,8 @@ with verify_and_connect(opts) as kat:
 
 
             if any_errors:
-                user_logger.info('\n') 
 		user_logger.warning("Some errors detected, investigate before accepting %s" % ant.name)
             else:
-                user_logger.info("\n{} has passed the handover test".format(opts.ant))
+                user_logger.info("{} has passed the handover test".format(opts.ant))
     # -fin-
-    user_logger.info("check_ant_AR1.py: stop\n")
+    user_logger.info("check_ant_AR1.py: stop")
