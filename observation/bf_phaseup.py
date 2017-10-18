@@ -173,7 +173,7 @@ with verify_and_connect(opts) as kat:
                 phase_weights = orig_weights / amp_weights
                 # Cop out on the gain amplitude but at least correct the phase
                 new_weights = opts.default_gain * phase_weights.conj()
-                if (opts.flatten_bandpass)
+                if opts.flatten_bandpass:
                     new_weights /= amp_weights
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
