@@ -645,15 +645,11 @@ for ant in h5.ants:
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
 
-    freq_list = np.zeros((len(chunks)))
-    for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())
-    freq_list = np.zeros((len(d.freqs[:]))) # Resize the array to handel chanckes that are totally flagged
-    for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
 
-    tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
-    tant = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
+    tsys = np.zeros((len(d.scans),len(d.freqs[:]),5 ))#*np.NaN
+    tant = np.zeros((len(d.scans),len(d.freqs[:]),5 ))#*np.NaN
     
     receiver = Rec_Temp(receiver_model_H, receiver_model_V)
     elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
@@ -698,8 +694,8 @@ for ant in h5.ants:
 
     for freq in select_freq :
         title = ""
-        if np.abs(freq_list-freq).min() < freq_bw*1.1 :
-            i = (np.abs(freq_list-freq)).argmin()
+        if np.abs(d.freqs[:]-freq).min() < freq_bw*1.1 :
+            i = (np.abs(d.freqs[:]-freq)).argmin()
             lineval = None
             if str.upper(Band) == 'L':
                 if freq > 1420 :
@@ -713,7 +709,7 @@ for ant in h5.ants:
     for el in select_el :
         title = ""
         i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(freq_list,tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency,band=str.upper(Band))
+        fig = plot_data_freq(d.freqs[:],tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency,band=str.upper(Band))
         plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
