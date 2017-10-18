@@ -80,7 +80,7 @@ parser.add_option('--reset', action='store_true', default=False,
 parser.add_option('--default-gain', type='int', default=0,
                   help='Default correlator F-engine gain, '
                        'automatically set if 0 (default=%default)')
-parser.add_option('--bandpass', action='store_true', default=False,
+parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
 parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
@@ -170,9 +170,11 @@ with verify_and_connect(opts) as kat:
                     # Guess which direction to apply delays as katcal has a bug here
                     orig_weights *= delay_weights
                 amp_weights = np.abs(orig_weights)
-                phase_weights = orig_weights / (amp_weights * orig_weights) if (opts.bandpass) else orig_weights / amp_weights
+                phase_weights = orig_weights / amp_weights
                 # Cop out on the gain amplitude but at least correct the phase
                 new_weights = opts.default_gain * phase_weights.conj()
+                if (opts.flatten_bandpass)
+                    new_weights /= amp_weights
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
