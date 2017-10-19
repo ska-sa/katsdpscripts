@@ -10,6 +10,7 @@ import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 start_session, user_logger)
+from katsdptelstate import TimeoutError
 
 
 class NoTargetsUpError(Exception):
@@ -30,35 +31,40 @@ def get_cal_inputs(telstate):
     return [ant + pol for pol in pols for ant in ants]
 
 
-def get_delaycal_solutions(session):
-    """Retrieve delay calibration solutions from telescope state."""
+def get_cal_solutions(session, key, timeout):
+    """Retrieve generic calibration solutions from telescope state."""
     inputs = get_cal_inputs(session.telstate)
-    if not inputs or 'cal_product_K' not in session.telstate:
+    if not inputs:
+        return None, None
+    fresh = lambda value, ts: ts is not None and ts > session.start_time  # noqa: E731
+    try:
+        session.telstate.wait_key(key, fresh, timeout)
+    except TimeoutError:
+        return inputs, None
+    return inputs, session.telstate[key]
+
+
+def get_delaycal_solutions(session, timeout=0.):
+    inputs, solutions = get_cal_solutions(session, 'cal_product_K', timeout)
+    if solutions is None:
         return {}
-    solutions, solution_ts = session.telstate.get_range('cal_product_K')[0]
-    if solution_ts < session.start_time:
-        return {}
+    # The sign of the katsdpcal solutions are opposite to that of the delay model
+    solutions = -solutions
     return dict(zip(inputs, solutions.real.flat))
 
 
-def get_bpcal_solutions(session):
+def get_bpcal_solutions(session, timeout=0.):
     """Retrieve bandpass calibration solutions from telescope state."""
-    inputs = get_cal_inputs(session.telstate)
-    if not inputs or 'cal_product_B' not in session.telstate:
-        return {}
-    solutions, solution_ts = session.telstate.get_range('cal_product_B')[0]
-    if solution_ts < session.start_time:
+    inputs, solutions = get_cal_solutions(session, 'cal_product_B', timeout)
+    if solutions is None:
         return {}
     return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
 
 
-def get_gaincal_solutions(session):
+def get_gaincal_solutions(session, timeout=0.):
     """Retrieve gain calibration solutions from telescope state."""
-    inputs = get_cal_inputs(session.telstate)
-    if not inputs or 'cal_product_G' not in session.telstate:
-        return {}
-    solutions, solution_ts = session.telstate.get_range('cal_product_G')[0]
-    if solution_ts < session.start_time:
+    inputs, solutions = get_cal_solutions(session, 'cal_product_G', timeout)
+    if solutions is None:
         return {}
     return dict(zip(inputs, solutions.flat))
 
@@ -121,13 +127,13 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # session.track('Nothing,special', duration=180, announce=False)
-            time.sleep(60)
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
             if not kat.dry_run:
-                delays = get_delaycal_solutions(session)
+                # Wait for the last bfcal product from the pipeline
+                gains = get_gaincal_solutions(session, timeout=180.)
                 bp_gains = get_bpcal_solutions(session)
-                gains = get_gaincal_solutions(session)
+                delays = get_delaycal_solutions(session)
                 if not gains:
                     raise NoGainsAvailableError("No gain solutions found in telstate '%s'",
                                                 session.telstate)
@@ -144,9 +150,7 @@ with verify_and_connect(opts) as kat:
                     bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
                     orig_weights *= bp_gains_per_inp
                 if inp in delays and cal_channel_freqs is not None:
-                    # XXX Eventually use CBF adjust_all_delays request
-                    delay_weights = np.exp(2.0j * np.pi * delays[inp] * cal_channel_freqs)
-                    # Guess which direction to apply delays as katcal has a bug here
+                    delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
                     orig_weights *= delay_weights
                 amp_weights = np.abs(orig_weights)
                 phase_weights = orig_weights / amp_weights

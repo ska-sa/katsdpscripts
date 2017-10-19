@@ -148,6 +148,7 @@ with verify_and_connect(opts) as kat:
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
             if not kat.dry_run:
+                # Wait for the last bfcal product from the pipeline
                 gains = get_gaincal_solutions(session, timeout=180.)
                 bp_gains = get_bpcal_solutions(session)
                 delays = get_delaycal_solutions(session)
@@ -168,7 +169,6 @@ with verify_and_connect(opts) as kat:
                     bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
                     orig_weights *= bp_gains_per_inp
                 if inp in delays and cal_channel_freqs is not None:
-                    # XXX Eventually use CBF adjust_all_delays request
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
                     orig_weights *= delay_weights
                 amp_weights = np.abs(orig_weights)
