@@ -543,7 +543,7 @@ with verify_and_connect(opts) as kat:
             user_logger.info("tracking offset for %g seconds", opts.track_duration)
             time.sleep(opts.track_duration)
             offset_end_times[n] = time.time()
-            if n == len(offsets) // 2 - 1:
+            if not kat.dry_run and n == len(offsets) // 2 - 1:
                 # Get weather data for refraction correction at middle time
                 temperature = kat.sensor.anc_air_temperature.get_value()
                 pressure = kat.sensor.anc_air_pressure.get_value()
