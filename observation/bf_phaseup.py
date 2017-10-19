@@ -164,10 +164,12 @@ with verify_and_connect(opts) as kat:
             for inp in set(session.cbf.fengine.inputs) and set(gains):
                 orig_weights = gains[inp]
                 if inp in bp_gains:
-                    bp_gains_per_inp = bp_gains[inp]
-                    # Remove NaNs as the correlator does not like them
-                    bp_gains_per_inp[np.isnan(bp_gains_per_inp)] = 1.0
-                    orig_weights *= bp_gains_per_inp
+                    bp = bp_gains[inp]
+                    valid = ~np.isnan(bp)
+                    if valid.any():
+                        chans = np.arange(len(bp))
+                        bp = np.interp(chans, chans[valid], bp[valid])
+                        orig_weights *= bp
                 if inp in delays and cal_channel_freqs is not None:
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
                     orig_weights *= delay_weights
