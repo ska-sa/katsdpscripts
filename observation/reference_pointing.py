@@ -538,7 +538,8 @@ with verify_and_connect(opts) as kat:
         for n, offset in enumerate(offsets):
             user_logger.info("slewing to offset of (%g, %g) degrees", *offset)
             session.ants.req.offset_fixed(offset[0], offset[1], opts.projection)
-            session.wait(session.ants, 'lock', True, timeout=10)
+            if not kat.dry_run:
+                session.wait(session.ants, 'lock', True, timeout=10)
             user_logger.info("tracking offset for %g seconds", opts.track_duration)
             time.sleep(opts.track_duration)
             offset_end_times[n] = time.time()
