@@ -15,6 +15,8 @@ parser.add_option('--band', type='string', default=None,
     help="Band to configure, using current band if None (default=%default)")
 parser.add_option('--user-product', type='string', default=None,
     help="User product to configure, using current user product if None (default=%default)")
+parser.add_option('--dump-rate', type='float', default=None,
+    help="The dump rate used by SDP for this subarray in Hz. (default=%default)")
 parser.add_option('--next-subnr', type='int', default=None,
     help="Next subarray to configure, using first free subarray if None (default=%default)")
 parser.add_option('--resources', type='string', default=None,
@@ -45,6 +47,7 @@ with verify_and_connect(opts) as kat:
         current["subnr"] = getattr(kat.sensors,"sub_sub_nr").get_value()
         current["band"] = getattr(kat.sensors,"sub_band").get_value()
         current["product"] = getattr(kat.sensors,"sub_product").get_value()
+        current["dump_rate"] = getattr(kat.sensors,"sub_dump_rate").get_value()
         current["pool_resources"] = getattr(kat.sensors,"sub_pool_resources").get_value()
         current["active_sbs"] = getattr(kat.sensors,"sub_active_sbs").get_value()
         current["allocations"] = getattr(kat.sensors,"sub_allocations").get_value()
@@ -85,6 +88,7 @@ with verify_and_connect(opts) as kat:
                         "{}{}".format(prefix, new["next_subnr"]))
         new["band"] = opts.band or current["band"]
         new["product"] = opts.user_product or current["product"]
+        new["dump_rate"] = opts.dump_rate or current["dump_rate"]
         user_logger.info("New subarray: {}".format(new))
 
         user_logger.info("Sending intervention to sys using subarray next_subnr %s", new["next_subnr"])
@@ -98,7 +102,7 @@ with verify_and_connect(opts) as kat:
                 response = cam.sys.req.change_subarray(
                     new['current_subnr'], new['next_subnr'], new['delay'],
                     new['band'], new['product'],
-                    new['pool_resources'])
+                    new['pool_resources'], new['dump_rate'])
                 log_info(response)
             except:
                 user_logger.exception("Error in sys intervention")
