@@ -14,6 +14,7 @@ import time
 import numpy as np
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
+from katsdptelstate import TimeoutError
 from katpoint import (rad2deg, deg2rad, lightspeed, wrap_angle,
                       RefractionCorrection)
 from scikits.fitting import ScatterFit, GaussianFit
@@ -417,7 +418,7 @@ def calc_pointing_offsets(session, beams, target, middle_time,
         # Correct for refraction, which becomes the requested value
         # at input of pointing model
         rc = RefractionCorrection()
-        def refract(az, el):  # noqa: E301, E306
+        def refract(az, el):  # noqa: E306, E301
             """Apply refraction correction as at the middle of scan."""
             return [az, rc.apply(el, temperature, pressure, humidity)]
         refracted_azel = np.array(refract(*requested_azel))
@@ -537,11 +538,12 @@ with verify_and_connect(opts) as kat:
         for n, offset in enumerate(offsets):
             user_logger.info("slewing to offset of (%g, %g) degrees", *offset)
             session.ants.req.offset_fixed(offset[0], offset[1], opts.projection)
-            session.wait(session.ants, 'lock', True, timeout=10)
+            if not kat.dry_run:
+                session.wait(session.ants, 'lock', True, timeout=10)
             user_logger.info("tracking offset for %g seconds", opts.track_duration)
             time.sleep(opts.track_duration)
             offset_end_times[n] = time.time()
-            if n == len(offsets) // 2 - 1:
+            if not kat.dry_run and n == len(offsets) // 2 - 1:
                 # Get weather data for refraction correction at middle time
                 temperature = kat.sensor.anc_air_temperature.get_value()
                 pressure = kat.sensor.anc_air_pressure.get_value()
@@ -556,11 +558,16 @@ with verify_and_connect(opts) as kat:
         # XXX We assume that the final entry in `offsets` is not the origin
         session.ants.req.offset_fixed(0., 0., opts.projection)
         user_logger.info("Waiting for gains to materialise in cal pipeline")
-        # XXX Use the same sleep as bf_phaseup for now
-        time.sleep(60)
 
         # Perform basic interferometric pointing reduction
         if not kat.dry_run:
+            # Wait for last piece of the cal puzzle
+            last_offset_start = offset_end_times[-1] - opts.track_duration
+            fresh = lambda value, ts: ts is not None and ts > last_offset_start  # noqa: E731
+            try:
+                session.telstate.wait_key('cal_product_G', fresh, timeout=180.)
+            except TimeoutError:
+                user_logger.warn('Timed out waiting for gains of last offset')
             user_logger.info('Retrieving gains, fitting beams, storing offsets')
             data_points = get_offset_gains(session, offsets, offset_end_times,
                                            opts.track_duration)

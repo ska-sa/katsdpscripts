@@ -8,10 +8,10 @@
 #
 
 import json
-import time
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
+from katsdptelstate import TimeoutError
 
 
 class NoTargetsUpError(Exception):
@@ -50,15 +50,24 @@ def get_cal_inputs(telstate):
     return [ant + pol for pol in pols for ant in ants]
 
 
-def get_delaycal_solutions(session):
-    """Retrieve delay calibration solutions from telescope state."""
+def get_cal_solutions(session, key, timeout):
+    """Retrieve generic calibration solutions from telescope state."""
     inputs = get_cal_inputs(session.telstate)
-    if not inputs or 'cal_product_K' not in session.telstate:
+    if not inputs:
+        return None, None
+    fresh = lambda value, ts: ts is not None and ts > session.start_time  # noqa: E731
+    try:
+        session.telstate.wait_key(key, fresh, timeout)
+    except TimeoutError:
+        return inputs, None
+    return inputs, session.telstate[key]
+
+
+def get_delaycal_solutions(session, timeout=0.):
+    inputs, solutions = get_cal_solutions(session, 'cal_product_K', timeout)
+    if solutions is None:
         return {}
-    solutions, solution_ts = session.telstate.get_range('cal_product_K')[0]
-    if solution_ts < session.start_time:
-        return {}
-    # XXX katsdpcal currently has solutions the wrong way around
+    # The sign of the katsdpcal solutions are opposite to that of the delay model
     solutions = -solutions
     return dict(zip(inputs, solutions.real.flat))
 
@@ -112,12 +121,11 @@ with verify_and_connect(opts) as kat:
         session.ants.req.target('')
 
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        time.sleep(90)
         sample_rate = 0.0
         delays = {}
         if not kat.dry_run:
             sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
-            delays = get_delaycal_solutions(session)
+            delays = get_delaycal_solutions(session, timeout=90.)
             # JSON does not like NumPy types
             delays = {inp: float(d) for inp, d in delays.items()}
             if not delays:
