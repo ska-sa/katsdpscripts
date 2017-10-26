@@ -36,7 +36,7 @@ def plot_flags(timestamps,freqs,flags):
     fig=plt.figure(figsize=(10,5))
     #
     print (timestamps[:]-timestamps[0]).shape,(freqs).shape,(np.sum(flags,axis=2).T).shape
-    plt.pcolormesh(timestamps[:]-timestamps[0],freqs,np.sum(flags,axis=2).T)
+    plt.pcolormesh(timestamps[:]-timestamps[0],freqs,np.sum(flags,axis=2).T,rasterized=True)
     plt.title('Flags in "quiet" part of the band')
     plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(timestamps[0]).local(),))
     plt.ylabel('Frequency/[MHz]')
@@ -53,7 +53,7 @@ def plot_flagtype(flag_dat,labels):
     plt.xticks(range(len(labels)), labels, rotation=38)
     plt.ylabel('Percentage Flagged')
     plt.title('Flag Types (%i samples)'%(np.shape(flag_dat)[0]))
-    plt.plot(np.unpackbits(flag_dat[:,np.newaxis],axis=1).sum(axis=0)/np.float(np.shape(labels)[0])*100, '*')
+    plt.plot(np.unpackbits(flag_dat[:,np.newaxis],axis=1).sum(axis=0)/np.float(np.shape(labels)[0])*100, '*',rasterized=True)
     plt.grid()
     plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     return fig
@@ -64,7 +64,7 @@ def plot_activity(scan_types,activity_count):
     activity_count is an array activities perfomed by each antenna."""
     fig=plt.figure(figsize=(12,2))
     for s,st in enumerate(scan_types):
-        plt.plot(np.arange(len(data.ants)),activity_count[s,:],"o",label=st)
+        plt.plot(np.arange(len(data.ants)),activity_count[s,:],"o",label=st,rasterized=True)
     plt.xticks(np.arange(len(data.ants)), [ant.name for ant in data.ants])
     plt.legend(loc=5)
     plt.grid()
@@ -96,7 +96,7 @@ def plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_
 
         ax1.fill_between(np.hstack(scan_timestamps), np.nanmin(amp,axis=1), np.nanmax(amp,axis=1),color='lightgrey')
 
-        ax1.plot(np.hstack(scan_timestamps),np.nanmean(amp,axis=1),color='b')
+        ax1.plot(np.hstack(scan_timestamps),np.nanmean(amp,axis=1),color='b',rasterized=True)
         ax1.set_title('Time series')
         ax1.set_xlabel('Time (s), since %s' % (katpoint.Timestamp(data.start_time).local(),))
         ax1.set_ylabel('Correlator counts')
@@ -106,7 +106,7 @@ def plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_
             ax1.axvline(t[0],linestyle='dotted',color='mistyrose',linewidth=1)
 
         ma_amp = np.ma.masked_where(np.isnan(amp.T),amp.T)
-        ax2.pcolormesh(np.hstack(scan_timestamps),data.channel_freqs/1e6,10*np.log10(ma_amp))
+        ax2.pcolormesh(np.hstack(scan_timestamps),data.channel_freqs/1e6,10*np.log10(ma_amp),rasterized=True)
         ax2.set_title('Spectrogram')
         ax2.set_xlabel('Time (s), since %s' % (katpoint.Timestamp(data.start_time).local(),))
         ax2.set_xlim(scan_timestamps[0][0],scan_timestamps[-1][-1])
@@ -115,14 +115,14 @@ def plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_
 
         ax3.errorbar(data.channel_freqs/1e6,np.nanmean(amp,axis=0),np.nanstd(amp,axis=0),color='grey')
         ax3.fill_between(data.channel_freqs/1e6, np.nanmin(amp,axis=0), np.nanmax(amp,axis=0),color='lightgrey')
-        ax3.plot(data.channel_freqs/1e6,np.nanmean(amp,axis=0),color='b')
+        ax3.plot(data.channel_freqs/1e6,np.nanmean(amp,axis=0),color='b',rasterized=True)
         ax3.set_title('Spectrum')
         ax3.set_xlabel('Frequency/[MHz]')
         ax3.set_xlim(data.channel_freqs[0]/1e6,data.channel_freqs[-1]/1e6)
         ax3.set_ylabel('Correlator counts')
         ax3.set_ylim(0,4000)
 
-        ax4.plot(az,el,"*")
+        ax4.plot(az,el,"*",rasterized=True)
         ax4.set_title('Pointing')
         ax4.set_xlabel('Azimuth/[Degrees]')
         ax4.set_ylabel('Elevation/[Degrees]')
@@ -149,7 +149,7 @@ def phase_plot(phasedata,baseline_names,num_chans,scan_timestamps,num_bls):
         else:
             plt.subplot(2,1,p+1)
 
-        plt.imshow(phasedata[active_pol][~np.all(np.isnan(phasedata[active_pol]),axis=1)],aspect='auto',origin='lower',extent=[x1,x2,y1,y2],interpolation='nearest')
+        plt.imshow(phasedata[active_pol][~np.all(np.isnan(phasedata[active_pol]),axis=1)],aspect='auto',origin='lower',extent=[x1,x2,y1,y2],interpolation='nearest',rasterized=True)
         plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(data.start_time).local(),))
         if p == 1 and len(scan_timestamps) < 10:
             plt.yticks(np.arange(num_chans // 2, num_bls * num_chans, num_chans), np.repeat('',num_bls))
