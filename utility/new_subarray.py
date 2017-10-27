@@ -32,6 +32,8 @@ parser.add_option('--next-subnr', type='int', default=None,
     help="Next subarray to configure, using first free subarray if None (default=%default)")
 parser.add_option('--resources', type='string', default=None,
     help="List of antennas and controlled resources to assign to next subarray, using current resources if None (default=%default)")
+parser.add_option('--ptuse', action='store_true', default=False,
+                  help='Make sure the PTUSE resource is added to the pool of resorces')
 
 parser.set_defaults(description = 'CAM next subarray')
 (opts, args) = parser.parse_args()
@@ -80,6 +82,11 @@ with verify_and_connect(opts) as kat:
         new["next_subnr"] = int(opts.next_subnr or current["subnr"])
         new["delay"] = opts.time_delay
         new["pool_resources"] = opts.resources if opts.resources else current["pool_resources"]
+        
+        # verify that the PTUSE is inlcuded if necessary
+        if opts.ptuse:
+            if "ptuse_1" not in new["pool_resources"]:
+                new["pool_resources"].append("ptuse_1")
 
         # Manage the generic resources as per katcamconfig:
         #   In this step, we are looking for specific resources mapped to the current
