@@ -86,7 +86,7 @@ with verify_and_connect(opts) as kat:
         # verify that the PTUSE is inlcuded if necessary
         if opts.ptuse:
             if "ptuse_1" not in new["pool_resources"]:
-                new["pool_resources"].append("ptuse_1")
+                new["pool_resources"] += ",ptuse_1"
 
         # Manage the generic resources as per katcamconfig:
         #   In this step, we are looking for specific resources mapped to the current
