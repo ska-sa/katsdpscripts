@@ -120,7 +120,7 @@ with verify_and_connect(opts) as kat:
                 response = cam.sys.req.change_subarray(
                     new['current_subnr'], new['next_subnr'], new['delay'],
                     new['band'], new['product'],
-                    new['pool_resources'], new['dump_rate'])
+                    new['pool_resources'])#, new['dump_rate'])
                 log_info(response)
             except:
                 user_logger.exception("Error in sys intervention")
