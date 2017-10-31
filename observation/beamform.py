@@ -135,8 +135,12 @@ with verify_and_connect(opts) as kat:
     bf_ants = opts.ants.split(',') if opts.ants else [ant.name for ant in kat.ants]
     cbf = SessionCBF(kat)
     for stream in cbf.beamformers:
-        reply = stream.req.passband(int(opts.beam_bandwidth * 1e6),
-                                    int(opts.beam_centre_freq * 1e6))
+        # ROACH implementation only, need to set passband and centerfrequency
+        # Values hard coded: CBF is expecting values
+        # (856000000.00,1284000000.000)
+        # Hardcoded and magic number usage to be removed in future update
+        reply = stream.req.passband(int((865 - 11.25) * 1e6),
+                                    int(1284 * 1e6))
         if reply.succeeded:
             try:
                 actual_bandwidth = float(reply.messages[0].arguments[2])
@@ -149,6 +153,7 @@ with verify_and_connect(opts) as kat:
         else:
             raise ValueError("Could not set beamformer %r passband - (%s)" %
                              (stream.name, ' '.join(reply.messages[0].arguments)))
+        # ROACH implementation only, need to set passband and centerfrequency
         user_logger.info('Setting beamformer weights for stream %r:', stream.name)
         for inp in stream.inputs:
             weight = 1.0 / np.sqrt(len(bf_ants)) if inp[:-1] in bf_ants else 0.0
