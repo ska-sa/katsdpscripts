@@ -30,13 +30,13 @@ def get_reduction_metadata(filename, reduction_name=None):
 def plot_flags(timestamps,freqs,flags):
     """timestamps is an array of unix timstamps
     freqs is an array of frequencys in MHz
-    flags is a 3D array of boolean with [time,freq,baseline]
+    flags is a 2D array of boolean with [time,freq]
     it plots the percentage of the data flagged 
     as a function of time vs frequency  """
     fig=plt.figure(figsize=(10,5))
     #
-    print (timestamps[:]-timestamps[0]).shape,(freqs).shape,(np.sum(flags,axis=2).T).shape
-    plt.pcolormesh(timestamps[:]-timestamps[0],freqs,np.sum(flags,axis=2).T,rasterized=True)
+    print (timestamps[:]-timestamps[0]).shape,(freqs).shape,((flags).T).shape
+    plt.pcolormesh(timestamps[:]-timestamps[0],freqs,(flags).T,rasterized=True)
     plt.title('Flags in "quiet" part of the band')
     plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(timestamps[0]).local(),))
     plt.ylabel('Frequency/[MHz]')
@@ -46,14 +46,13 @@ def plot_flags(timestamps,freqs,flags):
     return fig 
 
 def plot_flagtype(flag_dat,labels):
-    """flag_dat is an array of int8 
+    """flag_dat is an array of length labels of percentages. 
     lables is a list of str corresponting to the bits in flags"""
     fig=plt.figure(figsize=(10,5))
-    flag_dat = flag_dat.flatten()
     plt.xticks(range(len(labels)), labels, rotation=38)
     plt.ylabel('Percentage Flagged')
-    plt.title('Flag Types (%i samples)'%(np.shape(flag_dat)[0]))
-    plt.plot(np.unpackbits(flag_dat[:,np.newaxis],axis=1).sum(axis=0)/np.float(np.shape(labels)[0])*100, '*',rasterized=True)
+    plt.title('Flag Types ')
+    plt.plot(flag_dat,'*',rasterized=True)
     plt.grid()
     plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
     return fig
@@ -208,8 +207,11 @@ else:
         data.select(channels=slice(start_chan,end_chan))
         time=data.timestamps-data.timestamps[0]
         freqs=data.channel_freqs/1e6
-        flags = data.flags[:]
-        
+       
+        flags = np.zeros((time.shape[0],freqs.shape[0])) 
+        for scan in data.scans():
+            flags[data.dumps,:] += data.flags[:].sum(axis=2)
+            #print data.flags.shape
         #Getting antenna activity 
         activity = []
         for ant in data.ants:
@@ -225,10 +227,17 @@ else:
         fig=plot_flags(data.timestamps[:],freqs,flags)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
+        del(flags)
         
         #Calling fuction plot flagtype
         flag_labels = list(data.file['/Data/flags_description'][:,0])
-        fig= plot_flagtype(data.file['Data/flags'][:,slice(start_chan,end_chan),:],flag_labels)
+        flag_dat = np.zeros((len(flag_labels)))
+       
+        for time_index in range(data.dumps[0],data.dumps[-1]):
+            tmp_data = data.file['Data/flags'][time_index,slice(start_chan,end_chan),:].flatten()
+            flag_dat += np.unpackbits(tmp_data[:,np.newaxis],axis=1).sum(axis=0)
+        flag_dat = flag_dat/(np.prod(data.shape))*100.
+        fig= plot_flagtype(flag_dat,flag_labels)
         fig.set_size_inches(10,8)
         fig.savefig(pp,format='pdf')
         plt.close(fig)
