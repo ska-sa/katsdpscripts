@@ -321,7 +321,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             compositex[ia]=-compositex[ia]
             ncompositex[ia]=-ncompositex[ia]
     
-    return compositex,compositey,ncompositex,ncompositey
+    return compositex,compositey,ncompositex,ncompositey,nextraslew
 
 def gen_scan(lasttime,target,az_arm,el_arm,timeperstep):
     num_points = np.shape(az_arm)[0]
@@ -389,7 +389,7 @@ parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
-compositex,compositey,ncompositex,ncompositey=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration)
+compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration)
 
 if len(args) == 0:
     raise ValueError("Please specify a target argument via name ('Ori A'), "
@@ -498,7 +498,12 @@ with verify_and_connect(opts) as kat:
                                      ' '.join([ant.name for ant in session.ants]))
                     if not kat.dry_run:
                         session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
-                    session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
+                    if (iarm%2==0):#outward arm
+                        session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
+                        if (nextraslew>0):
+                            session.telstate.add('obs_label','slew',ts=scan_data[-nextraslew,0])
+                    else:#inward arm
+                        session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[nextraslew,0])
                     if (opts.debug):
                         pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
