@@ -384,6 +384,10 @@ parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
 parser.add_option('--debug', action="store_true", default=False,
                   help='Writes to file timestamps and az-el coordinates for debugging (default=%default)')
+parser.add_option('--fft-shift', type='int', default=None,
+                  help='Set CBF fft shift (default=%default)')
+parser.add_option('--default-gain', type='float', default=None,
+                  help='Set CBF gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -408,7 +412,13 @@ with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
         session.standard_setup(**vars(opts))
-
+        #set up CBF if necessary
+        if opts.fft_shift is not None:
+            session.cbf.fengine.req.fft_shift(opts.fft_shift)
+        if opts.default_gain is not None:
+            for inp in session.cbf.fengine.inputs:
+                session.cbf.fengine.req.gain(inp, opts.default_gain)
+        #determine scan antennas
         all_ants = session.ants
         session.obs_params['num_scans'] = len(compositex)
         grouprange = [0]
