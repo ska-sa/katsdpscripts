@@ -414,8 +414,10 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         #set up CBF if necessary
         if opts.fft_shift is not None:
+            user_logger.info("Setting CBF fft-shift to %d", opts.fft_shift)
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         if opts.default_gain is not None:
+            user_logger.info("Setting CBF gains to %f", opts.default_gain)
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
         #determine scan antennas
