@@ -246,9 +246,9 @@ def read_sensor_history(ants):
                 '{} - Error reading and processing sensor data.'.format(ant), 'error')
 
 with verify_and_connect(opts) as kat1:
-    print "_______________________"
-    print opts
-    print "_______________________"
+    user_logger.info("_______________________")
+    user_logger.info(str(opt))
+    user_logger.info("_______________________")
     log_message("Opts:\n{}\n".format(opts))
 
     MAINT_PORT = 7148

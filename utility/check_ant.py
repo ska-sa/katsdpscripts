@@ -25,7 +25,7 @@ def check_digitisers():
     if ant.sensor.dig_selected_band.get_value() not in ["u", "l", "s", "x"]:
         user_logger.warning("digitiser is in %s band. expected u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
     else:
-        print("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
+        user_logger.info("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
 
 # Checking L-band receiver for now. will add more checks for UHF and others on the next push
 def check_receivers():
@@ -33,16 +33,16 @@ def check_receivers():
         raise RuntimeError("rsc_rxl_startup_state is %s, cold-operational expected"% ant.sensor.rsc_rxl_startup_state.get_value())
     
     if ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 29: 
-        print("L-band rfe1 temperature is ok :)") 
+        user_logger.info("L-band rfe1 temperature is ok :)") 
         if not ant.sensor.rsc_rxl_lna_h_power_enabled.get_value():
             user_logger.warning("L-band receiver hpol LNA power is not enabled. switch on the hpol LNA power")
         else:
-            print(":) receiver hpol LNA power is ON")
+            user_logger.info(":) receiver hpol LNA power is ON")
 
         if not ant.sensor.rsc_rxl_lna_v_power_enabled.get_value():
             user_logger.warning("L-band receiver vpol LNA power is not enabled. switch on the vpol LNA power")
         else:
-            print(":) receiver vpol LNA power is ON")
+            user_logger.info(":) receiver vpol LNA power is ON")
 
     elif ant.sensors.rsc_rxl_rfe1_temperature.get_value() > 30 and ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 100: 
         user_logger.warning("L-band rfe1 temperature is warm @ %.2f. alert the site technician" % (ant.sensors.rsc_rxl_rfe1_temperature.get_value()))
@@ -50,12 +50,12 @@ def check_receivers():
     	user_logger.warning("L-band rfe1 temperature is warm. alert the site technician")
     
     indexer_angle =  ant.sensor.ap_indexer_position_raw.get_value() 
-    print("receiver indexer value is %d." % indexer_angle)
+    user_logger.info("receiver indexer value is %d." % indexer_angle)
     ril=ant.sensor.ap_indexer_position.get_value().upper()
     if ril not in ["u", "l", "s", "x"]:
         user_logger.warning("AP indexer in unknown position")
     else:
-        print("receiver indexer is at the %s-band position" % ril) 
+        user_logger.info("receiver indexer is at the %s-band position" % ril) 
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
@@ -70,7 +70,7 @@ if opts.ant is None:
     raise SystemExit("antenna name required %s" % parser.print_usage())
 
 with verify_and_connect(opts) as kat:
-    print("Antenna quick check : start")
+    user_logger.info("Antenna quick check : start")
     
     ant_active = [ant for ant in kat.ants]
     for ant in ant_active:
@@ -87,24 +87,24 @@ with verify_and_connect(opts) as kat:
                 raise RuntimeError("AP e_stop: %s" % ant.sensor.ap_e_stop_reason.get_value())
 
             # Verify that all the config data has been added from RTS
-            print("\nBeginning a quick check of antenna %s" % ant.name)
-            print("\nAP version: %s" % ant.sensor.ap_api_version.get_value())
+            user_logger.info("Beginning a quick check of antenna %s" % ant.name)
+            user_logger.info("AP version: %s" % ant.sensor.ap_api_version.get_value())
             if ant.sensor.rsc_rxu_serial_number.get_value():
-                print("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())  
+                user_logger.info("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())  
             if ant.sensor.rsc_rxl_serial_number.get_value(): 
-                print("L-band serial number: %s" % ant.sensor.rsc_rxl_serial_number.get_value())    
+                user_logger.info("L-band serial number: %s" % ant.sensor.rsc_rxl_serial_number.get_value())    
             if ant.sensor.rsc_rxs_serial_number.get_value():
-                print("S-band serial number: %s" % ant.sensor.rsc_rxs_serial_number.get_value())     
+                user_logger.info("S-band serial number: %s" % ant.sensor.rsc_rxs_serial_number.get_value())     
             if ant.sensor.rsc_rxx_serial_number.get_value():
-                print("X-band serial number: %s" % ant.sensor.rsc_rxx_serial_number.get_value()) 
+                user_logger.info("X-band serial number: %s" % ant.sensor.rsc_rxx_serial_number.get_value()) 
             
-            print("\nChecking Receiver")
+            user_logger.info("Checking Receiver")
             check_receivers()
 	
-            print("\nChecking Digitisers")
+            user_logger.info("Checking Digitisers")
             check_digitisers()
 
-            print("\nchecking acu encoder")
+            user_logger.info("checking acu encoder")
             enc=[
                         "ap_azim_enc_failed",
                         "ap_elev_enc_failed"
@@ -112,9 +112,9 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, enc):
                 any_errors = True
             else:
-                print(":) ACU encoders OK")
+                user_logger.info(":) ACU encoders OK")
 
-            print("\nchecking antenna key lock switch")
+            user_logger.info("checking antenna key lock switch")
             safe_pos=[
                         "ap_key_switch_safe1_enabled",
                         "ap_key_switch_safe2_enabled"
@@ -122,9 +122,9 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, safe_pos):
                 any_errors = True
             else:
-                print(":) antenna is unlocked")
+                user_logger.info(":) antenna is unlocked")
 
-            print("\nChecking motion")
+            user_logger.info("Checking motion")
             amps=[
                         "ap_azim_amp1_failed",
                         "ap_azim_amp2_failed",
@@ -138,9 +138,9 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, amps):
                 any_errors = True
             else:
-                print(":) AP Servo OK")
+                user_logger.info(":) AP Servo OK")
 
-            print("\nChecking brakes")
+            user_logger.info("Checking brakes")
             breaks=[
                         "ap_azim_brake1_failed",
                         "ap_azim_brake2_failed",
@@ -150,7 +150,7 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, breaks):
                 any_errors = True
             else:
-                print(":) Brakes OK")
+                user_logger.info(":) Brakes OK")
 
             breaks=[
                         "ap_azim_brakes_released",
@@ -159,9 +159,9 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, breaks, test_false=True):
                 any_errors = True
             else:
-                print(":) Brakes released")
+                user_logger.info(":) Brakes released")
                 
-            print("\nChecking doors")
+            user_logger.info("Checking doors")
             doors=[
                         "ap_hatch_door_open", 
                         "ap_ped_door_open", 
@@ -170,9 +170,9 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, doors):
                 any_errors = True
             else:
-                print(":) All Doors Closed")
+                user_logger.info(":) All Doors Closed")
 
-            print("\nChecking AP drive limits")
+            user_logger.info("Checking AP drive limits")
             azim_limits=[
                         "ap_azim_emergency2_limit_ccw_reached",
                         "ap_azim_emergency2_limit_cw_reached",
@@ -190,7 +190,7 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, azim_limits):
                 any_errors = True
             else:
-                print(":) AP not in Azimuth Limit")
+                user_logger.info(":) AP not in Azimuth Limit")
 
             elev_limits=[
                         "ap_elev_emergency2_limit_down_reached",
@@ -207,13 +207,12 @@ with verify_and_connect(opts) as kat:
             if check_sensors(ant.sensor, elev_limits):
                 any_errors = True
             else:
-                print(":) AP not in Elevation Limit")
+                user_logger.info(":) AP not in Elevation Limit")
 
 
             if any_errors:
-                print('\n') 
 		user_logger.warning("Some errors detected, investigate before accepting %s" % ant.name)
             else:
-                print("\n{} has passed the handover test".format(opts.ant))
+                user_logger.info("{} has passed the handover test".format(opts.ant))
     # -fin-
-    print("check_ant_AR1.py: stop\n")
+    user_logger.info("check_ant_AR1.py: stop")

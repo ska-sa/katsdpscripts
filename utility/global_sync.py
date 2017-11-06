@@ -41,7 +41,7 @@ parser.add_option('--all', action="store_true", default=False,
 # assume basic options passed from instruction_set
 parser.set_defaults(description='AR1 Global sync')
 (opts, args) = parser.parse_args()
-print("global_sync_AR1 script: start")
+user_logger.info("global_sync_AR1 script: start")
 
 
 def log_info(response):
@@ -52,11 +52,11 @@ def log_info(response):
         user_logger.info(response)
 
 with verify_and_connect(opts) as kat:
-    print("_______________________")
-    print(kat.controlled_objects)
-    print(kat.ants.clients)
-    print(opts)
-    print("_______________________")
+    user_logger.info("_______________________")
+    user_logger.info(str(kat.controlled_objects))
+    user_logger.info(str(kat.ants.clients))
+    user_logger.info(str(opts))
+    user_logger.info("_______________________")
 
     subarrays = kat.katpool.sensor.subarrays.get_value()
     subarrays_free = kat.katpool.sensor.subarrays_free.get_value()
@@ -67,7 +67,7 @@ with verify_and_connect(opts) as kat:
         count = 1
 
         if not kat.dry_run:
-            print('Building CAM object')
+            user_logger.info('Building CAM object')
             cam = cambuild(password="camcam", full_control="all")
             cam.until_synced()
 
@@ -76,13 +76,13 @@ with verify_and_connect(opts) as kat:
                 try:
                     delay_values=katconf.resource_string(opts.configdelayfile).split('\n')
                 except:
-                    print ('Failed to read delay values from config. Using local delays instead')
+                    user_logger.warn('Failed to read delay values from config. Using local delays instead')
                     delay_values = open(opts.localdelayfile)
                 for line in delay_values:
                     x = ((line.strip('\n')).split(','))
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
                         delay_list[x[0]] = int(x[1])
-                        print('Receptor: %s  delay: %s' % (x[0], x[1]))
+                        user_logger.info('Receptor: %s  delay: %s' % (x[0], x[1]))
             except:
                 raise RuntimeError('Failure to read pps delay file!')
 
@@ -94,34 +94,34 @@ with verify_and_connect(opts) as kat:
             else:
                 ant_active = [ant for ant in cam.ants if ant.name not in
                               cam.katpool.sensor.resources_in_maintenance.get_value()]
-            print('Set PPS delay compensation for digitisers')
+            user_logger.info('Set PPS delay compensation for digitisers')
             for ant in ant_active:
-                print ant.name
+                user_logger.info(ant.name)
                 # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (assuming L band)
                     try:
                         response = ant.req.dig_digitiser_offset('l')
                     except Exception as msg:
-                        print('Caught exception antenna %s' % ant.name)
-                        print(msg)
+                        user_logger.error('Caught exception antenna %s' % ant.name)
+                        user_logger.error(msg)
                         raise
 
                     curr_delay_l = int(str(response).split(' ')[2])
                     if curr_delay_l == delay_list[ant.name]:
-                        print(ant.name + ': no change to PPS delay offset')
+                        user_logger.info(ant.name + ': no change to PPS delay offset')
                     else:
-                        print(ant.name + " is on L band")
-                        print(ant.name + ' L-band current delay : ' + str(curr_delay_l))
+                        user_logger.info(ant.name + " is on L band")
+                        user_logger.info(ant.name + ' L-band current delay : ' + str(curr_delay_l))
                         response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
-                        print(ant.name + ' L-band PPS delay offset : ' + str(response))
+                        user_logger.info(ant.name + ' L-band PPS delay offset : ' + str(response))
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-            print('Performing global sync on AR1 ...')
+            user_logger.info('Performing global sync on AR1 ...')
             serial_sync_timeout = 300  # seconds
             start_time = time.time()
             cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
-            print("Duration of global sync: {} try number {}"
+            user_logger.info("Duration of global sync: {} try number {}"
                   .format(time.time() - start_time, 1))
 
             wait_time = 0
@@ -133,22 +133,21 @@ with verify_and_connect(opts) as kat:
 
             etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
-                print("Verify epoch digitiser for antenna %s" % ant.name)
+                user_logger.info("Verify epoch digitiser for antenna %s" % ant.name)
                 ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
                 if ant_epoch != etime:
                     raise RuntimeError('System not synced, investigation is required...')
                 else:
                     print('%s sync epoch:  %d' % (ant.name, ant_epoch))
-                print("Resetting capture destination %s" % ant.name)
+                user_logger.info("Resetting capture destination %s" % ant.name)
                 response = ant.req.deactivate()
                 print(ant.req.dig_capture_list())
-            print('\n')
-            print("Script complete")
+            user_logger.info("Script complete")
     finally:
         if cam:
-            print("Cleaning up cam object")
+            user_logger.info("Cleaning up cam object")
             cam.disconnect()
 
-    print("\nGlobal Sync Date %s" % time.ctime(etime))
+    user_logger.info("Global Sync Date %s" % time.ctime(etime))
 
 # -fin-

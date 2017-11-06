@@ -25,7 +25,7 @@ def timestamp():
 
 
 def log_message(msg, level='info'):
-    print('{timestamp} {level} {msg}'.format(
+    user_logger.info('{timestamp} {level} {msg}'.format(
         timestamp=timestamp(), level=level.upper(), msg=str(msg)))
 
 
@@ -57,11 +57,11 @@ def enable_vac_pump(ant):
 
 if __name__ == "__main__":
     if opts.receptors is None:
-        print("Error. Specify which receptors to enable the vacuum pumps.")
+        user_logger.error("Error. Specify which receptors to enable the vacuum pumps.")
     else:
         ants = opts.receptors.replace(' ', '')
         for x in ants.split(','):
             if not x.startswith('m'):
-                print("Error. Illegal antenna name: {}".format(x))
+                user_logger.error("Error. Illegal antenna name: {}".format(x))
             else:
                 enable_vac_pump(x)
