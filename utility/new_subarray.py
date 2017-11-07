@@ -37,7 +37,7 @@ parser.add_option('--ptuse', action='store_true', default=False,
 
 parser.set_defaults(description = 'CAM next subarray')
 (opts, args) = parser.parse_args()
-user_logger.info("CAM next subarray: start")
+user_logger.info("OPS next subarray: start")
 
 def log_info(response):
     response = str(response)
@@ -45,6 +45,18 @@ def log_info(response):
         user_logger.warn(response)
     else:
         user_logger.info(response)
+
+def extract_ants_from_pool(pool):
+    pool_list = pool.split(',')
+    ants = []
+    other = []
+    for p in pool_list:
+        if p.startswith('m0'):
+            ants.append(p)
+        else:
+            other.append(p)
+            
+    return ants,other
 
 with verify_and_connect(opts) as kat:
     print "_______________________"
@@ -81,7 +93,25 @@ with verify_and_connect(opts) as kat:
         # If next_subnr is not specified use the current subnr
         new["next_subnr"] = int(opts.next_subnr or current["subnr"])
         new["delay"] = opts.time_delay
-        new["pool_resources"] = opts.resources if opts.resources else current["pool_resources"]
+         
+        if opts.resources == 'same':
+            new["pool_resources"] = current["pool_resources"]
+        elif opt.resources == None:
+            curr_ants,curr_other = extract_ants_from_pool(current["pool_resources"])
+            pool_ants,pool_other = extract_ants_from_pool(cam.katpool.sensors.pool_resources_free.get_value())
+            maint_ants,maint_other = extract_ants_from_pool(cam.katpool.sensors.resources_in_maintenance.get_value())
+            faulty_ants,faulty_other = extract_ants_from_pool(cam.katpool.sensors.resources_faulty.get_value())
+            ants = []
+            ant_count = 0
+            for ant in core_ants + non_core_ants:
+                if (ant in curr_ants + pool_ants) & (ant not in maint_ants + faulty_ants):
+                    if ant_count < 17:
+                        ants.append(ant)
+                        ant_count += 1
+            new["pool_resources"] = ','.join(curr_other+ants)            
+        else:
+            new["pool_resources"] = opts.resources
+            
         
         # verify that the PTUSE is inlcuded if necessary
         if opts.ptuse:
@@ -131,4 +161,4 @@ with verify_and_connect(opts) as kat:
         if cam:
             cam.disconnect()
 
-user_logger.info("CAM next subarray: stop")
+user_logger.info("OPS next subarray: stop")
