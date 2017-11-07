@@ -105,7 +105,7 @@ with verify_and_connect(opts) as kat:
             ant_count = 0
             for ant in core_ants + non_core_ants:
                 if (ant in curr_ants + pool_ants) & (ant not in maint_ants + faulty_ants):
-                    if ant_count < 17:
+                    if ant_count < 16:
                         ants.append(ant)
                         ant_count += 1
             new["pool_resources"] = ','.join(curr_other+ants)            
