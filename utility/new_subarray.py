@@ -96,7 +96,7 @@ with verify_and_connect(opts) as kat:
          
         if opts.resources == 'same':
             new["pool_resources"] = current["pool_resources"]
-        elif opt.resources == None:
+        elif opts.resources == None:
             curr_ants,curr_other = extract_ants_from_pool(current["pool_resources"])
             pool_ants,pool_other = extract_ants_from_pool(cam.katpool.sensors.pool_resources_free.get_value())
             maint_ants,maint_other = extract_ants_from_pool(cam.katpool.sensors.resources_in_maintenance.get_value())
