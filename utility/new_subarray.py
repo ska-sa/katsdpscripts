@@ -31,7 +31,7 @@ parser.add_option('--dump-rate', type='float', default=None,
 parser.add_option('--next-subnr', type='int', default=None,
     help="Next subarray to configure, using first free subarray if None (default=%default)")
 parser.add_option('--resources', type='string', default=None,
-    help="List of antennas and controlled resources to assign to next subarray, using current resources if None (default=%default)")
+    help="List of antennas and controlled resources to assign to next subarray, using current resources if 'Same', building from the core out if None (default=%default)")
 parser.add_option('--ptuse', action='store_true', default=False,
                   help='Make sure the PTUSE resource is added to the pool of resorces')
 
