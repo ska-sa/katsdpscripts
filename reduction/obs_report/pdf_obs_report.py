@@ -279,7 +279,7 @@ else:
 
         #Calling function timeseries plot
         fig=phase_plot(sp,baseline_names,num_chans,scan_timestamps,num_bls)
-        fig.savefig(pp,format='pdf')
+        fig.savefig(pp,format='pdf',dpi=75)
         plt.close(fig)
         pp.close()
         plt.close('all')
