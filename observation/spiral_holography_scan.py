@@ -520,10 +520,11 @@ with verify_and_connect(opts) as kat:
                         pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                     lasttime = scan_data[-1,0]
-                #swap scanning and tracking antennas
-                swap=track_ants
-                track_ants=scan_ants
-                scan_ants=swap
+                if (opts.scan_ants.lower()=='groupab'):
+                    #swap scanning and tracking antennas
+                    swap=track_ants
+                    track_ants=scan_ants
+                    scan_ants=swap
 
         time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
