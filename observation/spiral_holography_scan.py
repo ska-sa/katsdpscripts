@@ -520,7 +520,7 @@ with verify_and_connect(opts) as kat:
                         pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                     lasttime = scan_data[-1,0]
-                if (opts.scan_ants.lower()=='groupab'):
+                if (len(grouprange)==2):
                     #swap scanning and tracking antennas
                     swap=track_ants
                     track_ants=scan_ants
