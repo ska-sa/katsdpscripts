@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Send an intervention to syscontroller to configure a new subarray
 
-import time, string
+import time, string, re
 from katcorelib import standard_script_options, verify_and_connect, user_logger
 from katcorelib import cambuild
 
@@ -96,6 +96,8 @@ with verify_and_connect(opts) as kat:
          
         if opts.resources == 'same':
             new["pool_resources"] = current["pool_resources"]
+            # remove any ptuse resource
+            new["pool_resources"] = re.sub("ptuse_[1-4],",",",current["pool_resources"])
         elif opts.resources == None:
             curr_ants,curr_other = extract_ants_from_pool(current["pool_resources"])
             pool_ants,pool_other = extract_ants_from_pool(cam.katpool.sensors.pool_resources_free.get_value())
@@ -114,6 +116,7 @@ with verify_and_connect(opts) as kat:
             
         
         # verify that the PTUSE is inlcuded if necessary
+        # TODO as other ptuse resources (like ptuse_2) are added this needs to be handled
         if opts.ptuse:
             if "ptuse_1" not in new["pool_resources"]:
                 new["pool_resources"] += ",ptuse_1"
