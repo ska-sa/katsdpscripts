@@ -79,8 +79,12 @@ def track(ant, taz, tel, total=1, dry_run=False):
             raise
    
     user_logger.info("AP has reached start position, beginning endurance cycle")
-    last_az = ant.sensor.ap_actual_azim.get_value()
-    last_el = ant.sensor.ap_actual_elev.get_value()
+    if not dry_run:
+        last_az = ant.sensor.ap_actual_azim.get_value()
+        last_el = ant.sensor.ap_actual_elev.get_value()
+    else:
+        last_az = 0
+        last_el = 0
     
     while cycle_count <= total:
         # Cycle loop
@@ -115,8 +119,12 @@ def track(ant, taz, tel, total=1, dry_run=False):
                     raise
 
             # Get the current position
-            current_az = ant.sensor.ap_actual_azim.get_value()
-            current_el = ant.sensor.ap_actual_elev.get_value()
+            if not dry_run:
+                current_az = ant.sensor.ap_actual_azim.get_value()
+                current_el = ant.sensor.ap_actual_elev.get_value()
+            else:
+                current_az = 0
+                current_el = 0
             
             # Add the angle travelled to the accumulated value
             az_total_angle += abs(current_az - last_az)
@@ -148,12 +156,12 @@ def track(ant, taz, tel, total=1, dry_run=False):
         #if not dry_run:
         #   time.sleep(228)
 
-        ant.req.mode('STOP')
-        # Add a sleep since the indexer portion of the script does not
-        # use the waiting functionality that is part of the receptor
-        # proxy mode requests
         if not dry_run:
-           time.sleep(3)
+            ant.req.mode('STOP')
+            # Add a sleep since the indexer portion of the script
+            # does not use the waiting functionality that is part
+            # of the receptor proxy mode requests
+            time.sleep(3)
 
         indexer_timeout = 120
         # Position raw changed after indexer configurations
@@ -250,8 +258,8 @@ parser.add_option('--num-repeat', type='int',
                   default=1,
                   help='The number of times to repeat the sequence (once by by default)')
 parser.add_option('--ap', type='str',                                   
-                  default="m036",
-                  help='Receptor under test (default is m036)')
+                  default=None,
+                  help='Receptor under test (exit if no antenna provided)')
 
 # Parse the command line
 opts, args = parser.parse_args()
@@ -259,14 +267,14 @@ opts, args = parser.parse_args()
 if opts.observer is None:
     raise RuntimeError("No observer provided script")
 
-receptor = None
-
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     
     for ant in kat.ants:
         if opts.ap in [ant.name]:
             receptor = ant
+        else:
+            receptor = None
 
     if receptor is None:
         raise RuntimeError("Receptor under test is not in controlled array")
