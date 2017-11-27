@@ -262,7 +262,8 @@ with verify_and_connect(opts) as kat1:
         raise RuntimeError(
             "Aborting - archive_search parameter must be > lubrication_frequency\n\n")
 
-    # Build the KAT object
+    # Build the 2nd KAT object. This kat object is being used to access sensor data
+    # for resources outside the subarray.
     log_message('Begin tbuild...', 'info')
     if opts.receptors == 'all':
         kat = tbuild(conn_clients='all')
@@ -347,7 +348,7 @@ with verify_and_connect(opts) as kat1:
         .format(opts.max_elevation))
     for ant in kat.ants:
         if ant.name in ant_active:
-            if ant.sensor.ap_requested_elev.get_value() > (opts.max_elevation + 1):
+            if ant.sensor.ap_actual_elev.get_value() > (opts.max_elevation + 1):
                 ant_active.remove(ant.name)
                 err_results.append(ant.name)
                 log_message(
@@ -355,7 +356,7 @@ with verify_and_connect(opts) as kat1:
                     .format(ant.name, ant.sensor.ap_requested_elev.get_value(), ant.name), 'warn')
             else:
                 log_message('{} at elevation of {:0.1f}.'.format(
-                    ant.name, ant.sensor.ap_requested_elev.get_value()))
+                    ant.name, ant.sensor.ap_actual_elev.get_value()))
 
     log_message('Remaining active antennas : {}\n'
                 .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
