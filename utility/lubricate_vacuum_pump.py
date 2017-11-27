@@ -271,7 +271,9 @@ with verify_and_connect(opts) as kat1:
     
     log_message("Waiting for sys to sync\n", 'info')
     ok = kat.sys.until_synced(timeout=15)
-    time.sleep(10)
+
+    if not (kat1.dry_run):
+        time.sleep(10)
 
     if not ok:
         log_message("Sys did not sync \n{}\n\n".format(
@@ -280,14 +282,17 @@ with verify_and_connect(opts) as kat1:
         raise RuntimeError(
             "Aborting - Sys did not sync \n{}\n\n".format(kat.get_status()))
 
-    # Ambient should be above 16 deg c.
-    if (kat.anc.sensor.air_temperature.get_value() < MIN_OP_TEMP) and not(kat1.dry_run):
-        log_message(
-            'Aborting script - ambient temperature is below {} deg C'.format(MIN_OP_TEMP), 'error')
-        raise RuntimeError(
-            'Aborting script - ambient temperature is below {} deg C\n\n'.format(MIN_OP_TEMP))
-    log_message('Current Ambient temperature is {:0.2f}'.format(
-                kat.anc.sensor.air_temperature.get_value()))
+    if not (kat1.dry_run):
+        # Ambient should be above 16 deg c.
+        if (kat.anc.sensor.air_temperature.get_value() < MIN_OP_TEMP):
+            log_message(
+                'Aborting script - ambient temperature is below {} deg C'
+                .format(MIN_OP_TEMP), 'error')
+            raise RuntimeError(
+                'Aborting script - ambient temperature is below {} deg C\n\n'
+                .format(MIN_OP_TEMP))
+        log_message('Current Ambient temperature is {:0.2f}'.format(
+                    kat.anc.sensor.air_temperature.get_value()))
 
     # Select which receptors to run the script on
     if opts.receptors == 'all':
