@@ -79,8 +79,12 @@ def track(ant, taz, tel, total=1, dry_run=False):
             raise
    
     user_logger.info("AP has reached start position, beginning endurance cycle")
-    last_az = ant.sensor.ap_actual_azim.get_value()
-    last_el = ant.sensor.ap_actual_elev.get_value()
+    if not dry_run:
+        last_az = ant.sensor.ap_actual_azim.get_value()
+        last_el = ant.sensor.ap_actual_elev.get_value()
+    else:
+        last_az = -135
+        last_el = 15
     
     while cycle_count <= total:
         # Cycle loop
@@ -115,8 +119,12 @@ def track(ant, taz, tel, total=1, dry_run=False):
                     raise
 
             # Get the current position
-            current_az = ant.sensor.ap_actual_azim.get_value()
-            current_el = ant.sensor.ap_actual_elev.get_value()
+            if not dry_run:
+                current_az = ant.sensor.ap_actual_azim.get_value()
+                current_el = ant.sensor.ap_actual_elev.get_value()
+            else:
+                current_az = -135
+                current_el = 15
             
             # Add the angle travelled to the accumulated value
             az_total_angle += abs(current_az - last_az)
@@ -148,23 +156,28 @@ def track(ant, taz, tel, total=1, dry_run=False):
         #if not dry_run:
         #   time.sleep(228)
 
-        ant.req.mode('STOP')
-        # Add a sleep since the indexer portion of the script does not
-        # use the waiting functionality that is part of the receptor
-        # proxy mode requests
         if not dry_run:
-           time.sleep(3)
+            ant.req.mode('STOP')
+            # Add a sleep since the indexer portion of the script
+            # does not use the waiting functionality that is part
+            # of the receptor proxy mode requests
+            time.sleep(3)
 
         indexer_timeout = 120
         # Position raw changed after indexer configurations
         ridx_angle={'s':-0.618,'l':39.248,'x':79.143,'u':119.405}
         ridx_sequence = ['s','l','x','u']
 
-        # If we are closer to 'u' than 's', then start from 'u' instead
-        if ant.sensor.ap_indexer_position_raw.get_value() > 60:
-            ridx_sequence.reverse()
+        # TODO: Revisit this once we have more information from AP team
+        #       about indexer drift issues
+        if not dry_run:
+            # If we are closer to 'u' than 's', then start from 'u' instead
+            if ant.sensor.ap_indexer_position_raw.get_value() > 60:
+                ridx_sequence.reverse()
 
-        ridx_last_position = ant.sensor.ap_indexer_position.get_value()
+            ridx_last_position = ant.sensor.ap_indexer_position.get_value()
+        else:
+            ridx_last_position = None 
 
         # NOTE: we skip the first position in the list if we are already
         #       there because the indexer seems to end up in a 'moving'
@@ -180,8 +193,10 @@ def track(ant, taz, tel, total=1, dry_run=False):
                 user_logger.info("--- Moving RI to position: '%s' ---", pos.upper())
                 ant.req.ap_set_indexer_position(pos)
 
+                # TODO: Add a promximity check for S position in case this increased
+                #       sleep still does not help
                 # Wait for indexer brakes to open
-                time.sleep(2)
+                time.sleep(3)
                 try:
                     # Wait for indexer brakes to engage again
                     ant.wait('ap.ridx-brakes-released', False, timeout=60)
@@ -250,8 +265,8 @@ parser.add_option('--num-repeat', type='int',
                   default=1,
                   help='The number of times to repeat the sequence (once by by default)')
 parser.add_option('--ap', type='str',                                   
-                  default="m036",
-                  help='Receptor under test (default is m036)')
+                  default=None,
+                  help='Receptor under test (abort if no antenna provided)')
 
 # Parse the command line
 opts, args = parser.parse_args()
@@ -259,11 +274,10 @@ opts, args = parser.parse_args()
 if opts.observer is None:
     raise RuntimeError("No observer provided script")
 
-receptor = None
-
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     
+    receptor = None
     for ant in kat.ants:
         if opts.ap in [ant.name]:
             receptor = ant
