@@ -169,8 +169,6 @@ corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(data.corr_products
 
 offset_stats = {}
 for ant in data.ants:
-    print 'Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)'
-    print '--------------------------------------------------------------------------'
     hh_index = corrprod_to_index.get((ant.name + 'h', ant.name + 'h'))
     vv_index = corrprod_to_index.get((ant.name + 'v', ant.name + 'v'))
     for diode_name in ('pin', 'coupler'):
@@ -183,7 +181,9 @@ for ant in data.ants:
             continue
         # Collect all expected noise diode firings
         print "Diode:", ant.name, diode_name
+        print 'Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)'
         print "Timestamp (UTC)     | offset in (ms)  +/- error ms (magnitude of jump )"
+        print '--------------------------------------------------------------------------'
         nd_timestamps = sensor['timestamp']
         nd_state = np.array(sensor['value'], dtype=np.int)
         for scan_index, state, target in data.scans():
