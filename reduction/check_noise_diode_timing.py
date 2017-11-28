@@ -10,6 +10,7 @@
 import time
 import optparse
 import sys
+import pickle
 
 import numpy as np
 import katdal
@@ -124,32 +125,52 @@ parser.add_option('-f', '--freq-chans',
                   help="Range of frequency channels to use "
                        "(zero-based, specified as 'start,end', default is [0.25*num_chans, 0.75*num_chans])")
 parser.add_option('-o', '--max-offset', type='float', default=2.,
-                  help="Maximum allowed offset between CAM and DBE timestamps, in seconds (default %default)")
+                  help="Maximum allowed offset between CAM and DBE timestamps, in accumulations (default %default)")
 parser.add_option('-d', '--max-duration', type='float', dest='max_onoff_segment_duration', default=0.,
                   help="Maximum duration of segments around jump used to estimate instant, in seconds (default 1 dump)")
 parser.add_option('-m', '--margin', type='float', dest='margin_factor', default=24.,
                   help="Allowed variation in power, as multiple of theoretical standard deviation (default %default)")
 parser.add_option('-s', '--significance', type='float', dest='jump_significance', default=10.,
                   help="Keep jumps that are bigger than margin by this factor (default %default)")
+parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
+                  help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 
 (opts, args) = parser.parse_args()
 if len(args) < 1:
-    print 'Please specify an HDF5 file to check'
-    sys.exit(1)
+    raise RunTimeError('Please specify an HDF5 file to check')
 
 data = katdal.open(args[0])
-chan_range = slice(*[int(chan_str) for chan_str in opts.freq_chans.split(',')]) \
-             if opts.freq_chans is not None else slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
-data.select(channels=chan_range)
+
+n_chan = np.shape(data.channels)[0]
+if not opts.freq_chans is None :
+    start_freq_channel = int(opts.freq_chans.split(',')[0])
+    end_freq_channel = int(opts.freq_chans.split(',')[1])
+    edge = np.tile(True, n_chan)
+    edge[slice(start_freq_channel, end_freq_channel)] = False
+else :
+    edge = np.tile(True, n_chan)
+    edge[slice(data.shape[1] // 4, 3 * data.shape[1] // 4)] = False
+#load static flags if pickle file is given
+channel_mask = opts.channel_mask
+if len(channel_mask)>0:
+    pickle_file = open(channel_mask)
+    rfi_static_flags = pickle.load(pickle_file)
+    pickle_file.close()
+    if n_chan > rfi_static_flags.shape[0] :
+        rfi_static_flags = rfi_static_flags.repeat(8) # 32k mode
+else:
+    rfi_static_flags = np.tile(False, n_chan)
+static_flags = np.logical_or(edge,rfi_static_flags)
+data.select(channels=~static_flags)
 
 # Number of real normal variables squared and added together
 dof = 2 * data.shape[1] * data.channel_width * data.dump_period
 corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(data.corr_products, range(len(data.corr_products)))])
 
 offset_stats = {}
-print 'Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)'
-print '--------------------------------------------------------------------------'
 for ant in data.ants:
+    print 'Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)'
+    print '--------------------------------------------------------------------------'
     hh_index = corrprod_to_index.get((ant.name + 'h', ant.name + 'h'))
     vv_index = corrprod_to_index.get((ant.name + 'v', ant.name + 'v'))
     for diode_name in ('pin', 'coupler'):
@@ -158,10 +179,11 @@ for ant in data.ants:
             sensor = data.sensor.get('Antennas/%s/nd_%s' % (ant.name, diode_name), extract=False)
         except KeyError:
             continue
-        if len(sensor) <= 1:
+        if len(sensor[:]) <= 1:
             continue
         # Collect all expected noise diode firings
         print "Diode:", ant.name, diode_name
+        print "Timestamp (UTC)     | offset in (ms)  +/- error ms (magnitude of jump )"
         nd_timestamps = sensor['timestamp']
         nd_state = np.array(sensor['value'], dtype=np.int)
         for scan_index, state, target in data.scans():
@@ -189,7 +211,7 @@ for ant in data.ants:
                     closest_jump = same_direction[np.argmin(np.abs(offsets[same_direction]))]
                     offset = offsets[closest_jump]
                     # Only match the jump if it is within a certain window of the expected firing
-                    if np.abs(offset) < opts.max_offset:
+                    if np.abs(offset) < data.dump_period*opts.max_offset:
                         std_offset, jump = jump_std_time[closest_jump], jump_size[closest_jump]
                         stats_key = ant.name + ' ' + diode_name
                         # For each diode, collect the offsets and their uncertainties
@@ -199,24 +221,27 @@ for ant in data.ants:
                               (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),
                                1000 * offset, 1000 * std_offset, jump)
                     else:
-                        print '%s | not found' % (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),)
-
-print
-print 'Summary of offsets (DBE - CAM) per diode'
-print '----------------------------------------'
-for key, val in offset_stats.iteritems():
-    # Change unit to milliseconds, and from an array from list
-    offset_ms, std_offset_ms = 1000 * np.asarray(val).T
-    mean_offset = offset_ms.mean()
-    # Variation of final mean offset due to uncertainty of each measurement (influenced by integration time,
-    # bandwidth, magnitude of power jump)
-    std1 = np.sqrt(np.sum(std_offset_ms ** 2)) / len(std_offset_ms)
-    # Variation of final mean due to offsets in individual measurements - this can be much bigger than std1 and
-    # is typically due to changes in background power while noise diode is firing, resulting in measurement bias
-    std2 = offset_ms.std() / np.sqrt(len(offset_ms))
-    std_mean_offset = np.sqrt(std1 ** 2 + std2 ** 2)
-    min_offset, max_offset = np.argmin(offset_ms), np.argmax(offset_ms)
-    print '%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
-          (key, mean_offset, std_mean_offset,
-           mean_offset / data.dump_period / 1e3, std_mean_offset / data.dump_period / 1e3,
-           offset_ms[min_offset], std_offset_ms[min_offset], offset_ms[max_offset], std_offset_ms[max_offset])
+                        num = data.dumps[0] + np.argmin(np.abs(data.timestamps-firing)) 
+                        print '%s | not found at location %i' % (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),num,)
+if offset_stats :
+    print
+    print 'Summary of offsets (DBE - CAM) per diode'
+    print '----------------------------------------'
+    for key, val in offset_stats.iteritems():
+        # Change unit to milliseconds, and from an array from list
+        offset_ms, std_offset_ms = 1000 * np.asarray(val).T
+        mean_offset = offset_ms.mean()
+        # Variation of final mean offset due to uncertainty of each measurement (influenced by integration time,
+        # bandwidth, magnitude of power jump)
+        std1 = np.sqrt(np.sum(std_offset_ms ** 2)) / len(std_offset_ms)
+        # Variation of final mean due to offsets in individual measurements - this can be much bigger than std1 and
+        # is typically due to changes in background power while noise diode is firing, resulting in measurement bias
+        std2 = offset_ms.std() / np.sqrt(len(offset_ms))
+        std_mean_offset = np.sqrt(std1 ** 2 + std2 ** 2)
+        min_offset, max_offset = np.argmin(offset_ms), np.argmax(offset_ms)
+        print '%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
+              (key, mean_offset, std_mean_offset,
+               mean_offset / data.dump_period / 1e3, std_mean_offset / data.dump_period / 1e3,
+               offset_ms[min_offset], std_offset_ms[min_offset], offset_ms[max_offset], std_offset_ms[max_offset])
+else:
+    print ("No valid noisediode values found in file")
