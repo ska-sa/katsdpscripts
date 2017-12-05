@@ -48,7 +48,7 @@ def compscan_key(compscan):
     return compscan.dataset.antenna.name, dataset_name, compscan.target.name, str(katpoint.Timestamp(middle_time))
 
 
-def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs):
+def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], floating_baseline=False, **kwargs):
     """Do complete point source reduction on a compound scan (gain cal + beam fit)."""
     # Calculate average target flux over entire band
     flux_spectrum = compscan.target.flux_density(compscan.dataset.freqs)
@@ -65,7 +65,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     for pol in beam_pols:
         compscan.fit_beam_and_baselines(pol='abs' + pol)
         bh = compscan.baseline_height()
-        if bh is None:
+        if bh is None and not floating_baseline:
             bh = np.nan
         beam_params = [compscan.beam.height, katpoint.rad2deg(np.mean(compscan.beam.width)), bh,
                        float(compscan.beam.refined)] if compscan.beam else [np.nan, np.nan, bh, 0.]
@@ -144,7 +144,7 @@ def extract_cal_dataset(dataset):
 
 
 def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True,
-                                     keep_all=True, num_compscans=0, **kwargs):
+                                     keep_all=True, floating_baseline=False, num_compscans=0, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
     dataset = scape.DataSet(None, [dataset.compscans[compscan_index]], dataset.experiment_id, dataset.observer,
                             dataset.description, dataset.data_unit, dataset.corrconf,
@@ -164,7 +164,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     cal_dataset = extract_cal_dataset(dataset)
     # Do first reduction run
     main_compscan = compscan_dataset.compscans[0]
-    fixed, variable = reduce_compscan(main_compscan, cal_dataset, **kwargs)
+    fixed, variable = reduce_compscan(main_compscan, cal_dataset, floating_baseline=floating_baseline, **kwargs)
     # Produce data set that has counts converted to Kelvin, but no averaging (for spectral plots)
     unavg_compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True)
     unavg_compscan_dataset.nd_gain = cal_dataset.nd_gain
@@ -177,7 +177,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
                                   m + 2, mc_iterations)
         compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True).perturb()
         cal_dataset = extract_cal_dataset(dataset).perturb()
-        fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
+        fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, floating_baseline=floating_baseline, **kwargs)
         iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=variable.keys()))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
@@ -253,7 +253,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan] = \
                 reduce_compscan_with_uncertainty(dataset, current_compscan, opts.mc_iterations,
-                                                 opts.batch, opts.keep_all, len(reduced_data), **kwargs)
+                                                 opts.batch, opts.keep_all, opts.floating, len(reduced_data), **kwargs)
 
     # Display compound scan
     if fig:
@@ -301,7 +301,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         with SuppressErrors(kwargs['logger']):
             reduced_data[current_compscan + 1] = \
                 reduce_compscan_with_uncertainty(dataset, current_compscan + 1, opts.mc_iterations,
-                                                 opts.batch, opts.keep_all, len(reduced_data), **kwargs)
+                                                 opts.batch, opts.keep_all, opts.floating, len(reduced_data), **kwargs)
 
 
 def analyse_point_source_scans(filename, opts):
