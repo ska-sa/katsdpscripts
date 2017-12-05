@@ -40,6 +40,7 @@ parser.add_option("-X", "--freq-centre", type='float', default=None,
 
 parser.add_option("--old-loader", action="store_true", help="Use old SCAPE loader to open HDF5 file instead of katfile")
 parser.add_option("--keep-all", action="store_true", help="Keep all the results if there is a beam that has been fitted")
+parser.add_option("--floating", action="store_true", help="Keep beam fits even if no scan background/baseline can be determined")
 parser.add_option("--remove-spikes", action="store_true", help="Use the SCAPE method to remove spikes in the passband",default=False)
 
 (opts, args) = parser.parse_args()
