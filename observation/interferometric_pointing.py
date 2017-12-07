@@ -88,9 +88,9 @@ with verify_and_connect(opts) as kat:
                         nd_params = session.nd_params
                         session.fire_noise_diode(announce=True, **nd_params)
                         if kat.dry_run:
-                            session.track(target, duration=opts.track_duration, announce=False)
-                        else:
                             time.sleep(opts.track_duration)  # Snooze
+                        else:
+                            session.track(target, duration=opts.track_duration, announce=False)
                 targets_observed.append(target.name)
                 if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                     user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
