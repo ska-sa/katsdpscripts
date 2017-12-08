@@ -109,7 +109,11 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
         for angle_param in slew_from_angles:
             for i, x in enumerate((delta_sky > angle_param - 1.1) & (delta_sky < angle_param + 1.1)):
                 if x:
-                    for j in range(60 + int(2 * angle_param)):  # time to get lock
+                    lock_len = 60 + int(2 * angle_param)
+                    # time to get lock_len
+                    lock_len = np.min(
+                        [delta_sky.shape[0] - i, lock_len]).astype(int)
+                    for j in range(lock_len):
                         if delta_sky[i + j] < 0.01 and locked[i + j]:
                             seconds = (
                                 delta_sky.iloc[[i + j]].index - delta_sky.iloc[[i]].index).total_seconds()[0]
