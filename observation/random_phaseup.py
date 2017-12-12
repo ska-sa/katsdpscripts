@@ -96,7 +96,7 @@ with verify_and_connect(opts) as kat:
             for inp in set(session.cbf.fengine.inputs):
                 # Correct the phase and optionally the amplitude as well
                 
-                phase_weights = (2*np.pi) * np.random.random_sample(size=channels) 
+                phase_weights = np.exp(1j*(2*np.pi) * np.random.random_sample(size=channels) )
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
