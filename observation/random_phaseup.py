@@ -27,6 +27,9 @@ parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track each source, in seconds (default=%default)')
+parser.add_option('--track-duration-them', type='float', default=3600.0,
+                  help='Length of time to track each source, in seconds (default=%default)')
+
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
 parser.add_option('--default-gain', type='int', default=0,
@@ -95,14 +98,13 @@ with verify_and_connect(opts) as kat:
             session.label('corrected')
             for inp in set(session.cbf.fengine.inputs):
                 # Correct the phase and optionally the amplitude as well
-                
                 phase_weights = np.exp(1j*(2*np.pi) * np.random.random_sample(size=channels) )
                 new_weights = opts.default_gain * phase_weights.conj()
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                              target.name, opts.track_duration)
-            session.track(target, duration=opts.track_duration, announce=False)
+            session.track(target, duration=opts.track_duration_m, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
             for inp in session.cbf.fengine.inputs:
