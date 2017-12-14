@@ -17,8 +17,6 @@ class NoTargetsUpError(Exception):
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
-
-
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
 description = 'Track one or more sources for a specified time and calibrate ' \
@@ -27,7 +25,7 @@ parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track each source, in seconds (default=%default)')
-parser.add_option('--track-duration-them', type='float', default=3600.0,
+parser.add_option('--track-duration-m', type='float', default=3600.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 
 parser.add_option('--reset', action='store_true', default=False,
@@ -103,7 +101,7 @@ with verify_and_connect(opts) as kat:
                 weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
                 session.cbf.fengine.req.gain(inp, *weights_str)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
-                             target.name, opts.track_duration)
+                             target.name, opts.track_duration_m)
             session.track(target, duration=opts.track_duration_m, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
