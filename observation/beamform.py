@@ -139,8 +139,10 @@ with verify_and_connect(opts) as kat:
         # Values hard coded: CBF is expecting values
         # (856000000.00,1284000000.000)
         # Hardcoded and magic number usage to be removed in future update
-        reply = stream.req.passband(int((865 - 11.25) * 1e6),
+        reply = stream.req.passband(int((856 - 2.25) * 1e6),
                                     int(1284 * 1e6))
+        # reply = stream.req.passband(int(opts.beam_bandwidth * 1e6),
+        #                             int(opts.beam_centre_freq * 1e6))
         if reply.succeeded:
             try:
                 actual_bandwidth = float(reply.messages[0].arguments[2])
