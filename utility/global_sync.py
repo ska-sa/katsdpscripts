@@ -51,6 +51,7 @@ def log_info(response):
     else:
         user_logger.info(response)
 
+
 with verify_and_connect(opts) as kat:
     print("_______________________")
     print(kat.controlled_objects)
@@ -74,7 +75,7 @@ with verify_and_connect(opts) as kat:
             delay_list = {}
             try:
                 try:
-                    delay_values=katconf.resource_string(opts.configdelayfile).split('\n')
+                    delay_values = katconf.resource_string(opts.configdelayfile).split('\n')
                 except:
                     print ('Failed to read delay values from config. Using local delays instead')
                     delay_values = open(opts.localdelayfile)
@@ -96,7 +97,6 @@ with verify_and_connect(opts) as kat:
                               cam.katpool.sensor.resources_in_maintenance.get_value()]
             print('Set PPS delay compensation for digitisers')
             for ant in ant_active:
-                print ant.name
                 # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (assuming L band)
@@ -124,6 +124,8 @@ with verify_and_connect(opts) as kat:
             print("Duration of global sync: {} try number {}"
                   .format(time.time() - start_time, 1))
 
+            print ('Previous sync time %d, waiting for new sync time' % init_epoch)
+            time.sleep(60)  # waiting for CAM sensor update
             wait_time = 0
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
                 time.sleep(2)
@@ -131,14 +133,18 @@ with verify_and_connect(opts) as kat:
                 if wait_time == 60:
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
-            etime = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
+            dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
-                print("Verify epoch digitiser for antenna %s" % ant.name)
+                print("Verify digitiser epoch for antenna %s" % ant.name)
                 ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
-                if ant_epoch != etime:
-                    raise RuntimeError('System not synced, investigation is required...')
-                else:
-                    print('%s sync epoch:  %d' % (ant.name, ant_epoch))
+                wait_time = 0
+                while ant_epoch != dmc_epoch:
+                    time.sleep(2)
+                    wait_time += 1
+                    if wait_time == 60:
+                        print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
+                        break
+                print('%s sync epoch:  %d' % (ant.name, ant_epoch))
                 print("Resetting capture destination %s" % ant.name)
                 response = ant.req.deactivate()
                 print(ant.req.dig_capture_list())
@@ -149,6 +155,6 @@ with verify_and_connect(opts) as kat:
             print("Cleaning up cam object")
             cam.disconnect()
 
-    print("\nGlobal Sync Date %s" % time.ctime(etime))
+    print("\nGlobal Sync Date %s" % time.ctime(dmc_epoch))
 
 # -fin-
