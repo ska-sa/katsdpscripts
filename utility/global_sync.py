@@ -135,15 +135,19 @@ with verify_and_connect(opts) as kat:
 
             dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
-                print("Verify digitiser epoch for antenna %s" % ant.name)
-                ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
-                wait_time = 0
-                while ant_epoch != dmc_epoch:
-                    time.sleep(2)
-                    wait_time += 1
-                    if wait_time == 60:
-                        print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
-                        break
+                try:
+                    print("Verify digitiser epoch for antenna %s" % ant.name)
+                    ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
+                    wait_time = 0
+                    while ant_epoch != dmc_epoch:
+                        time.sleep(2)
+                        wait_time += 1
+                        if wait_time == 60:
+                            print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
+                            break
+                except:
+                    pass
+                    # raise RuntimeError('System not synced, investigation is required...')
                 print('%s sync epoch:  %d' % (ant.name, ant_epoch))
                 print("Resetting capture destination %s" % ant.name)
                 response = ant.req.deactivate()
