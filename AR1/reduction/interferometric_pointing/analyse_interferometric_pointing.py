@@ -62,14 +62,12 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
     gaussian_width_std  = np.zeros((chunk_size* 2,2,len(h5.ants)) )
     gaussian_height     = np.zeros((chunk_size* 2,len(h5.ants)) )
     gaussian_height_std = np.zeros((chunk_size* 2,len(h5.ants)) )
-    h5.antlist = [a.name for a in h5.ants]
-    h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     pols = ["H","V"] # Put in logic for Intensity
     for i,pol in enumerate(pols) :
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross')
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() : 
             valid_index = activity(h5,state = 'track')
@@ -222,10 +220,7 @@ if opts.ex_ants is not None :
     for ant in opts.ex_ants.split(','):
         if ant in ant_list:
             ant_list.remove(ant)
-
 h5.select(compscans='interferometric_pointing',ants=ant_list)
-    
-
 
 h5.antlist = [a.name for a in h5.ants]
 h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
