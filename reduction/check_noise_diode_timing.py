@@ -107,7 +107,7 @@ def find_jumps(timestamps, power, std_power, margin_factor, jump_significance, m
         after = min(same_as_next.index(False, jump + 1), after)
         # Estimate power before and after jump, with corresponding uncertainty
         mean_power_before = power[before:jump].mean()
-        mean_power_after =  power[jump + 1:after + 1].mean()
+        mean_power_after = power[jump + 1:after + 1].mean()
         std_power_before = np.sqrt(np.sum(std_power[before:jump] ** 2))
         std_power_before /= (jump - before)
         std_power_after = np.sqrt(np.sum(std_power[jump + 1:after + 1] ** 2))
@@ -127,7 +127,7 @@ def find_jumps(timestamps, power, std_power, margin_factor, jump_significance, m
             mean_num, std_num, mean_den, std_den, corrcoef)
         # Estimate instant of jump with corresponding uncertainty (assumes timestamps are accurately known)
         jump_time.append(mean_subdump * timestamps[jump] +
-             (1. - mean_subdump) * timestamps[jump + 1])
+                         (1. - mean_subdump) * timestamps[jump + 1])
         jump_std_time.append(
             std_subdump * (timestamps[jump + 1] - timestamps[jump]))
         # Refined estimate of the significance of the jump, using averaged data instead of single dumps
