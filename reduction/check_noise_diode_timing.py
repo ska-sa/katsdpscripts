@@ -59,10 +59,10 @@ def find_jumps(timestamps, power, std_power, margin_factor, jump_significance, m
     upper, lower = power + margin, power - margin
     delta_power = np.r_[power[1:], power[-1]] - np.r_[power[0], power[:-1]]
     # Shifted versions of the upper and lower power bounds
-    previous_upper, next_upper = np.r_[
-        upper[0], upper[:-1]], np.r_[upper[1:], upper[-1]]
-    previous_lower, next_lower = np.r_[
-        lower[0], lower[:-1]], np.r_[lower[1:], lower[-1]]
+    previous_upper = np.r_[upper[0], upper[:-1]]
+    next_upper = np.r_[upper[1:], upper[-1]]
+    previous_lower = np.r_[lower[0], lower[:-1]]
+    next_lower = np.r_[lower[1:], lower[-1]]
     # True for each power value that is considered to be the same as the one on its left
     same_as_previous = ((power > previous_lower) &
                         (power < previous_upper)).tolist()
@@ -106,15 +106,15 @@ def find_jumps(timestamps, power, std_power, margin_factor, jump_significance, m
             jump - 1 - same_as_previous[jump - 1::-1].index(False), before)
         after = min(same_as_next.index(False, jump + 1), after)
         # Estimate power before and after jump, with corresponding uncertainty
-        mean_power_before, mean_power_after = power[before:jump].mean(
-        ), power[jump + 1:after + 1].mean()
-        std_power_before = np.sqrt(
-            np.sum(std_power[before:jump] ** 2)) / (jump - before)
-        std_power_after = np.sqrt(
-            np.sum(std_power[jump + 1:after + 1] ** 2)) / (after - jump)
+        mean_power_before = power[before:jump].mean()
+        mean_power_after =  power[jump + 1:after + 1].mean()
+        std_power_before = np.sqrt(np.sum(std_power[before:jump] ** 2))
+        std_power_before /= (jump - before)
+        std_power_after = np.sqrt(np.sum(std_power[jump + 1:after + 1] ** 2))
+        std_power_after /= (after - jump)
         # Use ratio of power differences (at - before) / (after - before) to estimate where in dump the jump happened
-        mean_num, mean_den = power[jump] - \
-            mean_power_before, mean_power_after - mean_power_before
+        mean_num = power[jump] - mean_power_before
+        mean_den = mean_power_after - mean_power_before
         std_num = np.sqrt(std_power[jump] ** 2 + std_power_before ** 2)
         std_den = np.sqrt(std_power_after ** 2 + std_power_before ** 2)
         # Since "before" power appears in both numerator and denominator, they are (slightly) correlated.
@@ -126,8 +126,8 @@ def find_jumps(timestamps, power, std_power, margin_factor, jump_significance, m
         mean_subdump, std_subdump = ratio_stats(
             mean_num, std_num, mean_den, std_den, corrcoef)
         # Estimate instant of jump with corresponding uncertainty (assumes timestamps are accurately known)
-        jump_time.append(
-            mean_subdump * timestamps[jump] + (1. - mean_subdump) * timestamps[jump + 1])
+        jump_time.append(mean_subdump * timestamps[jump] +
+             (1. - mean_subdump) * timestamps[jump + 1])
         jump_std_time.append(
             std_subdump * (timestamps[jump + 1] - timestamps[jump]))
         # Refined estimate of the significance of the jump, using averaged data instead of single dumps
@@ -161,16 +161,14 @@ data = katdal.open(args[0])
 
 n_chan = np.shape(data.channels)[0]
 if opts.freq_chans is not None:
-    start_freq_channel = int(opts.freq_chans.split(',')[0])
-    end_freq_channel = int(opts.freq_chans.split(',')[1])
-    edge = np.tile(True, n_chan)
-    edge[slice(start_freq_channel, end_freq_channel)] = False
+    start_f = int(opts.freq_chans.split(',')[0])
+    end_f = int(opts.freq_chans.split(',')[1])
+    chan_range = slice(start_f, end_f)
 else:
-    edge = np.tile(True, n_chan)
-    edge[slice(data.shape[1] // 4, 3 * data.shape[1] // 4)] = False
+    chan_range = slice(data.shape[1] // 4, 3 * data.shape[1] // 4)
 # load static flags if pickle file is given
 channel_mask = opts.channel_mask
-if len(channel_mask) > 0:
+if channel_mask > 0:
     pickle_file = open(channel_mask)
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
@@ -178,6 +176,9 @@ if len(channel_mask) > 0:
         rfi_static_flags = rfi_static_flags.repeat(8)  # 32k mode
 else:
     rfi_static_flags = np.tile(False, n_chan)
+
+edge = np.tile(True, n_chan)
+edge[chan_range] = False
 static_flags = np.logical_or(edge, rfi_static_flags)
 data.select(channels=~static_flags)
 
@@ -197,7 +198,7 @@ for ant in data.ants:
                                      (ant.name, diode_name), extract=False)
         except KeyError:
             continue
-        if len(sensor[:]) <= 1:
+        if len(sensor['timestamp']) <= 1:
             continue
         # Collect all expected noise diode firings
         print "Diode:", ant.name, diode_name
@@ -231,8 +232,8 @@ for ant in data.ants:
                     2 * nd_state[firings_in_scan][n] - 1) * np.sign(jump_size) > 0
                 if same_direction.any():
                     same_direction = np.where(same_direction)[0]
-                    closest_jump = same_direction[np.argmin(
-                        np.abs(offsets[same_direction]))]
+                    closest_jump = same_direction[
+                        np.argmin(np.abs(offsets[same_direction]))]
                     offset = offsets[closest_jump]
                     # Only match the jump if it is within a certain window of the expected firing
                     if np.abs(offset) < data.dump_period * opts.max_offset:
@@ -253,21 +254,21 @@ if offset_stats:
     print
     print 'Summary of offsets (DBE - CAM) per diode'
     print '----------------------------------------'
-    for key, val in offset_stats.iteritems():
-        # Change unit to milliseconds, and from an array from list
-        offset_ms, std_offset_ms = 1000 * np.asarray(val).T
-        mean_offset = offset_ms.mean()
-        # Variation of final mean offset due to uncertainty of each measurement (influenced by integration time,
-        # bandwidth, magnitude of power jump)
-        std1 = np.sqrt(np.sum(std_offset_ms ** 2)) / len(std_offset_ms)
-        # Variation of final mean due to offsets in individual measurements - this can be much bigger than std1 and
-        # is typically due to changes in background power while noise diode is firing, resulting in measurement bias
-        std2 = offset_ms.std() / np.sqrt(len(offset_ms))
-        std_mean_offset = np.sqrt(std1 ** 2 + std2 ** 2)
-        min_offset, max_offset = np.argmin(offset_ms), np.argmax(offset_ms)
-        print '%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
-              (key, mean_offset, std_mean_offset,
-               mean_offset / data.dump_period / 1e3, std_mean_offset / data.dump_period / 1e3,
-               offset_ms[min_offset], std_offset_ms[min_offset], offset_ms[max_offset], std_offset_ms[max_offset])
-else:
-    print ("No valid noisediode values found in file")
+for key, val in offset_stats.iteritems():
+    # Change unit to milliseconds, and from an array from list
+    offset_ms, std_offset_ms = 1000 * np.asarray(val).T
+    mean_offset = offset_ms.mean()
+    # Variation of final mean offset due to uncertainty of each measurement (influenced by integration time,
+    # bandwidth, magnitude of power jump)
+    std1 = np.sqrt(np.sum(std_offset_ms ** 2)) / len(std_offset_ms)
+    # Variation of final mean due to offsets in individual measurements - this can be much bigger than std1 and
+    # is typically due to changes in background power while noise diode is firing, resulting in measurement bias
+    std2 = offset_ms.std() / np.sqrt(len(offset_ms))
+    std_mean_offset = np.sqrt(std1 ** 2 + std2 ** 2)
+    min_offset, max_offset = np.argmin(offset_ms), np.argmax(offset_ms)
+    print '%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
+          (key, mean_offset, std_mean_offset,
+           mean_offset / data.dump_period / 1e3, std_mean_offset / data.dump_period / 1e3,
+           offset_ms[min_offset], std_offset_ms[min_offset], offset_ms[max_offset], std_offset_ms[max_offset])
+if not offset_stats:
+    print ("No valid noise diode firings found in file")
