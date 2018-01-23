@@ -16,7 +16,10 @@ import katdal
 def haversine(az1, el1, az2, el2):
     """
     Calculate the great circle distance between two points 
-    on the earth (specified in decimal degrees)
+    (az1, el1)  to  (az2, el2) on a sphere.
+    The inputs are in decimal degrees and the result
+    is the seperation  of the two pairs 
+    in decimal degrees. 
     """
     # convert decimal degrees to radians
     lon1 = np.radians(el1)
@@ -29,7 +32,7 @@ def haversine(az1, el1, az2, el2):
     a = np.sin(dlat / 2.)**2 + np.cos(lat1) * \
         np.cos(lat2) * np.sin(dlon / 2.)**2
     c = 2 * np.arcsin(np.sqrt(a))
-    r = np.degrees(1)
+    r = np.degrees(1) # convert radians to decimal degrees 
     return c * r
 
 
@@ -104,7 +107,7 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
                    == activity_lookup['scan']) & (delta_sky < 0.01)
 
         print "%s : Tracking Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[tracking].std() * 3600)
-        print "%s : Scanning  Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[scaning].std() * 3600)
+        print "%s : Scanning Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[scaning].std() * 3600)
         for angle_param in slew_from_angles:
             for i, x in enumerate((delta_sky > angle_param - 1.1) & (delta_sky < angle_param + 1.1)):
                 if x:
