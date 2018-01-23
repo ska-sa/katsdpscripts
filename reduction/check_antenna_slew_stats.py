@@ -19,17 +19,16 @@ def haversine(az1, el1, az2, el2):
     on the earth (specified in decimal degrees)
     """
     # convert decimal degrees to radians
-    lon1 = np.radians((el1))
-    lat1 = np.radians((az1))
-    lon2 = np.radians((el2))
-    lat2 = np.radians((az2))
+    lon1 = np.radians(el1)
+    lat1 = np.radians(az1)
+    lon2 = np.radians(el2)
+    lat2 = np.radians(az2)
     # haversine formula
     dlon = lon2 - lon1
     dlat = lat2 - lat1
     a = np.sin(dlat / 2.)**2 + np.cos(lat1) * \
         np.cos(lat2) * np.sin(dlon / 2.)**2
     c = 2 * np.arcsin(np.sqrt(a))
-    # 6371 # Radius of earth in kilometers. Use 3956 for miles
     r = np.degrees(1)
     return c * r
 
@@ -105,7 +104,7 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
                    == activity_lookup['scan']) & (delta_sky < 0.01)
 
         print "%s : Tracking Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[tracking].std() * 3600)
-        print "%s : Scaning  Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[scaning].std() * 3600)
+        print "%s : Scanning  Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[scaning].std() * 3600)
         for angle_param in slew_from_angles:
             for i, x in enumerate((delta_sky > angle_param - 1.1) & (delta_sky < angle_param + 1.1)):
                 if x:
