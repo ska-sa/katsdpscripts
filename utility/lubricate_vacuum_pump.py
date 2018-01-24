@@ -517,11 +517,11 @@ with verify_and_connect(opts) as kat:
 
                 # Check which receptors should be included in the run (based on
                 # lubrication frequency and run duration during that time)
-                log_message('Checking history on failed lubrication runs\n', boldtype=True)
-                read_sensor_history(err_results)
+                #log_message('Checking history on failed lubrication runs\n', boldtype=True)
+                #read_sensor_history(err_results)
                 
-                log_message('Checking history on antennas in maintenance\n', boldtype=True)
-                read_sensor_history(kat2.katpool.sensor.resources_in_maintenance.get_value().split(','))
+                #log_message('Checking history on antennas in maintenance\n', boldtype=True)
+                #read_sensor_history(kat2.katpool.sensor.resources_in_maintenance.get_value().split(','))
 
                 log_message("Vacuum Pump Lubrication: stop", boldtype=True)
                 
