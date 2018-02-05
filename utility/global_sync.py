@@ -10,6 +10,7 @@
 # Cleanup by Martin to remove redundant instructions now handled by CAM
 # Tiyani: wait for dmc to update epoch before resetting capture destinations and
 #         querying digitiser epoch
+# Ruby stabilising script by exiting cleanly and allowing enough time for sensor updates
 
 
 from __future__ import with_statement
@@ -126,11 +127,11 @@ with verify_and_connect(opts) as kat:
 
             print ('Previous sync time %d, waiting for new sync time' % init_epoch)
             time.sleep(60)  # waiting for CAM sensor update
-            wait_time = 0
+            wait_time = 0  # seconds
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
-                time.sleep(2)
-                wait_time += 1
-                if wait_time == 60:
+                time.sleep(2)  # seconds
+                wait_time += 2  # seconds
+                if wait_time == 120:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
             dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
@@ -138,11 +139,11 @@ with verify_and_connect(opts) as kat:
                 try:
                     print("Verify digitiser epoch for antenna %s" % ant.name)
                     ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
-                    wait_time = 0
+                    wait_time = 0  # seconds
                     while ant_epoch != dmc_epoch:
-                        time.sleep(2)
-                        wait_time += 1
-                        if wait_time == 60:
+                        time.sleep(2)  # seconds
+                        wait_time += 2  # seconds
+                        if wait_time == 60:  # seconds
                             print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
                             break
                 except:
