@@ -125,24 +125,27 @@ with verify_and_connect(opts) as kat:
             print("Duration of global sync: {} try number {}"
                   .format(time.time() - start_time, 1))
 
-            print ('Previous sync time %d, waiting for new sync time' % init_epoch)
+            print('Previous sync time %d, waiting for new sync time' % init_epoch)
             time.sleep(60)  # waiting for CAM sensor update
+            cam_sleep = 2  # seconds to wait for CAM sensor retry
             wait_time = 0  # seconds
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
-                time.sleep(2)  # seconds
-                wait_time += 2  # seconds
+                time.sleep(cam_sleep)
+                wait_time += cam_sleep
                 if wait_time == 120:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
+            print('Setting digitiser L-band sync epoch to DSM epoch')
             dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
                 try:
                     print("Verify digitiser epoch for antenna %s" % ant.name)
                     ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
+                    dig_sleep = 2  # seconds
                     wait_time = 0  # seconds
                     while ant_epoch != dmc_epoch:
-                        time.sleep(2)  # seconds
-                        wait_time += 2  # seconds
+                        time.sleep(dig_sleep)
+                        wait_time += dig_sleep
                         if wait_time == 60:  # seconds
                             print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
                             break
