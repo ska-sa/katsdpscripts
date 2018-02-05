@@ -100,9 +100,9 @@ parser.add_option('--ants',
 parser.add_option('-t', '--target-duration', type='float', default=20,
                   help='Minimum duration to track the beamforming target, '
                        'in seconds (default=%default)')
-parser.add_option('-B', '--beam-bandwidth', type='float', default=107.0,
+parser.add_option('-B', '--beam-bandwidth', type='float', default=853.75,
                   help="Beamformer bandwidth, in MHz (default=%default)")
-parser.add_option('-F', '--beam-centre-freq', type='float', default=1391.0,
+parser.add_option('-F', '--beam-centre-freq', type='float', default=1284.0,
                   help="Beamformer centre frequency, in MHz (default=%default)")
 parser.add_option('--test-snr', action='store_true', default=False,
                   help="Perform SNR test by switching off inputs (default=no)")
@@ -135,27 +135,30 @@ with verify_and_connect(opts) as kat:
     bf_ants = opts.ants.split(',') if opts.ants else [ant.name for ant in kat.ants]
     cbf = SessionCBF(kat)
     for stream in cbf.beamformers:
-        try:
-            # ROACH implementation only, need to set passband and centerfrequency
-            # Values hard coded: CBF is expecting values
-            # (856000000.00,1284000000.000)
-            # Hardcoded and magic number usage to be removed in future update
-            reply = stream.req.passband(int((856 - 2.25) * 1e6),
-                                        int(1284 * 1e6))
-            if reply.succeeded:
-                try:
-                    actual_bandwidth = float(reply.messages[0].arguments[2])
-                    actual_centre_freq = float(reply.messages[0].arguments[3])
-                except IndexError:
-                    # In a dry run the reply will succeed but with no return values
-                    actual_bandwidth = actual_centre_freq = 0.0
-                user_logger.info("Beamformer %r has bandwidth %g Hz and centre freq %g Hz",
-                                 stream.name, actual_bandwidth, actual_centre_freq)
-            else:
+        # ROACH implementation only, need to set passband and centerfrequency
+        # Values hard coded: CBF is expecting values
+        # (856000000.00,1284000000.000)
+        # Hardcoded and magic number usage to be removed in future update
+        reply = stream.req.passband(int(opts.beam_bandwidth * 1e6),
+                                    int(opts.beam_centre_freq * 1e6))
+        if reply.succeeded:
+            try:
+                actual_bandwidth = float(reply.messages[0].arguments[2])
+                actual_centre_freq = float(reply.messages[0].arguments[3])
+            except IndexError:
+                # In a dry run the reply will succeed but with no return values
+                actual_bandwidth = actual_centre_freq = 0.0
+            user_logger.info("Beamformer %r has bandwidth %g Hz and centre freq %g Hz",
+                             stream.name, actual_bandwidth, actual_centre_freq)
+        else:
+            # SKARAB no longer has bandwidth and centre freq registers
+            if str(reply.messages[0]).find('AttributeError'):
+                # will be replaced with a "unimplemented" response
+                user_logger.info("SKARAB, skipping bandwidth and centre freq setting")
+                pass
+            else:  # ROACH setting error
                 raise ValueError("Could not set beamformer %r passband - (%s)" %
                                  (stream.name, ' '.join(reply.messages[0].arguments)))
-        except ValueError:
-            pass  # SKARAB no longer has bandwidth and centre freq registers
         user_logger.info('Setting beamformer weights for stream %r:', stream.name)
         for inp in stream.inputs:
             weight = 1.0 / np.sqrt(len(bf_ants)) if inp[:-1] in bf_ants else 0.0
