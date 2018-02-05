@@ -137,7 +137,7 @@ with verify_and_connect(opts) as kat:
     for stream in cbf.beamformers:
         # ROACH implementation only, need to set passband and centerfrequency
         # Values hard coded: CBF is expecting values
-        # (856000000.00,1284000000.000)
+        # (856000000.00 - 2250000.0, 1284000000.000)
         # Hardcoded and magic number usage to be removed in future update
         reply = stream.req.passband(int(opts.beam_bandwidth * 1e6),
                                     int(opts.beam_centre_freq * 1e6))
@@ -155,7 +155,6 @@ with verify_and_connect(opts) as kat:
             if str(reply.messages[0]).find('AttributeError'):
                 # will be replaced with a "unimplemented" response
                 user_logger.info("SKARAB, skipping bandwidth and centre freq setting")
-                pass
             else:  # ROACH setting error
                 raise ValueError("Could not set beamformer %r passband - (%s)" %
                                  (stream.name, ' '.join(reply.messages[0].arguments)))
