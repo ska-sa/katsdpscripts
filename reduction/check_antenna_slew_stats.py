@@ -110,6 +110,8 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
         print "%s : Scanning Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[scaning].std() * 3600)
         for angle_param in slew_from_angles:
             for i, x in enumerate((delta_sky > angle_param - 1.1) & (delta_sky < angle_param + 1.1)):
+                # The 1.1 is a fudge factor to ensure that there is at least one 2hz sample nearest the source.
+                # This is assuming that the max antenna slew rate of 2 degrees.
                 if x:
                     lock_len = 60 + int(2 * angle_param)
                     # time to get lock_len
