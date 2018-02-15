@@ -124,7 +124,10 @@ with verify_and_connect(opts) as kat:
         sample_rate = 0.0
         delays = {}
         if not kat.dry_run:
-            sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
+            # XXX It's not ideal that we have to know the instrument
+            instrument = session.cbf.fengine._instrument
+            sample_rate_name = instrument + '_adc_sample_rate'
+            sample_rate = session.telstate.get(sample_rate_name, 0.0)
             delays = get_delaycal_solutions(session, timeout=90.)
             # JSON does not like NumPy types
             delays = {inp: float(d) for inp, d in delays.items()}
