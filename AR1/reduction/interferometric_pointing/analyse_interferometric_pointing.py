@@ -62,14 +62,12 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
     gaussian_width_std  = np.zeros((chunk_size* 2,2,len(h5.ants)) )
     gaussian_height     = np.zeros((chunk_size* 2,len(h5.ants)) )
     gaussian_height_std = np.zeros((chunk_size* 2,len(h5.ants)) )
-    h5.antlist = [a.name for a in h5.ants]
-    h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     pols = ["H","V"] # Put in logic for Intensity
     for i,pol in enumerate(pols) :
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross')
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() : 
             valid_index = activity(h5,state = 'track')
@@ -184,6 +182,12 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
 parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
                                description="This processes an HDF5 dataset and extracts fitted beam parameters "
                                            "from the compound scans in it.")
+parser.add_option("-a", "--ants", dest="ants",default=None,
+                  help="List of antennas to use in the reduction "
+                       "default is all antennas in the data set")
+parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
+                  help="List of antennas to exculde from the reduction "
+                       "default is None of the antennas in the data set")
 
 parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-o", "--output", dest="outfilebase",default=None,
@@ -208,8 +212,16 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
 
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
-h5 = katdal.open(args)  # THis is an old KAT-7 file with no fringestopping
-h5.select(compscans='interferometric_pointing')
+h5 = katdal.open(args)  
+ant_list = [ant.name for ant in h5.ants] # Temp list for input options
+if opts.ants is not None  :
+    ant_list = opts.ants.split(',')
+if opts.ex_ants is not None :
+    for ant in opts.ex_ants.split(','):
+        if ant in ant_list:
+            ant_list.remove(ant)
+h5.select(compscans='interferometric_pointing',ants=ant_list)
+
 h5.antlist = [a.name for a in h5.ants]
 h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
 if opts.outfilebase is None :
