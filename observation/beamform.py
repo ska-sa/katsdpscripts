@@ -202,6 +202,7 @@ with verify_and_connect(opts) as kat:
         # Force delay tracking to be on
         opts.no_delays = False
         session.standard_setup(**vars(opts))
+        session.capture_init()
 
         user_logger.info('Set noise-source pattern')
         if opts.noise_source is not None:

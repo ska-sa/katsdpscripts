@@ -47,7 +47,7 @@ def plane_to_sphere_holography(targetaz,targetel,ll,mm):
     scanaz=targetaz-np.arcsin(np.clip(ll/np.cos(targetel),-1.0,1.0))
     scanel=np.arcsin(np.clip((np.sqrt(1.0-ll**2-mm**2)*np.sin(targetel)+np.sqrt(np.cos(targetel)**2-ll**2)*mm)/(1.0-ll**2),-1.0,1.0))
     return scanaz,scanel
-    
+
 #same as katpoint.projection._sphere_to_plane_common(az0=scanaz,el0=scanel,az=targetaz,el=targetel) with ll=ortho_x,mm=-ortho_y
 def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
     #produces direction cosine coordinates from scanning antenna azimuth,elevation coordinates
@@ -320,14 +320,14 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         for ia in range(narms):
             compositex[ia]=-compositex[ia]
             ncompositex[ia]=-ncompositex[ia]
-    
+
     return compositex,compositey,ncompositex,ncompositey,nextraslew
 
 def gen_scan(lasttime,target,az_arm,el_arm,timeperstep):
     num_points = np.shape(az_arm)[0]
     az_arm = az_arm*np.pi/180.0
     el_arm = el_arm*np.pi/180.0
-    scan_data = np.zeros((num_points,3))    
+    scan_data = np.zeros((num_points,3))
     attime = lasttime+np.arange(1,num_points+1)*timeperstep
     #spiral arm scan
     targetaz_rad,targetel_rad=target.azel(attime)
@@ -456,8 +456,9 @@ with verify_and_connect(opts) as kat:
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
-        session.telstate.add('obs_label','cycle.group.scan')
+        # This also does capture_init, which adds capture_block_id view to telstate and saves obs_params
         session.capture_start()
+        session.telstate.add('obs_label','cycle.group.scan')
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second "
                          "cycles extending %g degrees) on target '%s'",
                          opts.num_cycles, opts.cycle_duration,
