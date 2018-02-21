@@ -108,6 +108,7 @@ with verify_and_connect(opts) as kat:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
+        session.capture_init()
         session.cbf.correlator.req.capture_start()
 
         for target in [observation_sources.sort('el').targets[-1]]:

@@ -122,6 +122,7 @@ with verify_and_connect(opts) as kat:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
+        session.capture_init()
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
