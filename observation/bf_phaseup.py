@@ -9,66 +9,13 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
                                 SessionSDP)
 from katsdptelstate import TimeoutError
-
-
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
-
-
-class NoGainsAvailableError(Exception):
-    """No gain solutions are available from the cal pipeline."""
 
 
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
-
-def get_cal_inputs(telstate):
-    """Input labels associated with calibration products."""
-    if 'cal_antlist' not in telstate or 'cal_pol_ordering' not in telstate:
-        return []
-    ants = telstate['cal_antlist']
-    polprods = telstate['cal_pol_ordering']
-    pols = [prod[0] for prod in polprods if prod[0] == prod[1]]
-    return [ant + pol for pol in pols for ant in ants]
-
-
-def get_cal_solutions(session, key, timeout):
-    """Retrieve generic calibration solutions from telescope state."""
-    inputs = get_cal_inputs(session.telstate)
-    if not inputs:
-        return None, None
-    fresh = lambda value, ts: ts is not None and ts > session.start_time  # noqa: E731
-    try:
-        session.telstate.wait_key(key, fresh, timeout)
-    except TimeoutError:
-        return inputs, None
-    return inputs, session.telstate[key]
-
-
-def get_delaycal_solutions(session, timeout=0.):
-    inputs, solutions = get_cal_solutions(session, 'cal_product_K', timeout)
-    if solutions is None:
-        return {}
-    # The sign of the katsdpcal solutions are opposite to that of the delay model
-    solutions = -solutions
-    return dict(zip(inputs, solutions.real.flat))
-
-
-def get_bpcal_solutions(session, timeout=0.):
-    """Retrieve bandpass calibration solutions from telescope state."""
-    inputs, solutions = get_cal_solutions(session, 'cal_product_B', timeout)
-    if solutions is None:
-        return {}
-    return dict(zip(inputs, solutions.reshape((solutions.shape[0], -1)).T))
-
-
-def get_gaincal_solutions(session, timeout=0.):
-    """Retrieve gain calibration solutions from telescope state."""
-    inputs, solutions = get_cal_solutions(session, 'cal_product_G', timeout)
-    if solutions is None:
-        return {}
-    return dict(zip(inputs, solutions.flat))
 
 
 # Set up standard script options
@@ -147,44 +94,39 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
-            if not kat.dry_run:
+            if not kat.dry_run: #TODO  Add the Timing stuff to katcorelib
                 # Wait for the last bfcal product from the pipeline
-                gains = get_gaincal_solutions(session, timeout=180.)
-                bp_gains = get_bpcal_solutions(session)
-                delays = get_delaycal_solutions(session)
+                gains = session.get_gaincal_solutions(timeout=180.)
+                bp_gains = session.get_bpcal_solutions()
+                delays = session.get_delaycal_solutions()
                 if not gains:
-                    raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
+                    raise session.NoGainsAvailableError("No gain solutions found in telstate '%s'"
                                                 % (session.telstate,))
                 cal_channel_freqs = session.telstate.get('cal_channel_freqs')
                 if cal_channel_freqs is None:
-                    user_logger.warning("No cal frequencies found in telstate '%s', "
+                    user_logger.error("No cal frequencies found in telstate '%s', "
                                         "refusing to correct delays", session.telstate)
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
-            for inp in set(session.cbf.fengine.inputs) and set(gains):
-                orig_weights = gains[inp]
-                if inp in bp_gains:
-                    bp = bp_gains[inp]
-                    valid = ~np.isnan(bp)
-                    if valid.any():
-                        chans = np.arange(len(bp))
-                        bp = np.interp(chans, chans[valid], bp[valid])
-                        orig_weights *= bp
-                if inp in delays and cal_channel_freqs is not None:
+            orig_weights = gains
+            new_weights = {}
+            for inp in  bp_gains:
+                valid = ~np.isnan(bp_gains[inp])
+                if valid.any(): # not all flagged
+                    chans = np.arange(len(bp_gains[inp]))
+                    bp_gains[inp] = np.interp(chans, chans[valid], bp_gains[inp][valid])
+                    orig_weights[inp] *= bp_gains[inp]
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights *= delay_weights
-                amp_weights = np.abs(orig_weights)
-                phase_weights = orig_weights / amp_weights
-                # Correct the phase and optionally the amplitude as well
-                new_weights = opts.default_gain * phase_weights.conj()
-                if opts.flatten_bandpass:
-                    new_weights /= amp_weights
-                weights_str = [('%+5.3f%+5.3fj' % (w.real, w.imag)) for w in new_weights]
-                session.cbf.fengine.req.gain(inp, *weights_str)
+                    orig_weights[inp] *= delay_weights # unwrap the delays
+                    amp_weights = np.abs(orig_weights[inp])
+                    phase_weights = orig_weights[inp] / amp_weights # Normalise Amplitude
+                    new_weights[inp] = opts.default_gain * phase_weights.conj()
+                    if opts.flatten_bandpass:
+                        new_weights[inp] /= amp_weights
+            session.set_fengine_gains( new_weights)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                              target.name, opts.track_duration)
-            session.track(target, duration=opts.track_duration, announce=False)
+            session.track(target, duration=60, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
-            for inp in session.cbf.fengine.inputs:
-                session.cbf.fengine.req.gain(inp, opts.default_gain)
+            session.set_fengine_gains(opts.default_gain)
