@@ -18,58 +18,8 @@ class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
-class NoDelaysAvailableError(Exception):
-    """No delay solutions are available from the cal pipeline."""
-
-
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
-
-
-def set_fengine_gain(session, gain):
-    """Set F-engine gain to *gain* if positive, or automatic default if 0."""
-    if session.kat.dry_run:
-        gain = -1
-    # Obtain default gain based on channel count if none specified
-    if gain == 0:
-        num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-        gain = DEFAULT_GAIN.get(num_channels, -1)
-    if gain > 0:
-        user_logger.info("Setting F-engine gains to %d", gain)
-        for inp in session.cbf.fengine.inputs:
-            session.cbf.fengine.req.gain(inp, gain)
-
-
-def get_cal_inputs(telstate):
-    """Input labels associated with calibration products."""
-    if 'cal_antlist' not in telstate or 'cal_pol_ordering' not in telstate:
-        return []
-    ants = telstate['cal_antlist']
-    polprods = telstate['cal_pol_ordering']
-    pols = [prod[0] for prod in polprods if prod[0] == prod[1]]
-    return [ant + pol for pol in pols for ant in ants]
-
-
-def get_cal_solutions(session, key, timeout):
-    """Retrieve generic calibration solutions from telescope state."""
-    inputs = get_cal_inputs(session.telstate)
-    if not inputs:
-        return None, None
-    fresh = lambda value, ts: ts is not None and ts > session.start_time  # noqa: E731
-    try:
-        session.telstate.wait_key(key, fresh, timeout)
-    except TimeoutError:
-        return inputs, None
-    return inputs, session.telstate[key]
-
-
-def get_delaycal_solutions(session, timeout=0.):
-    inputs, solutions = get_cal_solutions(session, 'cal_product_K', timeout)
-    if solutions is None:
-        return {}
-    # The sign of the katsdpcal solutions are opposite to that of the delay model
-    solutions = -solutions
-    return dict(zip(inputs, solutions.real.flat))
 
 
 # Set up standard script options
@@ -96,6 +46,7 @@ if len(args) == 0:
                      "('Cygnus A'), description ('azel, 20, 30') or catalogue "
                      "file name ('sources.csv')")
 
+
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
@@ -109,9 +60,20 @@ with verify_and_connect(opts) as kat:
         target = observation_sources.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
-        set_fengine_gain(session, opts.fengine_gain)
+        session.cbf.correlator.req.capture_start()
+        if opts.fengine_gain <= 0 :
+                num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+                opts.fengine_gain = DEFAULT_GAIN.get(num_channels, -1)
+        gains = {}
+        for inp in  session.get_cal_inputs():
+            gains[inp] = opts.fengine_gain
+        session.set_fengine_gains(gains)
         user_logger.info("Zeroing all delay adjustments for starters")
-        session.cbf.req.adjust_all_delays()
+        delays = {}
+        for inp in  session.get_cal_inputs():
+            delays[inp] = 0.0
+        session.set_delays(delays)
+
         session.capture_start()
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
@@ -122,22 +84,8 @@ with verify_and_connect(opts) as kat:
 
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         sample_rate = 0.0
-        delays = {}
-        if not kat.dry_run:
-            sample_rate = session.telstate.get('cbf_adc_sample_rate', 0.0)
-            delays = get_delaycal_solutions(session, timeout=90.)
-            # JSON does not like NumPy types
-            delays = {inp: float(d) for inp, d in delays.items()}
-            if not delays:
-                msg = "No delay solutions found in telstate '%s'" % \
-                      (session.telstate,)
-                raise NoDelaysAvailableError(msg)
-        user_logger.info("Delay solutions (sample rate = %g Hz):", sample_rate)
-        for inp in sorted(delays):
-            user_logger.info(" - %s: %10.3f ns, %9.2f samples",
-                             inp, delays[inp] * 1e9, delays[inp] * sample_rate)
-        user_logger.info("Adjusting delays on CBF proxy")
-        session.cbf.req.adjust_all_delays(json.dumps(delays))
+        delays = session.get_delaycal_solutions(timeout=90.)
+        session.set_delays(delays)
 
         user_logger.info("Revisiting target %r for %g seconds to see if "
                          "delays are fixed", target.name, opts.track_duration)
@@ -145,4 +93,6 @@ with verify_and_connect(opts) as kat:
         session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
-            session.cbf.req.adjust_all_delays()
+            for inp in  session.get_cal_inputs():
+                delays[inp] = 0.0
+            session.set_delays(delays)
