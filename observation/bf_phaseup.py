@@ -93,8 +93,6 @@ with verify_and_connect(opts) as kat:
             # Attempt to jiggle cal pipeline to drop its gains
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
-            delays = bp_gains = gains = {}
-            cal_channel_freqs = None
             # Wait for the last bfcal product from the pipeline
             gains = session.get_gaincal_solutions(timeout=180.)
             bp_gains = session.get_bpcal_solutions()
@@ -103,11 +101,11 @@ with verify_and_connect(opts) as kat:
                 raise session.NoGainsAvailableError("No gain solutions found in telstate '%s'"
                                                     % (session.telstate,))
             cal_channel_freqs = session.telstate.get('cal_channel_freqs')
-            if cal_channel_freqs is None:
+            if cal_channel_freqs is None and not kat.dry_run:
                 user_logger.error("No cal frequencies found in telstate '%s', "
                                   "Can't continue setting gains", session.telstate)
                 raise session.NoGainsAvailableError("No cal frequencies found in telstate '%s'"
-                                                    % (session.telstate,))
+                                                        % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
             new_weights = {}
@@ -120,7 +118,7 @@ with verify_and_connect(opts) as kat:
                     bp = np.interp(chans, chans[valid], bp[valid])
                     orig_weights[inp] *= bp
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights *= delay_weights # unwrap the delays
+                    orig_weights[inp] *= delay_weights # unwrap the delays
                     amp_weights = np.abs(orig_weights)
                     phase_weights = orig_weights / amp_weights # Normalise Amplitude
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
