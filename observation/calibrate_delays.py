@@ -60,20 +60,17 @@ with verify_and_connect(opts) as kat:
         target = observation_sources.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
-        session.cbf.correlator.req.capture_start()
-        if opts.fengine_gain <= 0 :
-                num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-                opts.fengine_gain = DEFAULT_GAIN.get(num_channels, -1)
+        if opts.fengine_gain <= 0:
+            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+            opts.fengine_gain = DEFAULT_GAIN.get(num_channels, -1)
         gains = {}
-        for inp in  session.get_cal_inputs():
+        delays = {}
+        for inp in session.get_cal_inputs():
             gains[inp] = opts.fengine_gain
+            delays[inp] = 0.0
         session.set_fengine_gains(gains)
         user_logger.info("Zeroing all delay adjustments for starters")
-        delays = {}
-        for inp in  session.get_cal_inputs():
-            delays[inp] = 0.0
         session.set_delays(delays)
-
         session.capture_start()
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
@@ -81,18 +78,16 @@ with verify_and_connect(opts) as kat:
         session.track(target, duration=opts.track_duration, announce=False)
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
-
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         sample_rate = 0.0
         delays = session.get_delaycal_solutions(timeout=90.)
         session.set_delays(delays)
-
         user_logger.info("Revisiting target %r for %g seconds to see if "
                          "delays are fixed", target.name, opts.track_duration)
         session.label('corrected')
         session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
-            for inp in  session.get_cal_inputs():
+            for inp in delays:
                 delays[inp] = 0.0
             session.set_delays(delays)
