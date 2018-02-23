@@ -9,13 +9,14 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
                                 SessionSDP)
 from katsdptelstate import TimeoutError
+
+
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
-
 
 
 # Set up standard script options
@@ -94,39 +95,43 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             delays = bp_gains = gains = {}
             cal_channel_freqs = None
-            if not kat.dry_run: #TODO  Add the Timing stuff to katcorelib
-                # Wait for the last bfcal product from the pipeline
-                gains = session.get_gaincal_solutions(timeout=180.)
-                bp_gains = session.get_bpcal_solutions()
-                delays = session.get_delaycal_solutions()
-                if not gains:
-                    raise session.NoGainsAvailableError("No gain solutions found in telstate '%s'"
-                                                % (session.telstate,))
-                cal_channel_freqs = session.telstate.get('cal_channel_freqs')
-                if cal_channel_freqs is None:
-                    user_logger.error("No cal frequencies found in telstate '%s', "
-                                        "refusing to correct delays", session.telstate)
+            # Wait for the last bfcal product from the pipeline
+            gains = session.get_gaincal_solutions(timeout=180.)
+            bp_gains = session.get_bpcal_solutions()
+            delays = session.get_delaycal_solutions()
+            if not gains:
+                raise session.NoGainsAvailableError("No gain solutions found in telstate '%s'"
+                                                    % (session.telstate,))
+            cal_channel_freqs = session.telstate.get('cal_channel_freqs')
+            if cal_channel_freqs is None:
+                user_logger.error("No cal frequencies found in telstate '%s', "
+                                  "Can't continue setting gains", session.telstate)
+                raise session.NoGainsAvailableError("No cal frequencies found in telstate '%s'"
+                                                    % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
-            orig_weights = gains
             new_weights = {}
-            for inp in  bp_gains:
-                valid = ~np.isnan(bp_gains[inp])
+            for inp in bp_gains:
+                bp = bp_gains[inp]
+                orig_weights = gains[inp]
+                valid = ~np.isnan(bp)
                 if valid.any(): # not all flagged
-                    chans = np.arange(len(bp_gains[inp]))
-                    bp_gains[inp] = np.interp(chans, chans[valid], bp_gains[inp][valid])
-                    orig_weights[inp] *= bp_gains[inp]
+                    chans = np.arange(len(bp))
+                    bp = np.interp(chans, chans[valid], bp[valid])
+                    orig_weights[inp] *= bp
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights[inp] *= delay_weights # unwrap the delays
-                    amp_weights = np.abs(orig_weights[inp])
-                    phase_weights = orig_weights[inp] / amp_weights # Normalise Amplitude
+                    orig_weights *= delay_weights # unwrap the delays
+                    amp_weights = np.abs(orig_weights)
+                    phase_weights = orig_weights / amp_weights # Normalise Amplitude
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
                         new_weights[inp] /= amp_weights
-            session.set_fengine_gains( new_weights)
+            session.set_fengine_gains(new_weights)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                              target.name, opts.track_duration)
-            session.track(target, duration=60, announce=False)
+            session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
-            session.set_fengine_gains(opts.default_gain)
+            for inp in gains:
+                gains[inp] = opts.default_gain
+            session.set_fengine_gains(gains)
