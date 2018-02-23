@@ -10,9 +10,12 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 SessionSDP)
 from katsdptelstate import TimeoutError
 
-
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
+
+
+class NoGainsAvailableError(Exception):
+    """No gain solutions are available from the cal pipeline."""
 
 
 # Default F-engine gain as a function of number of channels
@@ -97,14 +100,14 @@ with verify_and_connect(opts) as kat:
             gains = session.get_gaincal_solutions(timeout=180.)
             bp_gains = session.get_bpcal_solutions()
             delays = session.get_delaycal_solutions()
-            if not gains:
-                raise session.NoGainsAvailableError("No gain solutions found in telstate '%s'"
+            if not gains and not kat.dry_run:
+                raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
                                                     % (session.telstate,))
             cal_channel_freqs = session.telstate.get('cal_channel_freqs')
             if cal_channel_freqs is None and not kat.dry_run:
                 user_logger.error("No cal frequencies found in telstate '%s', "
                                   "Can't continue setting gains", session.telstate)
-                raise session.NoGainsAvailableError("No cal frequencies found in telstate '%s'"
+                raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
                                                         % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
