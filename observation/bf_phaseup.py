@@ -8,7 +8,7 @@ import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
                                 SessionSDP)
-from katsdptelstate import TimeoutError
+
 
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
@@ -102,28 +102,26 @@ with verify_and_connect(opts) as kat:
             delays = session.get_delaycal_solutions()
             if not gains and not kat.dry_run:
                 raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
-                                                    % (session.telstate,))
+                                            % (session.telstate,))
             cal_channel_freqs = session.telstate.get('cal_channel_freqs')
             if cal_channel_freqs is None and not kat.dry_run:
-                user_logger.error("No cal frequencies found in telstate '%s', "
-                                  "Can't continue setting gains", session.telstate)
                 raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
-                                                        % (session.telstate,))
+                                            % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
             new_weights = {}
-            for inp in bp_gains:
-                bp = bp_gains[inp]
+            for inp in gains:
                 orig_weights = gains[inp]
+                bp = bp_gains[inp]
                 valid = ~np.isnan(bp)
-                if valid.any(): # not all flagged
+                if valid.any():  # not all flagged
                     chans = np.arange(len(bp))
                     bp = np.interp(chans, chans[valid], bp[valid])
-                    orig_weights[inp] *= bp
+                    orig_weights *= bp
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights[inp] *= delay_weights # unwrap the delays
+                    orig_weights *= delay_weights  # unwrap the delays
                     amp_weights = np.abs(orig_weights)
-                    phase_weights = orig_weights / amp_weights # Normalise Amplitude
+                    phase_weights = orig_weights / amp_weights
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
                         new_weights[inp] /= amp_weights
