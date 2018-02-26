@@ -76,7 +76,7 @@ with verify_and_connect(opts) as kat:
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
-
+        gains = {}
         for target in [observation_sources.sort('el').targets[-1]]:
             target.add_tags('bfcal single_accumulation')
             if not opts.default_gain:
@@ -88,7 +88,9 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                              opts.default_gain)
             for inp in session.cbf.fengine.inputs:
-                session.cbf.fengine.req.gain(inp, opts.default_gain)
+                gains[inp] = opts.default_gain
+            session.set_fengine_gains(gains)
+
             session.label('un_corrected')
             user_logger.info("Initiating %g-second track on target '%s'",
                              opts.track_duration, target.name)
