@@ -59,7 +59,6 @@ with verify_and_connect(opts) as kat:
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
         session.cbf.correlator.req.capture_start()
-        # what is the difference between this and session.capture_start()
         gains = {}
         for target in [observation_sources.sort('el').targets[-1]]:
             # Calibration tests
@@ -69,13 +68,8 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                              opts.default_gain)
             for inp in session.cbf.fengine.inputs:
-                session.cbf.fengine.req.gain(inp, opts.default_gain)
-            user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                             opts.default_gain)
-            for inp in session.cbf.fengine.inputs:
                 gains[inp] = opts.default_gain
             session.set_fengine_gains(gains)
-
             session.label('calibration')
             user_logger.info("Initiating %g-second track on target '%s'",
                              opts.track_duration, target.name)
@@ -87,8 +81,8 @@ with verify_and_connect(opts) as kat:
             gains = session.get_gaincal_solutions(timeout=180.)
             bp_gains = session.get_bpcal_solutions()
             delays = session.get_delaycal_solutions()
-            if not gains and not kat.dry_run:
-                raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
+            if (not gains or not bp_gains or not delays) and not kat.dry_run:
+                raise NoGainsAvailableError("No gain/bandpass/delay solutions found in telstate '%s'"
                                             % (session.telstate,))
             cal_channel_freqs = session.telstate.get('cal_channel_freqs')
             if cal_channel_freqs is None and not kat.dry_run:
@@ -109,8 +103,6 @@ with verify_and_connect(opts) as kat:
                     amp_weights = np.abs(orig_weights)
                     phase_weights = orig_weights / amp_weights
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
-                    if opts.flatten_bandpass:
-                        new_weights[inp] /= amp_weights
             session.set_fengine_gains(new_weights)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                              target.name, opts.track_duration)
