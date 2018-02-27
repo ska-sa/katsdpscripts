@@ -90,7 +90,7 @@ with verify_and_connect(opts) as kat:
             if not gains and not kat.dry_run:
                 raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
                                             % (session.telstate,))
-            cal_channel_freqs = session.telstate.get('cal_channel_freqs')
+            cal_channel_freqs = session.get_cal_channel_freqs()
             if cal_channel_freqs is None and not kat.dry_run:
                 raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
                                             % (session.telstate,))
