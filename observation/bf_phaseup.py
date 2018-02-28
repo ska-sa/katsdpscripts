@@ -131,7 +131,7 @@ with verify_and_connect(opts) as kat:
             session.set_fengine_gains(new_weights)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                              target.name, 64.0)
-            session.track(target, duration=opts.track_duration, announce=False)
+            session.track(target, duration=64, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
             for inp in gains:
