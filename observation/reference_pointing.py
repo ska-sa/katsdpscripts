@@ -95,10 +95,12 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
     """
     telstate = session.telstate
     pols = get_pols(telstate)
-    cal_channel_freqs = telstate.get('cal_channel_freqs', 1.0)
-    # XXX Bad hack for now to work around cal centre freq issue
-    if not np.isscalar(cal_channel_freqs) and cal_channel_freqs[0] == 0:
-        cal_channel_freqs += 856e6
+    cal_channel_freqs = session.get_cal_channel_freqs()
+    if cal_channel_freqs is None:
+        raise NoGainsAvailableError('No channel frequencies found in telstate')
+    # Basic sanity check that the centre frequency is properly set
+    if cal_channel_freqs[0] == 0:
+        raise NoGainsAvailableError('Channel frequencies are baseband not sky frequencies')
     chunk_freqs = cal_channel_freqs.reshape(NUM_CHUNKS, -1).mean(axis=1)
     data_points = {}
     # Iterate over offset pointings
