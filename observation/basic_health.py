@@ -3,8 +3,8 @@
 # Observe either 1934-638 or 0408-65 to establish some basic health
 # properties of the MeerKAT AR1 system.
 
-import numpy as np
 import time
+import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
