@@ -81,7 +81,7 @@ with verify_and_connect(opts) as kat:
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         delays = session.get_delaycal_solutions(timeout=90.)
-        if not delays:
+        if not delays and not kat.dry_run:
             msg = "No delay solutions found in telstate '%s'" % \
                   (session.telstate,)
             # TODO: this should be raised by get_delaycal_solutions
