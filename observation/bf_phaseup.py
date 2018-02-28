@@ -48,9 +48,9 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 opts, args = parser.parse_args()
 
 # Set of targets with flux models
-J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
-J0408 = 'PKS 0408-65 | J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
-J1331 = '3C286      | J1331+3030, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
+J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
+J0408 = 'J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
+J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
 
 
 # Check options and build KAT configuration, connecting to proxies and devices
@@ -73,6 +73,7 @@ with verify_and_connect(opts) as kat:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
+        session.capture_init()
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
@@ -129,7 +130,7 @@ with verify_and_connect(opts) as kat:
                         new_weights[inp] /= amp_weights
             session.set_fengine_gains(new_weights)
             user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
-                             target.name, opts.track_duration)
+                             target.name, 64.0)
             session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)

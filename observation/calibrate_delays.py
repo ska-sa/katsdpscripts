@@ -79,7 +79,6 @@ with verify_and_connect(opts) as kat:
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        sample_rate = 0.0
         delays = session.get_delaycal_solutions(timeout=90.)
         session.set_delays(delays)
         user_logger.info("Revisiting target %r for %g seconds to see if "
