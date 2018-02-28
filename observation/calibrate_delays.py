@@ -11,6 +11,7 @@ import json
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
+from katcorelib.mkat_session import NoDelaysAvailableError
 from katsdptelstate import TimeoutError
 
 
@@ -80,6 +81,11 @@ with verify_and_connect(opts) as kat:
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         delays = session.get_delaycal_solutions(timeout=90.)
+        if not delays:
+            msg = "No delay solutions found in telstate '%s'" % \
+                  (session.telstate,)
+            # TODO: this should be raised by get_delaycal_solutions
+            raise NoDelaysAvailableError(msg)
         session.set_delays(delays)
         user_logger.info("Revisiting target %r for %g seconds to see if "
                          "delays are fixed", target.name, opts.track_duration)
