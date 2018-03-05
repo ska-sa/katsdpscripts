@@ -56,18 +56,17 @@ def point(ants, target, timeout=300):
     ants.req.mode("POINT")
     user_logger.info("Slewing to target : %s" % (target,))
     # wait for antennas to lock onto target
-    unlock = {}
-    lock = ants.wait("lock", True, 300)
-    for ant_x in ants:
-        lock[ant_x.name] = ant_x.sensor.lock.get_value()
-        if lock[ant_x.name]:
-            user_logger.info(
-                "Antenna : %s Locked , Tracking Target %s" % (ant_x.name, target))
-    for ant_name in lock:
-        if unlock[ant_name]:
-            user_logger.error(
-                "Antenna: %s  failed to lock on target  %s " % (ant_name, target,))
-    return True
+    success = ants.wait("lock", True, timeout)
+    if success:
+        user_logger.info("Tracking Target : %s " % (target,))
+    else:
+        failed = [client for client in success if not success[client]]
+        msg = "Waiting for sensor 'lock' == True "
+        # Report failure to user (including list of clients that failed)
+        msg += "reached timeout of %.1f seconds. " % (timeout,)
+        msg += "Clients %r failed." % (sorted(failed),)
+        user_logger.error(msg)
+    return success
 
 
 # Set up standard script options
