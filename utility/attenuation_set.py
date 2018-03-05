@@ -4,14 +4,14 @@
 import time
 import numpy
 from katcorelib import (
-    user_logger, standard_script_options, verify_and_connect)
-from katcorelib import colors
+    user_logger, standard_script_options, verify_and_connect, colors)
 
 
 def get_update(sensors):
     # This samples the senors and obtains a new value
+    # this combats the https://xkcd.com/221/ situation.
     for sensor in sensors:
-        value = kat.sensor.get(sensor).value  # of get_value
+        value = kat.sensor.get(sensor).value  # value updated by cam
         if value is None or value == []:
             value = kat.sensor.get(sensor).get_value()  # Kick the system
         if len(sensors[sensor]) == 0 or sensors[sensor][-1] != value:
@@ -19,7 +19,7 @@ def get_update(sensors):
 
 
 def get_last_value(sensors):
-    # This samples the senors and obtains a new value
+    # This samples the sensors and appends a new value
     last_value = {}
     for sensor in sensors:
         if len(sensors[sensor]) == 0:
@@ -56,28 +56,23 @@ def point(ants, target, timeout=300):
     ants.req.mode("POINT")
     user_logger.info("Slewing to target : %s" % (target,))
     # wait for antennas to lock onto target
-    locks = 0
     unlock = {}
+    lock = ants.wait("lock", True, 300)
     for ant_x in ants:
-        unlock[ant_x.name] = True
-        if ant_x.wait("lock", True, 300):
-            user_logger.info("Antenna : %s Locked" % (ant_x.name,))
-            locks += 1
-            unlock[ant_x.name] = False
-    if len(ants) == locks:
-        user_logger.info("Tracking Target : %s " % (target,))
-        return True
-    else:
-        for ant_name in unlock:
-            if unlock[ant_name]:
-                user_logger.error(
-                    "Antenna: %s  failed to lock on target  %s " % (ant_name, target,))
-        return False
+        lock[ant_x.name] = ant_x.sensor.lock.get_value()
+        if lock[ant_x.name]:
+            user_logger.info(
+                "Antenna : %s Locked , Tracking Target %s" % (ant_x.name, target))
+    for ant_name in lock:
+        if unlock[ant_name]:
+            user_logger.error(
+                "Antenna: %s  failed to lock on target  %s " % (ant_name, target,))
+    return True
 
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> "
-description = 'Calculate the predicted attenuation needed and Set the attenuation to apropriate levels'
+description = 'Calculate the predicted attenuation needed and Set the attenuation to appropriate levels'
 parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
 parser.add_option('--rfcu-in', type='float', default=-40.0,
@@ -87,7 +82,7 @@ parser.add_option('--adc-in', type='float', default=-30.0,
 parser.add_option('-t', '--track-duration', type='float', default=600.0,
                   help='Length of time to track the source, in seconds (default=%default)')
 parser.add_option('-b', '--band', default='l',
-                  help='The band of the recever  (default=%default)')
+                  help='The band of the receiver  (default=%default)')
 parser.add_option('--change-attenuation', action="store_true", default=False,
                   help='Change the attenuation to the predicted levels. ')
 
@@ -135,7 +130,7 @@ with verify_and_connect(opts) as kat:
                 adc_power['%s_dig_%s_band_adc_%spol_rf_power_in' %
                           (ant.name, band, pol)] = []
                 sensor_list.append('%s_dig_%s_band_adc_%spol_rf_power_in' %
-                                   (ant.name, band, p ol))
+                                   (ant.name, band, pol))
                 attenuation['%s_dig_%s_band_rfcu_%spol_attenuation' %
                             (ant.name, band, pol)] = []
                 sensor_list.append('%s_dig_%s_band_rfcu_%spol_attenuation' %
@@ -173,7 +168,7 @@ with verify_and_connect(opts) as kat:
                 key = lookup[ant_pol][2]
                 if new_atten[key] < 0:
                     user_logger.error(
-                        "%s %s: input power detected is to low to correct  Setting to 0dB attenuation" % (ant, pol))
+                        "%s %s: input power detected is too low to correct, setting to 0dB attenuation" % (ant, pol))
                     new_atten[key] = 0
                 if new_atten[key] >= 0 and attenuation_v[key] != new_atten[key]:
                     user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
