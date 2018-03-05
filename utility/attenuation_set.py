@@ -119,12 +119,12 @@ with verify_and_connect(opts) as kat:
     new_atten = {}
     if not kat.dry_run:
         for pol in {'h', 'v'}:
-            kat.ants.set_sampling_strategy(
-                "dig_%s_band_rfcu_%spol_rf_power_in" % (band, pol), "period 1.0")
-            kat.ants.set_sampling_strategy(
-                "dig_%s_band_adc_%spol_rf_power_in" % (band, pol), "period 1.0")
-            kat.ants.set_sampling_strategy(
-                "dig_%s_band_adc_%spol_attenuation" % (band, pol), "period 1.0")
+            kat.ants.set_sampling_strategy("dig_%s_band_rfcu_%spol_rf_power_in" %
+                                          (band, pol), "period 1.0")
+            kat.ants.set_sampling_strategy("dig_%s_band_adc_%spol_rf_power_in" %
+                                          (band, pol), "period 1.0")
+            kat.ants.set_sampling_strategy("dig_%s_band_adc_%spol_attenuation" %
+                                          (band, pol), "period 1.0")
             kat.ants.req.sensor_sampling("lock", "event")
             for ant in kat.ants:
                 sensor_list = []
@@ -134,11 +134,12 @@ with verify_and_connect(opts) as kat:
                     '%s_dig_%s_band_rfcu_%spol_rf_power_in' % (ant.name, band, pol))
                 adc_power['%s_dig_%s_band_adc_%spol_rf_power_in' %
                           (ant.name, band, pol)] = []
-                sensor_list.append('%s_dig_%s_band_adc_%spol_rf_power_in' % (ant.name, band, p ol))
+                sensor_list.append('%s_dig_%s_band_adc_%spol_rf_power_in' %
+                                  (ant.name, band, p ol))
                 attenuation['%s_dig_%s_band_rfcu_%spol_attenuation' %
                             (ant.name, band, pol)] = []
-                sensor_list.append(
-                    '%s_dig_%s_band_rfcu_%spol_attenuation' % (ant.name, band, pol))
+                sensor_list.append('%s_dig_%s_band_rfcu_%spol_attenuation' %
+                                  (ant.name, band, pol))
                 lookup["%s,%s" % (ant.name, pol)] = sensor_list
                 kat.sensor.get("%s_lock" % (ant.name)).set_strategy('event')
         point(kat.ants, "SCP,radec,0,-90", timeout=300)
