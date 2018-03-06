@@ -9,8 +9,8 @@ import optparse
 from  datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 
-url="http://portal.mkat.karoo.kat.ac.za/katstore/samples" # site for the most resent values
-def get_ants(sensor, url,timest=time.time()):
+url = "http://portal.mkat.karoo.kat.ac.za/katstore/samples" # site for the most resent values
+def get_ants(sensor, url,timest = time.time()):
     """Get the number of antennas in MeerKAT
        900 seconds ago by querying the katstore
     url using each antenna CAM sensor.
@@ -33,7 +33,7 @@ def get_sensor_values(ants,timest = time.time()):
     """
 
     store_array = np.zeros((len(ants),1),
-                          dtype=([('Antennas','S5'),
+                          dtype = ([('Antennas','S5'),
                           ('dig_selected_band','S5'),
                           ('rsc_rxl_serial_number', 'S5'),
                           ('dig_l_band_rfcu_hpol_rf_power_in', 'S5'),
@@ -44,7 +44,7 @@ def get_sensor_values(ants,timest = time.time()):
                           ('dig_l_band_rfcu_vpol_attenuation',int)])
                           )
 
-    keydict={'dig_selected_band',
+    keydict = {'dig_selected_band',
              'rsc_rxl_serial_number',
              'dig_l_band_rfcu_hpol_rf_power_in',
              'dig_l_band_rfcu_vpol_rf_power_in',
@@ -57,16 +57,16 @@ def get_sensor_values(ants,timest = time.time()):
     for i in range(len(ants)):
         value=dict([(key, []) for key in keydict])
         ant=ants[i]
-        store_array[i]['Antennas']=ant
+        store_array[i]['Antennas'] = ant
         for key in keydict:
-            res = requests.get(url, params={'sensor': ant+'_'+key,
+            res = requests.get(url, params = {'sensor': ant+'_'+key,
                            'start': timest - float(opts.time_interval),
                            'end':  timest
                            }
                            )
 
             value[key].append(res.content.split(',')[3][1:-1])
-            store_array[i][key]=value[key]
+            store_array[i][key] = value[key]
 
         print "Processing sensor information for antenna %s" % ant
 
@@ -128,50 +128,50 @@ print('MeerKAT receptors: {}\n\n{}'.format(len(receptors), receptors))
 print ('Receptors in Maintanance:{}\n\n{}'.format(len(maint_ants), maint_ants))
 print ('Active receptors {}\n\n{}'.format(len(active_receptors), active_receptors))
 
- # Set up standard script options
-parser = optparse.OptionParser(usage='%prog [options]',
-                               description='Check the health status of the digitiser and write an on pdf')
-parser.add_option("-a","--receptors", default=active_receptors,
+#Set up standard script options
+parser = optparse.OptionParser(usage = '%prog [options]',
+                               description = 'Check the health status of the digitiser and write an on pdf')
+parser.add_option("-a","--receptors", default = active_receptors,
                   help="antennas to query sensors for. default is active_receptors, else do maint_ants for maintanance and receptors for all")
-parser.add_option("-t", "--time-interval", default=900.0,
+parser.add_option("-t", "--time-interval", default = 900.0,
                   help="time interval for querying katstore")                               
-(opts,args)=parser.parse_args()
+(opts,args) = parser.parse_args()
 
 
 #Call main funtion to store sensor values
-data=get_sensor_values(opts.receptors)
+data = get_sensor_values(opts.receptors)
 
 #Extracting H_pol rfcu-in and adc-in from data
-rfcuin_H=[float(np.asscalar(i)) for i in data['dig_l_band_rfcu_hpol_rf_power_in']]
-rfcuout_H=[float(np.asscalar(i)) for i in data['dig_l_band_adc_hpol_rf_power_in']]
+rfcuin_H = [float(np.asscalar(i)) for i in data['dig_l_band_rfcu_hpol_rf_power_in']]
+rfcuout_H = [float(np.asscalar(i)) for i in data['dig_l_band_adc_hpol_rf_power_in']]
 
 #Extracting  V_pol rfcu-in and adc-in from data
-rfcuin_V=[float(np.asscalar(i)) for i in data['dig_l_band_rfcu_vpol_rf_power_in']]
-rfcuout_V=[float(np.asscalar(i)) for i in data['dig_l_band_adc_vpol_rf_power_in']]
+rfcuin_V = [float(np.asscalar(i)) for i in data['dig_l_band_rfcu_vpol_rf_power_in']]
+rfcuout_V = [float(np.asscalar(i)) for i in data['dig_l_band_adc_vpol_rf_power_in']]
 
 #Extracting all the antennas And attenuation
-Antennas=[np.asscalar(i) for i in data['Antennas']]
-att_H=np.ravel(data['dig_l_band_rfcu_hpol_attenuation'])
-att_V=np.ravel(data['dig_l_band_rfcu_vpol_attenuation'])
+Antennas = [np.asscalar(i) for i in data['Antennas']]
+att_H = np.ravel(data['dig_l_band_rfcu_hpol_attenuation'])
+att_V = np.ravel(data['dig_l_band_rfcu_vpol_attenuation'])
 
 #Calculating rfcu out
-rfcuCalc_H=rfcu_calc(rfcuin_H,rfcuout_H,att_H)[0]
-rfcuCalc_V=rfcu_calc(rfcuin_V,rfcuout_V,att_V)[0]
+rfcuCalc_H = rfcu_calc(rfcuin_H,rfcuout_H,att_H)[0]
+rfcuCalc_V = rfcu_calc(rfcuin_V,rfcuout_V,att_V)[0]
 #Calculate the amplification gain
-AmpGain_H=rfcu_calc(rfcuin_H,rfcuout_H,att_H)[1]
-AmpGain_V=rfcu_calc(rfcuin_V,rfcuout_V,att_V)[1]
-now=datetime.now()
-pp =PdfPages('Digitiser_power_levels'+'_'+now.strftime("%Y-%m-%d-%H:%M")+'.pdf')
+AmpGain_H = rfcu_calc(rfcuin_H,rfcuout_H,att_H)[1]
+AmpGain_V = rfcu_calc(rfcuin_V,rfcuout_V,att_V)[1]
+now = datetime.now()
+pp = PdfPages('Digitiser_power_levels'+'_'+now.strftime("%Y-%m-%d-%H:%M")+'.pdf')
 
 #Calling plot functions H & V
-fig=plot_rfcuPol(AmpGain_H,rfcuin_H,rfcuout_H,rfcuCalc_H)
-plt.title('Digitiser power level-Hpol',fontsize=20, fontweight='bold')
-fig.savefig(pp,format='pdf')
+fig = plot_rfcuPol(AmpGain_H,rfcuin_H,rfcuout_H,rfcuCalc_H)
+plt.title('Digitiser power level-Hpol',fontsize = 20, fontweight = 'bold')
+fig.savefig(pp,format = 'pdf')
 plt.close(fig)
 
 fig=plot_rfcuPol(AmpGain_V,rfcuin_V,rfcuout_V,rfcuCalc_V)
-plt.title('Digitiser power level-Vpol',fontsize=20, fontweight='bold')
-fig.savefig(pp,format='pdf')
+plt.title('Digitiser power level-Vpol',fontsize = 20, fontweight='bold')
+fig.savefig(pp,format = 'pdf')
 plt.close(fig)
 pp.close()
 plt.close('all')
