@@ -10,14 +10,14 @@ from  datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 
 url = "http://portal.mkat.karoo.kat.ac.za/katstore/samples" # site for the most resent values
-def get_ants(sensor, url,timest = time.time()):
+def get_ants(sensor, url,time_int, timest = time.time()):
     """Get the number of antennas in MeerKAT
        900 seconds ago by querying the katstore
     url using each antenna CAM sensor.
     """
     sensor_info = {
                   'sensor': sensor,
-                  'start': timest -float(opts.time_interval),
+                  'start': timest -float(time_int),
                   'end':  timest,
                   'limit':1
                   }
@@ -27,7 +27,7 @@ def get_ants(sensor, url,timest = time.time()):
     ants = re.findall(katsi, res.content)
     return ants
 
-def get_sensor_values(ants,timest = time.time()):
+def get_sensor_values(ants, time_int, timest = time.time()):
     """ Get digitiser sensor values for each antenna
     and store values into a structured array.
     """
@@ -60,7 +60,7 @@ def get_sensor_values(ants,timest = time.time()):
         store_array[i]['Antennas'] = ant
         for key in keydict:
             res = requests.get(url, params = {'sensor': ant+'_'+key,
-                           'start': timest - float(opts.time_interval),
+                           'start': timest - float(time_int),
                            'end':  timest
                            }
                            )
@@ -118,28 +118,25 @@ def plot_rfcuPol(AmpGainPol,rfcuinPol,rfcuoutPol,rfcuCalcPol):
     plt.subplots_adjust(hspace=.1)
     return fig
 
-#get a list of antennas in MeerKAT
-all_ants = get_ants('katpool_ants', url)
-maint_ants = list(sorted(get_ants('katpool_resources_in_maintenance',url)))
-receptors = list(sorted(all_ants))
-active_receptors = sorted(set(receptors)-set(maint_ants))
-
-print('MeerKAT receptors: {}\n\n{}'.format(len(receptors), receptors))
-print ('Receptors in Maintanance:{}\n\n{}'.format(len(maint_ants), maint_ants))
-print ('Active receptors {}\n\n{}'.format(len(active_receptors), active_receptors))
-
 #Set up standard script options
 parser = optparse.OptionParser(usage = '%prog [options]',
                                description = 'Check the health status of the digitiser and write an on pdf')
-parser.add_option("-a","--receptors", default = active_receptors,
-                  help="antennas to query sensors for. default is active_receptors, else do maint_ants for maintanance and receptors for all")
 parser.add_option("-t", "--time-interval", default = 900.0,
                   help="time interval for querying katstore")                               
 (opts,args) = parser.parse_args()
 
+#get a list of antennas in MeerKAT
+all_ants = get_ants('katpool_ants', url, opts.time_interval)
+maint_receptors = list(sorted(get_ants('katpool_resources_in_maintenance',url, opts.time_interval)))
+receptors = list(sorted(all_ants))
+active_receptors = sorted(set(receptors)-set(maint_receptors))
+
+print('MeerKAT receptors: {}\n\n{}'.format(len(receptors), receptors))
+print ('Receptors in Maintanance:{}\n\n{}'.format(len(maint_receptors), maint_receptors))
+print ('Active receptors {}\n\n{}'.format(len(active_receptors), active_receptors))
 
 #Call main funtion to store sensor values
-data = get_sensor_values(opts.receptors)
+data = get_sensor_values(opts.receptors,opts.time_interval)
 
 #Extracting H_pol rfcu-in and adc-in from data
 rfcuin_H = [float(np.asscalar(i)) for i in data['dig_l_band_rfcu_hpol_rf_power_in']]
