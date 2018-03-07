@@ -136,7 +136,7 @@ print ('Receptors in Maintanance:{}\n\n{}'.format(len(maint_receptors), maint_re
 print ('Active receptors {}\n\n{}'.format(len(active_receptors), active_receptors))
 
 #Call main funtion to store sensor values
-data = get_sensor_values(opts.receptors,opts.time_interval)
+data = get_sensor_values(active_receptors, opts.time_interval)
 
 #Extracting H_pol rfcu-in and adc-in from data
 rfcuin_H = [float(np.asscalar(i)) for i in data['dig_l_band_rfcu_hpol_rf_power_in']]
