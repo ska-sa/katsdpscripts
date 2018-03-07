@@ -23,7 +23,7 @@ def check_sensors(ped, sensor_list, test_false=False):
 
 def check_digitisers():
     if ant.sensor.dig_version_list.get_value():
-        print("digitiser version: %s" % ant.sensor.dig_version_list.get_value().split()[2])
+        print("version: %s" % ant.sensor.dig_version_list.get_value().split()[2])
     if ant.sensor.dig_selected_band.get_value() not in ["u", "l", "s", "x"]:
         user_logger.warning("digitiser is in %s band. expected u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
     else:
