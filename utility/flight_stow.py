@@ -18,8 +18,8 @@ def point_ants(ants, dry_run=False):
     ant_diff = ['m057', 'm058', 'm059']
     for ant in ants:
 	if ant.name in ant_diff:
-	    user_logger.info('slewing %s to az: 150, el: 18' % ant.name) 
-	    ant.req.target_azel(150,18)
+	    user_logger.info('slewing %s to az: 30, el: 18' % ant.name)
+	    ant.req.target_azel(30,18)
 	else:
 	    user_logger.info('slewing %s to az: 217, el: 18' % (ant.name))
 	    ant.req.target_azel(217, 18)
@@ -35,7 +35,7 @@ def point_ants(ants, dry_run=False):
 	    user_logger.warn('{} did not reach target'.format(not_locked))
 	time.sleep(5)
 	ants.req.mode('STOP')
-	
+
 # Set up standard script options
 usage = '%prog'
 description = 'receptor flight stow'
@@ -50,7 +50,7 @@ with verify_and_connect(opts) as kat:
     user_logger.info('receptor flight stow START')
     # start antenna drives
     startAnts(kat.ants, dry_run=kat.dry_run)
-    
+
     # point antennas
     kat.ants.set_sampling_strategy('lock', 'event')
     point_ants(kat.ants, dry_run=kat.dry_run)
