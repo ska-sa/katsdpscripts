@@ -22,6 +22,8 @@ def check_sensors(ped, sensor_list, test_false=False):
     return errors_found
 
 def check_digitisers():
+    if ant.sensor.dig_version_list.get_value():
+        print("digitiser version: %s" % ant.sensor.dig_version_list.get_value().split()[2])
     if ant.sensor.dig_selected_band.get_value() not in ["u", "l", "s", "x"]:
         user_logger.warning("digitiser is in %s band. expected u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
     else:
@@ -29,11 +31,14 @@ def check_digitisers():
 
 # Checking L-band receiver for now. will add more checks for UHF and others on the next push
 def check_receivers():
-    if ant.sensor.rsc_rxl_startup_state.get_value() != "cold-operational":
-        raise RuntimeError("rsc_rxl_startup_state is %s, cold-operational expected"% ant.sensor.rsc_rxl_startup_state.get_value())
-    
-    if ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 29: 
-        print("L-band rfe1 temperature is ok :)") 
+    if ant.sensor.rsc_rxl_state.get_value() == 'unavailable':
+        raise RuntimeError("receiver state is %s" % rx_state)
+
+    if ant.sensor.rsc_rsc_he_compressor_state.get_value() == "unavailable":
+        raise RuntimeError("helium compressor state is %s" % ant.sensor.rsc_rsc_he_compressor_state.get_value())
+
+    if ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 29:
+        print("L-band rfe1 temperature is ok :)")
         if not ant.sensor.rsc_rxl_lna_h_power_enabled.get_value():
             user_logger.warning("L-band receiver hpol LNA power is not enabled. switch on the hpol LNA power")
         else:
@@ -44,18 +49,18 @@ def check_receivers():
         else:
             print(":) receiver vpol LNA power is ON")
 
-    elif ant.sensors.rsc_rxl_rfe1_temperature.get_value() > 30 and ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 100: 
+    elif ant.sensors.rsc_rxl_rfe1_temperature.get_value() > 30 and ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 100:
         user_logger.warning("L-band rfe1 temperature is warm @ %.2f. alert the site technician" % (ant.sensors.rsc_rxl_rfe1_temperature.get_value()))
     else:
     	user_logger.warning("L-band rfe1 temperature is warm. alert the site technician")
-    
-    indexer_angle =  ant.sensor.ap_indexer_position_raw.get_value() 
+
+    indexer_angle =  ant.sensor.ap_indexer_position_raw.get_value()
     print("receiver indexer value is %d." % indexer_angle)
     ril=ant.sensor.ap_indexer_position.get_value().upper()
     if ril not in ["u", "l", "s", "x"]:
         user_logger.warning("AP indexer in unknown position")
     else:
-        print("receiver indexer is at the %s-band position" % ril) 
+        print("receiver indexer is at the %s-band position" % ril)
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
@@ -66,12 +71,12 @@ parser.add_option("--ant", type=str, default=None,
 # assume basic options passed from instruction_set
 parser.set_defaults(description = "AR1 AP Quick Check")
 (opts, args) = parser.parse_args()
-if opts.ant is None: 
+if opts.ant is None:
     raise SystemExit("antenna name required %s" % parser.print_usage())
 
 with verify_and_connect(opts) as kat:
     print("Antenna quick check : start")
-    
+
     ant_active = [ant for ant in kat.ants]
     for ant in ant_active:
         if ant.name == opts.ant:
@@ -90,17 +95,17 @@ with verify_and_connect(opts) as kat:
             print("\nBeginning a quick check of antenna %s" % ant.name)
             print("\nAP version: %s" % ant.sensor.ap_api_version.get_value())
             if ant.sensor.rsc_rxu_serial_number.get_value():
-                print("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())  
-            if ant.sensor.rsc_rxl_serial_number.get_value(): 
-                print("L-band serial number: %s" % ant.sensor.rsc_rxl_serial_number.get_value())    
+                print("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())
+            if ant.sensor.rsc_rxl_serial_number.get_value():
+                print("L-band serial number: %s" % ant.sensor.rsc_rxl_serial_number.get_value())
             if ant.sensor.rsc_rxs_serial_number.get_value():
-                print("S-band serial number: %s" % ant.sensor.rsc_rxs_serial_number.get_value())     
+                print("S-band serial number: %s" % ant.sensor.rsc_rxs_serial_number.get_value())
             if ant.sensor.rsc_rxx_serial_number.get_value():
-                print("X-band serial number: %s" % ant.sensor.rsc_rxx_serial_number.get_value()) 
-            
+                print("X-band serial number: %s" % ant.sensor.rsc_rxx_serial_number.get_value())
+
             print("\nChecking Receiver")
             check_receivers()
-	
+
             print("\nChecking Digitisers")
             check_digitisers()
 
@@ -124,21 +129,25 @@ with verify_and_connect(opts) as kat:
             else:
                 print(":) antenna is unlocked")
 
-            print("\nChecking motion")
+            print("\nChecking motors")
             amps=[
                         "ap_azim_amp1_failed",
                         "ap_azim_amp2_failed",
                         "ap_azim_motion_error",
                         "ap_azim_servo_failed",
+                        "ap_azim_overcurrent_error",
                         "ap_elev_amp_failed",
                         "ap_elev_motion_error",
                         "ap_elev_servo_failed",
-                        "ap_ridx_amp_failed"
+                        "ap_elev_overcurrent_error",
+                        "ap_ridx_amp_failed",
+                        "ap_ridx_motion_error",
+                        "ap_ridx_overcurrent_error"
                  ]
             if check_sensors(ant.sensor, amps):
                 any_errors = True
             else:
-                print(":) AP Servo OK")
+                print(":) motors OK")
 
             print("\nChecking brakes")
             breaks=[
@@ -160,11 +169,11 @@ with verify_and_connect(opts) as kat:
                 any_errors = True
             else:
                 print(":) Brakes released")
-                
+
             print("\nChecking doors")
             doors=[
-                        "ap_hatch_door_open", 
-                        "ap_ped_door_open", 
+                        "ap_hatch_door_open",
+                        "ap_ped_door_open",
                         "ap_yoke_door_open"
                       ]
             if check_sensors(ant.sensor, doors):
@@ -211,7 +220,7 @@ with verify_and_connect(opts) as kat:
 
 
             if any_errors:
-                print('\n') 
+                print('\n')
 		user_logger.warning("Some errors detected, investigate before accepting %s" % ant.name)
             else:
                 print("\n{} has passed the handover test".format(opts.ant))
