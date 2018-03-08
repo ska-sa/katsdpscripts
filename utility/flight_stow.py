@@ -19,7 +19,7 @@ def point_ants(ants, dry_run=False):
     for ant in ants:
 	if ant.name in ant_diff:
 	    user_logger.info('slewing %s to az: 30, el: 18' % ant.name)
-	    ant.req.target_azel(30,18)
+	    ant.req.target_azel(30, 18)
 	else:
 	    user_logger.info('slewing %s to az: 217, el: 18' % (ant.name))
 	    ant.req.target_azel(217, 18)
