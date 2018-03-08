@@ -249,7 +249,6 @@ def read_sensor_history(ants):
                 '{} - Error reading and processing sensor data.'.format(ant), 'error')
 
 def enable_vac_pump(kat, ant):
-    ant_proxy = getattr(kat, ant)
     rsc_device = connect_to_rsc(ant, 7148)
     if rsc_device:
         log_message('{} - Vacuum pumps turned off (set to Enable state)'.format(ant))
