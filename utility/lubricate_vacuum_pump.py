@@ -279,33 +279,15 @@ with verify_and_connect(opts) as kat:
             "Aborting - archive_search parameter must be > lubrication_frequency\n\n")
 
     if not(kat.dry_run):
-        # Build the 2nd KAT object. This kat object is being used to access sensor data
-        # for resources outside the subarray.
-        log_message('Begin tbuild...', 'info')
-        kat2 = tbuild(conn_clients='all')
-
-        log_message("Waiting for katpool and anc to sync\n", 'info')
-        katpool_ok = kat2.katpool.until_synced(timeout=15)
-        anc_ok = kat2.anc.until_synced(timeout=15)
-
-        if not (katpool_ok and anc_ok):
-            log_message("Some resources did not sync \n{}\n\n"
-                        .format(kat2.get_status()), 'error')
-            log_message("Aborting script", 'error')
-            raise RuntimeError(
-                "Aborting - Some resources did not sync \n{}\n\n"
-                .format(kat2.get_status()))
-
-    if not(kat.dry_run):
         # Ambient should be above 16 deg c.
-        if (kat2.anc.sensor.air_temperature.get_value() < MIN_OP_TEMP):
+        if (kat.anc.sensor.air_temperature.get_value() < MIN_OP_TEMP):
             log_message(
                 'Aborting script - ambient temperature is below {} deg C'
                 .format(MIN_OP_TEMP), 'error')
             raise RuntimeError(
                 'Aborting script - ambient temperature is below min operating temp: {} deg C\n\n'
                 .format(MIN_OP_TEMP))
-        elif (kat2.anc.sensor.air_temperature.get_value() > MAX_OP_TEMP):
+        elif (kat.anc.sensor.air_temperature.get_value() > MAX_OP_TEMP):
             log_message(
                 'Aborting script - ambient temperature is above max operating temp: {} deg C'
                 .format(MAX_OP_TEMP), 'error')
@@ -313,7 +295,7 @@ with verify_and_connect(opts) as kat:
                 'Aborting script - ambient temperature is above {} deg C\n\n'
                 .format(MAX_OP_TEMP))
         log_message('Current Ambient temperature is {:0.2f}'.format(
-                    kat2.anc.sensor.air_temperature.get_value()))
+                    kat.anc.sensor.air_temperature.get_value()))
         
     ant_active = sorted(
         [ant.name for ant in kat.ants])
@@ -567,7 +549,7 @@ with verify_and_connect(opts) as kat:
                     read_sensor_history(err_results)
 
                     log_message('Checking history on antennas in maintenance\n', boldtype=True)
-                    read_sensor_history(kat2.katpool.sensor.resources_in_maintenance.get_value().split(','))
+                    read_sensor_history(kat.katpool.sensor.resources_in_maintenance.get_value().split(','))
                 else:
                     log_message('History lookup on failed antennas has been disabled\n', 'warn')
 
