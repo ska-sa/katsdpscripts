@@ -3,7 +3,7 @@
 import time
 import string
 from katcorelib import standard_script_options, verify_and_connect, user_logger
-from katcorelib import tbuild, kat_resource
+from katcorelib import kat_resource
 import numpy as np
 import os
 import katcp
@@ -18,25 +18,28 @@ parser = standard_script_options(
                 "Note: AMBIENT TEMP MUST BE ABOVE 16 DEG C")
 parser.add_option(
     '--max_elevation', type='int', default=20,
-    help="Make sure receptor stays below this elevation for duration of vacuum "
-         "pump lubrication (default=%default degrees)")
+    help="Make sure receptor stays below this elevation for duration "
+    "of vacuum pump lubrication (default=%default degrees)")
 parser.add_option(
     '--run_duration', type='int', default=20,
     help="Minimum run duration of vacuum pump (default=%default minutes)")
 parser.add_option(
     '--lubrication_frequency', type='int', default=14,
-    help='Frequency for running vacuum pump lubrication (default=%default days)')
+    help='Frequency for running vacuum pump lubrication '
+    '(default=%default days)')
 parser.add_option(
     '--archive_search', type='int', default=30,
     help='Search sensor archive for this many days to check when vacuum pump '
          'was last run (default=%default days)')
 parser.add_option(
     '--ideal_vac_pressure', type='float', default=5e-2,
-    help='Pressure to which the vacuum must go when pump operating (default=%default)')
+    help='Pressure to which the vacuum must go when pump operating '
+    '(default=%default)')
 parser.add_option(
     '--email_to', type='str',
     default='blunsky@ska.ac.za,bjordaan@ska.ac.za,operators@ska.ac.za',
-    help='Comma separated email list of people to send report to (default=%default)')
+    help='Comma separated email list of people to send report to '
+    '(default=%default)')
 
 parser.set_defaults(description='Lubricate Vacuum Pumps on Receivers')
 (opts, args) = parser.parse_args()
@@ -248,6 +251,7 @@ def read_sensor_history(ants):
             log_message(
                 '{} - Error reading and processing sensor data.'.format(ant), 'error')
 
+
 def enable_vac_pump(kat, ant):
     rsc_device = connect_to_rsc(ant, 7148)
     if rsc_device:
@@ -296,7 +300,7 @@ with verify_and_connect(opts) as kat:
                 .format(MAX_OP_TEMP))
         log_message('Current Ambient temperature is {:0.2f}'.format(
                     kat.anc.sensor.air_temperature.get_value()))
-        
+
     ant_active = sorted(
         [ant.name for ant in kat.ants])
 
@@ -363,11 +367,11 @@ with verify_and_connect(opts) as kat:
                 log_message(
                     '{} removed from vacuum pump lubrication run. Error reading AP Elevation'
                     .format(ant), 'warn')
-                    
+
             if remove_ant:
                 ant_active.remove(ant)
                 err_results.append(ant)
-                
+
     log_message('Remaining active antennas : {}\n'
                 .format(', '.join(ant_active)), boldtype=False, colourtext='blue')
 
@@ -501,7 +505,7 @@ with verify_and_connect(opts) as kat:
 
                 if len(ant_active) > 0:
                     log_message('Final L band manifold pressure',
-                            boldtype=True, colourtext='green')
+                                boldtype=True, colourtext='green')
 
                 for ant in sorted(final_pressure.keys()):
                     if final_pressure[ant] != -1:
@@ -539,8 +543,9 @@ with verify_and_connect(opts) as kat:
 
                 # Print time taken for pumps to reach ideal vac pressure
                 for ant in sorted(reached_pressure.keys()):
-                    log_message('{} - time taken to reach {:0.3f} mBar : {} seconds'.format(ant, opts.ideal_vac_pressure, round(reached_pressure[ant] - start_run_duration, 1)),
-                    boldtype=True, colourtext='green')
+                    log_message('{} - time taken to reach {:0.3f} mBar : {} seconds'
+                                .format(ant, opts.ideal_vac_pressure, round(reached_pressure[ant] - start_run_duration, 1)),
+                                boldtype=True, colourtext='green')
 
                 # Check which receptors should be included in the run (based on
                 # lubrication frequency and run duration during that time)\
