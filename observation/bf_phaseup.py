@@ -28,7 +28,7 @@ description = 'Track one or more sources for a specified time and calibrate ' \
               'gains based on them. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=32.0,
+parser.add_option('-t', '--track-duration', type='float', default=64.0,
                   help='Length of time to track each source, in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
@@ -37,6 +37,8 @@ parser.add_option('--default-gain', type='int', default=0,
                        'automatically set if 0 (default=%default)')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
+parser.add_option('--random-phase', action='store_true', default=False,
+                  help='Applies random phases in F-engines')
 parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
@@ -48,10 +50,9 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 opts, args = parser.parse_args()
 
 # Set of targets with flux models
-J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
-J0408 = 'J0408-6545, radec, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
-J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
-
+J1934 = 'PKS 1934-63 | J1939-6342, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
+J0408 = 'PKS 0408-65 | J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
+J1331 = '3C286       | J1331+3030, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -110,7 +111,10 @@ with verify_and_connect(opts) as kat:
             if cal_channel_freqs is None and not kat.dry_run:
                 raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
                                             % (session.telstate,))
-            user_logger.info("Setting F-engine gains to phase up antennas")
+            if opts.random_phase:
+                user_logger.info("Setting random F-engine gains")
+            else:
+                user_logger.info("Setting F-engine gains to phase up antennas")
             session.label('corrected')
             new_weights = {}
             for inp in gains:
@@ -124,13 +128,20 @@ with verify_and_connect(opts) as kat:
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
                     orig_weights *= delay_weights  # unwrap the delays
                     amp_weights = np.abs(orig_weights)
-                    phase_weights = orig_weights / amp_weights
+                    if opts.random_phase:
+                        phase_weights = np.exp(1j * (2 * np.pi) * np.random.random_sample(size=chans))
+                    else:
+                        phase_weights = orig_weights / amp_weights
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
                         new_weights[inp] /= amp_weights
             session.set_fengine_gains(new_weights)
-            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
-                             target.name, 64.0)
+            if opts.random_phase:
+                user_logger.info("Revisiting target %r for %g seconds",
+                                 target.name, opts.track_duration)
+            elif:
+                user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
+                                 target.name, opts.track_duration)
             session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
