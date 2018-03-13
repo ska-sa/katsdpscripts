@@ -139,7 +139,7 @@ with verify_and_connect(opts) as kat:
             if opts.random_phase:
                 user_logger.info("Revisiting target %r for %g seconds",
                                  target.name, opts.track_duration)
-            elif:
+            else:
                 user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
                                  target.name, opts.track_duration)
             session.track(target, duration=opts.track_duration, announce=False)
