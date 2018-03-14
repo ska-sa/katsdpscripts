@@ -128,20 +128,15 @@ with verify_and_connect(opts) as kat:
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
                     orig_weights *= delay_weights  # unwrap the delays
                     amp_weights = np.abs(orig_weights)
+                    phase_weights = orig_weights / amp_weights
                     if opts.random_phase:
-                        phase_weights = np.exp(1j * (2 * np.pi) * np.random.random_sample(size=chans))
-                    else:
-                        phase_weights = orig_weights / amp_weights
+                        phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
                         new_weights[inp] /= amp_weights
             session.set_fengine_gains(new_weights)
-            if opts.random_phase:
-                user_logger.info("Revisiting target %r for %g seconds",
-                                 target.name, opts.track_duration)
-            else:
-                user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
-                                 target.name, opts.track_duration)
+            user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
+                             target.name, opts.track_duration)
             session.track(target, duration=opts.track_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
