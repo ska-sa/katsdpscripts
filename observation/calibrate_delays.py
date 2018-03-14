@@ -47,6 +47,10 @@ if len(args) == 0:
                      "('Cygnus A'), description ('azel, 20, 30') or catalogue "
                      "file name ('sources.csv')")
 
+# Set the noise diode paramaters, add 5s to the duration to be sure the noise diode will fire
+# throughout the track
+nd_on = {'diode': 'coupler', 'on': opts.track_duration + 5.0, 'off': 0., 'period': 0.}
+
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
@@ -76,16 +80,23 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
         session.label('un_corrected')
+        session.track(target, duration=0)  # get onto the source
+        # Fire noise diode during track
+        session.nd_params = nd_on
         session.track(target, duration=opts.track_duration, announce=False)
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        delays = session.get_delaycal_solutions(timeout=90.)
-        if not delays and not kat.dry_run:
-            msg = "No delay solutions found in telstate '%s'" % \
+        hv_delays = session.get_hv_delaycal_solutions(timeout=90.)
+        delays = session.get_delaycal_solutions()
+        if not hv_delays and not kat.dry_run:
+            msg = "No hv_delay solutions found in telstate '%s'" % \
                   (session.telstate,)
             # TODO: this should be raised by get_delaycal_solutions
             raise NoDelaysAvailableError(msg)
+        # Add hv_delay to total delay
+        for inp in delays:
+            delays[inp] = delays[inp] + hv_delays[inp]
         session.set_delays(delays)
         user_logger.info("Revisiting target %r for %g seconds to see if "
                          "delays are fixed", target.name, opts.track_duration)
