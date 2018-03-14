@@ -47,10 +47,6 @@ if len(args) == 0:
                      "('Cygnus A'), description ('azel, 20, 30') or catalogue "
                      "file name ('sources.csv')")
 
-# Set the noise diode paramaters, add 5s to the duration to be sure the noise diode will fire
-# throughout the track
-nd_on = {'diode': 'coupler', 'on': opts.track_duration + 5.0, 'off': 0., 'period': 0.}
-
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
@@ -82,8 +78,7 @@ with verify_and_connect(opts) as kat:
         session.label('un_corrected')
         session.track(target, duration=0)  # get onto the source
         # Fire noise diode during track
-        session.nd_params = nd_on
-        session.track(target, duration=opts.track_duration, announce=False)
+        session.fire_noise_diode(on=opts.track_duration, off=0)
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
@@ -101,7 +96,9 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Revisiting target %r for %g seconds to see if "
                          "delays are fixed", target.name, opts.track_duration)
         session.label('corrected')
-        session.track(target, duration=opts.track_duration, announce=False)
+        session.track(target, duration=0)  # get onto the source
+        # Fire noise diode during track
+        session.fire_noise_diode(on=opts.track_duration, off=0)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
             for inp in delays:
