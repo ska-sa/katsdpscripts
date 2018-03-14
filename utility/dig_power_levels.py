@@ -148,7 +148,7 @@ parser.add_option("-t", "--time-interval", default = 900.0,
 #get a list of antennas in MeerKAT
 all_ants = get_ants('katpool_ants',url,opts.time_interval)
 maint_receptors = list(sorted(get_ants('katpool_resources_in_maintenance',url,opts.time_interval)))
-receptors = list(sorted(all_ants))
+receptors = sorted(all_ants)
 active_receptors = sorted(set(receptors)-set(maint_receptors))
 
 print('MeerKAT receptors: {}\n\n{}'.format(len(receptors), receptors))
