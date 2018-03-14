@@ -33,7 +33,7 @@ def check_receivers(ant):
         raise RuntimeError("receiver state is unavailable")
 
     rxl_temp = ant.sensors.rsc_rxl_rfe1_temperature.get_value()
-    if rxl_temp < 29.0:
+    if rxl_temp <= 29.9:
         print("L-band rfe1 temperature is ok :) currently at {:.3f}". format(rxl_temp))
         if not ant.sensor.rsc_rxl_lna_h_power_enabled.get_value():
             user_logger.warning(" L-band receiver hpol LNA power is not enabled. switch on the hpol LNA power")
@@ -76,7 +76,7 @@ with verify_and_connect(opts) as kat:
         if ant.name == opts.ant:
             any_errors=False
             # pass these first
-	    print("\nBeginning a quick check of antenna %s" % ant.name)
+            print("\nBeginning a quick check of antenna %s" % ant.name)
             if not ant.sensor.ap_connected.get_value():
                 raise RuntimeError("AP is not connected")
             if not ant.sensor.comms_ok.get_value():
