@@ -16,6 +16,7 @@ def check_sensors(ped, sensor_list, test_false=False):
 	        user_logger.warning(" Error detected: %s is %s" % (atr,getattr(ped, atr).get_value()))
     return errors_found
 
+# Checking L-band only. will add more receivers and digitisers as required.
 def check_digitisers(ant):
     if ant.sensor.dig_version_list.get_value():
         print("version: %s" % ant.sensor.dig_version_list.get_value().split()[2])
@@ -24,7 +25,6 @@ def check_digitisers(ant):
     else:
         print("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
 
-# Checking L-band receiver for now. will add more checks for UHF and others on the next push
 def check_receivers(ant):
     if ant.sensor.rsc_rsc_he_compressor_state.get_value() == 'unavailable':
         raise RuntimeError("helium compressor is unavailable")
