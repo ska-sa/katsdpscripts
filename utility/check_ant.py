@@ -4,13 +4,13 @@
 # Initial script
 # Quick check: run check_ant_AR1.py -o ruby --ant m0xx
 # Tiyani adding sensors: Indexer pos, safe key switch, acu encoders
-# will include receiver band selection to query the selected receiver and dititiser band later
+# Todo: receiver band selection to query the selected receiver and dititiser band
 
 
 from __future__ import with_statement
 import time, string
-from katcorelib import standard_script_options, verify_and_connect, user_logger, start_session
-from katcorelib import cambuild, katconf
+from katcorelib import (standard_script_options, verify_and_connect, user_logger)
+from katcorelib import katconf
 
 def check_sensors(ped, sensor_list, test_false=False):
     errors_found=False
@@ -21,7 +21,7 @@ def check_sensors(ped, sensor_list, test_false=False):
 	        user_logger.warning("Error detected: %s is %s" % (atr,getattr(ped, atr).get_value()))
     return errors_found
 
-def check_digitisers():
+def check_digitisers(ant):
     if ant.sensor.dig_version_list.get_value():
         print("version: %s" % ant.sensor.dig_version_list.get_value().split()[2])
     if ant.sensor.dig_selected_band.get_value() not in ["u", "l", "s", "x"]:
@@ -30,15 +30,16 @@ def check_digitisers():
         print("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
 
 # Checking L-band receiver for now. will add more checks for UHF and others on the next push
-def check_receivers():
+def check_receivers(ant):
+    if ant.sensor.rsc_rsc_he_compressor_state.get_value() == 'unavailable':
+        raise RuntimeError("helium compressor is unavailable")
+
     if ant.sensor.rsc_rxl_state.get_value() == 'unavailable':
-        raise RuntimeError("receiver state is %s" % rx_state)
+        raise RuntimeError("receiver state is unavailable")
 
-    if ant.sensor.rsc_rsc_he_compressor_state.get_value() == "unavailable":
-        raise RuntimeError("helium compressor state is %s" % ant.sensor.rsc_rsc_he_compressor_state.get_value())
-
-    if ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 29:
-        print("L-band rfe1 temperature is ok :)")
+    rxl_temp = ant.sensors.rsc_rxl_rfe1_temperature.get_value()
+    if rxl_temp < 29.0:
+        print("L-band rfe1 temperature is ok :) currently at {:.3f}". format(rxl_temp))
         if not ant.sensor.rsc_rxl_lna_h_power_enabled.get_value():
             user_logger.warning("L-band receiver hpol LNA power is not enabled. switch on the hpol LNA power")
         else:
@@ -49,10 +50,10 @@ def check_receivers():
         else:
             print(":) receiver vpol LNA power is ON")
 
-    elif ant.sensors.rsc_rxl_rfe1_temperature.get_value() > 30 and ant.sensors.rsc_rxl_rfe1_temperature.get_value() < 100:
-        user_logger.warning("L-band rfe1 temperature is warm @ %.2f. alert the site technician" % (ant.sensors.rsc_rxl_rfe1_temperature.get_value()))
+    elif rxl_temp > 30.0 and rxl_temp < 100.0:
+        user_logger.warning("L-band rfe1 temperature is {:.3f}. check if the temp is rising or cooling down". format(rxl_temp))
     else:
-    	user_logger.warning("L-band rfe1 temperature is warm. alert the site technician")
+        user_logger.warning("L-band rfe1 temperature is warm at {:.3f}. alert the site technician". format(rxl_temp))
 
     indexer_angle =  ant.sensor.ap_indexer_position_raw.get_value()
     print("receiver indexer value is %d." % indexer_angle)
@@ -104,10 +105,10 @@ with verify_and_connect(opts) as kat:
                 print("X-band serial number: %s" % ant.sensor.rsc_rxx_serial_number.get_value())
 
             print("\nChecking Receiver")
-            check_receivers()
+            check_receivers(ant)
 
             print("\nChecking Digitisers")
-            check_digitisers()
+            check_digitisers(ant)
 
             print("\nchecking acu encoder")
             enc=[
