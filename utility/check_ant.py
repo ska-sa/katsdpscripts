@@ -1,16 +1,11 @@
 #!/usr/bin/python
-# Silly script to check the antennas
-#
-# Initial script
-# Quick check: run check_ant_AR1.py -o ruby --ant m0xx
-# Tiyani adding sensors: Indexer pos, safe key switch, acu encoders
-# Todo: receiver band selection to query the selected receiver and dititiser band
+# script to check the health of an antenna returning from maintenance
+# Quick check: run check_ant.py -o ruby --ant m0xx
+# Tiyani Todo: receiver band selection to query the selected receiver and dititiser band
 
 
-from __future__ import with_statement
 import time, string
 from katcorelib import (standard_script_options, verify_and_connect, user_logger)
-from katcorelib import katconf
 
 def check_sensors(ped, sensor_list, test_false=False):
     errors_found=False
@@ -18,14 +13,14 @@ def check_sensors(ped, sensor_list, test_false=False):
         if getattr(ped, atr).get_value():
 	    errors_found=True
 	    if not test_false:
-	        user_logger.warning("Error detected: %s is %s" % (atr,getattr(ped, atr).get_value()))
+	        user_logger.warning(" Error detected: %s is %s" % (atr,getattr(ped, atr).get_value()))
     return errors_found
 
 def check_digitisers(ant):
     if ant.sensor.dig_version_list.get_value():
         print("version: %s" % ant.sensor.dig_version_list.get_value().split()[2])
     if ant.sensor.dig_selected_band.get_value() not in ["u", "l", "s", "x"]:
-        user_logger.warning("digitiser is in %s band. expected u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
+        user_logger.warning(" digitiser is in %s band. expected u, l, s or x band" % ant.sensor.dig_selected_band.get_value())
     else:
         print("digitiser is in %s band" % ant.sensor.dig_selected_band.get_value())
 
@@ -41,25 +36,25 @@ def check_receivers(ant):
     if rxl_temp < 29.0:
         print("L-band rfe1 temperature is ok :) currently at {:.3f}". format(rxl_temp))
         if not ant.sensor.rsc_rxl_lna_h_power_enabled.get_value():
-            user_logger.warning("L-band receiver hpol LNA power is not enabled. switch on the hpol LNA power")
+            user_logger.warning(" L-band receiver hpol LNA power is not enabled. switch on the hpol LNA power")
         else:
             print(":) receiver hpol LNA power is ON")
 
         if not ant.sensor.rsc_rxl_lna_v_power_enabled.get_value():
-            user_logger.warning("L-band receiver vpol LNA power is not enabled. switch on the vpol LNA power")
+            user_logger.warning(" L-band receiver vpol LNA power is not enabled. switch on the vpol LNA power")
         else:
             print(":) receiver vpol LNA power is ON")
 
     elif rxl_temp > 30.0 and rxl_temp < 100.0:
-        user_logger.warning("L-band rfe1 temperature is {:.3f}. check if the temp is rising or cooling down". format(rxl_temp))
+        user_logger.warning(" L-band rfe1 temperature is {:.3f}. check if the temp is rising or cooling down". format(rxl_temp))
     else:
-        user_logger.warning("L-band rfe1 temperature is warm at {:.3f}. alert the site technician". format(rxl_temp))
+        user_logger.warning(" L-band rfe1 temperature is warm. currently at {:.3f}. alert the site technician". format(rxl_temp))
 
     indexer_angle =  ant.sensor.ap_indexer_position_raw.get_value()
     print("receiver indexer value is %d." % indexer_angle)
     ril=ant.sensor.ap_indexer_position.get_value().upper()
     if ril not in ["u", "l", "s", "x"]:
-        user_logger.warning("AP indexer in unknown position")
+        user_logger.warning(" AP indexer in unknown position")
     else:
         print("receiver indexer is at the %s-band position" % ril)
 
@@ -76,13 +71,12 @@ if opts.ant is None:
     raise SystemExit("antenna name required %s" % parser.print_usage())
 
 with verify_and_connect(opts) as kat:
-    print("Antenna quick check : start")
-
     ant_active = [ant for ant in kat.ants]
     for ant in ant_active:
         if ant.name == opts.ant:
             any_errors=False
             # pass these first
+	    print("\nBeginning a quick check of antenna %s" % ant.name)
             if not ant.sensor.ap_connected.get_value():
                 raise RuntimeError("AP is not connected")
             if not ant.sensor.comms_ok.get_value():
@@ -93,7 +87,6 @@ with verify_and_connect(opts) as kat:
                 raise RuntimeError("AP e_stop: %s" % ant.sensor.ap_e_stop_reason.get_value())
 
             # Verify that all the config data has been added from RTS
-            print("\nBeginning a quick check of antenna %s" % ant.name)
             print("\nAP version: %s" % ant.sensor.ap_api_version.get_value())
             if ant.sensor.rsc_rxu_serial_number.get_value():
                 print("UHF band serial number: %s" % ant.sensor.rsc_rxu_serial_number.get_value())
@@ -222,7 +215,7 @@ with verify_and_connect(opts) as kat:
 
             if any_errors:
                 print('\n')
-		user_logger.warning("Some errors detected, investigate before accepting %s" % ant.name)
+		user_logger.warning(" Some errors detected, investigate before accepting %s" % ant.name)
             else:
                 print("\n{} has passed the handover test".format(opts.ant))
     # -fin-
