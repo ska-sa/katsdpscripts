@@ -438,6 +438,7 @@ with verify_and_connect(opts) as kat:
                         err_results.append(ant)
 
                 # capture start time
+                pressure_tracker_startup = pressure_tracker
                 start_run_duration = time.time()
                 
                 # wait for run_duration minutes
@@ -544,7 +545,7 @@ with verify_and_connect(opts) as kat:
                 # Print time taken for pumps to reach ideal vac pressure
                 for ant in sorted(reached_pressure.keys()):
                     log_message('{} - time taken to reach {:0.3f} mBar : {} seconds'
-                                .format(ant, opts.ideal_vac_pressure, round(reached_pressure[ant] - start_run_duration, 1)),
+                                .format(ant, opts.ideal_vac_pressure, round(reached_pressure[ant] - pressure_tracker_startup[ant], 1)),
                                 boldtype=True, colourtext='green')
 
                 # Check which receptors should be included in the run (based on
