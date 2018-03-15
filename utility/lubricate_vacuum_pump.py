@@ -260,6 +260,10 @@ def enable_vac_pump(kat, ant):
         response = rsc_device.req.rsc_vac_pump('enable')
         log_message('{} - {}'.format(ant, str(response)),
                     boldtype=True, colourtext='blue')
+        time.sleep(2)
+        response = rsc_device.req.rsc_vac_pump('stop')
+        log_message('{} - {}'.format(ant, str(response)),
+                    boldtype=True, colourtext='blue')
         rsc_device.stop()
     else:
         log_message(
