@@ -549,7 +549,7 @@ with verify_and_connect(opts) as kat:
                 # Print time taken for pumps to reach ideal vac pressure
                 for ant in sorted(reached_pressure.keys()):
                     log_message('{} - time taken to reach {:0.3f} mBar : {} seconds'
-                                .format(ant, opts.ideal_vac_pressure, round(reached_pressure[ant] - pressure_tracker_startup[ant], 1)),
+                                .format(ant, opts.ideal_vac_pressure, round(reached_pressure[ant] - pressure_tracker_startup[ant][0], 1)),
                                 boldtype=True, colourtext='green')
 
                 # Check which receptors should be included in the run (based on
