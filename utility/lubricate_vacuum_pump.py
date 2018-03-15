@@ -401,8 +401,13 @@ with verify_and_connect(opts) as kat:
             log_message('Begin vacuum pump lubrication on active receptors. Lubrication will take {} minutes'
                         .format(int(opts.run_duration)), boldtype=True,)
             try:
+                # initialise pressures
+                pressure_tracker = dict()
+
+                # turn on vacuum pumps
                 for ant in ant_active:
                     rsc_device = connect_to_rsc(ant, 7148)
+                    ant_proxy = getattr(kat, ant)
                     if rsc_device:
                         log_message('{} : set vacuum pump to ITC'.format(ant))
                         response = rsc_device.req.rsc_vac_pump('itc')
@@ -417,17 +422,9 @@ with verify_and_connect(opts) as kat:
                         response = rsc_device.req.rsc_vac_pump('start')
                         log_message('{} - {}'.format(ant, str(response)),
                                     boldtype=True, colourtext='blue')
+                        pressure_tracker[ant] = [time.time(), round(ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value(), 3)]
                         rsc_device.stop()
 
-                # capture start time
-                start_run_duration = time.time()
-
-                log_message('Confirm that vacuum pumps are running')
-                # initialise pressures
-                pressure_tracker = dict()
-                for ant in ant_active:
-                    ant_proxy = getattr(kat, ant)
-                    pressure_tracker[ant] = [start_run_duration, round(ant_proxy.sensor.rsc_rxl_manifold_pressure.get_value(), 3)]
                     try:
                         if ant_proxy.sensor.rsc_rsc_vac_pump_running:
                             log_message('{} - confirmed: vacuum pump running'.format(ant),
@@ -440,6 +437,9 @@ with verify_and_connect(opts) as kat:
                                     .format(ant), 'warn')
                         err_results.append(ant)
 
+                # capture start time
+                start_run_duration = time.time()
+                
                 # wait for run_duration minutes
                 while (time.time() - start_run_duration < (opts.run_duration * 60)) and (len(ant_active) > 0):
                     if int(time.time() - start_run_duration) % 60 < POLL_PERIOD:
