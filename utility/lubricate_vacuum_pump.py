@@ -471,7 +471,7 @@ with verify_and_connect(opts) as kat:
                                         if (time.time() - pressure_tracker[ant][0]) > VAC_PUMP_TIMEOUT:
                                             err_results.append(ant)
                                             ant_active.remove(ant)
-                                            enable_vac_pump(kat, ant)    # turn off vac pump if elevation goes out of range
+                                            enable_vac_pump(kat, ant)    # turn off vac pump if pressure not reducing as expected
                                             log_message(
                                                 '{} - Test failed - receptor pressure has not reduced in the last {} seconds. Currently at: {:0.3f} mBar'
                                                 .format(ant, VAC_PUMP_TIMEOUT, pressure), 'error')
