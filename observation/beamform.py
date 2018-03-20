@@ -117,17 +117,17 @@ parser.add_option('-B', '--beam-bandwidth', type='float', default=853.75,
                   help="Beamformer bandwidth, in MHz (default=%default)")
 parser.add_option('-F', '--beam-centre-freq', type='float', default=1284.0,
                   help='Beamformer centre frequency, in MHz (default=%default)')
-parser.add_option('--cycle-snr', action='store_true', default=False,
-                  help='Perform SNR test by cycling between inputs (default=no)')
-parser.add_option('--step-snr', action='store_true', default=False,
-                  help='Perform SNR test by switching off successive inputs' 
-                  '(default=no)')
 parser.add_option('--backend', type='choice', default='digifits',
                   choices=['digifits', 'dspsr', 'dada_dbdisk',
                            'digifits profile', 'dspsr profile'],
                   help="Choose backend (default=%default)")
 parser.add_option('--backend-args',
                   help="Arguments for backend processing")
+parser.add_option('--cycle-snr', action='store_true', default=False,
+                  help='Perform SNR test by cycling between inputs (default=no)')
+parser.add_option('--step-snr', action='store_true', default=False,
+                  help='Perform SNR test by switching off successive inputs' 
+                  '(default=no)')
 parser.add_option('--drift-scan', action='store_true', default=False,
                   help="Perform drift scan instead of standard track (default=no)")
 parser.add_option('--noise-source', type=str, default=None,
@@ -270,6 +270,10 @@ with verify_and_connect(opts) as kat:
             session.track(target, duration=opts.target_duration)
         elif opts.cycle_snr and not opts.step_snr:
             duration_per_slot = opts.target_duration / (len(bf_ants) + 1)
+            # Warn if duration_per_slot is less than 2 dump periods
+            if duration_per_slot < 2 * session.dump_period:
+                user_logger.warning('Observation duration per slot is only %s '
+                                    'seconds', duration_per_slot)
             session.label('snr_all_ants')
             session.track(target, duration=duration_per_slot)
             # Perform SNR test by cycling through all inputs to the beamformer
@@ -285,6 +289,10 @@ with verify_and_connect(opts) as kat:
             # Perform SNR test by progressively switching off beamformer inputs
             num_ants = len(bf_ants)
             duration_per_slot = opts.target_duration / num_ants
+            # Warn if duration_per_slot is less than 2 dump periods
+            if duration_per_slot < 2 * session.dump_period:
+                user_logger.warning('Observation duration per slot is only %s '
+                                    'seconds', duration_per_slot)
             session.label('snr_%d' % (num_ants))
             session.track(target, duration=duration_per_slot)
             for n in range(num_ants - 1):
