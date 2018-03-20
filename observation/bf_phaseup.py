@@ -97,7 +97,7 @@ with verify_and_connect(opts) as kat:
                              opts.track_duration, target.name)
             session.track(target, duration=opts.track_duration, announce=False)
             # Attempt to jiggle cal pipeline to drop its gains
-            session.ants.req.target('')
+            session.stop_antennas()
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # Wait for the last bfcal product from the pipeline
             gains = session.get_cal_solutions('product_G', timeout=300.)

@@ -79,7 +79,7 @@ with verify_and_connect(opts) as kat:
         # Fire noise diode during track
         session.fire_noise_diode(on=opts.track_duration, off=0)
         # Attempt to jiggle cal pipeline to drop its delay solutions
-        session.ants.req.target('')
+        session.stop_antennas()
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         hv_delays = session.get_cal_solutions('product_KCROSS_DIODE',
                                               timeout=300.)
