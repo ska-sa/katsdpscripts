@@ -48,7 +48,7 @@ with verify_and_connect(opts) as kat:
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     observation_sources.add(J1934)
     observation_sources.add(J0408)
-    observation_sources.add(J1313)
+    observation_sources.add(J1331)
     user_logger.info(observation_sources.visibility_list())
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
