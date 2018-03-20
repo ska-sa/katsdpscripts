@@ -48,7 +48,10 @@ with verify_and_connect(opts) as kat:
     user_logger.info(observation_sources.visibility_list())
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe
+        # Quit early if there are no sources to observe or not enough antennas
+        if len(session.ants) < 4:
+            raise ValueError('Not enough receptors to do calibration - you '
+                             'need 4 and you have %d' % (len(session.ants),))
         if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
