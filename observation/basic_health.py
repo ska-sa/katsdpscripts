@@ -30,10 +30,10 @@ parser.set_defaults(observer='basic_health', nd_params='off',
 # Parse the command line
 opts, args = parser.parse_args()
 
-# set of targets with flux models
-J1934 = 'PKS 1934-63 | J1939-6342, radec bfcal single_accumulation, 19:39:25.03, -63:42:45.7, (200.0 12000.0 -11.11 7.777 -1.231)'
-J0408 = 'PKS 0408-65 | J0408-6545, radec bfcal single_accumulation, 4:08:20.38, -65:45:09.1, (800.0 8400.0 -3.708 3.807 -0.7202)'
-J1313 = '3C286      | J1331+3030, radec bfcal single_accumulation, 13:31:08.29, +30:30:33.0,(800.0 43200.0 0.956 0.584 -0.1644)'
+# Set of targets with flux models
+J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
+J0408 = 'J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
+J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
 
 # ND states
 nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
@@ -60,6 +60,7 @@ with verify_and_connect(opts) as kat:
         session.cbf.correlator.req.capture_start()
         gains = {}
         for target in [observation_sources.sort('el').targets[-1]]:
+            target.add_tags('bfcal single_accumulation')
             # Calibration tests
             user_logger.info("Performing calibration tests")
             if target.flux_model is None:
