@@ -13,8 +13,8 @@ import time
 
 import numpy as np
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger)
-from katsdptelstate import TimeoutError
+                                collect_targets, start_session, user_logger,
+                                CalSolutionsUnavailable)
 from katpoint import (rad2deg, deg2rad, lightspeed, wrap_angle,
                       RefractionCorrection)
 from scikits.fitting import ScatterFit, GaussianFit
@@ -26,51 +26,6 @@ NUM_CHUNKS = 16
 
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
-
-
-class NoGainsAvailableError(Exception):
-    """No gain solutions are available from the cal pipeline."""
-
-
-def get_pols(telstate):
-    """Polarisations associated with calibration products."""
-    if 'cal_pol_ordering' not in telstate:
-        return []
-    polprods = telstate['cal_pol_ordering']
-    return [prod[0] for prod in polprods if prod[0] == prod[1]]
-
-
-def get_cal_inputs(telstate):
-    """Input labels associated with calibration products."""
-    if 'cal_antlist' not in telstate:
-        return []
-    ants = telstate['cal_antlist']
-    pols = get_pols(telstate)
-    return [ant + pol for pol in pols for ant in ants]
-
-
-def get_bpcal_solution(telstate, st, et):
-    """Retrieve bandpass calibration solution from telescope state."""
-    inputs = get_cal_inputs(telstate)
-    if not inputs or 'cal_product_B' not in telstate:
-        return {}
-    solutions = telstate.get_range('cal_product_B', st=st, et=et)
-    if not solutions:
-        return {}
-    solution = solutions[-1][0]
-    return dict(zip(inputs, solution.reshape((solution.shape[0], -1)).T))
-
-
-def get_gaincal_solution(telstate, st, et):
-    """Retrieve gain calibration solution from telescope state."""
-    inputs = get_cal_inputs(telstate)
-    if not inputs or 'cal_product_G' not in telstate:
-        return {}
-    solutions = telstate.get_range('cal_product_G', st=st, et=et)
-    if not solutions:
-        return {}
-    solution = solutions[-1][0]
-    return dict(zip(inputs, solution.flat))
 
 
 def get_offset_gains(session, offsets, offset_end_times, track_duration):
@@ -93,22 +48,22 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
         Complex gains per receptor, as multiple records per offset and frequency
 
     """
-    telstate = session.telstate
-    pols = get_pols(telstate)
     cal_channel_freqs = session.get_cal_channel_freqs()
-    if cal_channel_freqs is None:
-        raise NoGainsAvailableError('No channel frequencies found in telstate')
-    # Basic sanity check that the centre frequency is properly set
-    if cal_channel_freqs[0] == 0:
-        raise NoGainsAvailableError('Channel frequencies are baseband not sky frequencies')
     chunk_freqs = cal_channel_freqs.reshape(NUM_CHUNKS, -1).mean(axis=1)
+    pols = session.telstate['cal_pol_ordering']
     data_points = {}
     # Iterate over offset pointings
     for offset, offset_end in zip(offsets, offset_end_times):
         offset_start = offset_end - track_duration
         # Obtain interferometric gains per pointing from the cal pipeline
-        bp_gains = get_bpcal_solution(telstate, offset_start, offset_end)
-        gains = get_gaincal_solution(telstate, offset_start, offset_end)
+        try:
+            bp_gains = session.get_cal_solutions(
+                'product_B', start_time=offset_start, end_time=offset_end)
+            gains = session.get_cal_solutions(
+                'product_G', start_time=offset_start, end_time=offset_end)
+        except CalSolutionsUnavailable as err:
+            user_logger.warning('Skipping offset %s: %s', offset, err)
+            continue
         # Iterate over receptors
         for a, ant in enumerate(session.observers):
             pol_gain = np.zeros(NUM_CHUNKS)
@@ -165,8 +120,8 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
                     data.append((offset[0], offset[1], freq, gain, weight))
                 data_points[a] = data
     if not data_points:
-        raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
-                                    % (session.telstate,))
+        raise CalSolutionsUnavailable("No complete gain solutions found in "
+                                      "telstate for any offset")
     return data_points
 
 
@@ -563,13 +518,10 @@ with verify_and_connect(opts) as kat:
 
         # Perform basic interferometric pointing reduction
         if not kat.dry_run:
-            # Wait for last piece of the cal puzzle
+            # Wait for last piece of the cal puzzle (crash if not on time)
             last_offset_start = offset_end_times[-1] - opts.track_duration
-            fresh = lambda value, ts: ts is not None and ts > last_offset_start  # noqa: E731
-            try:
-                session.telstate.wait_key('cal_product_G', fresh, timeout=180.)
-            except TimeoutError:
-                user_logger.warn('Timed out waiting for gains of last offset')
+            session.get_cal_solutions('product_G', timeout=180.,
+                                      start_time=last_offset_start)
             user_logger.info('Retrieving gains, fitting beams, storing offsets')
             data_points = get_offset_gains(session, offsets, offset_end_times,
                                            opts.track_duration)
