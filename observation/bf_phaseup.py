@@ -20,14 +20,15 @@ DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track one or more sources for a specified time and calibrate ' \
+description = 'Track the source with the highest elevation and calibrate ' \
               'gains based on them. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=64.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
+                  help='Length of time to track the source for calibration, '
+                       'in seconds (default=%default)')
 parser.add_option('-v', '--verify-duration', type='float', default=64.0,
-                  help='Length of time to revisit source for verification, '
+                  help='Length of time to revisit the source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
@@ -65,7 +66,7 @@ with verify_and_connect(opts) as kat:
     if opts.reconfigure_sdp:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
-        sdp.req.data_product_reconfigure()
+        sdp.req.product_reconfigure()
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe or not enough antennas
@@ -81,14 +82,13 @@ with verify_and_connect(opts) as kat:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
         gains = {}
+        # Pick source with the highest elevation as our target
         for target in [observation_sources.sort('el').targets[-1]]:
             target.add_tags('bfcal single_accumulation')
             if not opts.default_gain:
                 channels = 32768 if session.product.endswith('32k') else 4096
                 opts.default_gain = DEFAULT_GAIN[channels]
             user_logger.info("Target to be observed: %s", target.description)
-            if target.flux_model is None:
-                user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
             user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                              opts.default_gain)
             for inp in session.cbf.fengine.inputs:
@@ -107,11 +107,11 @@ with verify_and_connect(opts) as kat:
             bp_gains = session.get_cal_solutions('product_B')
             delays = session.get_cal_solutions('product_K')
             cal_channel_freqs = session.get_cal_channel_freqs()
+
             if opts.random_phase:
-                user_logger.info("Setting random F-engine gains")
+                user_logger.info("Setting F-engine gains with random phases")
             else:
                 user_logger.info("Setting F-engine gains to phase up antennas")
-            session.label('corrected')
             new_weights = {}
             for inp in gains:
                 orig_weights = gains[inp]
@@ -134,6 +134,7 @@ with verify_and_connect(opts) as kat:
             if opts.verify_duration > 0:
                 user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
                                  target.name, opts.verify_duration)
+                session.label('corrected')
                 session.track(target, duration=opts.verify_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)

@@ -26,7 +26,8 @@ description = 'Track the source with the highest elevation and calibrate ' \
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
-                  help='Length of time to track the source, in seconds (default=%default)')
+                  help='Length of time to track the source for calibration, '\
+                       'in seconds (default=%default)')
 parser.add_option('-v', '--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
@@ -88,7 +89,7 @@ with verify_and_connect(opts) as kat:
         delays = session.get_cal_solutions('product_K')
         # Add hv_delay to total delay
         for inp in delays:
-            delays[inp] = delays[inp] + hv_delays[inp]
+            delays[inp] += hv_delays[inp]
         session.set_delays(delays)
         if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds "

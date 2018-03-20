@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 #
-# Observe either 1934-638 or 0408-65 to establish some basic health
+# Observe either 1934-638, 0408-65 or 3C286 to establish some basic health
 # properties of the MeerKAT AR1 system.
 
 import time
+
 import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
@@ -16,8 +17,8 @@ class NoTargetsUpError(Exception):
 
 # Set up standard script options
 usage = "%prog"
-description = 'Observe either 1934-638 or 0408-65 to establish some basic health ' \
-              'Properties of the MeerKAT AR1 system.'
+description = 'Observe either 1934-638, 0408-65 or 3C286 to establish some ' \
+              'basic health properties of the MeerKAT AR1 system.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-v', '--verify-duration', type='float', default=64.0,
@@ -66,8 +67,6 @@ with verify_and_connect(opts) as kat:
             target.add_tags('bfcal single_accumulation')
             # Calibration tests
             user_logger.info("Performing calibration tests")
-            if target.flux_model is None:
-                user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
             user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                              opts.default_gain)
             for inp in session.cbf.fengine.inputs:
