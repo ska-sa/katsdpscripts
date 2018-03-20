@@ -7,12 +7,8 @@
 # 5 April 2017
 #
 
-import json
-
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
-from katcorelib.mkat_session import NoDelaysAvailableError
-from katsdptelstate import TimeoutError
 
 
 class NoTargetsUpError(Exception):
@@ -82,13 +78,9 @@ with verify_and_connect(opts) as kat:
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        hv_delays = session.get_hv_delaycal_solutions(timeout=90.)
-        delays = session.get_delaycal_solutions()
-        if not hv_delays and not kat.dry_run:
-            msg = "No hv_delay solutions found in telstate '%s'" % \
-                  (session.telstate,)
-            # TODO: this should be raised by get_delaycal_solutions
-            raise NoDelaysAvailableError(msg)
+        hv_delays = session.get_cal_solutions('product_KCROSS_DIODE',
+                                              timeout=90.)
+        delays = session.get_cal_solutions('product_K')
         # Add hv_delay to total delay
         for inp in delays:
             delays[inp] = delays[inp] + hv_delays[inp]

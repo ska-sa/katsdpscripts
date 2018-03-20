@@ -14,10 +14,6 @@ class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
-class NoGainsAvailableError(Exception):
-    """No gain solutions are available from the cal pipeline."""
-
-
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
@@ -101,16 +97,10 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # Wait for the last bfcal product from the pipeline
-            gains = session.get_gaincal_solutions(timeout=180.)
-            bp_gains = session.get_bpcal_solutions()
-            delays = session.get_delaycal_solutions()
-            if not gains and not kat.dry_run:
-                raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
-                                            % (session.telstate,))
+            gains = session.get_cal_solutions('product_G', timeout=180.)
+            bp_gains = session.get_cal_solutions('product_B')
+            delays = session.get_cal_solutions('product_K')
             cal_channel_freqs = session.get_cal_channel_freqs()
-            if cal_channel_freqs is None and not kat.dry_run:
-                raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
-                                            % (session.telstate,))
             if opts.random_phase:
                 user_logger.info("Setting random F-engine gains")
             else:

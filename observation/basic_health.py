@@ -7,16 +7,11 @@ import time
 import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger,
-                                SessionSDP)
+                                start_session, user_logger)
 
 
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
-
-
-class NoGainsAvailableError(Exception):
-    """No gain solutions are available from the cal pipeline."""
 
 
 # Set up standard script options
@@ -79,16 +74,10 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # Wait for the last bfcal product from the pipeline
-            gains = session.get_gaincal_solutions(timeout=180.)
-            bp_gains = session.get_bpcal_solutions()
-            delays = session.get_delaycal_solutions()
-            if (not gains or not bp_gains or not delays) and not kat.dry_run:
-                raise NoGainsAvailableError("No gain/bandpass/delay solutions found in telstate '%s'"
-                                            % (session.telstate,))
+            gains = session.get_cal_solutions('product_G', timeout=180.)
+            bp_gains = session.get_cal_solutions('product_B')
+            delays = session.get_cal_solutions('product_K')
             cal_channel_freqs = session.get_cal_channel_freqs()
-            if cal_channel_freqs is None and not kat.dry_run:
-                raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
-                                            % (session.telstate,))
             user_logger.info("Setting F-engine gains to phase up antennas")
             new_weights = {}
             for inp in gains:
