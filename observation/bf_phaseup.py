@@ -100,7 +100,7 @@ with verify_and_connect(opts) as kat:
             session.ants.req.target('')
             user_logger.info("Waiting for gains to materialise in cal pipeline")
             # Wait for the last bfcal product from the pipeline
-            gains = session.get_cal_solutions('product_G', timeout=180.)
+            gains = session.get_cal_solutions('product_G', timeout=300.)
             bp_gains = session.get_cal_solutions('product_B')
             delays = session.get_cal_solutions('product_K')
             cal_channel_freqs = session.get_cal_channel_freqs()

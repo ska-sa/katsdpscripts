@@ -82,7 +82,7 @@ with verify_and_connect(opts) as kat:
         session.ants.req.target('')
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         hv_delays = session.get_cal_solutions('product_KCROSS_DIODE',
-                                              timeout=90.)
+                                              timeout=300.)
         delays = session.get_cal_solutions('product_K')
         # Add hv_delay to total delay
         for inp in delays:

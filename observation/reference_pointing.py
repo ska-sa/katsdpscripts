@@ -523,7 +523,7 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
             # Wait for last piece of the cal puzzle (crash if not on time)
             last_offset_start = offset_end_times[-1] - opts.track_duration
-            session.get_cal_solutions('product_G', timeout=180.,
+            session.get_cal_solutions('product_G', timeout=300.,
                                       start_time=last_offset_start)
             user_logger.info('Retrieving gains, fitting beams, storing offsets')
             data_points = get_offset_gains(session, offsets, offset_end_times,
