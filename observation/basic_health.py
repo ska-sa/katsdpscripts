@@ -20,6 +20,9 @@ description = 'Observe either 1934-638 or 0408-65 to establish some basic health
               'Properties of the MeerKAT AR1 system.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
+parser.add_option('-v', '--verify-duration', type='float', default=64.0,
+                  help='Length of time to revisit source for verification, '
+                       'in seconds (default=%default)')
 parser.add_option('--default-gain', type='int', default=200,
                   help='Default correlator F-engine gain (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
@@ -98,9 +101,10 @@ with verify_and_connect(opts) as kat:
                     phase_weights = orig_weights / amp_weights
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
             session.set_fengine_gains(new_weights)
-            user_logger.info("Revisiting target %r for %g seconds to see if phasing worked",
-                             target.name, opts.track_duration)
-            session.track(target, duration=opts.track_duration, announce=False)
+            if opts.verify_duration > 0:
+                user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
+                                 target.name, opts.verify_duration)
+                session.track(target, duration=opts.verify_duration, announce=False)
 
             # interferometric pointing
             user_logger.info("Performing interferometric pointing tests")

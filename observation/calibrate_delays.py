@@ -27,6 +27,9 @@ parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track the source, in seconds (default=%default)')
+parser.add_option('-v', '--verify-duration', type='float', default=64.0,
+                  help='Length of time to revisit source for verification, '
+                       'in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain, automatically set if 0 (the '
                        'default) and left alone if negative')
@@ -42,7 +45,6 @@ if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name "
                      "('Cygnus A'), description ('azel, 20, 30') or catalogue "
                      "file name ('sources.csv')")
-
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
@@ -88,12 +90,14 @@ with verify_and_connect(opts) as kat:
         for inp in delays:
             delays[inp] = delays[inp] + hv_delays[inp]
         session.set_delays(delays)
-        user_logger.info("Revisiting target %r for %g seconds to see if "
-                         "delays are fixed", target.name, opts.track_duration)
-        session.label('corrected')
-        session.track(target, duration=0)  # get onto the source
-        # Fire noise diode during track
-        session.fire_noise_diode(on=opts.track_duration, off=0)
+        if opts.verify_duration > 0:
+            user_logger.info("Revisiting target %r for %g seconds "
+                             "to see if delays are fixed",
+                             target.name, opts.verify_duration)
+            session.label('corrected')
+            session.track(target, duration=0)  # get onto the source
+            # Fire noise diode during track
+            session.fire_noise_diode(on=opts.verify_duration, off=0)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
             for inp in delays:
