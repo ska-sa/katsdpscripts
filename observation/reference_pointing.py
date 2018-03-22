@@ -422,6 +422,8 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
         Unix timestamp at the middle of sequence of offset pointings
 
     """
+    # Pointing adjustments go into root view as other capture blocks need it
+    telstate = session.telstate.root()
     user_logger.info("Ant  refracted (az, el)     relative adjustment")
     user_logger.info("---- --------------------   --------------------")
     for ant in session.observers:
@@ -432,7 +434,7 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
                              ant.name)
         else:
             sensor_name = '%s_pointing_offsets' % (ant.name,)
-            session.telstate.add(sensor_name, offsets, middle_time)
+            telstate.add(sensor_name, offsets, middle_time)
             # Display all offsets in arcminutes
             offsets[2:] *= 60.
             user_logger.info("%s (%+6.2f, %5.2f) deg -> (%+7.2f', %+7.2f')",
