@@ -84,9 +84,8 @@ with verify_and_connect(opts) as kat:
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.stop_antennas()
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        hv_delays = session.get_cal_solutions('product_KCROSS_DIODE',
-                                              timeout=300.)
-        delays = session.get_cal_solutions('product_K')
+        hv_delays = session.get_cal_solutions('KCROSS_DIODE', timeout=300.)
+        delays = session.get_cal_solutions('K')
         # Add hv_delay to total delay
         for inp in delays:
             delays[inp] += hv_delays[inp]

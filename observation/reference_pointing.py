@@ -57,10 +57,10 @@ def get_offset_gains(session, offsets, offset_end_times, track_duration):
         offset_start = offset_end - track_duration
         # Obtain interferometric gains per pointing from the cal pipeline
         try:
-            bp_gains = session.get_cal_solutions(
-                'product_B', start_time=offset_start, end_time=offset_end)
-            gains = session.get_cal_solutions(
-                'product_G', start_time=offset_start, end_time=offset_end)
+            bp_gains = session.get_cal_solutions('B', start_time=offset_start,
+                                                 end_time=offset_end)
+            gains = session.get_cal_solutions('G', start_time=offset_start,
+                                              end_time=offset_end)
         except CalSolutionsUnavailable as err:
             user_logger.warning('Skipping offset %s: %s', offset, err)
             continue
@@ -525,7 +525,7 @@ with verify_and_connect(opts) as kat:
         if not kat.dry_run:
             # Wait for last piece of the cal puzzle (crash if not on time)
             last_offset_start = offset_end_times[-1] - opts.track_duration
-            session.get_cal_solutions('product_G', timeout=300.,
+            session.get_cal_solutions('G', timeout=300.,
                                       start_time=last_offset_start)
             user_logger.info('Retrieving gains, fitting beams, storing offsets')
             data_points = get_offset_gains(session, offsets, offset_end_times,
