@@ -426,7 +426,7 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
     telstate = session.telstate.root()
     user_logger.info("Ant  refracted (az, el)     relative adjustment")
     user_logger.info("---- --------------------   --------------------")
-    for ant in session.observers:
+    for ant in sorted(session.observers):
         try:
             offsets = pointing_offsets[ant.name].copy()
         except KeyError:
