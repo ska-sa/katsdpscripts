@@ -18,10 +18,10 @@ class NoTargetsUpError(Exception):
 # Set up standard script options
 usage = "%prog"
 description = 'Observe either 1934-638, 0408-65 or 3C286 to establish some ' \
-              'basic health properties of the MeerKAT AR1 system.'
+              'basic health properties of the MeerKAT system.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
-parser.add_option('-v', '--verify-duration', type='float', default=64.0,
+parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--default-gain', type='int', default=200,

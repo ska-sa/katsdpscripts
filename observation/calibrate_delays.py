@@ -28,7 +28,7 @@ parser = standard_script_options(usage, description)
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track the source for calibration, '\
                        'in seconds (default=%default)')
-parser.add_option('-v', '--verify-duration', type='float', default=64.0,
+parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,

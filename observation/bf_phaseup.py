@@ -21,13 +21,13 @@ DEFAULT_GAIN = {4096: 200, 32768: 4000}
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
 description = 'Track the source with the highest elevation and calibrate ' \
-              'gains based on them. At least one target must be specified.'
+              'gains based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=64.0,
                   help='Length of time to track the source for calibration, '
                        'in seconds (default=%default)')
-parser.add_option('-v', '--verify-duration', type='float', default=64.0,
+parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit the source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
