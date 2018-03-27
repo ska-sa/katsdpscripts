@@ -14,22 +14,22 @@ class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
-class NoGainsAvailableError(Exception):
-    """No gain solutions are available from the cal pipeline."""
-
-
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {4096: 200, 32768: 4000}
 
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track one or more sources for a specified time and calibrate ' \
-              'gains based on them. At least one target must be specified.'
+description = 'Track the source with the highest elevation and calibrate ' \
+              'gains based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=64.0,
-                  help='Length of time to track each source, in seconds (default=%default)')
+                  help='Length of time to track the source for calibration, '
+                       'in seconds (default=%default)')
+parser.add_option('--verify-duration', type='float', default=64.0,
+                  help='Length of time to revisit the source for verification, '
+                       'in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value afterwards')
 parser.add_option('--default-gain', type='int', default=0,
@@ -50,8 +50,8 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 opts, args = parser.parse_args()
 
 # Set of targets with flux models
-J1934 = 'PKS1934-63, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
-J0408 = 'J0408-65, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
+J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
+J0408 = 'J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
 J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
 
 # Check options and build KAT configuration, connecting to proxies and devices
@@ -66,10 +66,13 @@ with verify_and_connect(opts) as kat:
     if opts.reconfigure_sdp:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
-        sdp.req.data_product_reconfigure()
+        sdp.req.product_reconfigure()
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe
+        # Quit early if there are no sources to observe or not enough antennas
+        if len(session.ants) < 4:
+            raise ValueError('Not enough receptors to do calibration - you '
+                             'need 4 and you have %d' % (len(session.ants),))
         if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
@@ -79,65 +82,60 @@ with verify_and_connect(opts) as kat:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
         gains = {}
-        for target in [observation_sources.sort('el').targets[-1]]:
-            target.add_tags('bfcal single_accumulation')
-            if not opts.default_gain:
-                channels = 32768 if session.product.endswith('32k') else 4096
-                opts.default_gain = DEFAULT_GAIN[channels]
-            user_logger.info("Target to be observed: %s", target.description)
-            if target.flux_model is None:
-                user_logger.warning("Target has no flux model (katsdpcal will need it in future)")
-            user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                             opts.default_gain)
-            for inp in session.cbf.fengine.inputs:
-                gains[inp] = opts.default_gain
-            session.set_fengine_gains(gains)
+        # Pick source with the highest elevation as our target
+        target = observation_sources.sort('el').targets[-1]
+        target.add_tags('bfcal single_accumulation')
+        if not opts.default_gain:
+            channels = 32768 if session.product.endswith('32k') else 4096
+            opts.default_gain = DEFAULT_GAIN[channels]
+        user_logger.info("Target to be observed: %s", target.description)
+        user_logger.info("Resetting F-engine gains to %g to allow phasing up",
+                         opts.default_gain)
+        for inp in session.cbf.fengine.inputs:
+            gains[inp] = opts.default_gain
+        session.set_fengine_gains(gains)
 
-            session.label('un_corrected')
-            user_logger.info("Initiating %g-second track on target '%s'",
-                             opts.track_duration, target.name)
-            session.track(target, duration=opts.track_duration, announce=False)
-            # Attempt to jiggle cal pipeline to drop its gains
-            session.ants.req.target('')
-            user_logger.info("Waiting for gains to materialise in cal pipeline")
-            # Wait for the last bfcal product from the pipeline
-            gains = session.get_gaincal_solutions(timeout=180.)
-            bp_gains = session.get_bpcal_solutions()
-            delays = session.get_delaycal_solutions()
-            if not gains and not kat.dry_run:
-                raise NoGainsAvailableError("No gain solutions found in telstate '%s'"
-                                            % (session.telstate,))
-            cal_channel_freqs = session.get_cal_channel_freqs()
-            if cal_channel_freqs is None and not kat.dry_run:
-                raise NoGainsAvailableError("No cal frequencies found in telstate '%s'"
-                                            % (session.telstate,))
-            if opts.random_phase:
-                user_logger.info("Setting random F-engine gains")
-            else:
-                user_logger.info("Setting F-engine gains to phase up antennas")
-            session.label('corrected')
-            new_weights = {}
-            for inp in gains:
-                orig_weights = gains[inp]
-                bp = bp_gains[inp]
-                valid = ~np.isnan(bp)
-                if valid.any():  # not all flagged
-                    chans = np.arange(len(bp))
-                    bp = np.interp(chans, chans[valid], bp[valid])
-                    orig_weights *= bp
-                    delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights *= delay_weights  # unwrap the delays
-                    amp_weights = np.abs(orig_weights)
-                    phase_weights = orig_weights / amp_weights
-                    if opts.random_phase:
-                        phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
-                    new_weights[inp] = opts.default_gain * phase_weights.conj()
-                    if opts.flatten_bandpass:
-                        new_weights[inp] /= amp_weights
-            session.set_fengine_gains(new_weights)
+        session.label('un_corrected')
+        user_logger.info("Initiating %g-second track on target '%s'",
+                         opts.track_duration, target.name)
+        session.track(target, duration=opts.track_duration, announce=False)
+        # Attempt to jiggle cal pipeline to drop its gains
+        session.stop_antennas()
+        user_logger.info("Waiting for gains to materialise in cal pipeline")
+        # Wait for the last bfcal product from the pipeline
+        gains = session.get_cal_solutions('G', timeout=300.)
+        bp_gains = session.get_cal_solutions('B')
+        delays = session.get_cal_solutions('K')
+        cal_channel_freqs = session.get_cal_channel_freqs()
+
+        if opts.random_phase:
+            user_logger.info("Setting F-engine gains with random phases")
+        else:
+            user_logger.info("Setting F-engine gains to phase up antennas")
+        new_weights = {}
+        for inp in gains:
+            orig_weights = gains[inp]
+            bp = bp_gains[inp]
+            valid = ~np.isnan(bp)
+            if valid.any():  # not all flagged
+                chans = np.arange(len(bp))
+                bp = np.interp(chans, chans[valid], bp[valid])
+                orig_weights *= bp
+                delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
+                orig_weights *= delay_weights  # unwrap the delays
+                amp_weights = np.abs(orig_weights)
+                phase_weights = orig_weights / amp_weights
+                if opts.random_phase:
+                    phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
+                new_weights[inp] = opts.default_gain * phase_weights.conj()
+                if opts.flatten_bandpass:
+                    new_weights[inp] /= amp_weights
+        session.set_fengine_gains(new_weights)
+        if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
-                             target.name, opts.track_duration)
-            session.track(target, duration=opts.track_duration, announce=False)
+                             target.name, opts.verify_duration)
+            session.label('corrected')
+            session.track(target, duration=opts.verify_duration, announce=False)
         if opts.reset:
             user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
             for inp in gains:

@@ -7,12 +7,8 @@
 # 5 April 2017
 #
 
-import json
-
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
-from katcorelib.mkat_session import NoDelaysAvailableError
-from katsdptelstate import TimeoutError
 
 
 class NoTargetsUpError(Exception):
@@ -30,7 +26,11 @@ description = 'Track the source with the highest elevation and calibrate ' \
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
-                  help='Length of time to track the source, in seconds (default=%default)')
+                  help='Length of time to track the source for calibration, '\
+                       'in seconds (default=%default)')
+parser.add_option('--verify-duration', type='float', default=64.0,
+                  help='Length of time to revisit source for verification, '
+                       'in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain, automatically set if 0 (the '
                        'default) and left alone if negative')
@@ -47,13 +47,15 @@ if len(args) == 0:
                      "('Cygnus A'), description ('azel, 20, 30') or catalogue "
                      "file name ('sources.csv')")
 
-
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe
+        # Quit early if there are no sources to observe or not enough antennas
+        if len(session.ants) < 4:
+            raise ValueError('Not enough receptors to do calibration - you '
+                             'need 4 and you have %d' % (len(session.ants),))
         if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
@@ -80,25 +82,22 @@ with verify_and_connect(opts) as kat:
         # Fire noise diode during track
         session.fire_noise_diode(on=opts.track_duration, off=0)
         # Attempt to jiggle cal pipeline to drop its delay solutions
-        session.ants.req.target('')
+        session.stop_antennas()
         user_logger.info("Waiting for delays to materialise in cal pipeline")
-        hv_delays = session.get_hv_delaycal_solutions(timeout=90.)
-        delays = session.get_delaycal_solutions()
-        if not hv_delays and not kat.dry_run:
-            msg = "No hv_delay solutions found in telstate '%s'" % \
-                  (session.telstate,)
-            # TODO: this should be raised by get_delaycal_solutions
-            raise NoDelaysAvailableError(msg)
+        hv_delays = session.get_cal_solutions('KCROSS_DIODE', timeout=300.)
+        delays = session.get_cal_solutions('K')
         # Add hv_delay to total delay
         for inp in delays:
-            delays[inp] = delays[inp] + hv_delays[inp]
+            delays[inp] += hv_delays[inp]
         session.set_delays(delays)
-        user_logger.info("Revisiting target %r for %g seconds to see if "
-                         "delays are fixed", target.name, opts.track_duration)
-        session.label('corrected')
-        session.track(target, duration=0)  # get onto the source
-        # Fire noise diode during track
-        session.fire_noise_diode(on=opts.track_duration, off=0)
+        if opts.verify_duration > 0:
+            user_logger.info("Revisiting target %r for %g seconds "
+                             "to see if delays are fixed",
+                             target.name, opts.verify_duration)
+            session.label('corrected')
+            session.track(target, duration=0)  # get onto the source
+            # Fire noise diode during track
+            session.fire_noise_diode(on=opts.verify_duration, off=0)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
             for inp in delays:
