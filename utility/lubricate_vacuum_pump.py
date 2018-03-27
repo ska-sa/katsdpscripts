@@ -442,7 +442,7 @@ with verify_and_connect(opts) as kat:
                         err_results.append(ant)
 
                 # capture start time
-                pressure_tracker_startup = pressure_tracker
+                pressure_tracker_startup = pressure_tracker.copy()
                 start_run_duration = time.time()
                 
                 # wait for run_duration minutes

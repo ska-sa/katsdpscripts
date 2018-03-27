@@ -88,6 +88,19 @@ def verify_dspsr_backend_args(backend_args):
     parser.parse_args(backend_args.split(" "))
 
 
+def set_equal_beamformer_weights(stream, ants):
+    """Set weights for beamformer `stream` to sum `ants` equally (zero the rest)."""
+    user_logger.info('Setting beamformer weights for stream %r:', stream.name)
+    for inp in stream.inputs:
+        # Divide by sqrt(# ants) to maintain a constant power level in output
+        weight = 1.0 / np.sqrt(len(ants)) if inp[:-1] in ants else 0.0
+        reply = stream.req.weights(inp, weight)
+        if reply.succeeded:
+            user_logger.info('  input %r got weight %f', inp, weight)
+        else:
+            user_logger.warning('  input %r weight could not be set', inp)
+
+
 # Set up standard script options
 usage = "%prog [options] <'target'>"
 description = "Perform a beamforming run on a target. It is assumed that " \
@@ -103,19 +116,23 @@ parser.add_option('-t', '--target-duration', type='float', default=20,
 parser.add_option('-B', '--beam-bandwidth', type='float', default=853.75,
                   help="Beamformer bandwidth, in MHz (default=%default)")
 parser.add_option('-F', '--beam-centre-freq', type='float', default=1284.0,
-                  help="Beamformer centre frequency, in MHz (default=%default)")
-parser.add_option('--test-snr', action='store_true', default=False,
-                  help="Perform SNR test by switching off inputs (default=no)")
+                  help='Beamformer centre frequency, in MHz (default=%default)')
 parser.add_option('--backend', type='choice', default='digifits',
                   choices=['digifits', 'dspsr', 'dada_dbdisk',
                            'digifits profile', 'dspsr profile'],
                   help="Choose backend (default=%default)")
 parser.add_option('--backend-args',
                   help="Arguments for backend processing")
+parser.add_option('--cycle-snr', action='store_true', default=False,
+                  help='Perform SNR test by cycling between inputs (default=no)')
+parser.add_option('--step-snr', action='store_true', default=False,
+                  help='Perform SNR test by switching off successive inputs' 
+                  '(default=no)')
 parser.add_option('--drift-scan', action='store_true', default=False,
                   help="Perform drift scan instead of standard track (default=no)")
 parser.add_option('--noise-source', type=str, default=None,
-                  help="Initiate a noise diode pattern on all antennas, '<cycle_length_sec>,<on_fraction>'")
+                  help="Initiate a noise diode pattern on all antennas, "
+                       "'<cycle_length_sec>,<on_fraction>'")
 nd_cycles = ['all', 'cycle']
 parser.add_option('--noise-cycle', type=str, default=None,
                   help="How to apply the noise diode pattern: \
@@ -247,12 +264,16 @@ with verify_and_connect(opts) as kat:
             session.track(target, duration=0)
         # Only start capturing once we are on target
         session.capture_start()
-        if not opts.test_snr:
+        if not opts.cycle_snr and not opts.step_snr:
             # Basic observation
             session.label('track')
             session.track(target, duration=opts.target_duration)
-        else:
+        elif opts.cycle_snr and not opts.step_snr:
             duration_per_slot = opts.target_duration / (len(bf_ants) + 1)
+            # Warn if duration_per_slot is less than 2 dump periods
+            if duration_per_slot < 2 * session.dump_period:
+                user_logger.warning('Observation duration per slot is only %s '
+                                    'seconds', duration_per_slot)
             session.label('snr_all_ants')
             session.track(target, duration=duration_per_slot)
             # Perform SNR test by cycling through all inputs to the beamformer
@@ -263,6 +284,23 @@ with verify_and_connect(opts) as kat:
                         weight = 1.0 if inp[:-1] == ant else 0.0
                         stream.req.weights(inp, weight)
                 session.label('snr_' + ant)
+                session.track(target, duration=duration_per_slot)
+        elif opts.step_snr and not opts.cycle_snr:
+            # Perform SNR test by progressively switching off beamformer inputs
+            num_ants = len(bf_ants)
+            duration_per_slot = opts.target_duration / num_ants
+            # Warn if duration_per_slot is less than 2 dump periods
+            if duration_per_slot < 2 * session.dump_period:
+                user_logger.warning('Observation duration per slot is only %s '
+                                    'seconds', duration_per_slot)
+            session.label('snr_%d' % (num_ants))
+            session.track(target, duration=duration_per_slot)
+            for n in range(num_ants - 1):
+                # Drop the last antenna in the list
+                bf_ants.pop()
+                for stream in cbf.beamformers:
+                    set_equal_beamformer_weights(stream, bf_ants)
+                session.label('snr_%d' % len(bf_ants))
                 session.track(target, duration=duration_per_slot)
         # XXX Clear the script arguments in telstate as these may inadvertently
         # start an unwanted backend on a future SDP capture-init in the same
