@@ -7,8 +7,10 @@
 # 5 April 2017
 #
 
+import numpy as np
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger)
+                                collect_targets, start_session, user_logger,
+                                CalSolutionsUnavailable)
 
 
 class NoTargetsUpError(Exception):
@@ -87,8 +89,17 @@ with verify_and_connect(opts) as kat:
         hv_delays = session.get_cal_solutions('KCROSS_DIODE', timeout=300.)
         delays = session.get_cal_solutions('K')
         # Add hv_delay to total delay
-        for inp in delays:
+        for inp in sorted(delays):
             delays[inp] += hv_delays[inp]
+            if np.isnan(delays[inp]):
+                user_logger.warning("Delay fit failed on input %s (all its "
+                                    "data probably flagged)", inp)
+        # XXX Remove any NaNs due to failed fits (move this into set_delays)
+        delays = {inp: delay for inp, delay in delays.items()
+                  if not np.isnan(delay)}
+        if not delays:
+            raise CalSolutionsUnavailable("No valid delay fits found "
+                                          "(is everything flagged?)")
         session.set_delays(delays)
         if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds "
