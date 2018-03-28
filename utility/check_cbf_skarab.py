@@ -232,15 +232,14 @@ with cambuild(sub_nr=subnr) as kat:
                 else:
                     continue
 
-            print("\nFHOSTS FAILURES:")
+            print("\nFHOST FAILURES:")
             for host in sorted(fhosts):
                 board = host_board_dict.get(host, "unknown")
-                print "{}: {}".format(host, board)
-                print "         ".format(labels_dict.get(board, "unknown"))
+                print "{}: {} - {}".format(host, board, labels_dict.get(board, "unknown"))
             sys.stdout.flush()
 
-            print("\nxHOSTS FAILURES:")
-            for host in sorte(xhosts):
+            print("\nXHOST FAILURES:")
+            for host in sorted(xhosts):
                 board = host_board_dict.get(host, "unknown")
                 print "{}: {}".format(host, board)
             sys.stdout.flush()
