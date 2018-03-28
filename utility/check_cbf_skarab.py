@@ -161,7 +161,8 @@ with cambuild(sub_nr=subnr) as kat:
                 # no clear screen
                 print "\n\n"
                 print("----------"*5)
-                print("CBF SKARAB {} error check : ".format(subnr))
+                print("CBF SKARAB {} error check : cbf_ok {} cbfmon_ok {}"
+                      .format(subnr, cbf_ok, cbfmon_ok))
                 print("----------"*5)
             else:
                 time.sleep(2)
@@ -170,7 +171,7 @@ with cambuild(sub_nr=subnr) as kat:
                       .format(subnr, active[cycles % 4]))
                 print("----------"*5)
             # This is brittle because it relies on parsing the sensor value string
-            labels = cbfmon.sensor.i0_input_labelling.get_value()
+            labels = cbf.sensor.i0_input_labelling.get_value()
 
             # import ipdb; ipdb.set_trace()
             # Process input labels - like
