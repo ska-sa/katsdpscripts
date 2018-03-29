@@ -1,35 +1,35 @@
 #!/usr/bin/python
+from __future__ import print_function
 
-import time
 import sys
-from katcorelib import standard_script_options, verify_and_connect, user_logger
+import time
+
+from ast import literal_eval
+from pprint import pprint
+
+from katcorelib import standard_script_options, user_logger
 from katcorelib import cambuild
 from katmisc.utils.ansi import colors, get_sensor_colour, gotoxy, clrscr, col, getKeyIf
-from katmisc.utils.utils import get_time_str, escape_name
-
+from katmisc.utils.utils import get_time_str
 
 
 def log_timestamp():
-    # create log timestamp format
+    """Create log timestamp format."""
     return time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime())
 
 
-def log_message(msg, level='info', boldtype=False, colour=colors.Normal):
-
-    bold = boldtype
-
+def log_message(msg, level='info', colour=colors.Normal):
     if level == 'debug':
         user_logger.debug(str(msg))
     elif level == 'info':
         user_logger.info(str(msg))
     elif level == 'warn':
         user_logger.warn(str(msg))
-        colour = colors.Orange
+        colour = colors.Brown
     elif level == 'error':
         user_logger.error(str(msg))
         colour = colors.Red
-        bold = True
-    print colour+msg
+    print(colour + msg + colors.Normal)
 
 
 # Parse command-line options that allow the defaults to be overridden
@@ -66,6 +66,11 @@ Name: cbf_roach_2_i0_hostname_functional_mapping        Description: On which ho
 
 Name: cbf_roach_2_i0_host_mapping                       Description: Indicates\_on\_which\_physical\_host\_a\_set\_of\_engines\_can\_be\_found.
 {'roach020951': ['xeng40', 'xeng41', 'xeng42', 'xeng43'], 'roach020954': ['xeng44', 'xeng45', 'xeng46', 'xeng47'], 'roach020955': ['xeng48', 'xeng49', 'xeng50', 'xeng51'], 'roach020A12': ['feng14', 'feng15'], 'roach02093A': ['feng6', 'feng7'], 'roach02091D': ['feng22', 'feng23'], 'roach02091F': ['feng0', 'feng1'], 'roach02091C': ['feng20', 'feng21'], 'roach020A03': ['xeng52', 'xeng53', 'xeng54', 'xeng55'], 'roach02094E': ['xeng12', 'xeng13', 'xeng14', 'xeng15'], 'roach020962': ['feng24', 'feng25'], 'roach020A0E': ['xeng28', 'xeng29', 'xeng30', 'xeng31'], 'roach020922': ['feng2', 'feng3'], 'roach02094C': ['feng26', 'feng27'], 'roach020A0F': ['feng12', 'feng13'], 'roach020923': ['xeng32', 'xeng33', 'xeng34', 'xeng35'], 'roach020A0D': ['feng10', 'feng11'], 'roach020A0B': ['xeng60', 'xeng61', 'xeng62', 'xeng63'], 'roach020927': ['feng4', 'feng5'], 'roach02092B': ['xeng36', 'xeng37', 'xeng38', 'xeng39'], 'roach020961': ['xeng20', 'xeng21', 'xeng22', 'xeng23'], 'roach020946': ['xeng8', 'xeng9', 'xeng10', 'xeng11'], 'roach020A01': ['xeng24', 'xeng25', 'xeng26', 'xeng27'], 'roach020944': ['feng8', 'feng9'], 'roach020A08': ['xeng56', 'xeng57', 'xeng58', 'xeng59'], 'roach020936': ['xeng4', 'xeng5', 'xeng6', 'xeng7'], 'roach02095A': ['feng28', 'feng29'], 'roach02095C': ['xeng16', 'xeng17', 'xeng18', 'xeng19'], 'roach020933': ['feng30', 'feng31'], 'roach020910': ['feng16', 'feng17'], 'roach020911': ['xeng0', 'xeng1', 'xeng2', 'xeng3'], 'roach020912': ['feng18', 'feng19']}
+
+Receptor to digitser:
+Name: m001_dig_version_list
+dig-l-60.dcpproxy KAT/1-291-g5e42b5b,dig-l-60.firmware m1130_2042sdp_rev1_23_of,dig-l-60.katcp-library v0.2.0-190-gec0e7e7 2018-02-01T09:53:40,dig-l-60.katcp-protocol 5.0-M,dig-l-60.kernel 3.13.1 #1 SMP Wed Feb 5 14:37:06 SAST 2014,katcp-device digitiser-1.b e9ec171,katcp-library Ckatcp-v0.2.0-72-g669959c,katcp-protocol 5.0-M
+
 """
 
 
@@ -82,14 +87,23 @@ def cambuild(password=None, full_control=False, conn_object=None,
               check_noproduct=check_noproduct)
 '''
 with cambuild(sub_nr=subnr) as kat:
-    print("Waiting for cambuild")
+    print("Waiting for cambuild on subarray", subnr)
     kat.until_synced(timeout=30)
+    sub_ants = sorted([ant.name for ant in kat.ants.clients])
+    sub_state = kat.sub.sensor.state.get_value()
+    sub_band = kat.sub.sensor.band.get_value()
+    sub_pool_sensor = getattr(kat.katpool.sensor, "pool_resources_{}".format(subnr))
+    sub_pool = sorted(sub_pool_sensor.get_value().split(','))
     print("=========="*6)
     print("CBF SKARAB error check : start")
     print("=========="*6)
-    print(opts)
-    print(kat.controlled_objects)
-    print(kat.ants.clients)
+    print("Connected objects:", sorted(kat.connected_objects.keys()))
+    print("Controlled objects:", sorted(kat.controlled_objects.keys()))
+    print("Subarray: {}".format(subnr))
+    print("   state: {}".format(sub_state))
+    print("    band: {}".format(sub_band))
+    print("    ants: {}".format(sub_ants))
+    print("    pool: {}".format(sub_pool))
     print("----------"*5)
 
     if opts.strategy not in ["once", "detail", "period"]:
@@ -100,24 +114,6 @@ with cambuild(sub_nr=subnr) as kat:
     once = opts.strategy in ["once", "detail"]
     detail = opts.strategy in ["detail"]
 
-    subarrays = kat.katpool.sensor.subarrays.get_value()
-    subarrays_free = kat.katpool.sensor.subarrays_free.get_value()
-    ants = kat.katpool.sensor.ants.get_value().split(",")
-    sub = getattr(kat, "sub")
-    sub_pool = getattr(kat.katpool.sensor,
-                       "pool_resources_{}".format(subnr)).get_value().split(',')
-    # Get subarray in subarray
-    sub_ants = [res for res in ants if res in sub_pool]
-    sub_state = sub.sensor.state.get_value()
-    print("----------"*5)
-    print("Subarray: {}".format(subnr))
-    print("   state: {}".format(sub_state))
-    print("    ants: {}".format(sub_ants))
-    print("    pool: {}".format(sub_pool))
-    print(kat.ants.clients)
-    print(opts)
-    print("----------"*5)
-
     if opts.dry_run:
         log_message('Dry Run only\n')
         print("\n")
@@ -126,19 +122,16 @@ with cambuild(sub_nr=subnr) as kat:
         print("=========="*5)
         exit(0)
 
-    # Build the 2nd KAT object. This kat object is being used to access sensor data
-    # for resources outside the subarray.
-    cbf = getattr(kat, "cbf")
+    cbf = kat.cbf
     cbfmon = getattr(kat, "cbfmon_{}".format(subnr))
-    obj = cbfmon
 
-    log_message("Waiting for cbfmon_{} to sync\n".format(subnr))
+    log_message("Waiting for cbf_{0} and cbfmon_{0} to sync\n".format(subnr))
     cbf_ok = cbf.until_synced(timeout=15)
     cbfmon_ok = cbfmon.until_synced(timeout=60)
 
     if not (cbf_ok and cbfmon_ok):
         log_message("Some resources did not sync \n kat.cbf_{}={} "
-                    "kat2.cbfmon{_{}={}\n{}\n\n"
+                    "kat.cbfmon_{}={}\n{}\n\n"
                     .format(subnr, cbf_ok, subnr, cbfmon_ok, kat.get_status()), 'error')
         log_message("Aborting script", 'error')
         raise RuntimeError(
@@ -148,76 +141,137 @@ with cambuild(sub_nr=subnr) as kat:
     try:
         running = True
         active = ['|', '/', '-', '\\']
-        page = 0; c = 0; perpage = 50; cycles = 0;
+        page = 0
+        numpages = 1
+        c = 0
+        perpage = 50
+        cycles = 0
         if once:
             perpage = 9999
         else:
-            clrscr(); gotoxy(1, 1)
+            clrscr()
+            gotoxy(1, 1)
+
         truncate = False
         sens_filter = 'device_status'
         sens_status = 'warn|error|unknown|failure'
         while c != 'q' and c != 'Q':
             if once:
                 # no clear screen
-                print "\n\n"
+                print("\n\n")
                 print("----------"*5)
                 print("CBF SKARAB {} error check : cbf_ok {} cbfmon_ok {}"
                       .format(subnr, cbf_ok, cbfmon_ok))
                 print("----------"*5)
             else:
                 time.sleep(2)
-                clrscr(); cycles += 1
+                clrscr()
+                cycles += 1
                 print("CBF SKARAB {} error check : <Q> to quit   {}"
                       .format(subnr, active[cycles % 4]))
                 print("----------"*5)
+
             # This is brittle because it relies on parsing the sensor value string
-            labels = cbf.sensor.i0_input_labelling.get_value()
-
-            # import ipdb; ipdb.set_trace()
             # Process input labels - like
-            #    [('m001h', 0, 'board020900', 0), ('m001v', 1, 'board020900', 1), ...
-            # Remove outer square brackets and single/double quotes
-            cmd = "list("+labels+")"
-            labels_list = eval(cmd)
-            labels_dict = {}
+            #   [('m001h', 0, 'skarab02000-01', 0), ('m001v', 1, 'skarab02000-01', 1), ...
+            labels = cbf.sensor.i0_input_labelling.get_value()
+            labels_list = literal_eval(labels.strip())
+            boards_to_ants = {}
             for (antpol, nr, board, pol) in labels_list:
-                # item like - m001h, 0, board020900, 0
-                if board not in labels_dict:
-                    labels_dict[board] = antpol
+                # item like - m001h, 0, skarab02000-01, 0
+                if board not in boards_to_ants:
+                    boards_to_ants[board] = antpol
                 else:
-                    labels_dict[board] = ",".join([labels_dict[board], antpol])
-            print type(labels_list), labels_dict.keys()
+                    boards_to_ants[board] = ",".join([boards_to_ants[board], antpol])
+            print(type(labels_list), boards_to_ants.keys())
 
-            # Process mappings - lke  {'skarab02000-01': 'fhost00', 'skarab02007-01': 'xhost03', ....}
-            mappings = cbfmon.sensor.i0_hostname_functional_mapping.get_value()
-            cmd = "dict("+mappings+")"
-            mappings_dict = eval(cmd)
-            print type(mappings_dict), mappings_dict.keys()
-            host_board_dict = {}
-            for item in mappings_dict:
-                host_board_dict[mappings_dict[item]] = item
-            # map_dict = dict((fhost.strip(), skarab.strip()) for skarab,fhost in
-            #                   (item.split(':') for item in mappings.strip("{}").split(',')))
+            # Process hostname-functional mappings - like
+            #     {'skarab02000-01': 'fhost00', 'skarab02007-01': 'xhost03', ....}
+            func_mappings = cbfmon.sensor.i0_hostname_functional_mapping.get_value()
+            func_mappings = func_mappings.strip()
+            if func_mappings:
+                func_mappings_dict = literal_eval(func_mappings.strip())
+            else:
+                # sometimes sensor is empty on site
+                func_mappings_dict = {}
+            print(type(func_mappings_dict), func_mappings_dict.keys())
+            hosts_to_boards = {}
+            for board, host in func_mappings_dict.items():
+                hosts_to_boards[host] = board
+
+            # Process host-engine mappings - like
+            #     {'skarab020804-01': ['xeng012', 'xeng013', 'xeng014', 'xeng015'], ...
+            engines_to_boards = {}
+            if hasattr(cbf.sensor, 'i0_host_mapping'):
+                host_mappings = cbf.sensor.i0_host_mapping.get_value()
+            else:
+                # probably simulated system, which excludes this sensor
+                host_mappings = ''
+            host_mappings = host_mappings.strip()
+            if host_mappings:
+                host_mappings_dict = literal_eval(host_mappings.strip())
+            else:
+                host_mappings_dict = {}
+            print(type(host_mappings_dict), host_mappings_dict.keys())
+            for board, engines in host_mappings_dict.items():
+                for engine in engines:
+                    engines_to_boards[engine] = board
+
+            # Workaround, for empty hostname-functional-mapping sensor on site
+            if host_mappings_dict and not hosts_to_boards:
+                log_message("Guesstimating hosts_to_boards", 'warn')
+                # Try to build it up, making some assumptions
+                for board, engines in host_mappings_dict.items():
+                    # engines is a list of 4 xengs, or 2 fengs - just use first item
+                    engine = engines[0]
+                    # this will be like 'xeng00' or 'xeng000' or 'feng123'
+                    host_type = engine[0]
+                    eng_num = int(engine[4:])
+                    host_index = eng_num // len(engines)
+                    host = "{}host{:02}".format(host_type, host_index)
+                    hosts_to_boards[host] = board
+
+            # Use assumption of CAM mapping sorted antennas to ascending input number
             ants_to_hosts = {}
             hosts_to_ants = {}
             for i, ant in enumerate(sub_ants):
-                ants_to_hosts[ant] = "{:02}".format(i)
-                hosts_to_ants["{:02}".format(i)] = ant
-            print('sub_ants:')
-            print('    {}'.format(sub_ants))
+                host = "fhost{:02}".format(i)
+                ants_to_hosts[ant] = host
+                hosts_to_ants[host] = ant
+
+            # Get digitiser serial number to antenna mapping
+            # From DMC sensor - like
+            #   dig-l-60.dcpproxy KAT/1-291-g5e42b5b,dig-l-60.firmware ...
+            # From static CAM config - like
+            #   ready:dig-060
+            ants_to_digitisers = {}
+            for ant in kat.ants:
+                dig_version_list = ant.sensor.dig_version_list.get_value()
+                sensor_serial = dig_version_list.split('.')[0]
+                ant_config = kat.katconfig.array_conf.antennas[ant.name].rec_config_dict
+                dig_key = 'digitiser_{}'.format(sub_band)
+                config_serial = ant_config['installed'][dig_key].split(':')[-1]
+                ants_to_digitisers[ant.name] = (sensor_serial, config_serial)
+
+            print('\nants_to_digitisers:')
+            pprint(ants_to_digitisers, indent=4)
             print('ants_to_hosts:')
-            print('    {}'.format(ants_to_hosts))
+            pprint(ants_to_hosts, indent=4)
             print('hosts_to_ants:')
-            print('    {}'.format(hosts_to_ants))
-            print('i0_input_labelling:')
-            print('    {}'.format(labels))
-            print('    {}'.format(labels_dict))
+            pprint(hosts_to_ants, indent=4)
+            print('i0_input_labelling - list:')
+            pprint(labels_list, indent=4)
+            print('boards_to_ants:')
+            pprint(boards_to_ants, indent=4)
             print('i0_hostname_functional_mapping:')
-            print('    {}'.format(mappings))
-            print('    {}'.format(host_board_dict))
+            pprint(func_mappings_dict, indent=4)
+            print('hosts_to_boards:')
+            pprint(hosts_to_boards, indent=4)
+            print('i0_host_mapping:')
+            pprint(host_mappings_dict, indent=4)
             sys.stdout.flush()
             print("\n\nGetting sensor list ...")
-            sens = obj.list_sensors(sens_filter, status=sens_status, refresh=True)
+            sens = cbfmon.list_sensors(sens_filter, status=sens_status, refresh=True)
             print('Filter: {}, Status: {}, Found sensors: {}\n\n'
                   .format(sens_filter, sens_status, len(sens)))
             xhosts = set()
@@ -227,22 +281,29 @@ with cambuild(sub_nr=subnr) as kat:
                 if name.startswith("i0.fhost"):
                     host = name.split(".")[1]
                     fhosts.add(host)
-                elif name.startswith("i0.shost"):
+                elif name.startswith("i0.xhost"):
                     host = name.split(".")[1]
                     xhosts.add(host)
                 else:
                     continue
 
             print("\nFHOST FAILURES:")
+            print("  fhost    board            ant streams   dig S/N (sensor, config)")
+            print("  ----------------------------------------------------------------")
             for host in sorted(fhosts):
-                board = host_board_dict.get(host, "unknown")
-                print "{}: {} - {}".format(host, board, labels_dict.get(board, "unknown"))
+                board = hosts_to_boards.get(host, "unknown")
+                antpols = boards_to_ants.get(board, "unknown")
+                ant = hosts_to_ants.get(host, "unknown")
+                digitiser = ants_to_digitisers.get(ant, "unknown")
+                print("  {}: {} - {} - {}".format(host, board, antpols, digitiser))
             sys.stdout.flush()
 
             print("\nXHOST FAILURES:")
+            print("  xhost    board")
+            print("  --------------")
             for host in sorted(xhosts):
-                board = host_board_dict.get(host, "unknown")
-                print "{}: {}".format(host, board)
+                board = hosts_to_boards.get(host, "unknown")
+                print("  {}: {}".format(host, board))
             sys.stdout.flush()
 
             # Get user input for display control
@@ -262,10 +323,10 @@ with cambuild(sub_nr=subnr) as kat:
             elif c == '+' or c == 'm':   # More
                 perpage = min(perpage + 2, 80)
             elif c == 'r' or c == 'R':
-                print "\nRefreshing not yet implemented - TBD ..."
+                print("\nRefreshing not yet implemented - TBD ...")
                 # TODO: Add a sensor sampling refresh here on cbfmon_n
-                print "\nSet auto strategy on cbfmon sensors"
-                sensor_names = obj.set_sampling_strategies(sens_filter, "auto")
+                print("\nSet auto strategy on cbfmon sensors")
+                sensor_names = cbfmon.set_sampling_strategies(sens_filter, "auto")
 
         # At the end print the detailed non-nominal sensors
         if detail:
@@ -287,8 +348,8 @@ with cambuild(sub_nr=subnr) as kat:
                 type = s.type
                 reading = s.reading
                 val = str(reading.value)
-                valTime = reading.timestamp
-                updateTime = reading.received_timestamp
+                val_time = reading.timestamp
+                update_time = reading.received_timestamp
                 stat = reading.status
                 strat = 'none'  # TODO
                 colour = get_sensor_colour(stat)
@@ -299,7 +360,8 @@ with cambuild(sub_nr=subnr) as kat:
                 val = r"\n".join(val.splitlines())
                 print("%s %s %s %s %s %s" % (col(colour) + name.ljust(45),
                       str(units).ljust(10), (stratchar + str(stat)).ljust(10),
-                      get_time_str(valTime).ljust(15), get_time_str(updateTime).ljust(15),
+                      get_time_str(val_time).ljust(15),
+                      get_time_str(update_time).ljust(15),
                       str(val).ljust(45) + col('normal')))
                 sys.stdout.flush()
 
