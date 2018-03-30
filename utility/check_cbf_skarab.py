@@ -7,6 +7,8 @@ import time
 from ast import literal_eval
 from pprint import pprint
 
+from katcp import Sensor
+from katcp.resource import SensorResultTuple, KATCPSensorReading
 from katcorelib import standard_script_options, user_logger
 from katcorelib import cambuild
 from katmisc.utils.ansi import colors, get_sensor_colour, gotoxy, clrscr, col, getKeyIf
@@ -153,7 +155,7 @@ with cambuild(sub_nr=subnr) as kat:
             gotoxy(1, 1)
 
         truncate = False
-        sens_filter = 'device_status'
+        sens_filter = 'device_status|feng_rxtime_ok|xeng_vaccs_synchronised'
         sens_status = 'warn|error|unknown|failure'
         while c != 'q' and c != 'Q':
             if once:
@@ -270,40 +272,96 @@ with cambuild(sub_nr=subnr) as kat:
             print('i0_host_mapping:')
             pprint(host_mappings_dict, indent=4)
             sys.stdout.flush()
+
             print("\n\nGetting sensor list ...")
-            sens = cbfmon.list_sensors(sens_filter, status=sens_status, refresh=True)
+            # For the listing, don't refresh because it is very slow to call
+            # get_value (i.e. send ?sensor-value) for sensors one at a time.
+            sens_no_readings = cbfmon.list_sensors(sens_filter, refresh=False)
+            # Get all sensor readings with a single ?sensor-value request, which is much
+            # faster.  Then update the sens list readings.
+            print("Getting sensor values for all {} sensors".format(len(cbfmon.sensor)))
+            reply, informs = cbfmon.req.sensor_value()
+            reading_time = time.time()
+            sensor_names = [s.name for s in sens_no_readings]
+            sens = []
+            for inform in informs:
+                timestamp, _, name, status, value = inform.arguments
+                if status in sens_status:
+                    try:
+                        index = sensor_names.index(name)
+                        reading = KATCPSensorReading(
+                            reading_time, float(timestamp),
+                            Sensor.STATUS_NAMES[status], value)
+                        old_item = sens_no_readings[index]
+                        new_item = SensorResultTuple(*old_item[0:-1], reading=reading)
+                        sens.append(new_item)
+                    except ValueError:
+                        pass  # we're not interested in this sensor
+
             print('Filter: {}, Status: {}, Found sensors: {}\n\n'
                   .format(sens_filter, sens_status, len(sens)))
-            xhosts = set()
-            fhosts = set()
+            xhosts_error = set()
+            fhosts_error = set()
+            xhosts_warn = set()
+            fhosts_warn = set()
             for s in sens:
                 name = s.name  # Here in the format i0.fhostNN.dfsdfdf.device-status
+                status = s.reading.status
                 if name.startswith("i0.fhost"):
-                    host = name.split(".")[1]
-                    fhosts.add(host)
+                    errors = fhosts_error
+                    warns = fhosts_warn
                 elif name.startswith("i0.xhost"):
-                    host = name.split(".")[1]
-                    xhosts.add(host)
+                    errors = xhosts_error
+                    warns = xhosts_warn
                 else:
                     continue
+                host = name.split(".")[1]
+                if status in ['error', 'failure', 'unknown']:
+                    errors.add(host)
+                elif status in ['warn']:
+                    warns.add(host)
 
-            print("\nFHOST FAILURES:")
-            print("  fhost    board            ant streams   dig S/N (sensor, config)")
-            print("  ----------------------------------------------------------------")
-            for host in sorted(fhosts):
-                board = hosts_to_boards.get(host, "unknown")
-                antpols = boards_to_ants.get(board, "unknown")
-                ant = hosts_to_ants.get(host, "unknown")
-                digitiser = ants_to_digitisers.get(ant, "unknown")
-                print("  {}: {} - {} - {}".format(host, board, antpols, digitiser))
-            sys.stdout.flush()
+            if fhosts_error or fhosts_warn:
+                print("\nFHOST ISSUES:")
+                print("level   fhost    board            ant streams   "
+                      "dig S/N: sensor, config")
+                print("-" * 71)
 
-            print("\nXHOST FAILURES:")
-            print("  xhost    board")
-            print("  --------------")
-            for host in sorted(xhosts):
-                board = hosts_to_boards.get(host, "unknown")
-                print("  {}: {}".format(host, board))
+                def print_fhost_details(host, status):
+                    board = hosts_to_boards.get(host, "unknown")
+                    antpols = boards_to_ants.get(board, "unknown")
+                    ant = hosts_to_ants.get(host, "unknown")
+                    digitiser = ants_to_digitisers.get(ant, "unknown")
+                    colour = col(get_sensor_colour(status.strip()))
+                    print("{}{} - {}: {} - {} - {}{}".format(
+                        colour, status.upper(), host, board, antpols, digitiser,
+                        colors.Normal))
+
+                for host in sorted(fhosts_error):
+                    print_fhost_details(host, 'error')
+                for host in sorted(fhosts_warn):
+                    print_fhost_details(host, 'warn ')
+            else:
+                print("\n(No FHOST issues)")
+
+            if xhosts_error or xhosts_warn:
+                print("\nXHOST ISSUES:")
+                print("level   xhost    board")
+                print("----------------------")
+
+                def print_xhost_details(host, status):
+                    board = hosts_to_boards.get(host, "unknown")
+                    colour = col(get_sensor_colour(status.strip()))
+                    print("{}{} - {}: {}{}".format(
+                        colour, status.upper(), host, board, colors.Normal))
+
+                for host in sorted(xhosts_error):
+                    print_xhost_details(host, 'error')
+                for host in sorted(xhosts_warn):
+                    print_xhost_details(host, 'warn ')
+            else:
+                print("\n(No XHOST issues)")
+
             sys.stdout.flush()
 
             # Get user input for display control
