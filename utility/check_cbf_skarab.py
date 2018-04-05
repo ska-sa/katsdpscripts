@@ -109,8 +109,8 @@ with cambuild(sub_nr=subnr) as kat:
     print("----------"*5)
 
     if opts.strategy not in ["once", "detail", "period"]:
-        print(">>> Unknown strategy given: '{}'', using 'once' instead"
-              .format(opts.strategy))
+        print("{}>>> Unknown strategy given: '{}'', using 'once' instead{}"
+              .format(colors.Red, opts.strategy, colors.Normal))
         opts.strategy = "once"
 
     once = opts.strategy in ["once", "detail"]
@@ -155,7 +155,7 @@ with cambuild(sub_nr=subnr) as kat:
             gotoxy(1, 1)
 
         truncate = False
-        sens_filter = 'device_status|feng_rxtime_ok|xeng_vaccs_synchronised'
+        sens_filter = 'device-status|feng-rxtime-ok|xeng-vaccs-synchronised'
         sens_status = 'warn|error|unknown|failure'
         while c != 'q' and c != 'Q':
             if once:
@@ -273,40 +273,27 @@ with cambuild(sub_nr=subnr) as kat:
             pprint(host_mappings_dict, indent=4)
             sys.stdout.flush()
 
-            print("\n\nGetting sensor list ...")
-            # For the listing, don't refresh because it is very slow to call
-            # get_value (i.e. send ?sensor-value) for sensors one at a time.
-            sens_no_readings = cbfmon.list_sensors(sens_filter, refresh=False)
             # Get all sensor readings with a single ?sensor-value request, which is much
-            # faster.  Then update the sens list readings.
-            print("Getting sensor values for all {} sensors".format(len(cbfmon.sensor)))
-            reply, informs = cbfmon.req.sensor_value()
+            # faster than get_value.
+            req_sens_filter = "/"+sens_filter+"/"
+            sens_statuses = sens_status.split("|")
+            print("Getting sensor values for sensor filter: {}".format(req_sens_filter))
             reading_time = time.time()
-            sensor_names = [s.name for s in sens_no_readings]
+            reply, informs = cbfmon.req.sensor_value(req_sens_filter)
             sens = []
             for inform in informs:
-                timestamp, _, name, status, value = inform.arguments
-                if status in sens_status:
-                    try:
-                        index = sensor_names.index(name)
-                        reading = KATCPSensorReading(
-                            reading_time, float(timestamp),
-                            Sensor.STATUS_NAMES[status], value)
-                        old_item = sens_no_readings[index]
-                        new_item = SensorResultTuple(*old_item[0:-1], reading=reading)
-                        sens.append(new_item)
-                    except ValueError:
-                        pass  # we're not interested in this sensor
+                timestamp, _count, name, status, value = inform.arguments
+                if status in sens_statuses:
+                    sens.append((name, float(timestamp), reading_time, status, value))
 
-            print('Filter: {}, Status: {}, Found sensors: {}\n\n'
-                  .format(sens_filter, sens_status, len(sens)))
+            print('Filter: {}, Status: {},  {}/{} sensors\n'
+                  .format(sens_filter, sens_status, len(sens), reply.arguments[1]))
             xhosts_error = set()
             fhosts_error = set()
             xhosts_warn = set()
             fhosts_warn = set()
             for s in sens:
-                name = s.name  # Here in the format i0.fhostNN.dfsdfdf.device-status
-                status = s.reading.status
+                (name, value_time, reading_time, status, value) = s
                 if name.startswith("i0.fhost"):
                     errors = fhosts_error
                     warns = fhosts_warn
@@ -388,39 +375,32 @@ with cambuild(sub_nr=subnr) as kat:
 
         # At the end print the detailed non-nominal sensors
         if detail:
-            print("\n\n")
+            print("\n")
             print("DETAIL REPORT of all warn|error|unknown sensors")
             print('Filter: {}, Status: {}, Found sensors: {}'
                   .format(sens_filter, sens_status, len(sens)))
             print("----------"*5)
+            print("%s %s %s %s %s" % ("Name".ljust(45),
+                  "Status".ljust(10),
+                  "Value_time".ljust(15),
+                  "Reading_time".ljust(15),
+                  "Value".ljust(45)))
             if len(sens) == 0:
                 numpages, rest = 0, 0
             else:
                 numpages, rest = divmod(len(sens), perpage or 1)
                 numpages = numpages + (1 if rest > 0 else 0)
             for s in sens[page * perpage:page * perpage + perpage]:
-                name = s.name
-                python_id = s.python_identifier
-                description = s.description
-                units = s.units
-                type = s.type
-                reading = s.reading
-                val = str(reading.value)
-                val_time = reading.timestamp
-                update_time = reading.received_timestamp
-                stat = reading.status
-                strat = 'none'  # TODO
-                colour = get_sensor_colour(stat)
-                stratchar = " " if strat == 'none' else "*"
-                # Print status with stratchar prefix - indicates strategy has been set
+                (name, value_time, reading_time, status, value) = s
+                colour = get_sensor_colour(status)
                 # truncate value to first 75 characters
-                val = val if len(val) <= 100 or not truncate else val[:95] + "..."
-                val = r"\n".join(val.splitlines())
-                print("%s %s %s %s %s %s" % (col(colour) + name.ljust(45),
-                      str(units).ljust(10), (stratchar + str(stat)).ljust(10),
-                      get_time_str(val_time).ljust(15),
-                      get_time_str(update_time).ljust(15),
-                      str(val).ljust(45) + col('normal')))
+                value = value if len(value) <= 100 or not truncate else value[:95] + "..."
+                value = r"\n".join(value.splitlines())
+                print("%s %s %s %s %s" % (col(colour) + name.ljust(45),
+                      status.ljust(10),
+                      get_time_str(value_time).ljust(15),
+                      get_time_str(reading_time).ljust(15),
+                      str(value).ljust(45) + col('normal')))
                 sys.stdout.flush()
 
     except KeyboardInterrupt:
