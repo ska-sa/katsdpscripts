@@ -30,7 +30,8 @@ parser = standard_script_options(usage="usage: %prog [options]",
                                  "Performs a global sync,\n" +
                                  "Starts data stream from digitisers,\n" +
                                  "Resets capture destination to clear IP assignments")
-parser.add_option('--configdelayfile', type="string", default='katconfig/user/delay-models/mkat/pps_delays.csv',
+parser.add_option('--configdelayfile', type="string",
+                  default='katconfig/user/delay-models/mkat/pps_delays.csv',
                   help='Specify the katconfig path to the csv file containing receptor '
                        'delays in the format m0xx, <delay> (default="%default")')
 parser.add_option('--mcpsetband', type="string", default='',
@@ -43,10 +44,9 @@ parser.set_defaults(description='MeerKAT Global sync')
 (opts, args) = parser.parse_args()
 print("global_sync_MeerKAT script: start")
 
-if (opts.mcpsetband != 'l'):
+if opts.mcpsetband and opts.mcpsetband != 'l':
     raise RuntimeError('Unavailable band: mcpsetband has been specified as %s'
                        % opts.mcpsetband)
-
 
 with verify_and_connect(opts) as kat:
     print("_______________________")
@@ -57,7 +57,8 @@ with verify_and_connect(opts) as kat:
 
     subarrays = kat.katpool.sensor.subarrays.get_value()
     subarrays_free = kat.katpool.sensor.subarrays_free.get_value()
-    assert subarrays == subarrays_free, "Please free all subarrays before running this script."
+    assert subarrays == subarrays_free, ("Please free all subarrays before "
+                                         "running this script.")
     try:
         cam = None
 
@@ -83,19 +84,22 @@ with verify_and_connect(opts) as kat:
                     x = ((line.strip('\n')).split(','))
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
                         delay_list[x[0]] = int(x[1])
-                        print('Receptor: %s  delay: %s' % (x[0], x[1]))
+                for ant in sorted(delay_list):
+                    print('Receptor: %s  delay: %s' % (ant, delay_list[ant]))
             except Exception as exc:
                 raise RuntimeError('Failed to read pps delay file from config! '
                                    'File: {}.  Exception: {}.'
                                    .format(opts.configdelayfile, exc))
 
             if opts.all:
-                ant_active = cam.ants
+                ants_active = list(cam.ants)
             else:
-                ant_active = [ant for ant in cam.ants if ant.name not in
-                              kat.katpool.sensor.resources_in_maintenance.get_value()]
+                ants_active = [ant for ant in cam.ants if ant.name not in
+                               kat.katpool.sensor.resources_in_maintenance.get_value()]
+            ants_active.sort(key=lambda ant: ant.name)
+
             print('Set PPS delay compensation for digitisers')
-            for ant in ant_active:
+            for ant in ants_active:
                 # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (assuming L band)
@@ -123,36 +127,37 @@ with verify_and_connect(opts) as kat:
             print("Duration of global sync: {}".format(time.time() - start_time))
 
             print('Previous sync time %d, waiting for new sync time' % init_epoch)
-            time.sleep(60)  # waiting for CAM sensor update
             cam_sleep = 2  # seconds to wait for CAM sensor retry
             wait_time = 0  # seconds
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
                 time.sleep(cam_sleep)
                 wait_time += cam_sleep
-                if wait_time >= 120:  # seconds
+                if wait_time >= 180:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
             print('Setting digitiser L-band sync epoch to DMC epoch')
             dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-            for ant in ant_active:
+            for ant in ants_active:
                 try:
                     print("Verify digitiser epoch for antenna %s" % ant.name)
-                    ant_epoch = ant.sensor.dig_l_band_time_synchronisation_epoch.get_value()
+                    epoch_sensor = ant.sensor.dig_l_band_time_synchronisation_epoch
                     dig_sleep = 2  # seconds
                     wait_time = 0  # seconds
-                    while ant_epoch != dmc_epoch:
+                    while epoch_sensor.get_value() != dmc_epoch:
                         time.sleep(dig_sleep)
                         wait_time += dig_sleep
                         if wait_time >= 60:  # seconds
-                            print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
+                            print ("ant %s could not sync with DMC, investigation "
+                                   "is required..." % ant.name)
                             break
                 except Exception:
                     pass
-                    # raise RuntimeError('System not synced, investigation is required...')
-                print('%s sync epoch:  %d' % (ant.name, ant_epoch))
-                print("Resetting capture destination %s" % ant.name)
-                response = ant.req.deactivate()
-                print(ant.req.dig_capture_list())
+                print("  %s sync epoch:  %d" % (ant.name, epoch_sensor.get_value()))
+                print("  Resetting capture destination %s" % ant.name)
+                ant.req.deactivate()
+                capture_list = str(ant.req.dig_capture_list())
+                for line in capture_list.splitlines():
+                    print('    %s' % line)
             print('\n')
             print("Script complete")
     finally:
