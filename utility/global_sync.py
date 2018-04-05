@@ -33,9 +33,6 @@ parser = standard_script_options(usage="usage: %prog [options]",
 parser.add_option('--configdelayfile', type="string", default='katconfig/user/delay-models/mkat/pps_delays.csv',
                   help='Specify the katconfig path to the csv file containing receptor '
                        'delays in the format m0xx, <delay> (default="%default")')
-parser.add_option('--localdelayfile', type="string", default='pps_delays.csv',
-                  help='Specify the full path to the csv file containing receptor '
-                       'delays in the format m0xx, <delay> (default="%default")')
 parser.add_option('--mcpsetband', type="string", default='',
                   help='If specified, script will call cam.mcp.req.set_band() '
                        'with given parameter (default="%default")')
@@ -81,18 +78,16 @@ with verify_and_connect(opts) as kat:
 
             delay_list = {}
             try:
-                try:
-                    delay_values = katconf.resource_string(opts.configdelayfile).split('\n')
-                except:
-                    print ('Failed to read delay values from config. Using local delays instead')
-                    delay_values = open(opts.localdelayfile)
+                delay_values = katconf.resource_string(opts.configdelayfile).split('\n')
                 for line in delay_values:
                     x = ((line.strip('\n')).split(','))
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
                         delay_list[x[0]] = int(x[1])
                         print('Receptor: %s  delay: %s' % (x[0], x[1]))
-            except:
-                raise RuntimeError('Failure to read pps delay file!')
+            except Exception as exc:
+                raise RuntimeError('Failed to read pps delay file from config! '
+                                   'File: {}.  Exception: {}.'
+                                   .format(opts.configdelayfile, exc))
 
             if opts.all:
                 ant_active = cam.ants
@@ -151,7 +146,7 @@ with verify_and_connect(opts) as kat:
                         if wait_time >= 60:  # seconds
                             print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
                             break
-                except:
+                except Exception:
                     pass
                     # raise RuntimeError('System not synced, investigation is required...')
                 print('%s sync epoch:  %d' % (ant.name, ant_epoch))
