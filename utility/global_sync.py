@@ -11,20 +11,22 @@
 # Tiyani: wait for dmc to update epoch before resetting capture destinations and
 #         querying digitiser epoch
 # Ruby stabilising script by exiting cleanly and allowing enough time for sensor updates
-
+# Anton: limit cam object to components required, error on timeout, minor cleanup
 
 from __future__ import with_statement
 
 import time
 
-from katcorelib import standard_script_options, verify_and_connect, user_logger
+from concurrent.futures import TimeoutError
+
+from katcorelib import standard_script_options, verify_and_connect
 from katcorelib import cambuild
 import katconf
 
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(usage="usage: %prog [options]",
-                                 description="AR1 Global Sync Script ver 2\n" +
+                                 description="MeerKAT Global Sync Script ver 2\n" +
                                  "Performs a global sync,\n" +
                                  "Starts data stream from digitisers,\n" +
                                  "Resets capture destination to clear IP assignments")
@@ -40,17 +42,13 @@ parser.add_option('--mcpsetband', type="string", default='',
 parser.add_option('--all', action="store_true", default=False,
                   help='Include all antennas in the global sync')
 # assume basic options passed from instruction_set
-parser.set_defaults(description='AR1 Global sync')
+parser.set_defaults(description='MeerKAT Global sync')
 (opts, args) = parser.parse_args()
-print("global_sync_AR1 script: start")
+print("global_sync_MeerKAT script: start")
 
-
-def log_info(response):
-    response = str(response)
-    if 'fail' in response:
-        user_logger.warn(response)
-    else:
-        user_logger.info(response)
+if (opts.mcpsetband != 'l'):
+    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s'
+                       % opts.mcpsetband)
 
 
 with verify_and_connect(opts) as kat:
@@ -65,13 +63,21 @@ with verify_and_connect(opts) as kat:
     assert subarrays == subarrays_free, "Please free all subarrays before running this script."
     try:
         cam = None
-        done = False
-        count = 1
 
         if not kat.dry_run:
             print('Building CAM object')
-            cam = cambuild(password="camcam", full_control="all")
-            cam.until_synced()
+            ant_names = [ant.name for ant in kat.ants]
+            components = ['mcp'] + ant_names
+            cam = cambuild(password="camcam", full_control="all",
+                           require=components, conn_clients=components)
+            try:
+                cam.until_synced(timeout=90)
+            except TimeoutError:
+                print("ERROR: Could not sync CAM container. ")
+                for comp in cam.children.values():
+                    if not comp.synced:
+                        print('  CAM component not synced: ', comp.name)
+                raise RuntimeError("CAM clients did not sync.")
 
             delay_list = {}
             try:
@@ -88,14 +94,11 @@ with verify_and_connect(opts) as kat:
             except:
                 raise RuntimeError('Failure to read pps delay file!')
 
-                if (opts.mcpsetband != 'l'):
-                    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s' % opts.mcpsetband)
-
             if opts.all:
                 ant_active = cam.ants
             else:
                 ant_active = [ant for ant in cam.ants if ant.name not in
-                              cam.katpool.sensor.resources_in_maintenance.get_value()]
+                              kat.katpool.sensor.resources_in_maintenance.get_value()]
             print('Set PPS delay compensation for digitisers')
             for ant in ant_active:
                 # look at current delay and program in delay specified in CSV
@@ -118,12 +121,11 @@ with verify_and_connect(opts) as kat:
                         print(ant.name + ' L-band PPS delay offset : ' + str(response))
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-            print('Performing global sync on AR1 ...')
+            print('Performing global sync on MeerKAT ...')
             serial_sync_timeout = 300  # seconds
             start_time = time.time()
             cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
-            print("Duration of global sync: {} try number {}"
-                  .format(time.time() - start_time, 1))
+            print("Duration of global sync: {}".format(time.time() - start_time))
 
             print('Previous sync time %d, waiting for new sync time' % init_epoch)
             time.sleep(60)  # waiting for CAM sensor update
@@ -132,10 +134,10 @@ with verify_and_connect(opts) as kat:
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
                 time.sleep(cam_sleep)
                 wait_time += cam_sleep
-                if wait_time == 120:  # seconds
+                if wait_time >= 120:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
-            print('Setting digitiser L-band sync epoch to DSM epoch')
+            print('Setting digitiser L-band sync epoch to DMC epoch')
             dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ant_active:
                 try:
@@ -146,7 +148,7 @@ with verify_and_connect(opts) as kat:
                     while ant_epoch != dmc_epoch:
                         time.sleep(dig_sleep)
                         wait_time += dig_sleep
-                        if wait_time == 60:  # seconds
+                        if wait_time >= 60:  # seconds
                             print ("ant %s could not sync with dmc, investigation is required..." % ant.name)
                             break
                 except:
