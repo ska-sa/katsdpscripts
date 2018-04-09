@@ -187,6 +187,7 @@ dof = 2 * data.shape[1] * data.channel_width * data.dump_period
 corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(
     data.corr_products, range(len(data.corr_products)))])
 
+outfile = 'noise_diode_timing_' + data.experiment_id + '.txt'
 offset_stats = {}
 for ant in data.ants:
     hh_index = corrprod_to_index.get((ant.name + 'h', ant.name + 'h'))
@@ -201,10 +202,11 @@ for ant in data.ants:
         if len(sensor['timestamp']) <= 1:
             continue
         # Collect all expected noise diode firings
-        print "Diode:", ant.name, diode_name
-        print 'Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)'
-        print "Timestamp (UTC)     | offset in (ms)  +/- error ms (magnitude of jump )"
-        print '--------------------------------------------------------------------------'
+        fout = open(outfile, 'a')
+        fout.write("Diode: {0} {1}\n".format(ant.name, diode_name))
+        fout.write('Individual firings: timestamp | offset +/- uncertainty (magnitude of jump)\n')
+        fout.write("Timestamp (UTC)     | offset in (ms)  +/- error ms (magnitude of jump )\n")
+        fout.write('--------------------------------------------------------------------------\n')
         nd_timestamps = sensor['timestamp']
         nd_state = np.array(sensor['value'], dtype=np.int)
         for scan_index, state, target in data.scans():
@@ -243,17 +245,24 @@ for ant in data.ants:
                         stats = offset_stats.get(stats_key, [])
                         offset_stats[stats_key] = stats + \
                             [(offset, std_offset)]
-                        print '%s | offset %8.2f +/- %5.2f ms (magnitude of %+.0f margins)' % \
-                              (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),
-                               1000 * offset, 1000 * std_offset, jump)
+                        fout.write('%s | offset %8.2f +/- %5.2f ms (magnitude of %+.0f margins)\n' %
+                                   (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)),
+                                    1000 * offset, 1000 * std_offset, jump))
                     else:
                         num = data.dumps[0] + \
                             np.argmin(np.abs(data.timestamps - firing))
-                        print '%s | not found at location %i' % (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)), num,)
+                        fout.write('%s | not found at location %i\n' %
+                                   (time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(firing)), num,))
+        fout.close()
+
 if offset_stats:
-    print
-    print 'Summary of offsets (DBE - CAM) per diode'
-    print '----------------------------------------'
+    fout = open(outfile, 'a')
+    fout.write('\n')
+    fout.write('Summary of offsets (DBE - CAM) per diode\n')
+    fout.write('----------------------------------------\n')
+    fout.close()
+
+fout = open(outfile, 'a')
 for key, val in offset_stats.iteritems():
     # Change unit to milliseconds, and from an array from list
     offset_ms, std_offset_ms = 1000 * np.asarray(val).T
@@ -266,9 +275,14 @@ for key, val in offset_stats.iteritems():
     std2 = offset_ms.std() / np.sqrt(len(offset_ms))
     std_mean_offset = np.sqrt(std1 ** 2 + std2 ** 2)
     min_offset, max_offset = np.argmin(offset_ms), np.argmax(offset_ms)
-    print '%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms' % \
-          (key, mean_offset, std_mean_offset,
-           mean_offset / data.dump_period / 1e3, std_mean_offset / data.dump_period / 1e3,
-           offset_ms[min_offset], std_offset_ms[min_offset], offset_ms[max_offset], std_offset_ms[max_offset])
+    fout.write('%s diode: mean %.2f +/- %.2f ms [%.3f +/- %.3f dumps], min %.2f +/- %.2f ms, max %.2f +/- %.2f ms\n' %
+               (key, mean_offset, std_mean_offset,
+                mean_offset / data.dump_period / 1e3, std_mean_offset / data.dump_period / 1e3,
+                offset_ms[min_offset], std_offset_ms[min_offset],
+                offset_ms[max_offset], std_offset_ms[max_offset]))
+fout.close()
+
 if not offset_stats:
-    print ("No valid noise diode firings found in file")
+    fout = open(outfile, 'a')
+    fout.write("No valid noise diode firings found in file\n")
+    fout.close()
