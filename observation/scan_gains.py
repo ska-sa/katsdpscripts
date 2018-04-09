@@ -24,9 +24,9 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which '
                        'script will end as soon as the current track finishes '
                        '(no limit by default)')
-parser.add_option('--gain', default='100,5000,10',
+parser.add_option('--gain', default='10,5000,500',
                   help='Values of the correlator F-engine gain '
-                       'in the form "start,stop,step" '
+                       'in the form "start,stop,number of steps" '
                        '(default=%default)')
 
 parser.add_option('--fft-shift', type='int',
@@ -66,7 +66,7 @@ with verify_and_connect(opts) as kat:
             keep_going = opts.max_duration is not None
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for gain in np.arange(g_start,g_end,g_step):
+            for gain in np.logspace(g_start,g_end,g_step):
                 for target in targets.iterfilter(el_limit_deg=opts.horizon):
                     # Cut the track short if time ran out
                     duration = opts.track_duration
