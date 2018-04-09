@@ -50,7 +50,7 @@ with verify_and_connect(opts) as kat:
         if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        if not session.cbf.fengine.inputs:
+        if not kat.dry_run and not session.cbf.fengine.inputs:
             raise RuntimeError("Failed to get correlator input labels, "
                                "cannot set the F-engine gains")
         session.standard_setup(**vars(opts))
@@ -66,7 +66,7 @@ with verify_and_connect(opts) as kat:
             keep_going = opts.max_duration is not None
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for gain in np.logspace(g_start,g_end,g_step):
+            for gain in np.logspace(np.log10(g_start),np.log10(g_end),g_step):
                 for target in targets.iterfilter(el_limit_deg=opts.horizon):
                     # Cut the track short if time ran out
                     duration = opts.track_duration
@@ -77,7 +77,7 @@ with verify_and_connect(opts) as kat:
                                                 "has elapsed - stopping script",
                                                 opts.max_duration)
                             keep_going = False
-                            break   
+                            break
                         duration = min(duration, time_left)
                     # Set the gain to a single non complex number if needed
                     session.label('track_gain,%g,%gi'%(gain.real,gain.imag))
