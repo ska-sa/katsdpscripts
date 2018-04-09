@@ -55,7 +55,8 @@ def unpickle_cat(h5, sensor_name):
     return temp, cat_lookup
 
 
-def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
+def antenna_stats(h5, ants='', slew_from_angles=(30, 7), outdir=None):
+    import os
     import pandas as pd
     if ants == '':
         ants = [ant.name for ant in h5.ants]
@@ -106,8 +107,13 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
         scaning = (ts_activity.reindex_like(ts_az, method='ffill')
                    == activity_lookup['scan']) & (delta_sky < 0.01)
 
-        print "%s : Tracking Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[tracking].std() * 3600)
-        print "%s : Scanning Standard-Deviation = %8.2f arc-seconds" % (ant, delta_sky[scaning].std() * 3600)
+        outfile = 'antenna_slew_stats_' + h5.experiment_id + '.txt'
+        outfile = os.path.join(outdir, outfile)
+        fout = open(outfile, 'a+')
+        fout.write("%s : Tracking Standard-Deviation = %8.2f arc-seconds\n" %
+                   (ant, delta_sky[tracking].std() * 3600))
+        fout.write("%s : Scanning Standard-Deviation = %8.2f arc-seconds\n" %
+                   (ant, delta_sky[scaning].std() * 3600))
         for angle_param in slew_from_angles:
             for i, x in enumerate((delta_sky > angle_param - 1.1) & (delta_sky < angle_param + 1.1)):
                 # The 1.1 is a fudge factor to ensure that there is at least one 2hz sample nearest the source.
@@ -125,14 +131,17 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7)):
                             el_diff = ts_el[i] - ts_el[i + j]
                             distance = delta_sky[i] - delta_sky[i + j]
                             speed = distance / seconds
-                            text = "%s :%s %4.2f deg slew-in in %4.2fs, avg-speed %4.3f deg/s at azel(%4.3f,%4.3f)  delta azel(%3.3f,%3.3f)"
-                            print text % (ant, str(delta_sky.iloc[[i + j]].index[0])[:19], distance, seconds, speed, ts_az[i + j], ts_el[i + j], az_diff, el_diff)
+                            text = "%s :%s %4.2f deg slew-in in %4.2fs, avg-speed %4.3f deg/s at azel(%4.3f,%4.3f)  delta azel(%3.3f,%3.3f)\n"
+                            fout.write(text %
+                                       (ant, str(delta_sky.iloc[[i + j]].index[0])[:19], distance, seconds, speed, ts_az[i + j], ts_el[i + j], az_diff, el_diff))
                             break
+        fout.close()
 
 
 parser = optparse.OptionParser(usage="%prog [opts] <file>",
                                description="This examines antenna requested and actual position values"
                                "in the given HDF5 file.")
+parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 
 (opts, args) = parser.parse_args()
 if len(args) < 1:
@@ -140,4 +149,4 @@ if len(args) < 1:
 
 for filename in args:
     data = katdal.open(filename)
-    antenna_stats(data)
+    antenna_stats(data, outdir=opts.output_dir)
