@@ -97,7 +97,7 @@ with verify_and_connect(opts) as kat:
         # XXX Remove any NaNs due to failed fits (move this into set_delays)
         delays = {inp: delay for inp, delay in delays.items()
                   if not np.isnan(delay)}
-        if not delays:
+        if not delays and not kat.dry_run:
             raise CalSolutionsUnavailable("No valid delay fits found "
                                           "(is everything flagged?)")
         session.set_delays(delays)
