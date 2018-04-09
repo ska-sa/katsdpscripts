@@ -169,8 +169,7 @@ with verify_and_connect(opts) as kat:
                 if new_atten[key] >= 0 and attenuation_v[key] != new_atten[key]:
                     user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
                         ant, pol, attenuation_v[key], new_atten[key]))
-                    for ant_obj in kat.ants:
-                        ant_obj.req.get("dig_attenuation")(pol, new_atten[key])
+                    kat.get(ant).req.get("dig_attenuation")(pol, new_atten[key])
                 else:
                     user_logger.warning("%s %s: Will not try change attenuation from %idB to %idB " % (
                         ant, pol, attenuation_v[key], new_atten[key]))
