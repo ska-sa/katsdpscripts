@@ -50,11 +50,11 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_ba
         plt.ylabel("$T_{sys}/eta_{A}$ [K]")
         plt.xlabel('f [MHz]')
         #if p == ant_num * 2 -1: plt.ylabel(ant)
-        if Tsys_std is not None :
-            plt.errorbar(freq/1e6,Tsys,Tsys_std,color = 'b',linestyle = '.',label='Measurement')
-        plt.plot(freq/1e6,Tsys/eta_A,'b.',label='Measurement: Y-method')
+        if Tsys_std[pol] is not None :
+            plt.errorbar(freq/1e6,Tsys[pol],Tsys_std[pol],color = 'b',linestyle = '.',label='Measurement')
+        plt.plot(freq/1e6,Tsys[pol]/eta_A,'b.',label='Measurement: Y-method')
         if not(Ku): plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
-        plt.axhline(np.mean(Tsys/eta_A),linewidth=2,color='k',label='Mean: Y-method')
+        plt.axhline(np.mean(Tsys[pol]/eta_A),linewidth=2,color='k',label='Mean: Y-method')
         if freq.min() < 2090e6:
             D = 13.5
             Ag = np.pi* (D/2)**2 # Antenna geometric area
@@ -103,7 +103,7 @@ def plot_ts(h5,on_ts=None):
     else :
         on = h5.sensor['Antennas/'+a.name+'/nd_coupler']
     ts = h5.timestamps - h5.timestamps[0]
-    plt.plot(ts,on*4000,'g',label='katdal ND sensor')
+    plt.plot(ts,np.array(on).astype(float)*4000,'g',label='katdal ND sensor')
     plt.title("Timeseries for antenna %s - %s"%(a.name,git_info()))
     plt.legend()
     return fig
@@ -175,12 +175,13 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         h5.select()
         h5.select(ants = a.name,channels=~static_flags)
         fig0 = plot_ts(h5)
+        Tsys, Tsys_std = {}, {}
         Tdiode = {}
         nd_temp = {}
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name            
-            Tsys_std = None
+            Tsys_std[pol] = None
             #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 try:
@@ -237,7 +238,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
             K = ((x/1.2)**2) / (1-np.exp(-((x/1.2)**2))) # correction factor for disk source from Baars 1973
             TA_moon = 225 * (Os*Ae/(lam**2)) * (1/K) # contribution from the moon (disk of constant brightness temp)
             gamma = 1.0
-            Tsys = gamma * (TA_moon)/(Y-gamma) # Tsys from y-method ... compare with diode TAc
+            Tsys[pol] = gamma * (TA_moon)/(Y-gamma) # Tsys from y-method ... compare with diode TAc
             if error_bars:
                 cold_spec_std = np.std(cold_data[cold_off,:,0],0)
                 hot_spec_std = np.std(hot_data[hot_off,:,0],0)
@@ -248,12 +249,12 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 gamma_std = 0.01
                  # This is not definded
                 raise NotImplementedError("The factor Thot  has not been defined ")
-                Tsys_std = Tsys * np.sqrt((Thot_std/Thot)**2 + (Y_std/Y)**2 + (gamma_std/gamma)**2)
+                Tsys_std[pol] = Tsys[pol] * np.sqrt((Thot_std/Thot)**2 + (Y_std/Y)**2 + (gamma_std/gamma)**2)
             else :
-                Tsys_std = None
+                Tsys_std[pol] = None
             if not(Ku):
                 Ydiode = hot_nd_spec / hot_spec
-                Tdiode[pol] = (TA_moon + Tsys)*(Ydiode/gamma-1)
+                Tdiode[pol] = (TA_moon + Tsys[pol])*(Ydiode/gamma-1)
             if write_nd:
                 outfilename = save_ND(diode_filename,file_base,freq,Tdiode[pol] )
                 logger.info('Noise temp data written to file %s'%outfilename)

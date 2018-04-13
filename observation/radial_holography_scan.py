@@ -1,31 +1,30 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Perform radial holography scan on specified target(s). Mostly used for beam pattern mapping.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
-import time
-
 # Import script helper functions from observe.py
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, \
-                       start_session, user_logger, ant_array
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger, ant_array)
 import numpy as np
 
+
 # Set up standard script options
+description = 'This script performs a holography scan on one or more targets. ' \
+              'All the antennas initially track the target, whereafter a ' \
+              'subset of the antennas (the "scan antennas" specified by the ' \
+              '--scan-ants option) perform a radial raster scan on the ' \
+              'target. Note also some **required** options below.'
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='This script performs a holography scan on one or more targets. '
-                                             'All the antennas initially track the target, whereafter a subset '
-                                             'of the antennas (the "scan antennas" specified by the --scan-ants '
-                                             'option) perform a radial raster scan on the target. Note also some '
-                                             '**required** options below.')
+                                 description=description)
 # Add experiment-specific options
-parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna)')
+parser.add_option('-b', '--scan-ants',
+                  help='Subset of all antennas that will do raster scan (default=first antenna)')
 parser.add_option('-k', '--num-scans', type='int', default=3,
                   help='Number of scans across target (default=%default)')
 parser.add_option('-t', '--scan-duration', type='float', default=20.0,
                   help='Minimum duration of each scan across target, in seconds (default=%default)')
 parser.add_option('--tracktime', type='float', default=0.0,
-                  help='Scanning antenna tracks target this long when passing over target, in seconds. (default=%default)')
+                  help='Scanning antenna tracks target this long when passing '
+                       'over target, in seconds. (default=%default)')
 parser.add_option('-l', '--scan-extent', type='float', default=2.0,
                   help='Length of each scan, in degrees (default=%default)')
 parser.add_option('--num-cycles', type='int', default=1,
@@ -42,7 +41,6 @@ if len(args) == 0:
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
-
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
@@ -60,26 +58,32 @@ with verify_and_connect(opts) as kat:
 
         targets_observed = []
         for cycle in range(opts.num_cycles):
-            for target in targets.iterfilter(el_limit_deg=opts.horizon+(opts.scan_extent/2.0)):
+            for target in targets.iterfilter(el_limit_deg=opts.horizon + opts.scan_extent / 2.):
                 # The entire sequence of commands on the same target forms a single compound scan
                 session.label('holo')
-                user_logger.info("Initiating holography cycle %d of %d (%d %g-second scans extending %g degrees) on target '%s'"
-                                 % (cycle+1,opts.num_cycles,opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
-                user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                user_logger.info("Initiating holography cycle %d of %d "
+                                 "(%d %g-second scans extending %g degrees) on target '%s'",
+                                 cycle + 1, opts.num_cycles, opts.num_scans,
+                                 opts.scan_duration, opts.scan_extent, target.name)
+                user_logger.info("Using all antennas: %s",
+                                 ' '.join([ant.name for ant in session.ants]))
                 # Slew all antennas onto the target
-                session.track(target, duration=3.0+opts.tracktime, announce=False)#spend extra 3 seconds in beginning
-                
+                # Spend extra 3 seconds in beginning
+                session.track(target, duration=3. + opts.tracktime, announce=False)
                 # Provide opportunity for noise diode to fire on all antennas
                 session.fire_noise_diode(announce=False, **nd_params)
                 # Perform multiple scans across the target at various angles with the scan antennas only
                 for scan_index, angle in enumerate(np.arange(0., 2.0*np.pi, 2.0*np.pi / opts.num_scans)):
                     session.ants = scan_ants
-                    user_logger.info("Using scan antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                    user_logger.info("Using scan antennas: %s",
+                                     ' '.join([ant.name for ant in session.ants]))
                     # Perform radial scan at specified angle across target
                     dangle=2.0*np.pi/(opts.num_scans*2.0)
                     offset1 = np.array((np.cos(angle), -np.sin(angle))) * opts.scan_extent / 2.
                     offset2 = np.array((np.cos(angle+dangle), -np.sin(angle+dangle))) * opts.scan_extent / 2.
                     session.scan(target, duration=(opts.scan_duration-opts.tracktime)/2.0, start=[0,0], end=offset1, index=scan_index,
+                                     projection=opts.projection, announce=False)
+                    session.scan(target, duration=(opts.scan_duration-opts.tracktime)/2.0*np.abs(np.sin(dangle))+1.0, start=offset1, end=offset2, index=scan_index,
                                      projection=opts.projection, announce=False)
                     session.scan(target, duration=(opts.scan_duration-opts.tracktime)/2.0, start=offset2, end=[0,0], index=scan_index,
                                      projection=opts.projection, announce=False)
@@ -87,15 +91,17 @@ with verify_and_connect(opts) as kat:
                         
                     # Ensure that tracking antennas are still on target (i.e. collect antennas that strayed)
                     session.ants = track_ants
-                    user_logger.info("Using track antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                    user_logger.info("Using track antennas: %s",
+                                     ' '.join([ant.name for ant in session.ants]))
                     session.track(target, duration=0, announce=False)
                     # Provide opportunity for noise diode to fire on all antennas
                     session.ants = all_ants
-                    user_logger.info("Using all antennas: %s" % (' '.join([ant.name for ant in session.ants]),))
+                    user_logger.info("Using all antennas: %s",
+                                     ' '.join([ant.name for ant in session.ants]))
                     session.fire_noise_diode(announce=False, **nd_params)
-                    
                 session.ants = all_ants
-                session.track(target, duration=3, announce=False)#spend extra 3 seconds at end
-                
+                # Spend extra 3 seconds at end
+                session.track(target, duration=3, announce=False)
                 targets_observed.append(target.name)
-        user_logger.info("Targets observed : %d (%d unique)" % (len(targets_observed), len(set(targets_observed))))
+        user_logger.info("Targets observed : %d (%d unique)",
+                         len(targets_observed), len(set(targets_observed)))

@@ -14,6 +14,7 @@ import matplotlib as mpl
 import h5py
 import katpoint
 import scape
+import scikits.fitting as fit
 
 # Correlator baseline format
 baselines = [(0, 0), (1, 1), (0, 1), (1, 0), (0, 2), (1, 3), (0, 3), (1, 2), (2, 2), (3, 3), (2, 3), (3, 2)]
@@ -27,16 +28,16 @@ dumps_per_vis = 90
 nd = []
 std_temp = lambda freq, temp: np.tile(0.04, len(temp))
 a1v = np.loadtxt('T_nd_A1V_coupler.txt', delimiter=',')
-nd.append(scape.fitting.Spline1DFit(std_y=std_temp))
+nd.append(fit.Spline1DFit(std_y=std_temp))
 nd[0].fit(a1v[:, 0], a1v[:, 1])
 a2v = np.loadtxt('T_nd_A2V_coupler.txt', delimiter=',')
-nd.append(scape.fitting.Spline1DFit(std_y=std_temp))
+nd.append(fit.Spline1DFit(std_y=std_temp))
 nd[1].fit(a2v[:, 0], a2v[:, 1])
 a3v = np.loadtxt('T_nd_A3V_coupler.txt', delimiter=',')
-nd.append(scape.fitting.Spline1DFit(std_y=std_temp))
+nd.append(fit.Spline1DFit(std_y=std_temp))
 nd[2].fit(a3v[:, 0], a3v[:, 1])
 a4v = np.loadtxt('T_nd_A4V_coupler.txt', delimiter=',')
-nd.append(scape.fitting.Spline1DFit(std_y=std_temp))
+nd.append(fit.Spline1DFit(std_y=std_temp))
 nd[3].fit(a4v[:, 0], a4v[:, 1])
 
 # Open data file
@@ -217,7 +218,7 @@ for vis in cal_vis_samples:
     gainsol = np.zeros((4, vis.shape[1]), dtype=np.complex64)
     # Iterate over frequency channels
     for n in xrange(vis.shape[1]):
-        fitter = scape.fitting.NonLinearLeastSquaresFit(gains_to_vis, initial_gains)
+        fitter = fit.NonLinearLeastSquaresFit(gains_to_vis, initial_gains)
         x = np.tile(np.array(baselines)[crosscorr].transpose(), vis.shape[0])
         gain_product = vis[:, n, :].ravel() / bp_source_vis[n]
         y = np.vstack((gain_product.real, gain_product.imag))
@@ -344,7 +345,7 @@ ant_gains = []
 # Iterate over solution intervals
 for vis, flux in zip(gain_cal_vis, cal_source_vis):
     gainsol = np.zeros(4, dtype=np.complex64)
-    fitter = scape.fitting.NonLinearLeastSquaresFit(gains_to_vis, initial_gains)
+    fitter = fit.NonLinearLeastSquaresFit(gains_to_vis, initial_gains)
     x = np.array(baselines)[crosscorr].transpose()
     gain_product = vis / flux
     y = np.vstack((gain_product.real, gain_product.imag))
@@ -360,10 +361,10 @@ ant_gains = np.array(ant_gains).transpose()
 # Interpolate gain as a function of time
 amp_interps, phase_interps = [], []
 for n in range(4):
-    amp_interp = scape.fitting.PiecewisePolynomial1DFit()
+    amp_interp = fit.PiecewisePolynomial1DFit()
     amp_interp.fit(gain_times, np.abs(ant_gains[n]))
     amp_interps.append(amp_interp)
-    phase_interp = scape.fitting.PiecewisePolynomial1DFit()
+    phase_interp = fit.PiecewisePolynomial1DFit()
     angle = np.angle(ant_gains[n])
     # Do a quick and dirty angle unwrapping
     angle_diff = np.diff(angle)

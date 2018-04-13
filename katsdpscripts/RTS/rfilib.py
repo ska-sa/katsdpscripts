@@ -57,7 +57,6 @@ def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.1, color='Maroon')
 
-
 def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     """
      This function produces a rolling window shaped data with the rolled data in the last col

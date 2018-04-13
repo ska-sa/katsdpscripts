@@ -1,17 +1,17 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Perform radial raster scan on specified target(s). Mostly used for beam pattern mapping.
 
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 import numpy as np
-from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+from katcorelib import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger)
+
 
 # Set up standard script options
+description = 'Perform radial raster scan across one or more sources. ' \
+              'Mostly used for beam pattern mapping and on-the-fly mapping. ' \
+              'Some options are **required**.'
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Perform radial raster scan across one or more sources. Mostly used for '
-                                             'beam pattern mapping and on-the-fly mapping. Some options are '
-                                             '**required**.')
+                                 description=description)
 # Add experiment-specific options
 parser.add_option('-k', '--num-scans', type='int', default=3,
                   help='Number of scans across target (default=%default)')
@@ -31,7 +31,6 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
-
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
@@ -39,15 +38,18 @@ with verify_and_connect(opts) as kat:
 
         for target in observation_sources:
             session.label('raster')
-            user_logger.info("Initiating radial scan (%d %g-second scans extending %g degrees) on target '%s'" %
-                             (opts.num_scans, opts.scan_duration, opts.scan_extent, target.name))
+            user_logger.info("Initiating radial scan (%d %g-second scans "
+                             "extending %g degrees) on target '%s'",
+                             opts.num_scans, opts.scan_duration,
+                             opts.scan_extent, target.name)
             # Calculate average time that noise diode is operated per scan, to add to scan duration in check below
             nd_time = session.nd_params['on'] + session.nd_params['off']
             nd_time *= opts.scan_duration / max(session.nd_params['period'], opts.scan_duration)
             nd_time = nd_time if session.nd_params['period'] >= 0 else 0.
             # Check whether the target will be visible for entire duration of radial scan
             if not session.target_visible(target, (opts.scan_duration + nd_time) * opts.num_scans):
-                user_logger.warning("Skipping radial scan, as target '%s' will be below horizon" % (target.name,))
+                user_logger.warning("Skipping radial scan, as target '%s' will be below horizon",
+                                    target.name)
                 continue
             # Iterate through angles and scan across target
             for ind, angle in enumerate(np.arange(0., np.pi, np.pi / opts.num_scans)):

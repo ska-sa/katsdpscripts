@@ -22,6 +22,7 @@ import scipy
 import scape
 from katpoint import rad2deg, deg2rad,  construct_azel_target
 from math import *
+import scikits.fitting as fit
 
 class Sky_temp:
     """
@@ -101,8 +102,8 @@ class Spill_Temp:
         elif (nu >= 1200) and (nu <= 1600):
             spilloverH_nu = (nu-1200)/(1600-1200)*spillover_1600H[1] + (1 - (nu-1200)/(1600-1200))*spillover_1200H[1]
             spilloverV_nu = (nu-1200)/(1600-1200)*spillover_1600V[1] + (1 - (nu-1200)/(1600-1200))*spillover_1200V[1]
-        T_HH = scape.fitting.PiecewisePolynomial1DFit()
-        T_VV = scape.fitting.PiecewisePolynomial1DFit()
+        T_HH = fit.PiecewisePolynomial1DFit()
+        T_VV = fit.PiecewisePolynomial1DFit()
         T_HH.fit(elH, spilloverH_nu[sort_ind])
         T_VV.fit(elV, spilloverV_nu[sort_ind])
         self.spill = {}
@@ -147,7 +148,7 @@ class System_Temp:
             for val_el,ra,dec,el in zip(sort_ind,self.ra,self.dec,self.elevation):
                 self.T_sky.append( T_sky(ra,dec))
                 self.Tsys_sky[pol].append(tipping_mu[val_el]-T_sky(ra,dec))
-        TmpSky = scape.fitting.PiecewisePolynomial1DFit()
+        TmpSky = fit.PiecewisePolynomial1DFit()
         TmpSky.fit(self.elevation, self.T_sky)
         self.Tsky = TmpSky
         T_skytemp.plot_sky(self.ra,self.dec)
@@ -189,7 +190,7 @@ def fit_tipping(T_sys,SpillOver,pol):
     #T_sky = np.average(T_sys.T_sky)# T_sys.Tsky(x)
     func = lambda p, x: p[0] +  T_sys.Tsky(x) + SpillOver.spill[pol](x) + T_atm * (1 - np.exp(-p[1] / np.sin(deg2rad(x))))
     # Initialise the fitter with the function and an initial guess of the parameter values
-    tip = scape.fitting.NonLinearLeastSquaresFit(func, [70, 0.005])
+    tip = fit.NonLinearLeastSquaresFit(func, [70, 0.005])
     tip.fit(T_sys.elevation, T_sys.Tsys[pol])
     logger.info('Fit results for %s polarisation:' % (pol,))
     logger.info('T_ant = %.2f K' % (tip.params[0],))
