@@ -167,9 +167,16 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     pols = ['v','h']
     
     for a,col in zip(ants,colour):
+        ant = a.name
+        try:
+            rx_sn = h5.receivers[ant]
+        except KeyError:
+            logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
+            rx_sn = 'SN_NOT_FOUND'
         if pdf:
-            pp = PdfPages(output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
-            logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
+            pdf_filename = output_dir+'/'+nice_filename+'.'+rx_sn+'.'+a.name+'.pdf'
+            pp = PdfPages(pdf_filename)
+            logger.debug("Created output PDF file: %s"%pdf_filename)
 
         #fig0 = plt.figure(0,figsize=(20,5))
         h5.select()
@@ -180,15 +187,9 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         nd_temp = {}
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
-            ant = a.name            
             Tsys_std[pol] = None
             #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
-                try:
-                    rx_sn = h5.receivers[ant]
-                except KeyError:
-                    logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
-                    rx_sn = 'SN_NOT_FOUND'
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_sn+'.'+pol+'.csv'
                 logger.info('Loading noise diode file %s from config'%diode_filename)
                 try:
