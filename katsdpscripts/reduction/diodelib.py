@@ -60,7 +60,7 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_ba
             Ag = np.pi* (D/2)**2 # Antenna geometric area
             spec_Tsys_eta = np.zeros_like(freq)
             plt.ylim(15,50)
-            plt.xlim(900,1670)
+            #plt.xlim(900,1670)
             spec_Tsys_eta[freq<1420e6] =  42 # [R.T.P095] == 220
             spec_Tsys_eta[freq>=1420e6] =  46 # [R.T.P.096] == 200
             plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
@@ -81,7 +81,7 @@ def plot_nd(freq,Tdiode,nd_temp,ant = '', file_base=''):
         plt.title('%s Coupler Diode: %s pol: %s'%(ant,str(pol).upper(),file_base))
         plt.ylim(0,50)
         plt.ylabel('$T_{ND}$ [K]')
-        plt.xlim(900,1670)
+        #plt.xlim(900,1670)
         plt.xlabel('f [MHz]')
         #plt.ylabel(ant)
         plt.axhspan(14, 35, facecolor='g', alpha=0.5)
