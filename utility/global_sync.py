@@ -148,7 +148,8 @@ with verify_and_connect(opts) as kat:
                         wait_time += dig_sleep
                         if wait_time >= 60:  # seconds
                             print ("ant %s could not sync with DMC, investigation "
-                                   "is required..." % ant.name)
+                                   "is required...!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                                   % ant.name)
                             break
                 except Exception:
                     pass
