@@ -6,6 +6,7 @@ from __future__ import with_statement
 import numpy as np
 import time
 from katcorelib import collect_targets, standard_script_options, verify_and_connect,  start_session, user_logger
+import katconf
 import katpoint
 
 # Set up standard script options
@@ -40,7 +41,12 @@ with verify_and_connect(opts) as kat:
     args_target_list =[]
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     try:
-        observation_sources.add_tle(file(args[0]))
+        # load file from head node via katconf server (e.g. gps-ops.txt)
+        file_path = 'katexternaldata/catalogues/%s' % (args[0])
+        user_logger.info('Adding TLE from file: %s', file_path)
+        lines = katconf.resource_string(file_path).split('\n')
+        lines = [line + '\r\n' for line in lines if len(line) > 0]
+        observation_sources.add_tle(lines)
     except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string
         args_target_obj = collect_targets(kat,args)
         observation_sources.add(args_target_obj)
