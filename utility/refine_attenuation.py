@@ -133,7 +133,7 @@ with verify_and_connect(opts) as kat:
                                    (ant.name, band, pol))
                 lookup["%s,%s" % (ant.name, pol)] = sensor_list
                 kat.sensor.get("%s_lock" % (ant.name)).set_strategy('event')
-        point(kat.ants, "SCP,radec,0,-90", timeout=300)
+        #point(kat.ants, "SCP,radec,0,-90", timeout=300)
         start_time = time.time()
         while time.time()-start_time < track_duration:
             get_update(rfcu_power)
@@ -159,17 +159,17 @@ with verify_and_connect(opts) as kat:
             user_logger.info("%s %s: Start input power | atten | output power = %s%-4.1f %s| %-4.1f | %s%-4.1f %s    Attenuation needed %s %i %s" %
                              (ant, pol, rfcu_color, rfcu_st, colors.Normal, atten, adc_color, adc_st, colors.Normal, atten_color, attenuation_change, colors.Normal))
         if change_attenuation:
-            for ant_pol in sorted(lookup.keys()):
-                ant, pol = ant_pol.split(',')
-                key = lookup[ant_pol][2]
-                if new_atten[key] < 0:
-                    user_logger.error(
-                        "%s %s: input power detected is too low to correct, setting to 0dB attenuation" % (ant, pol))
-                    new_atten[key] = 0
-                if new_atten[key] >= 0 and attenuation_v[key] != new_atten[key]:
-                    user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
-                        ant, pol, attenuation_v[key], new_atten[key]))
-                    kat.get(ant).req.get("dig_attenuation")(pol, new_atten[key])
-                else:
-                    user_logger.warning("%s %s: Will not try change attenuation from %idB to %idB " % (
-                        ant, pol, attenuation_v[key], new_atten[key]))
+            for ant in kat.ants:
+                for pol in {'h', 'v'}:
+                    key = lookup["%s,%s" % (ant.name, pol)][2]
+                    if new_atten[key] < 0:
+                        user_logger.error(
+                            "%s %s: input power detected is too low to correct, setting to 0dB attenuation" % (ant.name, pol))
+                        new_atten[key] = 0
+                    if new_atten[key] >= 0 and attenuation_v[key] != new_atten[key]:
+                        user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
+                            ant.name, pol, attenuation_v[key], new_atten[key]))
+                        ant.req.get("dig_attenuation")(pol, new_atten[key])
+                    else:
+                        user_logger.warning("%s %s: Will not try change attenuation from %idB to %idB " % (
+                            ant, pol, attenuation_v[key], new_atten[key]))
