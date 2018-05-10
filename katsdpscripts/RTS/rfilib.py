@@ -12,6 +12,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt #; plt.ioff()
 from matplotlib import ticker
 import numpy as np
+import dask.array as da
 import pickle
 import h5py
 import concurrent.futures
@@ -330,12 +331,17 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         outfile = h5.file
         flags_dataset = h5._flags
     else:
+        if h5.version[0] == '3':
+            in_flags_dataset = da.from_array(h5._flags, chunks=(1, h5.shape[1]//4, h5.shape[2]))
+        elif h5.version[0] == '4':
+            in_flags_dataset = h5.source.data.flags 
         basename = os.path.join(output_root,os.path.splitext(os.path.basename(input_file))[0]+'_flags')
-        outfile = h5py.File(basename + '.h5','w')
-        outfile.create_dataset('corr_products', data = h5.corr_products)
-        outfile.create_dataset('flags',shape=h5.flags.shape,dtype=np.uint8,fillvalue=0)
+        #"Quack" first 2 rows
+        beg_elements = da.zeros((2, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]//4, h5.shape[2]), dtype=np.uint8)
+        flags_dataset = da.concatenate([beg_elements, in_flags_dataset[2:]])
+        da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(h5.corr_products, 1), '/flags': flags_dataset})
+        outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
-
     freq_length = h5.shape[1]
     
     #Read static flags from pickle
@@ -375,7 +381,6 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             scan_slices = [slice(0,h5.shape[0])]
         #loop over slices
         for this_slice in scan_slices:
-            #this_data = np.abs(h5.vis)[this_slice,:,:]
             #Don't read all of the data in one hit- loop over timestamps instead
             this_data = np.empty((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.float32)
             flags = np.zeros((this_slice.stop-this_slice.start,freq_range.stop-freq_range.start,h5.shape[2],),dtype=np.bool)
@@ -399,10 +404,10 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             #6: 'predicted_rfi' = 5
             #7: 'cal_rfi' = 6
             #8: 'reserved7' = 7
-            #Add new flags to flag table from the mask and the detection
+            #Add new flags to flag table
             flags = np.zeros((this_slice.stop-this_slice.start,h5.shape[1],h5.shape[2],),dtype=np.uint8)
             #Add mask to 'static' flags
-            flags += mask_array.astype(np.uint8)*2
+            flags |= mask_array.astype(np.uint8)*2
             #Flag non-tracks and add to 'cam' flags
             if mask_non_tracks:
                 #Set up mask for cam flags (assumtion here is that these are unused up to now)
@@ -411,9 +416,9 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                     ant_corr_prods = [index for index,corr_prod in enumerate(h5.corr_products) if ant.name in str(corr_prod)]
                     non_track_dumps = np.nonzero(h5.sensor['Antennas/%s/activity'%ant.name][this_slice] != 'track' )[0]
                     cam_mask[non_track_dumps[:,np.newaxis],ant_corr_prods] = True
-                flags += cam_mask[:,np.newaxis,:].astype(np.uint8)*(2**2)
+                flags |= cam_mask[:,np.newaxis,:].astype(np.uint8)*(2**2)
             #Add detected flags to 'cal_rfi'
-            flags[:,freq_range,:] += detected_flags.astype(np.uint8)*(2**6)
+            flags[:,freq_range,:] |= detected_flags.astype(np.uint8)*(2**6)
             flags_dataset[h5.dumps[this_slice],:,:] += flags
     outfile.close()
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
