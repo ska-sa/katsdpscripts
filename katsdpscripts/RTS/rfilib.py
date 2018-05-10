@@ -314,22 +314,26 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     This will write a list of flags per scan to the output h5 file or overwrite 
     the flag table in the input file if write_into_input=True
     """
+    import logging
+    logging.getLogger().setLevel(logging.CRITICAL)
 
-    start_time=time.time()
+    start_time = time.time()
+    h5 = katdal.open(input_file)
     if write_into_input:
-        output_file = os.path.join(output_root,input_file.split('/')[-1])
+        if h5.version[0] != '3':
+            raise Exception("--write-input will only work for mvf v3 files")
+        output_file = os.path.join(output_root, input_file.split('/')[-1])
         if not os.path.exists(output_file) or not os.path.samefile(input_file,output_file):
-            print "Copying input file from %s to %s"%(input_file,os.path.abspath(output_root),)
-            shutil.copy(input_file,output_root)
-        h5 = katdal.open(os.path.join(output_file),mode='r+')
+            print "Copying input file from %s to %s"%(input_file, os.path.abspath(output_root),)
+            shutil.copy(input_file, output_root)
+        h5 = katdal.open(os.path.join(output_file), mode = 'r+')
         outfile = h5.file
         flags_dataset = h5._flags
     else:
-        h5 = katdal.open(input_file)
-        basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_flags')
-        outfile=h5py.File(basename+'.h5','w')
-        outfile.create_dataset('corr_products',data=h5.corr_products)
-        h5._flags.parent.copy(h5._flags,outfile,name='flags')
+        basename = os.path.join(output_root,os.path.splitext(os.path.basename(input_file))[0]+'_flags')
+        outfile = h5py.File(basename + '.h5','w')
+        outfile.create_dataset('corr_products', data = h5.corr_products)
+        outfile.create_dataset('flags',shape=h5.flags.shape,dtype=np.uint8,fillvalue=0)
         flags_dataset = outfile['flags']
 
     freq_length = h5.shape[1]

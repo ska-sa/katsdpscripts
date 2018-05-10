@@ -3,8 +3,6 @@ import optparse
 # Avoid depending on an interactive matplotlib backend
 import matplotlib
 matplotlib.use('PDF')
-import logging
-logging.getLogger().setLevel(logging.CRITICAL)
 from katsdpscripts.RTS import generate_flag_table, generate_rfi_report
 import os
 
