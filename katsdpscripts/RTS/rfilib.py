@@ -6,6 +6,7 @@ import itertools
 import multiprocessing
 
 import katdal
+from katdal.h5datav3 import FLAG_NAMES
 import katpoint
 
 from matplotlib.backends.backend_pdf import PdfPages
@@ -358,19 +359,10 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 detected_flags = flagger.get_flags(this_data,flags,pool)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%"% \
                         (scan,target.name,mvf.shape[0],(np.sum(detected_flags)*100.)/detected_flags.size,)
-            #Flags are 8 bit:
-            #1: 'reserved0' = 0
-            #2: 'static' = 1
-            #3: 'cam' = 2
-            #4: 'reserved3' = 3
-            #5: 'ingest_rfi' = 4
-            #6: 'predicted_rfi' = 5
-            #7: 'cal_rfi' = 6
-            #8: 'reserved7' = 7
             #Add new flags to flag table
             flags = np.zeros((this_slice.stop-this_slice.start,mvf.shape[1],mvf.shape[2],),dtype=np.uint8)
             #Add mask to 'static' flags
-            flags |= mask_array.astype(np.uint8)*2
+            flags |= mask_array.astype(np.uint8)*FLAG_NAMES.index('static')
             #Flag non-tracks and add to 'cam' flags
             if mask_non_tracks:
                 #Set up mask for cam flags
@@ -379,9 +371,9 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                     ant_corr_prods = [index for index,corr_prod in enumerate(mvf.corr_products) if ant.name in str(corr_prod)]
                     non_track_dumps = np.nonzero(mvf.sensor['Antennas/%s/activity'%ant.name][this_slice] != 'track' )[0]
                     cam_mask[non_track_dumps[:,np.newaxis],ant_corr_prods] = True
-                flags |= cam_mask[:,np.newaxis,:].astype(np.uint8)*(2**2)
+                flags |= cam_mask[:,np.newaxis,:].astype(np.uint8)*FLAG_NAMES.index('cam')
             #Add detected flags to 'cal_rfi'
-            flags[:,freq_range,:] |= detected_flags.astype(np.uint8)*(2**6)
+            flags[:,freq_range,:] |= detected_flags.astype(np.uint8)*FLAG_NAMES.index('cal_rfi')
             flags_dataset[mvf.dumps[this_slice],:,:] += flags
     outfile.close()
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
@@ -409,7 +401,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
 
     mvf = katdal.open(input_file)
     #Get the selected antenna or default to first file antenna
-    ants=antenna.split(',') if antenna else [ant.name for ant in h5.ants]
+    ants=antenna.split(',') if antenna else [ant.name for ant in mvf.ants]
     #Frequency range
     num_channels = len(mvf.channels)
     if input_flags is not None:
@@ -417,7 +409,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
         if mvf.version[0] == "3":
             mvf._flags = input_flags['flags']
         elif mvf.version[0] == "4":
-            mvf.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, 1024, h5.shape[2],))
+            mvf.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, 1024, mvf.shape[2],))
     if freq_chans is None:
         # Default is drop first and last 5% of the bandpass
         start_chan = num_channels//20
