@@ -306,8 +306,8 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
 def generate_flag_table(input_file, output_root='.', static_flags=None, 
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5, 
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
-                        max_scan=600, write_into_input=False, speedup=1, mask_non_tracks=False, 
-                        tracks_only=False):
+                        max_scan=260, write_into_input=False, speedup=1, mask_non_tracks=False, 
+                        drop_beg=4, tracks_only=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -334,14 +334,22 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         if h5.version[0] == '3':
             in_flags_dataset = da.from_array(h5._flags, chunks=(1, h5.shape[1]//4, h5.shape[2]))
         elif h5.version[0] == '4':
-            in_flags_dataset = h5.source.data.flags 
+            in_flags_dataset = h5.source.data.flags
+        else:
+            raise Exception("Only mvf version 3.x and 4.x files are supported")
         basename = os.path.join(output_root,os.path.splitext(os.path.basename(input_file))[0]+'_flags')
-        #"Quack" first 2 rows
-        beg_elements = da.zeros((2, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]//4, h5.shape[2]), dtype=np.uint8)
-        flags_dataset = da.concatenate([beg_elements, in_flags_dataset[2:]])
+        #"Quack" first rows
+        beg_elements = da.zeros((drop_beg, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]//4, h5.shape[2]), dtype=np.uint8)
+        flags_dataset = da.concatenate([beg_elements, in_flags_dataset[drop_beg:]])
         da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(h5.corr_products, 1), '/flags': flags_dataset})
+        #Use the local copy of the flags to avoid reading over the network again
         outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
+        if h5.version[0] == '4': 
+            h5.source.data.flags = da.from_array(flags_dataset, chunks=(1, h5.shape[1]//4, h5.shape[2]))
+        elif h5.version[0] == '3':
+            h5._flags = flags_dataset
+
     freq_length = h5.shape[1]
     
     #Read static flags from pickle
@@ -394,7 +402,6 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 detected_flags = flagger.get_flags(this_data,flags,pool)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%"% \
                         (scan,target.name,h5.shape[0],(np.sum(detected_flags)*100.)/detected_flags.size,)
-            del this_data
             #Flags are 8 bit:
             #1: 'reserved0' = 0
             #2: 'static' = 1
@@ -449,8 +456,10 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
     num_channels = len(h5.channels)
     if input_flags is not None:
         input_flags = h5py.File(input_flags)
-        h5._flags = input_flags['flags']
-
+        if h5.version == "3":
+            h5._flags = input_flags['flags']
+        elif h5.version == "4":
+            h5.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, h5.shape[1], h5.shape[2],))
     if freq_chans is None:
         # Default is drop first and last 5% of the bandpass
         start_chan = num_channels//20
@@ -462,6 +471,8 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
 
     if targets is 'all': targets = h5.catalogue.targets
     if targets is None: targets = []
+
+    h5.select(scans = 'track')
 
     #Report cross correlations if requested
     if do_cross:
