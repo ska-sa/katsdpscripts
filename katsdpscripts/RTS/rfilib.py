@@ -482,7 +482,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
         # Set up the output file
         basename = os.path.join(output_root,os.path.splitext(input_file.split('/')[-1])[0]+'_' + ','.join(bline) + '_RFI')
         pdf = PdfPages(basename+'.pdf')
-        corrprodselect=[[bline[0]+'h',bline[1]+'h']]
+        corrprodselect=[[bline[0]+'h',bline[1]+'h'],[bline[0]+'v',bline[1]+'v']]
         h5.select(reset='TFB',corrprods=corrprodselect)
         vis=np.empty(h5.shape,dtype=np.float32)
         flags=np.empty(h5.shape,dtype=np.bool)
@@ -514,7 +514,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
                 continue
             #Get HH and VV cross pol indices
             hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
-            vv_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
+            vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
             label = 'Flag info for Target: ' + target + ', Baseline: ' + ','.join(bline) +', '+str(data_dict[target]['numrecords_tot'])+' records'
             plot_flag_data(label + ' H Pol', data_dict[target]['spectrum'][chan_range,hh_index], \
                             data_dict[target]['flagfrac'][chan_range,hh_index], h5.channel_freqs, pdf)
@@ -529,7 +529,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
 
         #Plot the flags for all data in the file
         hh_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
-        vv_index=np.all(np.char.endswith(h5.corr_products,'h'),axis=1)
+        vv_index=np.all(np.char.endswith(h5.corr_products,'v'),axis=1)
         label = 'Flag info for all data, Baseline: ' + ','.join(bline) +', '+str(data_dict['all_data']['numrecords_tot'])+' records'
         plot_flag_data(label + ' H Pol', data_dict['all_data']['spectrum'][chan_range,hh_index], \
                         data_dict['all_data']['flagfrac'][chan_range,hh_index], h5.channel_freqs, pdf)
