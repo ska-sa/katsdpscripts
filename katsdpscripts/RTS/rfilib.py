@@ -58,66 +58,6 @@ def plot_RFI_mask(pltobj,main=True,extra=None,channelwidth=1e6):
         for i in xrange(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.1, color='Maroon')
 
-def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
-    """
-     This function produces a rolling window shaped data with the rolled data in the last col
-        a      :  n-D array of data  
-        window : integer is the window size
-        axis   : integer, axis to move the window over
-                 default is the last axis.
-        pad    : {Boolean} Pad the array to the origanal size
-        mode : {str, function} from the function numpy.pad
-        One of the following string values or a user supplied function.
-        'constant'      Pads with a constant value.
-        'edge'          Pads with the edge values of array.
-        'linear_ramp'   Pads with the linear ramp between end_value and the
-                        array edge value.
-        'maximum'       Pads with the maximum value of all or part of the
-                        vector along each axis.
-        'mean'          Pads with the mean value of all or part of the
-                      con  vector along each axis.
-        'median'        Pads with the median value of all or part of the
-                        vector along each axis.
-        'minimum'       Pads with the minimum value of all or part of the
-                        vector along each axis.
-        'reflect'       Pads with the reflection of the vector mirrored on
-                        the first and last values of the vector along each
-                        axis.
-        'symmetric'     Pads with the reflection of the vector mirrored
-                        along the edge of the array.
-        'wrap'          Pads with the wrap of the vector along the axis.
-                        The first values are used to pad the end and the
-                        end values are used to pad the beginning.
-        <function>      of the form padding_func(vector, iaxis_pad_width, iaxis, **kwargs)
-                        see numpy.pad notes
-        **kargs are passed to the function numpy.pad
-        
-    Returns:
-        an array with shape = np.array(a.shape+(window,))
-        and the rolled data on the last axis
-        
-    Example:
-        import numpy as np
-        data = np.random.normal(loc=1,scale=np.sin(5*np.pi*np.arange(10000).astype(float)/10000.)+1.1, size=10000)
-        stddata = rolling_window(data, 400).std(axis=-1)
-    """
-    if axis == -1 : axis = len(a.shape)-1 
-    if pad :
-        pad_width = []
-        for i in xrange(len(a.shape)):
-            if i == axis: 
-                pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
-            else :  
-                pad_width += [(0,0)] 
-        a = np.pad(a,pad_width=pad_width,mode=mode,**kargs)
-    a1 = np.swapaxes(a,axis,-1) # Move target axis to last axis in array
-    shape = a1.shape[:-1] + (a1.shape[-1] - window + 1, window)
-    strides = a1.strides + (a1.strides[-1],)
-    return np.lib.stride_tricks.as_strided(a1, shape=shape, strides=strides).swapaxes(-2,axis) # Move original axis to 
-
-##############################
-# End of RFI detection routines
-##############################
 def get_flag_stats(h5, thisdata=None, flags=None, flags_to_show=None, norm_spec=None):
     """
     Given a katdal object, remove a dc offset for each record
@@ -251,7 +191,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
     image = ax.imshow(data,**kwargs)
     image.set_cmap('Greys')
     ax.imshow(plotflags,alpha=0.5,**kwargs)
-    ampsort = np.sort(data[(data>0.0) | (~flags)], axis=None)
+    ampsort = np.sort(data[~flags], axis=None)
     arrayremove = int(len(ampsort)*(1.0 - 0.80)/2.0)
     lowcut,highcut = ampsort[arrayremove],ampsort[-(arrayremove+1)]
     image.norm.vmin = lowcut
@@ -335,19 +275,19 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         flags_dataset = h5._flags
     else:
         if h5.version[0] == '3':
-            in_flags_dataset = da.from_array(h5._flags, chunks=(1, h5.shape[1]//4, h5.shape[2]))
+            in_flags_dataset = da.from_array(h5._flags, chunks=(1, h5.shape[1]/4, h5.shape[2]))
         elif h5.version[0] == '4':
             in_flags_dataset = h5.source.data.flags
         basename = os.path.join(output_root,os.path.splitext(os.path.basename(input_file))[0]+'_flags')
         #"Quack" first rows
-        beg_elements = da.zeros((drop_beg, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]//4, h5.shape[2]), dtype=np.uint8)
+        beg_elements = da.zeros((drop_beg, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]/4, h5.shape[2]), dtype=np.uint8)
         flags_dataset = da.concatenate([beg_elements, in_flags_dataset[drop_beg:]])
         da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(h5.corr_products, 1), '/flags': flags_dataset})
         #Use the local copy of the flags to avoid reading over the network again
         outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
         if h5.version[0] == '4': 
-            h5.source.data.flags = da.from_array(flags_dataset, chunks=(1, h5.shape[1]//4, h5.shape[2]))
+            h5.source.data.flags = da.from_array(flags_dataset, chunks=(1, h5.shape[1]/4, h5.shape[2]))
         elif h5.version[0] == '3':
             h5._flags = flags_dataset
 
@@ -448,6 +388,8 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
     time_range - Time range of input file to report. sequence of 2 (Start_time,End_time)
                 Format: 'YYYY-MM-DD HH:MM:SS.SSS', katpoint.Target or ephem.Date object or float in UTC seconds since Unix epoch
     freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
+    do_cross - plot the cross correlations with the autos
+    beg_drop - number of dumps to ignore at the start of the file
     """
 
     h5 = katdal.open(input_file)
@@ -457,10 +399,10 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
     num_channels = len(h5.channels)
     if input_flags is not None:
         input_flags = h5py.File(input_flags)
-        if h5.version == "3":
+        if h5.version[0] == "3":
             h5._flags = input_flags['flags']
-        elif h5.version == "4":
-            h5.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, h5.shape[1], h5.shape[2],))
+        elif h5.version[0] == "4":
+            h5.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, h5.shape[1]/4, h5.shape[2],))
     if freq_chans is None:
         # Default is drop first and last 5% of the bandpass
         start_chan = num_channels//20
