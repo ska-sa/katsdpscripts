@@ -7,7 +7,7 @@ from katsdpscripts.RTS import generate_flag_table, generate_rfi_report
 import os
 
 #command-line parameters
-parser = optparse.OptionParser(usage="Please specify the input file\nUSAGE: python rfi_report.py <inputfile.h5> ",
+parser = optparse.OptionParser(usage="Please specify the input mvf file\nUSAGE: python rfi_report.py <inputfile> ",
     description="Produce a report detailing RFI detected in the input dataset")
 
 parser.add_option("-a", "--antennas", type="string", default=None, help="Comma separated list of antennas to produce the report for, default is all antennas in file")
@@ -15,7 +15,7 @@ parser.add_option("-t", "--targets", type="string", default=None, help="List of 
 parser.add_option("-f", "--freq_chans", default=None, help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 90% of the bandpass.")
 parser.add_option("-o", "--output_dir", default='.', help="Directory to place output .pdf report. Default is cwd")
 parser.add_option("-s", "--static_flags", default=None, help="Location of static flags pickle file.")
-parser.add_option("--write-input", action='store_true', help="Make a copy of the input h5 file and insert flags into it.")
+parser.add_option("--write-input", action='store_true', help="Make a copy of the input h5 (v3) file and insert flags into it.")
 parser.add_option("--flags-only", action='store_true', help="Only calculate flags (no rfi-report).")
 parser.add_option("--report-only", action='store_true', help="Only generate RFI report (use flags from file).")
 parser.add_option("--report-auto-only", action='store_false', default=True, help="Only report flags on auto-correlations")
@@ -28,6 +28,7 @@ parser.add_option("--average-freq", type="int", default=1, help="Number of chann
 parser.add_option("--mask-non-tracks", action='store_true', help="Flag times when antennas are not slewing. Flags are stored in 'cam' flag bit.")
 parser.add_option("--tracks-only", action='store_true', help="Only flag tracks, ignore stops and slews.")
 parser.add_option("--ku-band", action='store_true', help="Force ku-band observation")
+parser.add_option("--drop-beg", type="int", default=4, help="Number of dumps to drop from the beginning of the file.")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError
@@ -40,27 +41,19 @@ basename = filename.split('/')[-1]
 flags_basename=os.path.join(opts.output_dir,os.path.splitext(basename)[0]+'_flags')
 
 if opts.ku_band:
-       opts.static_flags=None
+       opts.static_flags = None
 
 if opts.write_input:
-	input_flags=None
+	input_flags = None
 	report_input = os.path.join(opts.output_dir,basename)
 else:
 	input_flags = flags_basename+'.h5'
-	report_input=filename
+	report_input = filename
 
 if opts.flags_only:
-	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,
-						freq_chans=opts.freq_chans, outlier_nsigma=opts.outlier_nsigma,
-						width_freq=opts.width_freq, width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend, 
-						mask_non_tracks=opts.mask_non_tracks, speedup=opts.average_freq, tracks_only=opts.tracks_only)
+	generate_flag_table(filename,**vars(opts))
 elif opts.report_only:
-	generate_rfi_report(filename,input_flags=None,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,
-						freq_chans=opts.freq_chans, do_cross=opts.report_auto_only)
+	generate_rfi_report(filename,input_flags=None,**vars(opts))
 else:
-	generate_flag_table(filename,output_root=opts.output_dir,static_flags=opts.static_flags,write_into_input=opts.write_input,
-						freq_chans=opts.freq_chans, outlier_nsigma=opts.outlier_nsigma,
-						width_freq=opts.width_freq, width_time=opts.width_time,freq_extend=opts.freq_extend,time_extend=opts.time_extend, 
-						mask_non_tracks=opts.mask_non_tracks, speedup=opts.average_freq, tracks_only=opts.tracks_only)
-	generate_rfi_report(report_input,input_flags=input_flags,output_root=opts.output_dir,antenna=opts.antennas,targets=opts.targets,
-						freq_chans=opts.freq_chans, do_cross=opts.report_auto_only)
+	generate_flag_table(filename,**vars(opts))
+	generate_rfi_report(report_input,input_flags=input_flags,**vars(opts))

@@ -91,7 +91,7 @@ def get_flag_stats(mvf, thisdata=None, flags=None, flags_to_show=None, norm_spec
     #Get the results for all of the data
     weightsum = weights.sum(axis=0,dtype=np.int)
     averagespec = np.nanmean(data,axis=0)
-    flagfrac = 1. - weightsum/h5.shape[0].astype(np.float)
+    flagfrac = 1. - weightsum/mvf.shape[0].astype(np.float)
     flag_stats['all_data'] = {'spectrum': averagespec, 'numrecords_tot': mvf.shape[0], 'flagfrac': flagfrac, 'channel_freqs': mvf.channel_freqs, \
                                 'dump_period': mvf.dump_period, 'corr_products': mvf.corr_products}
     #And for each target
@@ -243,7 +243,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5, 
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
                         max_scan=260, write_into_input=False, speedup=1, mask_non_tracks=False, 
-                        drop_beg=4, tracks_only=False):
+                        drop_beg=4, tracks_only=False, **kwargs):
     """
     Flag the visibility data in the mvf file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -379,7 +379,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True,beg_drop=4):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',
+                        antenna=None,targets=None,freq_chans=None,do_cross=True,beg_drop=4,**kwargs):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
