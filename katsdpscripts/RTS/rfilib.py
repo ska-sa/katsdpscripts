@@ -320,6 +320,9 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
 
     start_time = time.time()
     h5 = katdal.open(input_file)
+    #Only support version 3.x/4.x
+    if h5.version[0] not in ['3','4']:
+        raise Exception("Only mvf version 3.x and 4.x files are supported")
     if write_into_input:
         if h5.version[0] != '3':
             raise Exception("--write-input will only work for mvf v3 files")
@@ -335,8 +338,6 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             in_flags_dataset = da.from_array(h5._flags, chunks=(1, h5.shape[1]//4, h5.shape[2]))
         elif h5.version[0] == '4':
             in_flags_dataset = h5.source.data.flags
-        else:
-            raise Exception("Only mvf version 3.x and 4.x files are supported")
         basename = os.path.join(output_root,os.path.splitext(os.path.basename(input_file))[0]+'_flags')
         #"Quack" first rows
         beg_elements = da.zeros((drop_beg, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]//4, h5.shape[2]), dtype=np.uint8)
@@ -431,7 +432,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     print "Flagging processing time: %4.1f minutes."%((time.time() - start_time)/60.0)
     return
 
-def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True):
+def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_root='.',antenna=None,targets=None,freq_chans=None,do_cross=True,beg_drop=4):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -472,8 +473,6 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
     if targets is 'all': targets = h5.catalogue.targets
     if targets is None: targets = []
 
-    h5.select(scans = 'track')
-
     #Report cross correlations if requested
     if do_cross:
         all_blines = [list(pair) for pair in itertools.combinations_with_replacement(ants,2)]
@@ -489,7 +488,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
         flags=np.empty(h5.shape,dtype=np.bool)
         #Get required vis and flags up front to avoid multiple reads of the data
         h5.select(flags=flags_to_show)
-        for dump in range(h5.shape[0]):
+        for dump in range(beg_drop,h5.shape[0]):
             vis[dump]=np.abs(h5.vis[dump])
             flags[dump]=h5.flags[dump]
         #Populate data_dict
