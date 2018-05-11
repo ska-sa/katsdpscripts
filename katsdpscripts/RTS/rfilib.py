@@ -275,19 +275,19 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         flags_dataset = h5._flags
     else:
         if h5.version[0] == '3':
-            in_flags_dataset = da.from_array(h5._flags, chunks=(1, h5.shape[1]/4, h5.shape[2]))
+            in_flags_dataset = da.from_array(h5._flags, chunks=(1, 1024, h5.shape[2]))
         elif h5.version[0] == '4':
             in_flags_dataset = h5.source.data.flags
         basename = os.path.join(output_root,os.path.splitext(os.path.basename(input_file))[0]+'_flags')
         #"Quack" first rows
-        beg_elements = da.zeros((drop_beg, h5.shape[1], h5.shape[2],), chunks=(1, h5.shape[1]/4, h5.shape[2]), dtype=np.uint8)
+        beg_elements = da.zeros((drop_beg, h5.shape[1], h5.shape[2],), chunks=(1, 1024, h5.shape[2]), dtype=np.uint8)
         flags_dataset = da.concatenate([beg_elements, in_flags_dataset[drop_beg:]])
         da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(h5.corr_products, 1), '/flags': flags_dataset})
         #Use the local copy of the flags to avoid reading over the network again
         outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
         if h5.version[0] == '4': 
-            h5.source.data.flags = da.from_array(flags_dataset, chunks=(1, h5.shape[1]/4, h5.shape[2]))
+            h5.source.data.flags = da.from_array(flags_dataset, chunks=(1, 1024, h5.shape[2]))
         elif h5.version[0] == '3':
             h5._flags = flags_dataset
 
@@ -402,7 +402,7 @@ def generate_rfi_report(input_file,input_flags=None,flags_to_show='all',output_r
         if h5.version[0] == "3":
             h5._flags = input_flags['flags']
         elif h5.version[0] == "4":
-            h5.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, h5.shape[1]/4, h5.shape[2],))
+            h5.source.data.flags = da.from_array(input_flags['flags'], chunks = (1, 1024, h5.shape[2],))
     if freq_chans is None:
         # Default is drop first and last 5% of the bandpass
         start_chan = num_channels//20
