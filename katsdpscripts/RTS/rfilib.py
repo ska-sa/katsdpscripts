@@ -92,8 +92,8 @@ def get_flag_stats(mvf, thisdata=None, flags=None, flags_to_show=None, norm_spec
     weights = np.logical_not(flags).astype(np.int8)
     data /= np.expand_dims(offset, axis=1)
     # Get the results for all of the data
-    weightsum = weights.sum(axis=0, dtype=np.int)
-    averagespec = np.nanmean(data, axis=0)
+    weightsum = weights[mvf.dumps].sum(axis=0, dtype=np.int)
+    averagespec = np.nanmean(data[mvf.dumps], axis=0)
     flagfrac = 1. - weightsum/mvf.shape[0].astype(np.float)
     flag_stats['all_data'] = {'spectrum': averagespec, 'numrecords_tot': mvf.shape[0],
                               'flagfrac': flagfrac, 'channel_freqs': mvf.channel_freqs,
@@ -381,7 +381,10 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 for ant in mvf.ants:
                     ant_corr_prods = [index for index, corr_prod in enumerate(mvf.corr_products)
                                       if ant.name in str(corr_prod)]
-                    ant_activity = mvf.sensor['Antennas/%s/activity' % ant.name][this_slice]
+                    if mvf.version[0] == '3':
+                        ant_activity = mvf.sensor['Antennas/%s/activity' % ant.name][this_slice]
+                    elif mvf.version[0] == '4':
+                        ant_activity = mvf.sensor['%s_activity' % ant.name][this_slice]
                     non_track_dumps = np.nonzero(ant_activity != 'track')[0]
                     cam_mask[non_track_dumps[:, np.newaxis], ant_corr_prods] = True
                 flags |= cam_mask[:, np.newaxis, :].astype(np.uint8)*FLAG_NAMES.index('cam')
@@ -449,14 +452,14 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
         pdf = PdfPages(basename+'.pdf')
         corrprodselect = [[bline[0] + 'h', bline[1] + 'h'], [bline[0] + 'v', bline[1] + 'v']]
         mvf.select(reset='TFB', corrprods=corrprodselect, flags=flags_to_show)
-        if tracks_only:
-            mvf.select(scans='track')
         vis = np.empty(mvf.shape, dtype=np.float32)
-        flags = np.empty(mvf.shape, dtype=np.bool)
+        flags = np.zeros(mvf.shape, dtype=np.bool)
         # Get required vis and flags up front to avoid multiple reads of the data
         for dump in range(beg_drop, mvf.shape[0]):
             vis[dump] = np.abs(mvf.vis[dump])
             flags[dump] = mvf.flags[dump]
+        if tracks_only:
+            mvf.select(scans='track')
         # Populate data_dict
         data_dict = get_flag_stats(mvf, thisdata=vis, flags=flags)
         # Output to h5 file
