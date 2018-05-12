@@ -373,7 +373,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             # Add new flags to flag table
             flags = np.zeros((this_slice.stop-this_slice.start, mvf.shape[1], mvf.shape[2],), dtype=np.uint8)
             # Add mask to 'static' flags
-            flags |= mask_array.astype(np.uint8)*FLAG_NAMES.index('static')
+            flags |= mask_array.astype(np.uint8)*(2**FLAG_NAMES.index('static'))
             # Flag non-tracks and add to 'cam' flags
             if mask_non_tracks:
                 # Set up mask for cam flags
@@ -387,9 +387,9 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                         ant_activity = mvf.sensor['%s_activity' % ant.name][this_slice]
                     non_track_dumps = np.nonzero(ant_activity != 'track')[0]
                     cam_mask[non_track_dumps[:, np.newaxis], ant_corr_prods] = True
-                flags |= cam_mask[:, np.newaxis, :].astype(np.uint8)*FLAG_NAMES.index('cam')
+                flags |= cam_mask[:, np.newaxis, :].astype(np.uint8)*(2**FLAG_NAMES.index('cam'))
             # Add detected flags to 'cal_rfi'
-            flags[:, freq_range, :] |= detected_flags.astype(np.uint8)*FLAG_NAMES.index('cal_rfi')
+            flags[:, freq_range, :] |= detected_flags.astype(np.uint8)*(2**FLAG_NAMES.index('cal_rfi'))
             flags_dataset[mvf.dumps[this_slice], :, :] += flags
     outfile.close()
     print "Flagging processing time: %4.1f minutes." % ((time.time() - start_time) / 60.0)
