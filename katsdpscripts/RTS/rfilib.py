@@ -302,6 +302,41 @@ def plot_waterfall(visdata,flags=None,channel_range=None,output=None):
     else:
         plt.savefig(output)
 
+
+def or_flags_pols(flags, corr_prods, ants):
+    """
+    OR the flags across polarisation for a given baseline
+    """
+    antnames = [ant.name for ant in ants]
+    corrprod_baselines = [[prod[0][:4],prod[1][:4]] for prod in corr_prods]
+    # Get indices in corr_prods of all pols for a baseline
+    all_baselines = [list(pair) for pair in itertools.combinations_with_replacement(antnames, 2)]
+    for bl in all_baselines:
+        bl_indices =  [i[0] for i in enumerate(corrprod_baselines) if i[1] == bl]
+        bl_flags = flags[:, :, bl_indices]
+        or_flags = np.any(bl_flags, axis=2)
+        flags[:, :, bl_indices] = or_flags[:, :, np.newaxis]
+    return flags
+
+
+def get_baseline_mask(corr_prods, ants, limit):
+    """
+    Compute a mask of the same length as corr_products that indicates
+    whether the baseline length of the given correlation product is
+    shorter than limit in meters
+    """
+    baseline_mask = np.zeros(corr_prods.shape[0], dtype=np.bool)
+    antlookup = {}
+    for ant in ants:
+        antlookup[ant.name] = ant
+    for prod, baseline in enumerate(corr_prods):
+        bl_vector = antlookup[baseline[0][:4]].baseline_toward(antlookup[baseline[1][:4]])
+        bl_length = np.linalg.norm(bl_vector)
+        if bl_length < limit:
+            baseline_mask[prod] = True
+    return baseline_mask
+
+
 def generate_flag_table(input_file, output_root='.', static_flags=None, 
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5, 
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
