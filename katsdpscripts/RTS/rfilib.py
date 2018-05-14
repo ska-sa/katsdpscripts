@@ -341,7 +341,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5, 
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
                         max_scan=600, write_into_input=False, speedup=1, mask_non_tracks=False, 
-                        tracks_only=False):
+                        tracks_only=False, mask_limit=1000.):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -381,6 +381,9 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     #Set up the mask for broadcasting
     mask_array = static_flags[np.newaxis,:,np.newaxis]
 
+    # Work out which baselines to use the mask
+    bl_mask = get_baseline_mask(mvf.ants, mvf.corr_products, mask_limit)
+
     #Speed up flagging by averaging further if requested.
     average_freq = speedup
 
@@ -415,7 +418,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 if use_file_flags:
                     flags[index] = h5.flags[dump,freq_range]
             #OR the mask flags with the flags already in the h5 file
-            flags = np.logical_or(flags,mask_array[:,freq_range,:])
+            flags = np.logical_or(flags[:, :, bl_mask], mask_array[:,freq_range,:])
             with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
                 detected_flags = flagger.get_flags(this_data,flags,pool)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%"% \
@@ -433,7 +436,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             #Add new flags to flag table from the mask and the detection
             flags = np.zeros((this_slice.stop-this_slice.start,h5.shape[1],h5.shape[2],),dtype=np.uint8)
             #Add mask to 'static' flags
-            flags += mask_array.astype(np.uint8)*2
+            flags[:, :, bl_mask] += mask_array.astype(np.uint8)*2
             #Flag non-tracks and add to 'cam' flags
             if mask_non_tracks:
                 #Set up mask for cam flags (assumtion here is that these are unused up to now)
