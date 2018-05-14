@@ -390,7 +390,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 flags |= cam_mask[:, np.newaxis, :].astype(np.uint8)*(2**FLAG_NAMES.index('cam'))
             # Add detected flags to 'cal_rfi'
             flags[:, freq_range, :] |= detected_flags.astype(np.uint8)*(2**FLAG_NAMES.index('cal_rfi'))
-            flags_dataset[mvf.dumps[this_slice], :, :] += flags
+            flags_dataset[mvf.dumps[this_slice], :, :] |= flags
     outfile.close()
     print "Flagging processing time: %4.1f minutes." % ((time.time() - start_time) / 60.0)
     return
