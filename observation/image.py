@@ -97,4 +97,4 @@ with verify_and_connect(opts) as kat:
                 loop = False
 for n, source in enumerate(sources):
   user_logger.info('Source %s observed for %f hrs',
-                   source.description, source_total_duration[n] / 3600.0))
+                   source.description, source_total_duration[n] / 3600.0)
