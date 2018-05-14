@@ -65,6 +65,7 @@ with verify_and_connect(opts) as kat:
 
         while loop:
             source_observed = [False] * len(sources)
+            source_total_duration = [0.0] * len(sources)
             # Loop over sources in catalogue in sequence
             for n, source in enumerate(sources):
                 # If it is time for a bandpass calibrator to be visited on an interval basis, do so
@@ -84,6 +85,7 @@ with verify_and_connect(opts) as kat:
                         track_duration = duration.get(tag, track_duration)
                     session.label('track')
                     source_observed[n] = session.track(source, duration=track_duration)
+                    source_total_duration[n] += track_duration
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
                     user_logger.info('Maximum script duration (%d s) exceeded, stopping script',
                                      opts.max_duration)
@@ -93,3 +95,5 @@ with verify_and_connect(opts) as kat:
                 user_logger.warning('All imaging targets and gain cals are '
                                     'currently below horizon, stopping script')
                 loop = False
+for n, source in enumerate(sources):
+  user_logger.info("Source %s observed for %f hrs"%(source.description,source_total_duration[n]/3600.0))
