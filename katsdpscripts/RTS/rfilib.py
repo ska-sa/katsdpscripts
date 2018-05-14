@@ -341,7 +341,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5, 
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
                         max_scan=600, write_into_input=False, speedup=1, mask_non_tracks=False, 
-                        tracks_only=False, mask_limit=1000.):
+                        tracks_only=False, mask_limit=1000., or_pols=False):
     """
     Flag the visibility data in the h5 file ignoring the channels specified in 
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -382,7 +382,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     mask_array = static_flags[np.newaxis,:,np.newaxis]
 
     # Work out which baselines to use the mask
-    bl_mask = get_baseline_mask(mvf.ants, mvf.corr_products, mask_limit)
+    bl_mask = get_baseline_mask(mvf.corr_products, mvf.ants, mask_limit)
 
     #Speed up flagging by averaging further if requested.
     average_freq = speedup
@@ -421,6 +421,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             flags = np.logical_or(flags[:, :, bl_mask], mask_array[:,freq_range,:])
             with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
                 detected_flags = flagger.get_flags(this_data,flags,pool)
+            if or_pols:
+                detected_flags = or_flags_pols(detected_flags, mvf.corr_products, mvf.ants)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%"% \
                         (scan,target.name,h5.shape[0],(np.sum(detected_flags)*100.)/detected_flags.size,)
             del this_data
