@@ -95,6 +95,6 @@ with verify_and_connect(opts) as kat:
                 user_logger.warning('All imaging targets and gain cals are '
                                     'currently below horizon, stopping script')
                 loop = False
-for n, source in enumerate(sources):
-  user_logger.info('Source %s observed for %f hrs',
-                   source.description, source_total_duration[n] / 3600.0)
+        for n, source in enumerate(sources):
+            user_logger.info('Source %s observed for %f hrs',
+                             source.description, source_total_duration[n] / 3600.0)
