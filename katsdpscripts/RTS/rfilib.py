@@ -454,6 +454,8 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
         mvf.select(reset='TFB', corrprods=corrprodselect, flags=flags_to_show)
         vis = np.empty(mvf.shape, dtype=np.float32)
         flags = np.zeros(mvf.shape, dtype=np.bool)
+        vis[:beg_drop] = np.nan
+        flags[:beg_drop] = True
         # Get required vis and flags up front to avoid multiple reads of the data
         for dump in range(beg_drop, mvf.shape[0]):
             vis[dump] = np.abs(mvf.vis[dump])
