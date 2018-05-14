@@ -250,7 +250,7 @@ def plot_waterfall(visdata, flags=None, channel_range=None, output=None):
 def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5,
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
-                        max_scan=260, write_into_input=False, speedup=1, mask_non_tracks=False,
+                        max_scan=260, write_into_input=False, average_freq=1, mask_non_tracks=False,
                         drop_beg=4, tracks_only=False, **kwargs):
     """
     Flag the visibility data in the mvf file ignoring the channels specified in
@@ -273,7 +273,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     freq_extend - size in channels by which to extend flags after detection
     max_scan - largest scan length to process (longer scans will be split into chunks in time)
     write_into_input - make a copy of the input file to 'output_root' and insert flags there (v3 only)
-    speedup - average width in channels before flagging (detected flags are extend to full width)
+    average_freq - average width in channels before flagging (detected flags are extend to full width)
     mask_non_tracks - mask any antennas that are not tracking (added to 'cam_flags' bit)
     drop_beg - number of dumps at the beginning of the file to "Quack"
     tracks_only - only flag tracks (not slews or stops etc.)
@@ -328,9 +328,6 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
 
     # Set up the mask for broadcasting
     mask_array = static_flags[np.newaxis, :, np.newaxis]
-
-    # Speed up flagging by averaging further if requested.
-    average_freq = speedup
 
     # Convert spike width from frequency and time to channel and dump for the flagger.
     width_freq_channel = width_freq*1.e6/mvf.channel_width
@@ -397,7 +394,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
 
 
 def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', output_root='.', tracks_only=False,
-                        antenna=None, targets=None, freq_chans=None, do_cross=True, beg_drop=4, **kwargs):
+                        antennas=None, targets=None, freq_chans=None, do_cross=True, beg_drop=4, **kwargs):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -417,7 +414,7 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
 
     mvf = katdal.open(input_file)
     # Get the selected antenna or default to first file antenna
-    ants = antenna.split(',') if antenna else [ant.name for ant in mvf.ants]
+    ants = antennas.split(',') if antennas else [ant.name for ant in mvf.ants]
     # Frequency range
     num_channels = len(mvf.channels)
     if input_flags is not None:
