@@ -28,7 +28,6 @@ parser.add_option("--average-freq", type="int", default=1, help="Number of chann
 parser.add_option("--mask-non-tracks", action='store_true', help="Flag times when antennas are not slewing. Flags are stored in 'cam' flag bit.")
 parser.add_option("--tracks-only", action='store_true', help="Only flag tracks, ignore stops and slews.")
 parser.add_option("--ku-band", action='store_true', help="Force ku-band observation")
-parser.add_option("--drop-beg", type="int", default=4, help="Number of dumps to drop from the beginning of the file.")
 opts, args = parser.parse_args()
 
 # if no enough arguments, raise the runtimeError

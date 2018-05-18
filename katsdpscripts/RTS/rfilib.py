@@ -251,7 +251,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5,
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
                         max_scan=260, write_into_input=False, average_freq=1, mask_non_tracks=False,
-                        drop_beg=4, tracks_only=False, **kwargs):
+                        tracks_only=False, **kwargs):
     """
     Flag the visibility data in the mvf file ignoring the channels specified in
     static_flags, and the channels already flagged if use_file_flags=True.
@@ -275,7 +275,6 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     write_into_input - make a copy of the input file to 'output_root' and insert flags there (v3 only)
     average_freq - average width in channels before flagging (detected flags are extend to full width)
     mask_non_tracks - mask any antennas that are not tracking (added to 'cam_flags' bit)
-    drop_beg - number of dumps at the beginning of the file to "Quack"
     tracks_only - only flag tracks (not slews or stops etc.)
     """
 
@@ -303,10 +302,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         elif mvf.version[0] == '4':
             in_flags_dataset = mvf.source.data.flags
         basename = os.path.join(output_root, os.path.splitext(os.path.basename(input_file))[0]+'_flags')
-        # "Quack" first rows
-        beg_elements = da.zeros((drop_beg, mvf.shape[1], mvf.shape[2],), chunks=(1, 1024, mvf.shape[2]), dtype=np.uint8)
-        flags_dataset = da.concatenate([beg_elements, in_flags_dataset[drop_beg:]])
-        da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(mvf.corr_products, 1), '/flags': flags_dataset})
+        da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(mvf.corr_products, 1), '/flags': in_flags_dataset})
         # Use the local copy of the flags to avoid reading over the network again
         outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
@@ -394,7 +390,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
 
 
 def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', output_root='.', tracks_only=False,
-                        antennas=None, targets=None, freq_chans=None, do_cross=True, beg_drop=4, **kwargs):
+                        antennas=None, targets=None, freq_chans=None, do_cross=True, **kwargs):
     """
     Create an RFI report- store flagged spectrum and number of flags in an output h5 file
     and produce a pdf report.
@@ -409,7 +405,6 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
     targets - which target to produce report on - default None
     freq_chans - which frequency channels to work on format - <start_chan>,<end_chan> default - 90% of bandpass
     do_cross - plot the cross correlations with the autos
-    beg_drop - number of dumps to ignore at the start of the file
     """
 
     mvf = katdal.open(input_file)
@@ -451,10 +446,7 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
         mvf.select(reset='TFB', corrprods=corrprodselect, flags=flags_to_show)
         vis = np.empty(mvf.shape, dtype=np.float32)
         flags = np.zeros(mvf.shape, dtype=np.bool)
-        vis[:beg_drop] = np.nan
-        flags[:beg_drop] = True
-        # Get required vis and flags up front to avoid multiple reads of the data
-        for dump in range(beg_drop, mvf.shape[0]):
+        for dump in range(mvf.shape[0]):
             vis[dump] = np.abs(mvf.vis[dump])
             flags[dump] = mvf.flags[dump]
         if tracks_only:
