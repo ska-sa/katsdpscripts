@@ -612,7 +612,7 @@ spill_over_models =  opts.spill_over_models
 filename = args[0]
 channel_bw = opts.freq_bw
 freq_bw = opts.freq_bw
-channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
+#channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
 n_chans = h5.shape[1]
 
 fix_opacity = opts.fix_opacity
@@ -633,7 +633,9 @@ for ant in h5.ants:
         SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model
         warnings.warn('Warning: Failed to find Receiver model, setting band to L  ')
         print('Warning: Failed to find Receiver model, setting band to L ')       
-
+    if Band.upper() == 'U':
+        channel_mask =   opts.channel_mask.split('.')[0] +'_UHF.'+ opts.channel_mask.split('.')[1] #/var/kat/katsdpscripts/RTS/rfi_mask.pickle rfi_mask_UHF.pickle
+    print "Channel Mask :%s , Channel Band %s "%(channel_mask,Band)   
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
