@@ -642,7 +642,7 @@ for ant in h5.ants:
         else :
             warnings.warn('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to nothing  '%(Band))
             print('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to None  '%(Band))
-        channel_mask = ''
+            channel_mask = ''
     else :
         channel_mask =   opts.channel_mask
 
