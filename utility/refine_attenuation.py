@@ -133,7 +133,7 @@ with verify_and_connect(opts) as kat:
                                    (ant.name, band, pol))
                 lookup["%s,%s" % (ant.name, pol)] = sensor_list
                 kat.sensor.get("%s_lock" % (ant.name)).set_strategy('event')
-        #point(kat.ants, "SCP,radec,0,-90", timeout=300)
+        point(kat.ants, "SCP,radec,0,-90", timeout=300)
         start_time = time.time()
         while time.time()-start_time < track_duration:
             get_update(rfcu_power)
