@@ -62,10 +62,10 @@ with verify_and_connect(opts) as kat:
         # If bandpass interval is specified, force the first visit to be to the bandpass calibrator(s)
         time_of_last_bpcal = 0
         loop = True
-
+        
+        source_total_duration = [0.0] * len(sources)
         while loop:
             source_observed = [False] * len(sources)
-            source_total_duration = [0.0] * len(sources)
             # Loop over sources in catalogue in sequence
             for n, source in enumerate(sources):
                 # If it is time for a bandpass calibrator to be visited on an interval basis, do so
@@ -74,6 +74,7 @@ with verify_and_connect(opts) as kat:
                     for bpcal in sources.filter('bpcal'):
                         session.label('track')
                         session.track(bpcal, duration=duration['bpcal'])
+                        source_total_duration[n] += track_duration
                 # Visit source if it is not a bandpass calibrator
                 # (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
