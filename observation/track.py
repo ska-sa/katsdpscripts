@@ -76,7 +76,7 @@ with verify_and_connect(opts) as kat:
             keep_going = (opts.max_duration is not None) and opts.repeat
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for n,target in enumerate(targets):
+            for n, target in enumerate(targets):
                 # Cut the track short if time ran out
                 duration = opts.track_duration
                 if opts.max_duration is not None:
@@ -91,7 +91,7 @@ with verify_and_connect(opts) as kat:
                 session.label('track')
                 if session.track(target, duration=duration):
                     targets_observed.append(target.description)
-                    target_total_duration += duration
+                    target_total_duration[n] += duration
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - "
                                     "stopping script instead of hanging around")
