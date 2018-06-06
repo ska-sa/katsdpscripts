@@ -74,7 +74,7 @@ with verify_and_connect(opts) as kat:
                     for bpcal in sources.filter('bpcal'):
                         session.label('track')
                         session.track(bpcal, duration=duration['bpcal'])
-                        source_total_duration[n] += track_duration
+                        source_total_duration[n] += duration['bpcal']
                 # Visit source if it is not a bandpass calibrator
                 # (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
