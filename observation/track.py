@@ -103,4 +103,4 @@ with verify_and_connect(opts) as kat:
         ind = np.argsort(target_total_duration)
         for i in reversed(ind):
             user_logger.info('Source %s observed for %.2f hrs',
-                             targets[i].description, target_total_duration[i] / 3600.0)
+                             targets.targets[i].description, target_total_duration[i] / 3600.0)
