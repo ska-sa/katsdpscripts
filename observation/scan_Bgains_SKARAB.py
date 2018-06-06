@@ -28,7 +28,7 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
 #                  help='Values of the correlator F-engine gain '
 #                       'in the form "start,stop,number of steps" '
 #                       '(default=%default)')
-parser.add_option('--bgain', default='0,1,10',
+parser.add_option('--bgain', default='0,4,25',
                   help='Values of the B-engine gains '
                        'in the form "start,stop,number of steps" '
                        '(default=%default)')
@@ -45,7 +45,7 @@ if len(args) == 0:
     args.append('SCP, radec, 0, -90') 
 
 #g_start,g_end,g_step =np.array(opts.gain.split(',') ).astype(float)
-b_start,b_end,b_step=np.array(
+b_start,b_end,b_step =np.array(opts.gain.split(',') ).astype(float)
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -74,10 +74,20 @@ with verify_and_connect(opts) as kat:
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
             # for gain in np.logspace(np.log10(g_start),np.log10(g_end),g_step):
-            for bgain in np.linspace(b_start, b_end, b_step): 
+            # for bgain in np.linspace(b_start, b_end, b_step):
+            non_zero_bgains = np.linspace(b_start, b_end, b_step)
+            zero_bgains = np.zeros(b_step)
+            bgain_list = np.ravel(np.column_stack((zero_bgains,non_zero_bgains)))
+            # interleave the bgains with zeros to be able to see when the bgain
+            # settings are changed. 
+            for bgain in bgain_list:
                 for target in targets.iterfilter(el_limit_deg=opts.horizon):
-                    # Cut the track short if time ran out
-                    duration = opts.track_duration
+                    # Cut the track short if time runs out
+                    if bgain != 0.:
+                        duration = opts.track_duration
+                    else:
+                        duration = 0.001
+                        # set to small number to minimize nr zeros (sample rate=200000 per sec)
                     if opts.max_duration is not None:
                         time_left = opts.max_duration - (time.time() - start_time)
                         if time_left <= 0.:
@@ -91,10 +101,10 @@ with verify_and_connect(opts) as kat:
                     #session.label('track_gain,%g,%gi'%(gain.real,gain.imag))
                     session.label('track_bgain,%g'%bgain)
                     #for inp in session.cbf.fengine.inputs:
-                    for inp in cbf.beamformers:
-                        inp.req.quant_gains(bgain)
+                    for stream in cbf.beamformers:
+                        stream.req.quant_gains(bgain)
                         user_logger.info("B-engine %s quantisation gain set to %g",
-                                         inp, bgain)
+                                         stream, bgain)
                     if session.track(target, duration=duration):
                         targets_observed.append(target.description)
                 if keep_going and len(targets_observed) == targets_before_loop:
