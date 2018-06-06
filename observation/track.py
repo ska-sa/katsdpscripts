@@ -2,6 +2,7 @@
 # Track target(s) for a specified time.
 
 import time
+import numpy as np
 
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger)
@@ -98,6 +99,8 @@ with verify_and_connect(opts) as kat:
                 keep_going = False
         user_logger.info("Targets observed : %d (%d unique)",
                          len(targets_observed), len(set(targets_observed)))
-        for n, target in enumerate(targets):
+        # print out a sorted list of target durations
+        ind = np.argsort(target_total_duration)
+        for i in reversed(ind):
             user_logger.info('Source %s observed for %.2f hrs',
-                             target.description, target_total_duration[n] / 3600.0)
+                             targets[i].description, target_total_duration[i] / 3600.0)
