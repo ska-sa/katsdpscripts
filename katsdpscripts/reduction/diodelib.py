@@ -60,7 +60,7 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_ba
             Ag = np.pi* (D/2)**2 # Antenna geometric area
             spec_Tsys_eta = np.zeros_like(freq)
             plt.ylim(15,50)
-            plt.xlim(900,1670)
+            #plt.xlim(900,1670)
             spec_Tsys_eta[freq<1420e6] =  42 # [R.T.P095] == 220
             spec_Tsys_eta[freq>=1420e6] =  46 # [R.T.P.096] == 200
             plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
@@ -81,7 +81,7 @@ def plot_nd(freq,Tdiode,nd_temp,ant = '', file_base=''):
         plt.title('%s Coupler Diode: %s pol: %s'%(ant,str(pol).upper(),file_base))
         plt.ylim(0,50)
         plt.ylabel('$T_{ND}$ [K]')
-        plt.xlim(900,1670)
+        #plt.xlim(900,1670)
         plt.xlabel('f [MHz]')
         #plt.ylabel(ant)
         plt.axhspan(14, 35, facecolor='g', alpha=0.5)
@@ -167,9 +167,16 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     pols = ['v','h']
     
     for a,col in zip(ants,colour):
+        ant = a.name
+        try:
+            rx_sn = h5.receivers[ant]
+        except KeyError:
+            logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
+            rx_sn = 'SN_NOT_FOUND'
         if pdf:
-            pp = PdfPages(output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
-            logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
+            pdf_filename = output_dir+'/'+nice_filename+'.'+rx_sn+'.'+a.name+'.pdf'
+            pp = PdfPages(pdf_filename)
+            logger.debug("Created output PDF file: %s"%pdf_filename)
 
         #fig0 = plt.figure(0,figsize=(20,5))
         h5.select()
@@ -180,15 +187,9 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         nd_temp = {}
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
-            ant = a.name            
             Tsys_std[pol] = None
             #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
-                try:
-                    rx_sn = h5.receivers[ant]
-                except KeyError:
-                    logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
-                    rx_sn = 'SN_NOT_FOUND'
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_sn+'.'+pol+'.csv'
                 logger.info('Loading noise diode file %s from config'%diode_filename)
                 try:
