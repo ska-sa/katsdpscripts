@@ -3,8 +3,8 @@
 
 import time
 import numpy as np
-from katcorelib import (standard_script_options, verify_and_connect,
-                        collect_targets, start_session, user_logger)
+from katcorelib.observe import (standard_script_options, verify_and_connect,
+                        collect_targets, start_session, user_logger, SessionCBF)
 
 
 class NoTargetsUpError(Exception):
@@ -17,7 +17,7 @@ description = 'Track one or more sources for a specified time. At least one ' \
               'target must be specified. Note also some **required** options below.'
 parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
-parser.add_option('-t', '--track-duration', type='float', default=30.0,
+parser.add_option('-t', '--track-duration', type='float', default=45.0,
                   help='Length of time to track each source, in seconds '
                        '(default=%default)')
 parser.add_option('-m', '--max-duration', type='float', default=None,
@@ -28,11 +28,10 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
 #                  help='Values of the correlator F-engine gain '
 #                       'in the form "start,stop,number of steps" '
 #                       '(default=%default)')
-parser.add_option('--bgain', default='0,4,25',
+parser.add_option('--bgain', default='0.01,1,3',
                   help='Values of the B-engine gains '
                        'in the form "start,stop,number of steps" '
                        '(default=%default)')
-
 parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
 
@@ -45,10 +44,11 @@ if len(args) == 0:
     args.append('SCP, radec, 0, -90') 
 
 #g_start,g_end,g_step =np.array(opts.gain.split(',') ).astype(float)
-b_start,b_end,b_step =np.array(opts.gain.split(',') ).astype(float)
+b_start,b_end,b_step =np.array(opts.bgain.split(',') ).astype(float)
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
+    cbf = SessionCBF(kat)
     targets = collect_targets(kat, args)
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
@@ -75,18 +75,19 @@ with verify_and_connect(opts) as kat:
             # Iterate through source list, picking the next one that is up
             # for gain in np.logspace(np.log10(g_start),np.log10(g_end),g_step):
             # for bgain in np.linspace(b_start, b_end, b_step):
-            non_zero_bgains = np.linspace(b_start, b_end, b_step)
-            zero_bgains = np.zeros(b_step)
-            bgain_list = np.ravel(np.column_stack((zero_bgains,non_zero_bgains)))
+            # non_zero_bgains = np.linspace(b_start, b_end, b_step)
+            bgain_list = np.logspace(np.log10(b_start), np.log10(b_end), b_step)
+            #zero_bgains = np.zeros(int(b_step))
+            #bgain_list = np.ravel(np.column_stack((zero_bgains,non_zero_bgains)))
             # interleave the bgains with zeros to be able to see when the bgain
             # settings are changed. 
             for bgain in bgain_list:
                 for target in targets.iterfilter(el_limit_deg=opts.horizon):
                     # Cut the track short if time runs out
-                    if bgain != 0.:
-                        duration = opts.track_duration
-                    else:
-                        duration = 0.001
+                    #if bgain != 0.:
+                    duration = opts.track_duration
+                    #else:
+                        #duration = 0.01
                         # set to small number to minimize nr zeros (sample rate=200000 per sec)
                     if opts.max_duration is not None:
                         time_left = opts.max_duration - (time.time() - start_time)
