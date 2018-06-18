@@ -28,7 +28,7 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
 #                  help='Values of the correlator F-engine gain '
 #                       'in the form "start,stop,number of steps" '
 #                       '(default=%default)')
-parser.add_option('--bgain', default='0.01,1,3',
+parser.add_option('--bgain', default='0.01,1,5',
                   help='Values of the B-engine gains '
                        'in the form "start,stop,number of steps" '
                        '(default=%default)')
