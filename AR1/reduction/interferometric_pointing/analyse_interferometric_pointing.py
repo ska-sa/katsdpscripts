@@ -17,14 +17,14 @@ def activity(h5,state = 'track'):
     antlist = [a.name for a in h5.ants]
     activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
     for i,ant in enumerate(antlist) :
-        sensor = h5.sensor['Antennas/%s/activity'%(ant)]
+        sensor = h5.sensor['%s_activity'%(ant)]
         activityV[i,:] +=   (sensor==state)
     return np.all(activityV,axis=0)
 
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
-def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
+def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_weights=False):
     """Break the band up into chunks"""
     chunk_size = chunks
     rfi_static_flags = np.tile(False, h5.shape[0])
@@ -70,10 +70,16 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         h5.select(pol=pol,corrprods='cross',ants=h5.antlist)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() : 
+            if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
             data = h5.vis[valid_index]
             if data.shape[0] > 0 : # need at least one data point
-                gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),h5.bls_lookup,refant=0) )
+                #g0 = np.ones(len(h5.ants),np.complex)
+                if use_weights :
+                    weights = h5.weights[valid_index].mean(axis=0)
+                else:
+                    weights = np.ones_like(data[:,:,:].mean(axis=0)).astype(np.float)
+                gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
                 pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
@@ -188,7 +194,8 @@ parser.add_option("-a", "--ants", dest="ants",default=None,
 parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
                   help="List of antennas to exculde from the reduction "
                        "default is None of the antennas in the data set")
-
+parser.add_option( "--use-weights", dest="use_weights",action="store_true",
+                  default=False, help="Use SDP visability weights ")
 parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-o", "--output", dest="outfilebase",default=None,
                   help="Base name of output files (*.csv for output data and *.log for messages, "
@@ -196,7 +203,7 @@ parser.add_option("-o", "--output", dest="outfilebase",default=None,
 
 (opts, args) = parser.parse_args()
 
-if len(args) != 1 or not args[0].endswith('.h5'):
+if len(args) != 1:# or not args[0].endswith('.h5'):
     raise RuntimeError('Please specify a single HDF5 file as argument to the script')
 
 channel_mask = opts.channel_mask #
@@ -212,7 +219,7 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
 
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
-h5 = katdal.open(args)  
+h5 = katdal.open(args[0])  
 ant_list = [ant.name for ant in h5.ants] # Temp list for input options
 if opts.ants is not None  :
     ant_list = opts.ants.split(',')
@@ -237,7 +244,7 @@ for ant in range(len(h5.ants)):
 
 for cscan in h5.compscans() :
     print("Compound scan %i of field %s "%(cscan[0],cscan[2].name) )
-    offset_data = reduce_compscan_inf(h5,channel_mask)
+    offset_data = reduce_compscan_inf(h5,channel_mask,use_weights=opts.use_weights)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
         for antname in offset_data:
