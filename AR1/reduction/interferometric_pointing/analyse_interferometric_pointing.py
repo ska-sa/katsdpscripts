@@ -78,8 +78,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                 if use_weights :
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
-                    weights = np.ones_like(data[:,:,:].mean(axis=0)).astype(np.float)
-                gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
+                    weights = np.ones_like(data[:].mean(axis=0)).astype(np.float)
+                gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
                 pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
@@ -194,7 +194,7 @@ parser.add_option("-a", "--ants", dest="ants",default=None,
 parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
                   help="List of antennas to exculde from the reduction "
                        "default is None of the antennas in the data set")
-parser.add_option( "--use-weights", dest="use_weights",action="store_true",
+parser.add_option( "--use-weights",action="store_true",
                   default=False, help="Use SDP visability weights ")
 parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-o", "--output", dest="outfilebase",default=None,
