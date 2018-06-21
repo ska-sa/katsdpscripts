@@ -78,7 +78,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                 if use_weights :
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
-                    weights = np.ones_like(data[:].mean(axis=0)).astype(np.float)
+                    weights = np.ones(data.shape[1:]).astype(np.float)
                 gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
