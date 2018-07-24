@@ -23,7 +23,7 @@ def point(ants, target, timeout=300):
     ants.req.mode("POINT")
     user_logger.info("Slewing to target : %s" % (target,))
     # wait for antennas to lock onto target
-    ants.set_sampling_strategy("lock", "period 1.0")    
+    ants.set_sampling_strategy("lock", "period 1.0")
     success = ants.wait("lock", True, timeout)
     if success:
         user_logger.info("Tracking Target : %s " % (target,))
@@ -38,29 +38,29 @@ def point(ants, target, timeout=300):
 
 def plus_minus(num):
     return (np.mod(np.arange(num),2)*2-1)
-    
-    
+
+
 def  sample_bits(ant,pol,band='l'):
     tmp_data = np.zeros((5,4096, 4))
-    for i in range (5) : 
-        snap = ant.req.dig_adc_snap_shot(pol) 
-        tmp_data[i,:,:]= np.array([ snip.arguments[1:] for snip in  snap.messages[1:]]).astype('float')  
+    for i in range (5) :
+        snap = ant.req.dig_adc_snap_shot(pol)
+        tmp_data[i,:,:]= np.array([ snip.arguments[1:] for snip in  snap.messages[1:]]).astype('float')
     data = tmp_data.flatten()
     std = (data*plus_minus(data.shape[0] ) ).std()
     color_d = color_code(std, 12, 8)
     sensor  = '%s_dig_%s_band_rfcu_%spol_attenuation' %(ant.name, band, pol)
-    atten = kat.sensor.get(sensor).get_value()     
+    atten = kat.sensor.get(sensor).get_value()
     data1 = data.reshape(-1,256)
     bp = np.zeros((data1.shape[0]),dtype=np.complex)
     for i in xrange(data1.shape[0]):
         bp[i] = np.mean(np.abs(np.fft.fft(data1[i,:])[37:59]))
     voltage =  np.abs(bp.mean(axis=0))
     string = "%s ADC rms %s: %s%-4.1f %s  vlevel: %-4.1f  Attenuation : %-2i  "%(ant.name, pol, color_d, std, colors.Normal,voltage,atten)
-    print string,
+    user_logger.info(string)
     return std,atten,voltage
 
 
-    
+
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> "
 description = 'Calculate the attenuation needed and Set the attenuation to appropriate levels'
@@ -87,35 +87,32 @@ with verify_and_connect(opts) as kat:
     for pol in {'h', 'v'}:
         kat.ants.set_sampling_strategy("dig_%s_band_adc_%spol_attenuation" %
                                     (band, pol), "period 1.0")
-    
+
     if not kat.dry_run:
         point(kat.ants, 'SCP,radec,0,-90', timeout=300)
         ant_update = np.ones((len(kat.ants)*2)).astype(bool)
         while ant_update.sum() > 0 :
-            i = -1 
+            i = -1
             time.sleep(5)
-            print("New loop")     
+            print("New loop")
             for ant in kat.ants:
                 for pol in {'h', 'v'}:
                     i = i + 1
-                    if ant_update[i] : 
+                    if ant_update[i] :
                         ant_update[i] = False
                         std, atten, voltage = sample_bits(ant,pol)
-                        if atten < 32 and (voltage >adc_volt + 20 ):  # td > 12 and Up 
-                            print("%s %s: Changing attenuation from %idB to %idB " % (
+                        if atten < 32 and (voltage >adc_volt + 20 ):  # td > 12 and Up
+                            user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
                                 ant.name, pol, atten, atten+1))
                             ant.req.get("dig_attenuation")(pol, atten+1)
                             ant_update[i] = True
-                
+
                         if  atten > 0 and (voltage <adc_volt or std < adc_std_in) :  #std < 12 and Down
-                            print("%s %s: Changing attenuation from %idB to %idB " % (
+                            user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
                                 ant.name, pol, atten, atten-1))
                             ant.req.get("dig_attenuation")(pol, atten-1)
                             ant_update[i] = True
-                        if not ant_update[i] : 
-                            print 
-        
+
         for ant in kat.ants:
             for pol in {'h', 'v'}:
                 std, atten, voltage = sample_bits(ant,pol)
-                print 
