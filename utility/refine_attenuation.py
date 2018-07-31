@@ -94,8 +94,10 @@ with verify_and_connect(opts) as kat:
     if not kat.dry_run:
         point(kat.ants, 'SCP,radec,0,-90', timeout=300)
         ant_update = np.ones((len(kat.ants)*2)).astype(bool)
-        while ant_update.sum() > 0:
+        count = 0
+        while ant_update.sum() > 0 and count < 20:
             i = -1
+            count = count + 1
             time.sleep(5)
             print("New loop")
             for ant in kat.ants:
