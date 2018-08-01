@@ -35,6 +35,12 @@ parser.add_option('--bgain', default='0.01,1,5',
 parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
 
+## This is the set of bgains I want to work through 2 at a time:
+# [0.01 0.013 0.016 0.021 0.026 0.034
+# 0.043 0.055 0.070 0.089 0.113 0.144
+# 0.183 0.234 0.298 0.379 0.483 0.616
+# 0.785 1.        ]
+
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track', nd_params='coupler,30,0,-1')
 # Parse the command line
@@ -76,7 +82,8 @@ with verify_and_connect(opts) as kat:
             # for gain in np.logspace(np.log10(g_start),np.log10(g_end),g_step):
             # for bgain in np.linspace(b_start, b_end, b_step):
             # non_zero_bgains = np.linspace(b_start, b_end, b_step)
-            bgain_list = np.logspace(np.log10(b_start), np.log10(b_end), b_step)
+            # bgain_list = np.logspace(np.log10(b_start), np.log10(b_end), b_step)
+            bgain_list = np.linspace(b_start, b_end, b_step)
             #zero_bgains = np.zeros(int(b_step))
             #bgain_list = np.ravel(np.column_stack((zero_bgains,non_zero_bgains)))
             # interleave the bgains with zeros to be able to see when the bgain
