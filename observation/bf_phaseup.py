@@ -103,7 +103,7 @@ with verify_and_connect(opts) as kat:
         session.stop_antennas()
         user_logger.info("Waiting for gains to materialise in cal pipeline")
         # Wait for the last bfcal product from the pipeline
-        gains = session.get_cal_solutions('G', timeout=300.)
+        gains = session.get_cal_solutions('G', timeout=opts.track_duration)
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
         cal_channel_freqs = session.get_cal_channel_freqs()
