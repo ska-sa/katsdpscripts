@@ -50,8 +50,8 @@ def sample_bits(ant, pol, band='l'):
     data = tmp_data.flatten()
     std = (data*plus_minus(data.shape[0])).std()
     color_d = color_code(std, 12, 8)
-    sensor = '%s_dig_%s_band_rfcu_%spol_attenuation' % (ant.name, band, pol)
-    atten = kat.sensor.get(sensor).get_value()
+    sensor = 'dig_%s_band_rfcu_%spol_attenuation' % (band, pol)
+    atten = ant.sensor[sensor].get_value()
     data1 = data.reshape(-1, 256)
     bp = np.zeros((data1.shape[0]), dtype=np.complex)
     for i in xrange(data1.shape[0]):
