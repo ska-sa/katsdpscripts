@@ -369,15 +369,17 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
     #full = np.where(window_occ==1)
     #note std is returned in degrees
-    std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))
-    peakmin= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemin,min_periods=minsamples)))
-    peakmax= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemax,min_periods=minsamples)))
-    gain_val_corr = ((pandas.rolling_apply(gain_ts,window=windowtime,func=angle_mean,min_periods=minsamples)))
+    #std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))
+    std = gain_ts.rolling(window=windowtime,min_periods=minsamples).apply(angle_std,raw=True)
+
+    peakmin= gain_ts.rolling(window=windowtime,min_periods=minsamples).apply(anglemin,raw=True)
+    peakmax= gain_ts.rolling(window=windowtime,min_periods=minsamples).apply(anglemax,raw=True)
+    gain_val_corr = gain_ts.rolling(window=windowtime,min_periods=minsamples).apply(angle_mean,raw=True)
     #gain_val = pandas.Series(gain_ts-gain_val_corr, pandas.to_datetime(timestamps, unit='s') )
     gain_val = pandas.Series(np.angle(np.exp(1j*gain_ts)/np.exp(1j*gain_val_corr)), pandas.to_datetime(timestamps, unit='s'))
 
-    peak =  ((pandas.rolling_apply(gain_ts,window=windowtime,func=peak2peak,min_periods=minsamples)))
-    dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
+    peak =  gain_ts.rolling(window=windowtime,min_periods=minsamples).apply(peak2peak,raw=True)
+    dtrend_std = gain_ts.rolling(window=windowtime,min_periods=minsamples).apply(detrend,raw=True)
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     timeval = timestamps.max()-timestamps.min()
 
@@ -491,13 +493,13 @@ for pol in ('h','v'):
     data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
     i = 0
     for scan in h5.scans():
-        vis = read_and_select_file(h5, flags_file=rfi_flagging)
+        vis = h5.vis[:]#read_and_select_file(h5, flags_file=rfi_flagging)
         print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
         cal_baselines = vis.mean(axis=1)
                          #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
-        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
+        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],np.ones_like(cal_baselines,dtype=np.float),h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
         print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
         i += h5.shape[0]
