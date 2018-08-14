@@ -24,9 +24,9 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which '
                        'script will end as soon as the current track finishes '
                        '(no limit by default)')
-parser.add_option('--bgain', default='0.01,1,5',
-                  help='Values of the B-engine gains '
-                       'in the form "start,stop,number of steps" '
+parser.add_option('--bgain', default=[0.01,1,5], type='float', nargs=3,
+                  help='Values of the B-engine gains. Takes 3 arguments '
+                       'in the form start_value stop_value number_of_values_in_this_range '
                        '(default=%default)')
 parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
@@ -39,7 +39,7 @@ opts, args = parser.parse_args()
 if len(args) == 0:
     args.append('SCP, radec, 0, -90') 
 
-b_start,b_end,b_step =np.array(opts.bgain.split(',') ).astype(float)
+b_start,b_end,b_step = opts.bgain[0], opts.bgain[1], int(opts.bgain[2])
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
