@@ -54,7 +54,7 @@ def sample_bits(ant, pol, band='l'):
     atten = ant.sensor[sensor].get_value()
     windowed_data = data.reshape(-1, 256)
     voltage = np.abs(np.fft.fft(windowed_data)[:, 67:89]).mean() # 67:89  corresponds to 1300 to 1450 MHz
-    # channels 67:89  correspond to a RFI free section of band (1300 to 1450 MHz). 
+    # channels 67:89  correspond to a RFI free section of band (1300 to 1450 MHz).
     string = "%s ADC rms %s: %s%-4.1f %s  vlevel: %-4.1f  Attenuation : %-2i  " % (
         ant.name, pol, color_d, std, colors.Normal, voltage, atten)
     user_logger.info(string)
