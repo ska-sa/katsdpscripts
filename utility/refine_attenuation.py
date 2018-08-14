@@ -109,13 +109,13 @@ with verify_and_connect(opts) as kat:
                         if atten < 32 and (voltage > adc_volt + 20):  # Up
                             user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
                                 ant.name, pol, atten, atten+1))
-                            ant.req.get("dig_attenuation")(pol, atten+1)
+                            ant.req.dig_attenuation(pol, atten+1)
                             ant_update[i] = True
 
                         if atten > 0 and (voltage < adc_volt or std < adc_std_in):
                             user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
                                 ant.name, pol, atten, atten-1))
-                            ant.req.get("dig_attenuation")(pol, atten-1)
+                            ant.req.dig_attenuation(pol, atten-1)
                             ant_update[i] = True
 
         for ant in kat.ants:
