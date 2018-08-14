@@ -4,7 +4,7 @@
 import time
 import numpy as np
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                        collect_targets, start_session, user_logger, SessionCBF)
+                                collect_targets, start_session, user_logger, SessionCBF)
 
 
 class NoTargetsUpError(Exception):
@@ -24,7 +24,7 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which '
                        'script will end as soon as the current track finishes '
                        '(no limit by default)')
-parser.add_option('--bgain', default=[0.01,1,5], type='float', nargs=3,
+parser.add_option('--bgain', default=[0.01, 1, 5], type='float', nargs=3,
                   help='Values of the B-engine gains. Takes 3 arguments '
                        'in the form start_value stop_value number_of_values_in_this_range '
                        '(default=%default)')
@@ -37,9 +37,9 @@ parser.set_defaults(description='Target track', nd_params='coupler,30,0,-1')
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    args.append('SCP, radec, 0, -90') 
+    args.append('SCP, radec, 0, -90')
 
-b_start,b_end,b_step = opts.bgain[0], opts.bgain[1], int(opts.bgain[2])
+b_start, b_end, b_step = opts.bgain[0], opts.bgain[1], int(opts.bgain[2])
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -86,7 +86,7 @@ with verify_and_connect(opts) as kat:
                             break
                         duration = min(duration, time_left)
                     # Set the b-gain
-                    session.label('track_bgain,%g'%bgain)
+                    session.label('track_bgain, %g' % bgain)
                     for stream in cbf.beamformers:
                         stream.req.quant_gains(bgain)
                         user_logger.info("B-engine %s quantisation gain set to %g",
