@@ -397,9 +397,9 @@ if __name__ == '__main__':
     opts.keep_all=True
     opts.plot_spectrum=True
 
-    if len(args) != 1 or not args[0].endswith('.h5'):
+    if len(args) != 1 :
         parser.print_usage()
-        raise RuntimeError('Please specify a single HDF5 file as argument to the script')
+        raise RuntimeError('Please specify a single  file as argument to the script')
 
     print ('Loading HDF5 file %s into scape and reducing the data'%args[0])
     h5file = katdal.open(args[0])
