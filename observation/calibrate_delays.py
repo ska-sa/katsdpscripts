@@ -76,6 +76,8 @@ with verify_and_connect(opts) as kat:
         session.set_fengine_gains(gains)
         user_logger.info("Zeroing all delay adjustments for starters")
         session.set_delays(delays)
+        session.capture_init()
+        user_logger.warning("Only capture_start on correlator stream directly")
         session.cbf.correlator.req.capture_start()
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
