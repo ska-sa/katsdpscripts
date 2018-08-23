@@ -203,9 +203,6 @@ parser.add_option("-o", "--output", dest="outfilebase",default=None,
 
 (opts, args) = parser.parse_args()
 
-if len(args) != 1:# or not args[0].endswith('.h5'):
-    raise RuntimeError('Please specify a single HDF5 file as argument to the script')
-
 channel_mask = opts.channel_mask #
 
 output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
