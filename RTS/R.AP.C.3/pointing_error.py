@@ -91,7 +91,7 @@ def metrics(model,az,el,measured_delta_az, measured_delta_el ,std_delta_az ,std_
 
 
 parser = optparse.OptionParser(usage="%prog [opts] <directories or files>",
-                           description="This works out stability measures results of analyse_point_source_scans.py or an h5 file")
+                           description="This works out stability measures results of analyse_point_source_scans.py or an data file")
 parser.add_option("-o", "--output", dest="outfilebase", type="string", default='',
               help="Base name of output files (*.png for plots and *.csv for gain curve data)")
 #parser.add_option("-p", "--polarisation", type="string", default=None, 
@@ -112,8 +112,6 @@ if len(args) ==0:
     raise RuntimeError('Please specify a file to process.')
 
 min_rms=opts.min_rms
-if not args[0].endswith('.csv') and not args[0].endswith('.h5'):
-    raise RuntimeError('Correct File not passed to program. File should be csv file')
 
 if opts.ku_band:
     opts.channel_mask=None
@@ -125,7 +123,7 @@ for filename in args:
             data,ant = read_offsetfile(filename)
         else:
             data = np.r_[data,read_offsetfile(filename)]
-    if filename.endswith('.h5') : 
+    else:
         if data is None:
             ant, data = batch_mode_analyse_point_source_scans(filename,outfilebase='',baseline=opts.bline,
                         ku_band=opts.ku_band,channel_mask=opts.channel_mask,freq_chans=opts.chan_range)
