@@ -1,11 +1,12 @@
 #!/usr/bin/python
-# Do track, mini-raster and drift on nearest strong point source and reduce data to check power levels and verify antenna tracking 
+# Do track, mini-raster and drift on nearest strong point source and reduce data to check power levels and verify antenna tracking
 
 # The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
 from __future__ import with_statement
 
 import time
 from katcorelib import standard_script_options, verify_and_connect, collect_targets, start_session, user_logger
+import katconf
 import katpoint
 import math
 
@@ -45,7 +46,12 @@ opts, args = parser.parse_args()
 with verify_and_connect(opts) as kat:
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     try:
-        observation_sources.add_tle(file(args[0]))
+        # load file from head node via katconf server (e.g. gps-ops.txt)
+        file_path = 'katexternaldata/catalogues/%s' % (args[0])
+        user_logger.info('Adding TLE from file: %s', file_path)
+        lines = katconf.resource_string(file_path).split('\n')
+        lines = [line + '\r\n' for line in lines if len(line) > 0]
+        observation_sources.add_tle(lines)
     except (IOError, ValueError):#IOError or ValueError : # If the file failed to load assume it is a target string
         args_target_obj = collect_targets(kat,args)
         observation_sources.add(args_target_obj)
