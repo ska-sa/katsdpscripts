@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Track target(s) for a specified time.
+# This script sets the attenuation values based on a csv file
 
 import numpy as np
 from katcorelib import (
@@ -7,18 +7,19 @@ from katcorelib import (
 
 
 def color_code_eq(value, test,errorv=0.01):
-""" This function returns the color code string bassed on if the values are within a range
-Example:
-        $ color_code_eq(1., 2.,errorv=0.01)
-    returns yellow color code
+    """
+        This function returns the color code string bassed on if the values are within a range
+        Example:
+                $ color_code_eq(1., 2.,errorv=0.01)
+            returns yellow color code
     
-        $ color_code_eq(1., 1.0005,errorv=0.01)
-    returns green color code
+                $ color_code_eq(1., 1.0005,errorv=0.01)
+            returns green color code
     
-    value, test,errorv are floating point numbers
-    value and test are the 2 values tested
-    and errorv is the equality range.
-"""
+            value, test,errorv are floating point numbers
+            value and test are the 2 values tested
+            and errorv is the equality range.
+    """
     code_color = colors.Green
     if value >= test + errorv or value <= test - errorv :
         code_color = colors.Yellow
@@ -26,20 +27,20 @@ Example:
 
 
 def measure_atten(ant, pol,atten_ref=None, band='l'):
-""" This function returns the attenuation of an antenna and colors the 
-    logging if this number differs from the reference value
-Example:
-        $ measure_atten('m064', 'h',atten_ref=5)
-    returns 4
-    with log message:
-    <<date time>> m064 h  Attenuation : <yellow> 4 <default color> "
+    """ This function returns the attenuation of an antenna and colors the 
+        logging if this number differs from the reference value
+    Example:
+            $ measure_atten('m064', 'h',atten_ref=5)
+        returns 4
+        with log message:
+        <<date time>> m064 h  Attenuation : <yellow> 4 <default color> "
     
-    ant, pol are strings point numbers
-    value and test are the antenna name and the polorisation
-    and atten_ref is the expected values.
-"""
+        ant, pol are strings point numbers
+        value and test are the antenna name and the polorisation
+        and atten_ref is the expected values.
+    """
     
-    sensor = 'dig_%s_band_rfcu_%spol_attenuation' % (band, pol)
+    sensor = "dig_%s_band_rfcu_%spol_attenuation" % (band, pol)
     atten = ant.sensor[sensor].get_value()
     color_d = color_code_eq(atten, atten_ref)
     string = "%s %s  Attenuation : %s %-2i %s " % (
