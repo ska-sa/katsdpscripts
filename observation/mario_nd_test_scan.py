@@ -86,11 +86,13 @@ with verify_and_connect(opts) as kat:
                                                     cycle_length)
             if not kat.dry_run:
                 user_logger.info('Actual settings from digitisers:')
-                user_logger.info('  %-4s %-16s %-16s %-16s',
+                user_logger.info('  %-5s %-16s %-16s %-16s',
                                  'ant', 'timestamp', 'on-fraction', 'cycle-length')
                 for ant in sorted(replies):
                     reply, informs = replies[ant]
-                    actual_time, actual_on_frac, actual_cycle = reply[1:4]
+                    actual_time = float(reply.arguments[1])
+                    actual_on_frac = float(reply.arguments[2])
+                    actual_cycle = float(reply.arguments[3])
                     user_logger.info('  %-4s %16.4f %16.14f %16.14f',
                                      ant, actual_time, actual_on_frac, actual_cycle)
         else:
