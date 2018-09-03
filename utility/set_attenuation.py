@@ -66,7 +66,7 @@ with verify_and_connect(opts) as kat:
     for pol in {'h', 'v'}:
         kat.ants.set_sampling_strategy("dig_%s_band_adc_%spol_attenuation" %
                                        (band, pol), "period 1.0")
-    tmp_data = np.loadtxt(args[0], dtype=np.str)
+    tmp_data = np.loadtxt(args[0], dtype=np.str,delimiter=',')
     atten_ref = {}
     for ant, pol, value in tmp_data:
         try:
@@ -79,10 +79,13 @@ with verify_and_connect(opts) as kat:
     if not kat.dry_run:
         for ant in kat.ants:
             for pol in {'h', 'v'}:
-                atten = measure_atten(
-                    ant, pol, atten_ref=atten_ref['%s%s' % (ant.name, pol)], band='l')
-                if atten != atten_ref['%s%s' % (ant.name, pol)]:
-                    user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
-                        ant.name, pol, atten, atten_ref['%s%s' % (ant.name, pol)]))
-                    ant.req.dig_attenuation(
-                        pol, atten_ref['%s%s' % (ant.name, pol)])
+                if '%s%s' % (ant.name, pol) in atten_ref:
+                    atten = measure_atten(
+                        ant, pol, atten_ref=atten_ref['%s%s' % (ant.name, pol)], band='l')
+                    if atten != atten_ref['%s%s' % (ant.name, pol)]:
+                        user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
+                            ant.name, pol, atten, atten_ref['%s%s' % (ant.name, pol)]))
+                        ant.req.dig_attenuation(
+                            pol, atten_ref['%s%s' % (ant.name, pol)])
+                else :
+                    user_logger.error("%s %s: Has no attenuation value in the file " % (ant.name, pol) )
