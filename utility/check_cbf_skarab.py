@@ -7,8 +7,6 @@ import time
 from ast import literal_eval
 from pprint import pprint
 
-from katcp import Sensor
-from katcp.resource import SensorResultTuple, KATCPSensorReading
 from katcorelib import standard_script_options, user_logger
 from katcorelib import cambuild
 from katmisc.utils.ansi import colors, get_sensor_colour, gotoxy, clrscr, col, getKeyIf
@@ -125,16 +123,22 @@ with cambuild(sub_nr=subnr) as kat:
         exit(0)
 
     cbf = kat.cbf
-    cbfmon = getattr(kat, "cbfmon_{}".format(subnr))
+    if 'cbf_dev_{}'.format(subnr) in sub_pool:
+        cbfmon_prefix = "cbfmon_dev"
+    else:
+        cbfmon_prefix = "cbfmon"
+    cbfmon = getattr(kat, "{}_{}".format(cbfmon_prefix, subnr))
 
-    log_message("Waiting for cbf_{0} and cbfmon_{0} to sync\n".format(subnr))
+    log_message("Waiting for cbf_{0} and {1}_{0} to sync\n".format(subnr, cbfmon_prefix))
     cbf_ok = cbf.until_synced(timeout=15)
     cbfmon_ok = cbfmon.until_synced(timeout=60)
 
     if not (cbf_ok and cbfmon_ok):
         log_message("Some resources did not sync \n kat.cbf_{}={} "
-                    "kat.cbfmon_{}={}\n{}\n\n"
-                    .format(subnr, cbf_ok, subnr, cbfmon_ok, kat.get_status()), 'error')
+                    "kat.{}_{}={}\n{}\n\n"
+                    .format(subnr, cbf_ok, cbfmon_prefix,
+                            subnr, cbfmon_ok, kat.get_status()),
+                    'error')
         log_message("Aborting script", 'error')
         raise RuntimeError(
             "Aborting - Some resources did not sync \n{}\n\n"
@@ -155,7 +159,7 @@ with cambuild(sub_nr=subnr) as kat:
             gotoxy(1, 1)
 
         truncate = False
-        sens_filter = 'device-status|feng-rxtime-ok|xeng-vaccs-synchronised'
+        sens_filter = 'device-status|feng-rxtime-ok|xeng-vaccs-synchronised|fhost\d+.network.[rt]x-gbps'
         sens_status = 'warn|error|unknown|failure'
         while c != 'q' and c != 'Q':
             if once:
@@ -283,7 +287,10 @@ with cambuild(sub_nr=subnr) as kat:
             sens = []
             for inform in informs:
                 timestamp, _count, name, status, value = inform.arguments
-                if status in sens_statuses:
+                special = False
+                if name.endswith('x-gbps'):
+                    special = value < 1.0  # flag very low rx and tx rates as well
+                if status in sens_statuses or special:
                     sens.append((name, float(timestamp), reading_time, status, value))
 
             print('Filter: {}, Status: {},  {}/{} sensors\n'
