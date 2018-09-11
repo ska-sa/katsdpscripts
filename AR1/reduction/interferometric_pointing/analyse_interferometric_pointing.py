@@ -17,14 +17,17 @@ def activity(h5,state = 'track'):
     antlist = [a.name for a in h5.ants]
     activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
     for i,ant in enumerate(antlist) :
-        sensor = h5.sensor['%s_activity'%(ant)]
-        activityV[i,:] +=   (sensor==state)
+        sensor = h5.sensor['%s_activity'%(ant)] ==state
+        if ~np.any(sensor):
+            print ("Antenna %s has no valid %s data"%(ant,state))
+        noise_diode = ~h5.sensor['Antennas/%s/nd_coupler'%(ant)]
+        activityV[i,:] +=   noise_diode &  sensor
     return np.all(activityV,axis=0)
 
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
-def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_weights=False):
+def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_weights=False,compscan_index=None):
     """Break the band up into chunks"""
     chunk_size = chunks
     rfi_static_flags = np.tile(False, h5.shape[0])
@@ -35,8 +38,16 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
     gains_p = {}
     stdv = {}
     calibrated = False # placeholder for calibration
+    h5.select(compscans=compscan_index)
+    a = []
+    if len(h5.target_indices ) > 1 :
+        print("Warning multiple targets in the compscan")
+    for scan in h5.scans() :
+        a.append(h5.target_indices[0])
+    target = h5.catalogue.targets[np.median(a).astype(np.int)] # Majority Track
+    compscan_index = h5.compscan_indices[0]
+    #h5.select(targets=target,compscans=h5.compscan_indices[0]) # Majority Track in compscan
     if not return_raw:     # Calculate average target flux over entire band
-        target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
         temperature = np.mean(h5.temperature)
@@ -67,9 +78,9 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=h5.antlist)
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=target,compscans=compscan_index)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
-        for scan in h5.scans() : 
+        for scan in h5.scans() :
             if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
             data = h5.vis[valid_index]
@@ -130,7 +141,12 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         for ant in range(len(h5.ants)):
-            if np.any(np.isfinite(w_average(gaussian_centre[:,:,ant],axis=0,weights=1./gaussian_centre_std[:,:,ant]**2)) ) : # a bit overboard
+            h_pol = ~np.isnan(gaussian_centre[:,0,ant]) & ~np.isnan(1./gaussian_centre_std[:,0,ant])
+            v_pol = ~np.isnan(gaussian_centre[:,1,ant]) & ~np.isnan(1./gaussian_centre_std[:,1,ant])
+            valid_solutions = np.count_nonzero(h_pol & v_pol)
+            #raise RuntimeError("Stop")
+            if valid_solutions > 1 : # a bit overboard
+                #print("%i valid solutions found "%())
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
                 ant_pointing[name]["antenna"] = h5.ants[ant].name
@@ -179,7 +195,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                     ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian_centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],1,ant]**2)
                     ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],0,ant]**2) )
                     ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],1,ant]**2) )
-
+            else:
+                print("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
         return ant_pointing
 
 
@@ -224,6 +241,8 @@ if opts.ex_ants is not None :
     for ant in opts.ex_ants.split(','):
         if ant in ant_list:
             ant_list.remove(ant)
+h5 = katdal.open(args[0],ref_ant=ant_list[0])
+print("Using %s as the reference antenna "%(ant_list[0]))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 h5.antlist = [a.name for a in h5.ants]
@@ -238,10 +257,9 @@ for ant in range(len(h5.ants)):
     f[name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
     f[name].write('# antenna = %s\n' % h5.ants[ant].description)
     f[name].write(', '.join(output_field_names) + '\n')
-
-for cscan in h5.compscans() :
-    print("Compound scan %i of field %s "%(cscan[0],cscan[2].name) )
-    offset_data = reduce_compscan_inf(h5,channel_mask,use_weights=opts.use_weights)
+for compscan_index  in h5.compscan_indices :
+    print("Compound scan %i  "%(compscan_index) )
+    offset_data = reduce_compscan_inf(h5,channel_mask,use_weights=opts.use_weights,compscan_index=compscan_index)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
         for antname in offset_data:
