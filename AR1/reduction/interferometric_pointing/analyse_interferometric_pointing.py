@@ -164,8 +164,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
             print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
             if debug :#debug_text
                 for pol_i,pol in enumerate( ["H","V"]):
-                    line = []
                     for chunk in range(chunks*pol_i,chunks*(pol_i+1)):
+                        line = []
                         freq = h5.channel_freqs[slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))].mean()
                         line.append(h5.ants[ant].name+pol)
                         line.append(target.name)
@@ -180,7 +180,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                         line.append(str(gaussian_width_std[chunk,1,ant]))
                         line.append(str(gaussian_height[chunk,ant]))
                         line.append(str(gaussian_height_std[chunk,ant]))
-                    debug_text.append(','.join(line) )
+                        debug_text.append(','.join(line) )
             if valid_solutions//2 > 0 : # a bit overboard
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
