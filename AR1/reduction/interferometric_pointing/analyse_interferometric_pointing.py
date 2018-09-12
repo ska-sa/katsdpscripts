@@ -181,10 +181,11 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                         line.append(str(gaussian_height[chunk,ant]))
                         line.append(str(gaussian_height_std[chunk,ant]))
                     debug_text.append(','.join(line) )
-            if valid_solutions > 1 : # a bit overboard
+            if valid_solutions//2 > 0 : # a bit overboard
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
                 ant_pointing[name]["antenna"] = h5.ants[ant].name
+                ant_pointing[name]["valid_solutions"] = valid_solutions
                 ant_pointing[name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
                 ant_pointing[name]["target"] = target.name
                 ant_pointing[name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
@@ -273,7 +274,7 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
                 '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
                 '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
                 '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
-                '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
+                '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i, %(valid_solutions)i \n'
 
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
