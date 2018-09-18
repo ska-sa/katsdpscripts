@@ -233,8 +233,8 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
     plt.suptitle("Weather Data",fontsize=16, fontweight="bold")
     ax1 = fig.add_subplot(211)
     #Plot Air Temperature
-    airtemp=f.sensor['Enviro/asc.air.temperature']
-    rh=f.sensor['Enviro/asc.air.relative-humidity']
+    airtemp=f.temperature
+    rh=f.humidity
     if np.all(np.isnan(airtemp)):
         plt.setp(ax1, visible=False)
         plt.figtext(0.2,0.9,"No temperature data available.", ha='left', va='center', transform=ax1.transAxes)
@@ -291,7 +291,7 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
 
     ax3=fig.add_subplot(212)
     ax3.set_xlabel("SAST on "+starttime,fontweight="bold")
-    ap=f.sensor['Enviro/asc.air.pressure']
+    ap=f.pressure
     if np.all(np.isnan(ap)):
         plt.setp(ax3, visible=False)
         plt.figtext(0.2,0.4,"No air pressure data available.", ha='left', va='center', transform=ax1.transAxes)
@@ -312,7 +312,7 @@ def plot_envioronmental_sensors(f,starttime,lst_time,loc_datetime):
         ax3.set_ylabel('Air Pressure (kPa)', fontweight="bold",color='r')
         for tl in ax3.get_yticklabels():
 	       tl.set_color('r')
-    wspeed=f.sensor['Enviro/asc.wind.speed']
+    wspeed=f.wind_speed
     ax4=ax3.twinx()
     if np.all(np.isnan(wspeed)):
         plt.setp(ax4, visible=False)

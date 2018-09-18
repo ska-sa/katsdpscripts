@@ -11,13 +11,8 @@ def select_and_average(filename, average_time):
     data = katdal.open(filename)
 
     raw_timestamps = data.sensor.timestamps
-    #Different sensors for h5datav2 and h5datav3
-    if data.version < 3.0:
-        raw_wind_speed = data.sensor.get('Enviro/asc.wind.speed')
-        raw_temperature = data.sensor.get('Enviro/asc.air.temperature')
-    else:
-        raw_wind_speed = data.sensor.get('Enviro/mean_wind_speed')
-        raw_temperature = data.sensor.get('Enviro/air_temperature')
+    raw_wind_speed = data.wind_speed
+    raw_temperature = data.temperature
     raw_dumptime = data.dump_period
 
     # Get azel of each antenna and separation of each antenna

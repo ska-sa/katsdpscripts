@@ -69,8 +69,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
             logger.debug("Processing: %s%s"%(a.name,pol))
             ant = a.name
             ant_num = int(ant[3])
-            
-            air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
+            air_temp = h5.temperature.mean()
             if not(Ku):
                 try:
                     rx_sn = h5.receivers[ant]
