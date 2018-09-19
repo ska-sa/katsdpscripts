@@ -111,7 +111,7 @@ for file in files:
         continue
 
     try:
-        log = h5.sensor['Observation/script_log']
+        log = h5.obs_script_log
     except(IndexError,KeyError):
         badFiles = np.append(badFiles,file)
     

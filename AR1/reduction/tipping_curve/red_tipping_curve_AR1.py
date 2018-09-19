@@ -652,7 +652,7 @@ for ant in h5.ants:
             d.enviro=myenv
     surface_temperature = np.mean(d.enviro['temperature']['value'])
     try:
-        air_relative_humidity = h5.sensor['Enviro/air_relative_humidity'].mean()/100. # Fractional
+        air_relative_humidity = h5.humidity.mean()/100.  # Fractional
     except:
         air_relative_humidity = d.enviro['humidity']['value'].mean()/100. # Fractional
     length = 0

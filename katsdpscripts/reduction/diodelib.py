@@ -200,7 +200,6 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
             Tsys_std[pol] = None
-            #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_sn+'.'+pol+'.csv'
                 logger.info('Loading noise diode file %s from config'%diode_filename)

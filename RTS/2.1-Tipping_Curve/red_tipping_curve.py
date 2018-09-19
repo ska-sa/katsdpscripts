@@ -671,7 +671,7 @@ for ant in h5.ants:
     sort_ind  = elevation.argsort()
     elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
     surface_temperature = np.mean(d.enviro['temperature']['value'])
-    air_relative_humidity = h5.sensor['Enviro/air_relative_humidity'].mean()/100. # Fractional
+    air_relative_humidity = h5.humidity.mean()/100. # Fractional
     length = 0
     #freq loop
     for i,freq_val in enumerate(d.freqs):
