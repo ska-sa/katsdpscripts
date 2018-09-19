@@ -29,29 +29,29 @@ def move_to(ants, az, el):
     time.sleep(10)
 
 
-def elevation_test(ants, az, el, dry_run=False):
+def elevation_test(ants, dry_run=False):
 
     user_logger.info("Elevation sequence.")
     if not dry_run:
         user_logger.info("Starting position...")
-        move_to(ants, az, 15.0)
+        move_to(ants, 0.0, 15.0)
 
         user_logger.info("High elevation (88 degrees)...")
-        move_to(ants, az, 88.0)
+        move_to(ants, 0.0, 88.0)
 
         user_logger.info("Low elevation (15 degrees)...")
-        move_to(ants, az, 15.0)
+        move_to(ants, 0.0, 15.0)
 
         user_logger.info("High elevation (88 degrees)...")
-        move_to(ants, az, 88.0)
+        move_to(ants, 0.0, 88.0)
 
         user_logger.info("Low elevation (15 degrees)...")
-        move_to(ants, az, 15.0)
+        move_to(ants, 0.0, 15.0)
 
         user_logger.info("Elevation pattern complete")
 
 
-def azimuth_test(ants, az, el, dry_run=False):
+def azimuth_test(ants, dry_run=False):
 
     user_logger.info("Azimuth sequence.")
     if not dry_run:
@@ -77,13 +77,6 @@ def azimuth_test(ants, az, el, dry_run=False):
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description="Do basic full range elevation and azimuth movement for encoder count measurements")
 
-parser.add_option('--start-az', type='float',
-                  default=0.0,
-                  help='Starting azimuth (default=%default)')
-parser.add_option('--start-el', type='float',
-                  default=15.0,
-                  help='Starting elevation (default=%default)')
-
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -106,8 +99,6 @@ with verify_and_connect(opts) as kat:
             user_logger.error("Unable to set Antenna mode to 'STOP'.")
 
     # Move to starting position for elevation stage of test
-    elevation_test(kat.ants, float(opts.start_az), float(opts.start_el),
-                   dry_run=kat.dry_run)
+    elevation_test(kat.ants, dry_run=kat.dry_run)
 
-    azimuth_test(kat.ants, float(opts.start_az), float(opts.start_el),
-                 dry_run=kat.dry_run)
+    azimuth_test(kat.ants, dry_run=kat.dry_run)
