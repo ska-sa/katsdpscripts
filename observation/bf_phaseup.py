@@ -37,6 +37,10 @@ parser.add_option('--default-gain', type='int', default=0,
                        'automatically set if 0 (default=%default)')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
+parser.add_option('--flatten-bandpass_volt', action='store_true', default=False,
+                  help='Applies magnitude bandpass correction in addition to phase correction')
+parser.add_option('--flatten-bandpass_power', action='store_true', default=False,
+                  help='Applies magnitude**2 bandpass correction in addition to phase correction')
 parser.add_option('--random-phase', action='store_true', default=False,
                   help='Applies random phases in F-engines')
 parser.add_option('--fft-shift', type='int',
@@ -128,8 +132,13 @@ with verify_and_connect(opts) as kat:
                 if opts.random_phase:
                     phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
                 new_weights[inp] = opts.default_gain * phase_weights.conj()
-                if opts.flatten_bandpass:
-                    new_weights[inp] /= amp_weights
+                if opts.flatten_bandpass_volt or opts.flatten_bandpass:
+                    volt_flat  = new_weights[inp]/np.abs(new_weights[inp]) # flatten voltages
+                    new_weights[inp] = opts.default_gain*volt_flat
+                if opts.flatten_bandpass_power:
+                    power_flat = new_weights[inp]/(new_weights[inp]**2) # flatten power
+                    new_weights[inp] = opts.default_gain*power_flat/np.abs(power_flat).mean()
+
         session.set_fengine_gains(new_weights)
         if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
