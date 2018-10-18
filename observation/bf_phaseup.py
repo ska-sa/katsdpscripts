@@ -37,8 +37,6 @@ parser.add_option('--default-gain', type='int', default=0,
                        'automatically set if 0 (default=%default)')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
-parser.add_option('--flatten-bandpass_power', action='store_true', default=False,
-                  help='Applies magnitude**2 bandpass correction in addition to phase correction')
 parser.add_option('--timeout', type='float', default=64.0,
                   help='Time to wait for solutions to appear, in seconds (default=%default)')
 parser.add_option('--random-phase', action='store_true', default=False,
@@ -54,17 +52,17 @@ parser.set_defaults(observer='Operations', nd_params='off', proposal_id='COM-304
 opts, args = parser.parse_args()
 
 # Set phase-up calibrators targets with flux models. N.B. This must disappear once all calibrators are in katconfig!!!
-J1939 = 'J0408-6545 | 0408-658, radec bfcal single_accumulation, 04:08:20.38, -65:45:09.6, (145. 18000. -0.9790 3.3662 -1.1216 0.0861)'
-J0408 = 'J1331+3030 | 3C286, radec bfcal single_accumulation, 13:31:08.288, +30:30:32.959, (50. 50000. 0.0181 1.5920 -0.5011 0.0357)'
-J1331 = 'J1939-6342 | 1934-638, radec bfcal single_accumulation, 19:39:25.05, -63:42:43.63, (408. 8640. -30.7667 26.4908 -7.0977 0.605334)'
+J0408 = 'J0408-6545 | 0408-658, radec bfcal single_accumulation, 04:08:20.38, -65:45:09.6, (145. 18000. -0.9790 3.3662 -1.1216 0.0861)'
+J1331 = 'J1331+3030 | 3C286, radec bfcal single_accumulation, 13:31:08.288, +30:30:32.959, (50. 50000. 0.0181 1.5920 -0.5011 0.0357)'
+J1939 = 'PKS1934-638 | 1934-638, radec bfcal single_accumulation, 19:39:25.05, -63:42:43.63, (408. 8640. -30.7667 26.4908 -7.0977 0.605334)'
 
 # Check options and build KAT configuration, connecting to proxies and devices.
 with verify_and_connect(opts) as kat:
     if len(args) == 0:
         observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-        observation_sources.add(J1939)
         observation_sources.add(J0408)
         observation_sources.add(J1331)
+        observation_sources.add(J1939)
     else:
         observation_sources = collect_targets(kat, args)
     if opts.reconfigure_sdp:
@@ -107,7 +105,7 @@ with verify_and_connect(opts) as kat:
         session.stop_antennas()
         user_logger.info('Waiting for gains to materialise in cal pipeline')
         # Wait for the last bfcal product from the pipeline.
-        gains = session.get_cal_solutions('G', timeout=opts.timeout)
+        gains = session.get_cal_solutions('G', timeout=opts.track_duration)
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
         cal_channel_freqs = session.get_cal_channel_freqs()
