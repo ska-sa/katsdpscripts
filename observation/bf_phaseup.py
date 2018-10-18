@@ -47,7 +47,7 @@ parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options).
 parser.set_defaults(observer='Operations', nd_params='off', proposal_id='COM-304',
-                    description='COM-304 Phase-up observation that sets the F-engine weights and flattens the bandpass.')
+                    description='COM-304 Phase-up observation for setting F-engine weights and flattening the bandpass.')
 # Parse the command line.
 opts, args = parser.parse_args()
 
