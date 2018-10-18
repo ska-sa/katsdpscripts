@@ -86,7 +86,6 @@ with verify_and_connect(opts) as kat:
         session.cbf.correlator.req.capture_start()
         # Pick source with the highest elevation as our target.
         target = observation_sources.sort('el').targets[-1]
-        target.add_tags('bfcal single_accumulation')
         if not opts.default_gain:
             channels = 32768 if session.product.endswith('32k') else 4096
             opts.default_gain = DEFAULT_GAIN[channels]
