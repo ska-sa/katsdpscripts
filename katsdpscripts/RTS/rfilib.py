@@ -307,7 +307,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
         if mvf.version[0] == '4':
-            mvf.source.data.flags = da.from_array(flags_dataset, chunks=(1, 1024, mvf.shape[2]))
+            mvf.source.data.flags = da.from_array(flags_dataset, chunks=mvf.source.data.flags.chunksize)
         elif mvf.version[0] == '3':
             mvf._flags = flags_dataset
 
