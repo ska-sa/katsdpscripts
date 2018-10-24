@@ -51,18 +51,11 @@ parser.set_defaults(observer='Operations', nd_params='off', proposal_id='COM-304
 # Parse the command line.
 opts, args = parser.parse_args()
 
-# Set phase-up calibrators targets with flux models. N.B. This must disappear once all calibrators are in katconfig!!!
-J0408 = 'J0408-6545, radec bfcal single_accumulation, 04:08:20.38, -65:45:09.6, (145. 18000. -0.9790 3.3662 -1.1216 0.0861)'
-J1331 = '3C286, radec bfcal single_accumulation, 13:31:08.288, +30:30:32.959, (50. 50000. 0.0181 1.5920 -0.5011 0.0357)'
-J1939 = 'PKS1934-638, radec bfcal single_accumulation, 19:39:25.05, -63:42:43.63, (408. 8640. -30.7667 26.4908 -7.0977 0.605334)'
 
 # Check options and build KAT configuration, connecting to proxies and devices.
 with verify_and_connect(opts) as kat:
     if len(args) == 0:
         observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-        observation_sources.add(J0408)
-        observation_sources.add(J1331)
-        observation_sources.add(J1939)
     else:
         observation_sources = collect_targets(kat, args)
     if opts.reconfigure_sdp:
