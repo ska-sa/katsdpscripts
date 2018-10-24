@@ -6,6 +6,7 @@ import multiprocessing
 
 import katdal
 from katdal.h5datav3 import FLAG_NAMES
+from katdal.lazy_indexer import DaskLazyIndexer
 import katpoint
 
 from matplotlib.backends.backend_pdf import PdfPages
@@ -247,6 +248,18 @@ def plot_waterfall(visdata, flags=None, channel_range=None, output=None):
         plt.savefig(output)
 
 
+def load_data(data_list, slices):
+    """
+    Load datasets in data_list using :meth:`get`
+    if it is available, otherwise just read from the datasets
+    one at a time.
+    """
+    if isinstance(data_list[0], DaskLazyIndexer):
+        return data_list[0].get(data_list, slices)
+    else:
+        return [data[slices] for data in data_list]
+
+
 def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5,
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
@@ -311,8 +324,6 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         elif mvf.version[0] == '3':
             mvf._flags = flags_dataset
 
-    freq_length = mvf.shape[1]
-
     # Read static flags from pickle
     if static_flags:
         sff = open(static_flags)
@@ -338,6 +349,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                                   time_extend=time_extend, freq_extend=freq_extend, average_freq=average_freq)
 
     for scan, state, target in mvf.scans():
+        # We only want the abs of vis
+        mvf.vis.add_transform(np.abs)
         if tracks_only and state != 'track':
             continue
         # Take slices through scan if it is too large for memory
@@ -348,15 +361,11 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             scan_slices = [slice(0, mvf.shape[0])]
         # loop over slices
         for this_slice in scan_slices:
-            # Don't read all of the data in one hit- loop over timestamps instead
-            this_data = np.empty((this_slice.stop-this_slice.start,
-                                  freq_range.stop-freq_range.start, mvf.shape[2],), dtype=np.float32)
-            flags = np.zeros((this_slice.stop-this_slice.start,
-                              freq_range.stop-freq_range.start, mvf.shape[2],), dtype=np.bool)
-            for index, dump in enumerate(range(*this_slice.indices(mvf.shape[0]))):
-                this_data[index] = np.abs(mvf.vis[dump, freq_range])
-                if use_file_flags:
-                    flags[index] = mvf.flags[dump, freq_range]
+            if use_file_flags:
+                this_data, flags = load_data([mvf.vis, mvf.flags,], np.s_[this_slice, freq_range, :])
+            else:
+                this_data = load_data([mvf.vis], np.s_[this_slice, freq_range, :])[0]
+                flags = np.zeros_like(this_data, dtype=np.bool)
             # OR the mask flags with the flags already in the mvf file
             flags = np.logical_or(flags, mask_array[:, freq_range, :])
             with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
@@ -444,11 +453,8 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
         pdf = PdfPages(basename+'.pdf')
         corrprodselect = [[bline[0] + 'h', bline[1] + 'h'], [bline[0] + 'v', bline[1] + 'v']]
         mvf.select(reset='TFB', corrprods=corrprodselect, flags=flags_to_show)
-        vis = np.empty(mvf.shape, dtype=np.float32)
-        flags = np.zeros(mvf.shape, dtype=np.bool)
-        for dump in range(mvf.shape[0]):
-            vis[dump] = np.abs(mvf.vis[dump])
-            flags[dump] = mvf.flags[dump]
+        mvf.vis.add_transform(np.abs)
+        vis, flags = load_data([mvf.vis, mvf.flags], np.s_[:, :, :])
         if tracks_only:
             mvf.select(scans='track')
         # Populate data_dict
