@@ -37,6 +37,8 @@ parser.add_option('--default-gain', type='int', default=0,
                        'automatically set if 0 (default=%default)')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
+parser.add_option('--flatten-bandpass-old', action='store_true', default=False,
+                  help='Applies old magnitude bandpass correction in addition to phase correction')
 parser.add_option('--timeout', type='float', default=64.0,
                   help='Time to wait for solutions to appear, in seconds (default=%default)')
 parser.add_option('--random-phase', action='store_true', default=False,
@@ -124,6 +126,11 @@ with verify_and_connect(opts) as kat:
                 new_weights[inp] = opts.default_gain * phase_weights.conj()  # Create new complex weights/gains.
                 if opts.flatten_bandpass:
                     new_weights[inp] /= (amp_weights / amp_weights.mean())  # Flatten bandpass magnitude.
+                if opts.flatten_bandpass_old:
+                    new_weights[inp] /= amp_weights  # Flatten bandpass magnitude.
+                if opts.flatten_bandpass and opts.flatten_bandpass_old:
+                    user_logger.info('Two options selected, opting for older flatten bandpass option')
+                    new_weights[inp] /= amp_weights  # Flatten bandpass magnitude.
         session.set_fengine_gains(new_weights)
         if opts.verify_duration > 0:
             user_logger.info('Revisiting target %r for %g seconds to verify phase-up',
