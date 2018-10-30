@@ -404,7 +404,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 this_data = load_data([mvf.vis], np.s_[this_slice, freq_range, :])[0]
                 flags = np.zeros_like(this_data, dtype=np.bool)
             # OR the mask flags with the flags already in the mvf file
-            flags = np.logical_or(flags[:, :, bl_mask], mask_array[:, freq_range, :])
+            flags[:, :, bl_mask] |= mask_array[:, freq_range, :]
             with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
                 detected_flags = flagger.get_flags(this_data, flags, pool)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%" % \
@@ -412,7 +412,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             # Add new flags to flag table
             flags = np.zeros((this_slice.stop-this_slice.start, mvf.shape[1], mvf.shape[2],), dtype=np.uint8)
             # Add mask to 'static' flags
-            flags |= mask_array.astype(np.uint8)*(2**FLAG_NAMES.index('static'))
+            flags[:, :, bl_mask] |= mask_array.astype(np.uint8)*(2**FLAG_NAMES.index('static'))
             # Flag non-tracks and add to 'cam' flags
             if mask_non_tracks:
                 # Set up mask for cam flags
