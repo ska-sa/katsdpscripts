@@ -592,9 +592,9 @@ parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aper
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
-parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
-                  help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
-
+parser.add_option("-c", "--channel-mask", default=None,
+                  help="Optional pickle file with boolean array specifying channels to mask (default is the "
+                  "default mask for the band) if no mask is wanted then specify --channel-mask=''  ")
 (opts, args) = parser.parse_args()
 
 if len(args) < 1:
@@ -612,7 +612,7 @@ spill_over_models =  opts.spill_over_models
 filename = args[0]
 channel_bw = opts.freq_bw
 freq_bw = opts.freq_bw
-channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
+#channel_mask = opts.channel_mask #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
 n_chans = h5.shape[1]
 
 fix_opacity = opts.fix_opacity
@@ -632,8 +632,21 @@ for ant in h5.ants:
         Band = 'L'
         SN = h5.sensor['Antennas/'+ant.name+'/rsc_rxl_serial_number'][0] # Try get the serial no. only used for noise&recever model
         warnings.warn('Warning: Failed to find Receiver model, setting band to L  ')
-        print('Warning: Failed to find Receiver model, setting band to L ')       
+        print('Warning: Failed to find Receiver model, setting band to L ')
 
+    if opts.channel_mask is None: # use band appopriate masks. #'/var/kat/katsdpscripts/RTS/rfi_mask.pickle'
+        if  Band.upper() == 'U' :
+            channel_mask =  "/var/kat/katsdpscripts/RTS/rfi_mask_UHF.pickle"
+        elif Band.upper() == 'L' :
+            channel_mask =  "/var/kat/katsdpscripts/RTS/rfi_mask.pickle"
+        else :
+            warnings.warn('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to nothing  '%(Band))
+            print('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to None  '%(Band))
+            channel_mask = ''
+    else :
+        channel_mask =   opts.channel_mask
+
+    print("Channel Mask :%s , Channel Band %s "%(channel_mask,Band))
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
@@ -648,9 +661,9 @@ for ant in h5.ants:
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())
 
-    tsys = np.zeros((len(d.scans),len(d.freqs[:]),5 ))#*np.NaN
-    tant = np.zeros((len(d.scans),len(d.freqs[:]),5 ))#*np.NaN
-    
+    tsys = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
+    tant = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
+
     receiver = Rec_Temp(receiver_model_H, receiver_model_V)
     elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
     ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
@@ -658,7 +671,7 @@ for ant in h5.ants:
     sort_ind  = elevation.argsort()
     elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
     surface_temperature = np.mean(d.enviro['temperature']['value'])
-    air_relative_humidity = h5.sensor['Enviro/air_relative_humidity'].mean()/100. # Fractional
+    air_relative_humidity = h5.humidity.mean()/100. # Fractional
     length = 0
     #freq loop
     for i,freq_val in enumerate(d.freqs):

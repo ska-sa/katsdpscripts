@@ -44,7 +44,7 @@ parser.add_option("--remove-spikes", action="store_true", help="Use the SCAPE me
 
 (opts, args) = parser.parse_args()
 
-if len(args) != 1 or not args[0].endswith('.h5'):
-    raise RuntimeError('Please specify a single HDF5 file as argument to the script')
+if len(args) != 1 :
+    raise RuntimeError('Please specify a single file as argument to the script')
 
 analyse_point_source_scans(args[0], opts)

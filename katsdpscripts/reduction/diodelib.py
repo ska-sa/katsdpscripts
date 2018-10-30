@@ -9,7 +9,7 @@ from katsdpscripts import git_info
 from scipy.signal import medfilt
 import logging
 import scikits.fitting as fit
-
+import time, ephem
 
 
 def save_ND(diode_filename,file_base,freq,Tdiode_pol ):
@@ -60,7 +60,7 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_ba
             Ag = np.pi* (D/2)**2 # Antenna geometric area
             spec_Tsys_eta = np.zeros_like(freq)
             plt.ylim(15,50)
-            plt.xlim(900,1670)
+            #plt.xlim(900,1670)
             spec_Tsys_eta[freq<1420e6] =  42 # [R.T.P095] == 220
             spec_Tsys_eta[freq>=1420e6] =  46 # [R.T.P.096] == 200
             plt.plot(freq/1e6, spec_Tsys_eta,'r',linewidth=2,label='PDR Spec')
@@ -81,7 +81,7 @@ def plot_nd(freq,Tdiode,nd_temp,ant = '', file_base=''):
         plt.title('%s Coupler Diode: %s pol: %s'%(ant,str(pol).upper(),file_base))
         plt.ylim(0,50)
         plt.ylabel('$T_{ND}$ [K]')
-        plt.xlim(900,1670)
+        #plt.xlim(900,1670)
         plt.xlabel('f [MHz]')
         #plt.ylabel(ant)
         plt.axhspan(14, 35, facecolor='g', alpha=0.5)
@@ -115,6 +115,16 @@ def get_fit(x,y,order=0,true_equals=None):
     else :
         y =   y==true_equals
     return fit.PiecewisePolynomial1DFit(order).fit(x,y)#(timestamps[:])
+
+def Dmoon(observer):
+    """ The moon's apparante diameter changes by ~10% during over a year, and
+        an x% error in Dmoon leads to systemtic error in Thot scaling as 2*x/lambda!
+       @param observer: either an ephem.Observer or a suitable date (then at earth's centre).
+       @return [rad] diameter of the moon, from the earth on the specified date (ephem.Observer)"""
+    observer = observer if isinstance(observer,ephem.Observer) else ephem.Date(observer)
+    moon = ephem.Moon(observer)
+    D = moon.size/3600. # deg
+    return D*np.pi/180. # rad
 
 
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
@@ -167,28 +177,30 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     pols = ['v','h']
     
     for a,col in zip(ants,colour):
+        ant = a.name
+        try:
+            rx_sn = h5.receivers[ant]
+        except KeyError:
+            logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
+            rx_sn = 'l.SN_NOT_FOUND'
+        band,SN = rx_sn.split('.')
         if pdf:
-            pp = PdfPages(output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
-            logger.debug("Created output PDF file: %s"%output_dir+'/'+nice_filename+'.'+a.name+'.pdf')
+            pdf_filename = output_dir+'/'+nice_filename+'.'+rx_sn+'.'+a.name+'.pdf'
+            pp = PdfPages(pdf_filename)
+            logger.debug("Created output PDF file: %s"%pdf_filename)
 
         #fig0 = plt.figure(0,figsize=(20,5))
         h5.select()
         h5.select(ants = a.name,channels=~static_flags)
+        observer = h5.ants[0].observer; observer.date = time.gmtime(h5.timestamps.mean())[:6] # katdal resets this date to now()!
         fig0 = plot_ts(h5)
         Tsys, Tsys_std = {}, {}
         Tdiode = {}
         nd_temp = {}
         for pol in pols:
             logger.debug("Processing: %s%s"%(a.name,pol))
-            ant = a.name            
             Tsys_std[pol] = None
-            #air_temp = np.mean(h5.sensor['Enviro/air_temperature'])
             if not(Ku):
-                try:
-                    rx_sn = h5.receivers[ant]
-                except KeyError:
-                    logger.error('Receiver serial number for antennna %s not found in the H5 file'%ant)
-                    rx_sn = 'SN_NOT_FOUND'
                 diode_filename = '/var/kat/katconfig/user/noise-diode-models/mkat/rx.'+rx_sn+'.'+pol+'.csv'
                 logger.info('Loading noise diode file %s from config'%diode_filename)
                 try:
@@ -223,22 +235,24 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 TAc = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
                 print("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc.mean()))
             Y = hot_spec / cold_spec
-            D = 13.5
-            lam = 3e8/freq
+            D = 13.5 # Efficiency tables are defined for 13.5
+            lam = 299792458./freq
             HPBW = 1.18 *(lam/D)
             Om = 1.133 * HPBW**2  # main beam solid angle for a gaussian beam
-            R = np.radians(0.25) # radius of the moon
-            Os = np.pi * R**2 # disk source solid angle 
-            _f_MHz, _eff_pct = np.loadtxt("/var/kat/katconfig/user/aperture-efficiency/mkat/ant_eff_L_%s_AsBuilt.csv"%pol.upper(), skiprows=2, delimiter="\t", unpack=True)
-            eta_A = np.interp(freq,_f_MHz,_eff_pct)/100 # EMSS aperture efficiency
+            R = 0.5*Dmoon(observer) # radius of the moon
+            Os = 2*np.pi*(1-np.cos(R)) # disk source solid angle 
+            _f_MHz, _eff_pct = np.loadtxt("/var/kat/katconfig/user/aperture-efficiency/mkat/ant_eff_%s_%s_AsBuilt.csv"%(band.upper(),pol.upper()), skiprows=2, delimiter="\t", unpack=True)
+            eta_A = np.interp(freq,_f_MHz*1e6,_eff_pct)/100. # EMSS aperture efficiency
             if Ku: eta_A = 0.7
             Ag = np.pi* (D/2)**2 # Antenna geometric area
             Ae = eta_A * Ag  # Effective aperture
             x = 2*R/HPBW # ratio of source to beam
             K = ((x/1.2)**2) / (1-np.exp(-((x/1.2)**2))) # correction factor for disk source from Baars 1973
-            TA_moon = 225 * (Os*Ae/(lam**2)) * (1/K) # contribution from the moon (disk of constant brightness temp)
+            TA_moon = 225 * (Os/Om) * (1/K) # contribution from the moon (disk of constant brightness temp)
             gamma = 1.0
-            Tsys[pol] = gamma * (TA_moon)/(Y-gamma) # Tsys from y-method ... compare with diode TAc
+            Thot = TA_moon
+            Tcold = 0
+            Tsys[pol] = gamma * (Thot-Tcold)/(Y-gamma) # Tsys from y-method ... compare with diode TAc
             if error_bars:
                 cold_spec_std = np.std(cold_data[cold_off,:,0],0)
                 hot_spec_std = np.std(hot_data[hot_off,:,0],0)
@@ -254,7 +268,10 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 Tsys_std[pol] = None
             if not(Ku):
                 Ydiode = hot_nd_spec / hot_spec
-                Tdiode[pol] = (TA_moon + Tsys[pol])*(Ydiode/gamma-1)
+                Tdiode_h = (Tsys[pol]-Tcold+Thot)*(Ydiode/gamma-1) # Tsys as computed above includes Tcold
+                Ydiode = cold_nd_spec / cold_spec
+                Tdiode_c = Tsys[pol]*(Ydiode/gamma-1)
+                Tdiode[pol] = (Tdiode_h+Tdiode_c)/2. # Average two equally valid, independent results
             if write_nd:
                 outfilename = save_ND(diode_filename,file_base,freq,Tdiode[pol] )
                 logger.info('Noise temp data written to file %s'%outfilename)

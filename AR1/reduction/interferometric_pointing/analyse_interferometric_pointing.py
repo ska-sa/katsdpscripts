@@ -17,14 +17,17 @@ def activity(h5,state = 'track'):
     antlist = [a.name for a in h5.ants]
     activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
     for i,ant in enumerate(antlist) :
-        sensor = h5.sensor['Antennas/%s/activity'%(ant)]
-        activityV[i,:] +=   (sensor==state)
+        sensor = h5.sensor['%s_activity'%(ant)] ==state
+        if ~np.any(sensor):
+            print ("Antenna %s has no valid %s data"%(ant,state))
+        noise_diode = ~h5.sensor['Antennas/%s/nd_coupler'%(ant)]
+        activityV[i,:] +=   noise_diode &  sensor
     return np.all(activityV,axis=0)
 
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
-def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
+def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_weights=False,compscan_index=None,debug=False):
     """Break the band up into chunks"""
     chunk_size = chunks
     rfi_static_flags = np.tile(False, h5.shape[0])
@@ -35,8 +38,16 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
     gains_p = {}
     stdv = {}
     calibrated = False # placeholder for calibration
+    h5.select(compscans=compscan_index)
+    a = []
+    if len(h5.target_indices ) > 1 :
+        print("Warning multiple targets in the compscan")
+    for scan in h5.scans() :
+        a.append(h5.target_indices[0])
+    target = h5.catalogue.targets[np.median(a).astype(np.int)] # Majority Track
+    compscan_index = h5.compscan_indices[0]
+    #h5.select(targets=target,compscans=h5.compscan_indices[0]) # Majority Track in compscan
     if not return_raw:     # Calculate average target flux over entire band
-        target = h5.catalogue.targets[h5.target_indices[0]]
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
         temperature = np.mean(h5.temperature)
@@ -62,18 +73,41 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
     gaussian_width_std  = np.zeros((chunk_size* 2,2,len(h5.ants)) )
     gaussian_height     = np.zeros((chunk_size* 2,len(h5.ants)) )
     gaussian_height_std = np.zeros((chunk_size* 2,len(h5.ants)) )
+    if debug :#debug_text
+        debug_text = []
+        line = []
+        line.append("#AntennaPol")
+        line.append("Target")
+        line.append("Freq(MHz)") #MHz
+        line.append("Centre Az")
+        line.append("Centre El")
+        line.append("Centre Az Std")
+        line.append("Centre El Std")
+        line.append("Centre Az Width")
+        line.append("Centre El Width")
+        line.append("Centre Az Width Std")
+        line.append("Centre El Width Std")
+        line.append("Height")
+        line.append("Height Std")
+        debug_text.append(','.join(line) )
     pols = ["H","V"] # Put in logic for Intensity
     for i,pol in enumerate(pols) :
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=h5.antlist)
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=target,compscans=compscan_index)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
-        for scan in h5.scans() : 
+        for scan in h5.scans() :
+            if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
             data = h5.vis[valid_index]
             if data.shape[0] > 0 : # need at least one data point
-                gains_p[pol].append(calprocs.g_fit(data[:,:,:].mean(axis=0),h5.bls_lookup,refant=0) )
+                #g0 = np.ones(len(h5.ants),np.complex)
+                if use_weights :
+                    weights = h5.weights[valid_index].mean(axis=0)
+                else:
+                    weights = np.ones(data.shape[1:]).astype(np.float)
+                gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
                 pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
@@ -124,10 +158,34 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         for ant in range(len(h5.ants)):
-            if np.any(np.isfinite(w_average(gaussian_centre[:,:,ant],axis=0,weights=1./gaussian_centre_std[:,:,ant]**2)) ) : # a bit overboard
+            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['HH'],:,ant])
+            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['VV'],:,ant])
+            valid_solutions = np.count_nonzero(h_pol & v_pol) # Note this is twice the number of solutions because of the Az & El parts
+            print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
+            if debug :#debug_text
+                for pol_i,pol in enumerate( ["H","V"]):
+                    for chunk in range(chunks*pol_i,chunks*(pol_i+1)):
+                        line = []
+                        freq = h5.channel_freqs[slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))].mean()
+                        line.append(h5.ants[ant].name+pol)
+                        line.append(target.name)
+                        line.append(str(freq/1e6)) #MHz
+                        line.append(str(gaussian_centre[chunk,0,ant]))
+                        line.append(str(gaussian_centre[chunk,1,ant]))
+                        line.append(str(gaussian_centre_std[chunk,0,ant]))
+                        line.append(str(gaussian_centre_std[chunk,1,ant]))
+                        line.append(str(gaussian_width[chunk,0,ant]))
+                        line.append(str(gaussian_width[chunk,1,ant]))
+                        line.append(str(gaussian_width_std[chunk,0,ant]))
+                        line.append(str(gaussian_width_std[chunk,1,ant]))
+                        line.append(str(gaussian_height[chunk,ant]))
+                        line.append(str(gaussian_height_std[chunk,ant]))
+                        debug_text.append(','.join(line) )
+            if valid_solutions//2 > 0 : # a bit overboard
                 name = h5.ants[ant].name
                 ant_pointing[name] = {}
                 ant_pointing[name]["antenna"] = h5.ants[ant].name
+                ant_pointing[name]["valid_solutions"] = valid_solutions
                 ant_pointing[name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
                 ant_pointing[name]["target"] = target.name
                 ant_pointing[name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
@@ -173,7 +231,14 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False):
                     ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian_centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],1,ant]**2)
                     ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],0,ant]**2) )
                     ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],1,ant]**2) )
-
+            else:
+                print("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
+        if debug :#debug_text
+            debug_text.append('')
+            base = "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing_DEBUG")
+            g = file('%s:Scan%i:%s'%(base,compscan_index,target.name),'w')
+            g.write("\n".join(debug_text))
+            g.close()
         return ant_pointing
 
 
@@ -188,6 +253,10 @@ parser.add_option("-a", "--ants", dest="ants",default=None,
 parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
                   help="List of antennas to exculde from the reduction "
                        "default is None of the antennas in the data set")
+parser.add_option( "--use-weights",action="store_true",
+                  default=False, help="Use SDP visability weights ")
+parser.add_option( "--debug",action="store_true",
+                  default=False, help="Produce a debug file with fitting infomation for each frequency ")
 
 parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-o", "--output", dest="outfilebase",default=None,
@@ -195,9 +264,6 @@ parser.add_option("-o", "--output", dest="outfilebase",default=None,
                        "default is '<dataset_name>_interferometric_pointing')")
 
 (opts, args) = parser.parse_args()
-
-if len(args) != 1 or not args[0].endswith('.h5'):
-    raise RuntimeError('Please specify a single HDF5 file as argument to the script')
 
 channel_mask = opts.channel_mask #
 
@@ -208,11 +274,11 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
                 '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
                 '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
                 '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
-                '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
+                '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i, %(valid_solutions)i \n'
 
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
-h5 = katdal.open(args)  
+h5 = katdal.open(args[0])  
 ant_list = [ant.name for ant in h5.ants] # Temp list for input options
 if opts.ants is not None  :
     ant_list = opts.ants.split(',')
@@ -220,6 +286,8 @@ if opts.ex_ants is not None :
     for ant in opts.ex_ants.split(','):
         if ant in ant_list:
             ant_list.remove(ant)
+h5 = katdal.open(args[0],ref_ant=ant_list[0])
+print("Using %s as the reference antenna "%(ant_list[0]))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 h5.antlist = [a.name for a in h5.ants]
@@ -234,10 +302,9 @@ for ant in range(len(h5.ants)):
     f[name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
     f[name].write('# antenna = %s\n' % h5.ants[ant].description)
     f[name].write(', '.join(output_field_names) + '\n')
-
-for cscan in h5.compscans() :
-    print("Compound scan %i of field %s "%(cscan[0],cscan[2].name) )
-    offset_data = reduce_compscan_inf(h5,channel_mask)
+for compscan_index  in h5.compscan_indices :
+    print("Compound scan %i  "%(compscan_index) )
+    offset_data = reduce_compscan_inf(h5,channel_mask,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
         for antname in offset_data:
