@@ -323,6 +323,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     average_freq - average width in channels before flagging (detected flags are extend to full width)
     mask_non_tracks - mask any antennas that are not tracking (added to 'cam_flags' bit)
     tracks_only - only flag tracks (not slews or stops etc.)
+    mask_limit - the maximum baseline length in meters to apply the mask
+    or_pols - OR the flags across polarisations (HH,VV,HV,HV)
     """
 
     import logging
@@ -407,6 +409,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             flags[:, :, bl_mask] |= mask_array[:, freq_range, :]
             with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
                 detected_flags = flagger.get_flags(this_data, flags, pool)
+            if or_pols:
+                detected_flags = or_flags_pols(detected_flags, mvf.corr_products, mvf.ants)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%" % \
                   (scan, target.name, mvf.shape[0], (np.sum(detected_flags)*100.)/detected_flags.size,)
             # Add new flags to flag table
