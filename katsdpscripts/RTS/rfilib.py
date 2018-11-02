@@ -248,6 +248,40 @@ def plot_waterfall(visdata, flags=None, channel_range=None, output=None):
         plt.savefig(output)
 
 
+def or_flags_pols(flags, corr_prods, ants):
+    """
+    OR the flags across polarisation for a given baseline
+    """
+    antnames = [ant.name for ant in ants]
+    corrprod_baselines = [[prod[0][:4],prod[1][:4]] for prod in corr_prods]
+    # Get indices in corr_prods of all pols for a baseline
+    all_baselines = [list(pair) for pair in itertools.combinations_with_replacement(antnames, 2)]
+    for bl in all_baselines:
+        bl_indices =  [i[0] for i in enumerate(corrprod_baselines) if i[1] == bl]
+        bl_flags = flags[:, :, bl_indices]
+        or_flags = np.any(bl_flags, axis=2)
+        flags[:, :, bl_indices] = or_flags[:, :, np.newaxis]
+    return flags
+
+
+def get_baseline_mask(corr_prods, ants, limit):
+    """
+    Compute a mask of the same length as corr_products that indicates
+    whether the baseline length of the given correlation product is
+    shorter than limit in meters
+    """
+    baseline_mask = np.zeros(corr_prods.shape[0], dtype=np.bool)
+    antlookup = {}
+    for ant in ants:
+        antlookup[ant.name] = ant
+    for prod, baseline in enumerate(corr_prods):
+        bl_vector = antlookup[baseline[0][:4]].baseline_toward(antlookup[baseline[1][:4]])
+        bl_length = np.linalg.norm(bl_vector)
+        if bl_length < limit:
+            baseline_mask[prod] = True
+    return baseline_mask
+
+
 def load_data(data_list, slices):
     """
     Load datasets in data_list using :meth:`get`
@@ -263,12 +297,12 @@ def load_data(data_list, slices):
 def generate_flag_table(input_file, output_root='.', static_flags=None,
                         freq_chans=None, use_file_flags=True, outlier_nsigma=4.5,
                         width_freq=1.5, width_time=100.0, time_extend=3, freq_extend=3,
-                        max_scan=260, write_into_input=False, average_freq=1, mask_non_tracks=False,
-                        tracks_only=False, **kwargs):
+                        max_scan=600, write_into_input=False, average_freq=1, mask_non_tracks=False,
+                        tracks_only=False, mask_limit=1000., or_pols=False, **kwargs):
+
     """
     Flag the visibility data in the mvf file ignoring the channels specified in
     static_flags, and the channels already flagged if use_file_flags=True.
-
     This will write a list of flags per scan to the output h5 file or overwrite
     the flag table in the input file if write_into_input=True
 
@@ -289,6 +323,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
     average_freq - average width in channels before flagging (detected flags are extend to full width)
     mask_non_tracks - mask any antennas that are not tracking (added to 'cam_flags' bit)
     tracks_only - only flag tracks (not slews or stops etc.)
+    mask_limit - the maximum baseline length in meters to apply the mask
+    or_pols - OR the flags across polarisations (HH,VV,HV,HV)
     """
 
     import logging
@@ -333,6 +369,9 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         # Create dummy static flag array if no static flags are specified.
         static_flags = np.zeros(mvf.shape[1], dtype=np.bool)
 
+    # Work out which baselines to use the mask
+    bl_mask = get_baseline_mask(mvf.corr_products, mvf.ants, mask_limit)
+
     # Set up the mask for broadcasting
     mask_array = static_flags[np.newaxis, :, np.newaxis]
 
@@ -367,15 +406,17 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 this_data = load_data([mvf.vis], np.s_[this_slice, freq_range, :])[0]
                 flags = np.zeros_like(this_data, dtype=np.bool)
             # OR the mask flags with the flags already in the mvf file
-            flags = np.logical_or(flags, mask_array[:, freq_range, :])
+            flags[:, :, bl_mask] |= mask_array[:, freq_range, :]
             with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as pool:
                 detected_flags = flagger.get_flags(this_data, flags, pool)
+            if or_pols:
+                detected_flags = or_flags_pols(detected_flags, mvf.corr_products, mvf.ants)
             print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%" % \
                   (scan, target.name, mvf.shape[0], (np.sum(detected_flags)*100.)/detected_flags.size,)
             # Add new flags to flag table
             flags = np.zeros((this_slice.stop-this_slice.start, mvf.shape[1], mvf.shape[2],), dtype=np.uint8)
             # Add mask to 'static' flags
-            flags |= mask_array.astype(np.uint8)*(2**FLAG_NAMES.index('static'))
+            flags[:, :, bl_mask] |= mask_array.astype(np.uint8)*(2**FLAG_NAMES.index('static'))
             # Flag non-tracks and add to 'cam' flags
             if mask_non_tracks:
                 # Set up mask for cam flags
