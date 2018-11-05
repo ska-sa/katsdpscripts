@@ -94,50 +94,45 @@ with verify_and_connect(opts) as kat:
         for inp in session.cbf.fengine.inputs:
             gains[inp] = opts.default_gain
         session.set_fengine_gains(gains)
+        if not opts.reset:
+            session.label('un_corrected')
+            user_logger.info("Initiating %g-second track on target '%s'",
+                             opts.track_duration, target.name)
+            session.track(target, duration=opts.track_duration, announce=False)
+            # Attempt to jiggle cal pipeline to drop its gains
+            session.stop_antennas()
+            user_logger.info("Waiting for gains to materialise in cal pipeline")
+            # Wait for the last bfcal product from the pipeline
+            gains = session.get_cal_solutions('G', timeout=opts.track_duration)
+            bp_gains = session.get_cal_solutions('B')
+            delays = session.get_cal_solutions('K')
+            cal_channel_freqs = session.get_cal_channel_freqs()
 
-        session.label('un_corrected')
-        user_logger.info("Initiating %g-second track on target '%s'",
-                         opts.track_duration, target.name)
-        session.track(target, duration=opts.track_duration, announce=False)
-        # Attempt to jiggle cal pipeline to drop its gains
-        session.stop_antennas()
-        user_logger.info("Waiting for gains to materialise in cal pipeline")
-        # Wait for the last bfcal product from the pipeline
-        gains = session.get_cal_solutions('G', timeout=opts.track_duration)
-        bp_gains = session.get_cal_solutions('B')
-        delays = session.get_cal_solutions('K')
-        cal_channel_freqs = session.get_cal_channel_freqs()
-
-        if opts.random_phase:
-            user_logger.info("Setting F-engine gains with random phases")
-        else:
-            user_logger.info("Setting F-engine gains to phase up antennas")
-        new_weights = {}
-        for inp in gains:
-            orig_weights = gains[inp]
-            bp = bp_gains[inp]
-            valid = ~np.isnan(bp)
-            if valid.any():  # not all flagged
-                chans = np.arange(len(bp))
-                bp = np.interp(chans, chans[valid], bp[valid])
-                orig_weights *= bp
-                delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                orig_weights *= delay_weights  # unwrap the delays
-                amp_weights = np.abs(orig_weights)
-                phase_weights = orig_weights / amp_weights
-                if opts.random_phase:
-                    phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
-                new_weights[inp] = opts.default_gain * phase_weights.conj()
-                if opts.flatten_bandpass:
-                    new_weights[inp] /= amp_weights
-        session.set_fengine_gains(new_weights)
-        if opts.verify_duration > 0:
-            user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
-                             target.name, opts.verify_duration)
-            session.label('corrected')
-            session.track(target, duration=opts.verify_duration, announce=False)
-        if opts.reset:
-            user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
+            if opts.random_phase:
+                user_logger.info("Setting F-engine gains with random phases")
+            else:
+                user_logger.info("Setting F-engine gains to phase up antennas")
+            new_weights = {}
             for inp in gains:
-                gains[inp] = opts.default_gain
-            session.set_fengine_gains(gains)
+                orig_weights = gains[inp]
+                bp = bp_gains[inp]
+                valid = ~np.isnan(bp)
+                if valid.any():  # not all flagged
+                    chans = np.arange(len(bp))
+                    bp = np.interp(chans, chans[valid], bp[valid])
+                    orig_weights *= bp
+                    delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
+                    orig_weights *= delay_weights  # unwrap the delays
+                    amp_weights = np.abs(orig_weights)
+                    phase_weights = orig_weights / amp_weights
+                    if opts.random_phase:
+                        phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
+                    new_weights[inp] = opts.default_gain * phase_weights.conj()
+                    if opts.flatten_bandpass:
+                        new_weights[inp] /= amp_weights
+            session.set_fengine_gains(new_weights)
+            if opts.verify_duration > 0:
+                user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
+                                 target.name, opts.verify_duration)
+                session.label('corrected')
+                session.track(target, duration=opts.verify_duration, announce=False)
