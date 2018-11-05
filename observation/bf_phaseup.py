@@ -77,6 +77,7 @@ with verify_and_connect(opts) as kat:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
+        session.capture_init()
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.cbf.correlator.req.capture_start()
@@ -94,7 +95,7 @@ with verify_and_connect(opts) as kat:
             gains[inp] = opts.default_gain
         session.set_fengine_gains(gains)
         if not opts.reset:
-            session.capture_init()
+            
             session.label('un_corrected')
             user_logger.info("Initiating %g-second track on target '%s'",
                              opts.track_duration, target.name)
