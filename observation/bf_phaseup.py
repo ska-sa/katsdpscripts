@@ -31,7 +31,7 @@ parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit the source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
-                  help='Reset the gains to the default value afterwards')
+                  help='Reset the gains to the default value then exit')
 parser.add_option('--default-gain', type='int', default=0,
                   help='Default correlator F-engine gain, '
                        'automatically set if 0 (default=%default)')
