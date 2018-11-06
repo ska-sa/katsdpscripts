@@ -70,29 +70,29 @@ with verify_and_connect(opts) as kat:
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe or not enough antennas
-        if len(session.ants) < 4:
-            raise ValueError('Not enough receptors to do calibration - you '
-                             'need 4 and you have %d' % (len(session.ants),))
-        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
-            raise NoTargetsUpError("No targets are currently visible - "
-                                   "please re-run the script later")
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         gains = {}
-        # Pick source with the highest elevation as our target
-        target = observation_sources.sort('el').targets[-1]
-        target.add_tags('bfcal single_accumulation')
         if not opts.default_gain:
             channels = 32768 if session.product.endswith('32k') else 4096
             opts.default_gain = DEFAULT_GAIN[channels]
-        user_logger.info("Target to be observed: %s", target.description)
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                          opts.default_gain)
         for inp in session.cbf.fengine.inputs:
             gains[inp] = opts.default_gain
         session.set_fengine_gains(gains)
         if not opts.reset:
+            if len(session.ants) < 4:
+                raise ValueError('Not enough receptors to do calibration - you '
+                                 'need 4 and you have %d' % (len(session.ants),))
+            if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+                raise NoTargetsUpError("No targets are currently visible - "
+                                       "please re-run the script later")
+            # Pick source with the highest elevation as our target
+            target = observation_sources.sort('el').targets[-1]
+            target.add_tags('bfcal single_accumulation')
+            user_logger.info("Target to be observed: %s", target.description)
             session.capture_init()
             session.cbf.correlator.req.capture_start()            
             session.label('un_corrected')
