@@ -56,13 +56,6 @@ J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    if len(args) == 0:
-        observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-        observation_sources.add(J1934)
-        observation_sources.add(J0408)
-        observation_sources.add(J1331)
-    else:
-        observation_sources = collect_targets(kat, args)
     if opts.reconfigure_sdp:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
@@ -83,6 +76,13 @@ with verify_and_connect(opts) as kat:
             gains[inp] = opts.default_gain
         session.set_fengine_gains(gains)
         if not opts.reset:
+            if len(args) == 0:
+                observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
+                observation_sources.add(J1934)
+                observation_sources.add(J0408)
+                observation_sources.add(J1331)
+            else:
+                observation_sources = collect_targets(kat, args)
             if len(session.ants) < 4:
                 raise ValueError('Not enough receptors to do calibration - you '
                                  'need 4 and you have %d' % (len(session.ants),))
