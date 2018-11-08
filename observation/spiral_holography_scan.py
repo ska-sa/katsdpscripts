@@ -388,8 +388,8 @@ parser.add_option('--fft-shift', type='int', default=None,
                   help='Set CBF fft shift (default=%default)')
 parser.add_option('--default-gain', type='float', default=None,
                   help='Set CBF gain (default=%default)')
-parser.add_option('--auto-delay-off', action="store_true", default=False,
-                  help='Turns off CBF auto-delays (default=%default)')
+parser.add_option('--auto-delay', type='string', default=None,
+                  help='Set CBF auto-delay on or off (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -422,8 +422,8 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Setting CBF gains to %f", opts.default_gain)
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
-        if opts.auto_delay_off:
-            session.cbf.req.auto_delay('off')
+        if opts.auto_delay is not None:
+            session.cbf.req.auto_delay(opts.auto_delay)
         #determine scan antennas
         all_ants = session.ants
         session.obs_params['num_scans'] = len(compositex)
