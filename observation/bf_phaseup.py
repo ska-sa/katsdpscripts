@@ -129,7 +129,7 @@ with verify_and_connect(opts) as kat:
                         phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
                     new_weights[inp] = opts.default_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
-                        new_weights[inp] =   new_weights[inp] / (amp_weights / amp_weights.mean())
+                        new_weights[inp] /= amp_weights / amp_weights.mean()
                         
             session.set_fengine_gains(new_weights)
             if opts.verify_duration > 0:
