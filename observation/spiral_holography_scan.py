@@ -466,6 +466,14 @@ with verify_and_connect(opts) as kat:
                          opts.num_cycles, opts.cycle_duration,
                          opts.scan_extent, target.name)
         session.set_target(target)
+
+        user_logger.info("Performing initial track")
+        session.ants = all_ants
+        session.track(target, duration=10, announce=False)
+        if opts.auto_delay is not None:
+            user_logger.info("Setting auto delay to "+opts.auto_delay)
+            session.cbf.req.auto_delay(opts.auto_delay)
+
         lasttime = time.time()
         if (opts.debug):
             fp=open('/home/kat/usersnfs/mattieu/spiral_holography_scan_debug','wb')
@@ -496,8 +504,6 @@ with verify_and_connect(opts) as kat:
                 #get both antennas to target ASAP
                 session.ants = all_ants
                 session.track(target, duration=0, announce=False)
-                if opts.auto_delay is not None:
-                    session.cbf.req.auto_delay(opts.auto_delay)
                 lasttime = time.time()
                 for iarm in range(len(cx)):#spiral arm index
                     user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
