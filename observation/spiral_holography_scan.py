@@ -473,6 +473,8 @@ with verify_and_connect(opts) as kat:
         if opts.auto_delay is not None:
             user_logger.info("Setting auto delay to "+opts.auto_delay)
             session.cbf.req.auto_delay(opts.auto_delay)
+            user_logger.info("Performing follow up track")
+            session.track(target, duration=10, announce=False)
 
         lasttime = time.time()
         if (opts.debug):
