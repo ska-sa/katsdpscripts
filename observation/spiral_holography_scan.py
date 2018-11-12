@@ -422,8 +422,6 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Setting CBF gains to %f", opts.default_gain)
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
-        if opts.auto_delay is not None:
-            session.cbf.req.auto_delay(opts.auto_delay)
         #determine scan antennas
         all_ants = session.ants
         session.obs_params['num_scans'] = len(compositex)
@@ -498,6 +496,8 @@ with verify_and_connect(opts) as kat:
                 #get both antennas to target ASAP
                 session.ants = all_ants
                 session.track(target, duration=0, announce=False)
+                if opts.auto_delay is not None:
+                    session.cbf.req.auto_delay(opts.auto_delay)
                 lasttime = time.time()
                 for iarm in range(len(cx)):#spiral arm index
                     user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
