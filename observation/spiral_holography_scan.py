@@ -390,6 +390,9 @@ parser.add_option('--default-gain', type='float', default=None,
                   help='Set CBF gain (default=%default)')
 parser.add_option('--auto-delay', type='string', default=None,
                   help='Set CBF auto-delay on or off (default=%default)')
+parser.add_option('--debugtrack', action="store_true", default=False,
+                  help='disables load_scan tracking command (default=%default)')
+                  
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -516,13 +519,14 @@ with verify_and_connect(opts) as kat:
                                      ' '.join([ant.name for ant in session.ants]))
                     if not kat.dry_run:
                         session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                    session.ants = track_ants
-                    target.antenna = track_observer
-                    scan_track = gen_track(scan_data[:,0],target)
-                    user_logger.info("Using Track antennas: %s",
-                                     ' '.join([ant.name for ant in session.ants]))
-                    if not kat.dry_run:
-                        session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                    if (not opts.debugtrack):
+                        session.ants = track_ants
+                        target.antenna = track_observer
+                        scan_track = gen_track(scan_data[:,0],target)
+                        user_logger.info("Using Track antennas: %s",
+                                         ' '.join([ant.name for ant in session.ants]))
+                        if not kat.dry_run:
+                            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
                     if (iarm%2==0):#outward arm
                         session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
                         if (nextraslew>0):
