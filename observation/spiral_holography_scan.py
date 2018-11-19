@@ -514,16 +514,7 @@ with verify_and_connect(opts) as kat:
                 lasttime = time.time()
                 for iarm in range(len(cx)):#spiral arm index
                     user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
-                    if (opts.debugtrack):
-                        user_logger.info("Using Scan antennas: %s",
-                                         ' '.join([ant.name for ant in scan_ants]))
-                        for iant,scan_ant in enumerate(scan_ants):
-                            session.ants = [scan_ant]
-                            target.antenna = scan_observers[iant]
-                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                            if not kat.dry_run:
-                                session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                    else:#original
+                    if (opts.debugtrack):#original
                         session.ants = scan_ants
                         target.antenna = scan_observers[0]
                         scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
@@ -538,6 +529,15 @@ with verify_and_connect(opts) as kat:
                                          ' '.join([ant.name for ant in session.ants]))
                         if not kat.dry_run:
                             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                    else:#fix individual target.antenna issue
+                        user_logger.info("Using Scan antennas: %s",
+                                         ' '.join([ant.name for ant in scan_ants]))
+                        for iant,scan_ant in enumerate(scan_ants):
+                            session.ants = [scan_ant]
+                            target.antenna = scan_observers[iant]
+                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                            if not kat.dry_run:
+                                session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         
                     if (iarm%2==0):#outward arm
                         session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
