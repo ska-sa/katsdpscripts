@@ -504,22 +504,33 @@ with verify_and_connect(opts) as kat:
                                          opts.horizon + opts.scan_extent / 2. - targetel,
                                          opts.scan_extent, opts.horizon)
                         break
-                scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
+                scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
                 track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
                 #get both antennas to target ASAP
                 session.ants = all_ants
                 session.track(target, duration=0, announce=False)
+                user_logger.info("Using Track antennas: %s",
+                                 ' '.join([ant.name for ant in track_ants]))
                 lasttime = time.time()
                 for iarm in range(len(cx)):#spiral arm index
                     user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
-                    session.ants = scan_ants
-                    target.antenna = scan_observer
-                    scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                    user_logger.info("Using Scan antennas: %s",
-                                     ' '.join([ant.name for ant in session.ants]))
-                    if not kat.dry_run:
-                        session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                    if (not opts.debugtrack):
+                    if (opts.debugtrack):
+                        user_logger.info("Using Scan antennas: %s",
+                                         ' '.join([ant.name for ant in scan_ants]))
+                        for iant,scan_ant in enumerate(scan_ants):
+                            session.ants = [scan_ant]
+                            target.antenna = scan_observers[iant]
+                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                            if not kat.dry_run:
+                                session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                    else:#original
+                        session.ants = scan_ants
+                        target.antenna = scan_observers[0]
+                        scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                        user_logger.info("Using Scan antennas: %s",
+                                         ' '.join([ant.name for ant in session.ants]))
+                        if not kat.dry_run:
+                            session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         session.ants = track_ants
                         target.antenna = track_observer
                         scan_track = gen_track(scan_data[:,0],target)
@@ -527,6 +538,7 @@ with verify_and_connect(opts) as kat:
                                          ' '.join([ant.name for ant in session.ants]))
                         if not kat.dry_run:
                             session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                        
                     if (iarm%2==0):#outward arm
                         session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
                         if (nextraslew>0):
