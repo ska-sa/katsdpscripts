@@ -533,7 +533,7 @@ with verify_and_connect(opts) as kat:
                         user_logger.info("Using Scan antennas: %s",
                                          ' '.join([ant.name for ant in scan_ants]))
                         for iant,scan_ant in enumerate(scan_ants):
-                            session.ants = [scan_ant]
+                            session.ants = ant_array(kat, [scan_ant], 'scan_ant')
                             target.antenna = scan_observers[iant]
                             scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
                             if not kat.dry_run:
