@@ -15,7 +15,7 @@ class NoTargetsUpError(Exception):
 
 
 # Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {1024: 118, 4096: 70, 32768: 360}
+DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 
 # Set up standard script options
