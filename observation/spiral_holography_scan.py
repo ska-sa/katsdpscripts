@@ -463,22 +463,28 @@ with verify_and_connect(opts) as kat:
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         # This also does capture_init, which adds capture_block_id view to telstate and saves obs_params
         session.capture_start()
-        session.telstate.add('obs_label','cycle.group.scan')
+        session.telstate.add('obs_label','slew')
+
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second "
                          "cycles extending %g degrees) on target '%s'",
                          opts.num_cycles, opts.cycle_duration,
                          opts.scan_extent, target.name)
+
         session.set_target(target)
 
-        user_logger.info("Performing initial track")
         session.ants = all_ants
-        session.track(target, duration=10, announce=False)
+        user_logger.info("Slewing to target")
+        session.track(target, duration=0, announce=False)
+        user_logger.info("Performing initial track")
+        session.telstate.add('obs_label','track')
+        session.track(target, duration=20, announce=False)
         if opts.auto_delay is not None:
             user_logger.info("Setting auto delay to "+opts.auto_delay)
             session.cbf.req.auto_delay(opts.auto_delay)
             user_logger.info("Performing follow up track")
-            session.track(target, duration=10, announce=False)
-
+            session.telstate.add('obs_label','delay set track')
+            session.track(target, duration=20, announce=False)
+        session.telstate.add('obs_label','cycle.group.scan')
         lasttime = time.time()
         if (opts.debug):
             fp=open('/home/kat/usersnfs/mattieu/spiral_holography_scan_debug','wb')
