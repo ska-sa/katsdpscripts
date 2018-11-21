@@ -68,8 +68,8 @@ with verify_and_connect(opts) as kat:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         gains = {}
         if not opts.default_gain:
-            channels = 32768 if session.product.endswith('32k') else 4096
-            opts.default_gain = DEFAULT_GAIN[channels]
+            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+            opts.default_gain = DEFAULT_GAIN.get(num_channels, -1)
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                          opts.default_gain)
         for inp in session.cbf.fengine.inputs:
