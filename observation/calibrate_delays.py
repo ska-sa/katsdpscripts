@@ -27,7 +27,7 @@ description = 'Track the source with the highest elevation and calibrate ' \
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
-                  help='Length of time to track the source for calibration, '\
+                  help='Length of time to track the source for calibration, '
                        'in seconds (default=%default)')
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
@@ -69,12 +69,12 @@ with verify_and_connect(opts) as kat:
             try:
                 opts.fengine_gain = DEFAULT_GAIN[num_channels]
             except KeyError:
-                raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
-        gains = {}
-        delays = {}
-        for inp in session.get_cal_inputs():
-            gains[inp] = opts.fengine_gain
-            delays[inp] = 0.0
+                raise KeyError("No default gain available for F-engine with "
+                               "%i channels - please specify --fengine-gain"
+                               % (num_channels,))
+        cal_inputs = session.get_cal_inputs()
+        gains = {inp: opts.fengine_gain for inp in cal_inputs}
+        delays = {inp: 0.0 for inp in cal_inputs}
         session.set_fengine_gains(gains)
         user_logger.info("Zeroing all delay adjustments for starters")
         session.set_delays(delays)
@@ -115,6 +115,5 @@ with verify_and_connect(opts) as kat:
             session.fire_noise_diode(on=opts.verify_duration, off=0)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
-            for inp in delays:
-                delays[inp] = 0.0
+            delays = {inp: 0.0 for inp in delays}
             session.set_delays(delays)

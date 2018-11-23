@@ -71,17 +71,17 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
-        gains = {}
         if opts.fengine_gain <= 0:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
             try:
                 opts.fengine_gain = DEFAULT_GAIN[num_channels]
             except KeyError:
-                raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
+                raise KeyError("No default gain available for F-engine with "
+                               "%i channels - please specify --fengine-gain"
+                               % (num_channels,))
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                          opts.fengine_gain)
-        for inp in session.cbf.fengine.inputs:
-            gains[inp] = opts.fengine_gain
+        gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
         session.set_fengine_gains(gains)
         if not opts.reset:
             if len(args) == 0:
@@ -138,7 +138,7 @@ with verify_and_connect(opts) as kat:
                     new_weights[inp] = opts.fengine_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
                         new_weights[inp] /= amp_weights / amp_weights.mean()
-                        
+
             session.set_fengine_gains(new_weights)
             if opts.verify_duration > 0:
                 user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
