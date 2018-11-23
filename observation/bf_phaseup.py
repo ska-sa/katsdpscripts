@@ -32,9 +32,11 @@ parser.add_option('--verify-duration', type='float', default=64.0,
                        'in seconds (default=%default)')
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value then exit')
-parser.add_option('--default-gain', type='int', default=0,
-                  help='Default correlator F-engine gain, '
-                       'automatically set if 0 (default=%default)')
+parser.add_option('--fengine-gain', type='int', default=0,
+                  help='Correlator F-engine gain (average magnitude), '
+                       'automatically determined if 0 (the default)')
+parser.add_option('--default-gain', type='int',
+                  help='**DEPRECATED** Use equivalent --fengine-gain instead')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
 parser.add_option('--random-phase', action='store_true', default=False,
@@ -60,6 +62,9 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
         sdp.req.product_reconfigure()
+    if opts.default_gain is not None:
+        user_logger.warning("The --default-gain option is deprecated, use --fengine-gain instead")
+        opts.fengine_gain = opts.default_gain
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe or not enough antennas
@@ -67,16 +72,16 @@ with verify_and_connect(opts) as kat:
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         gains = {}
-        if not opts.default_gain:
+        if opts.fengine_gain <= 0:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
             try:
-                opts.default_gain = DEFAULT_GAIN[num_channels]
+                opts.fengine_gain = DEFAULT_GAIN[num_channels]
             except KeyError:
                 raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                         opts.default_gain)
+                         opts.fengine_gain)
         for inp in session.cbf.fengine.inputs:
-            gains[inp] = opts.default_gain
+            gains[inp] = opts.fengine_gain
         session.set_fengine_gains(gains)
         if not opts.reset:
             if len(args) == 0:
@@ -130,7 +135,7 @@ with verify_and_connect(opts) as kat:
                     phase_weights = orig_weights / amp_weights
                     if opts.random_phase:
                         phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
-                    new_weights[inp] = opts.default_gain * phase_weights.conj()
+                    new_weights[inp] = opts.fengine_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
                         new_weights[inp] /= amp_weights / amp_weights.mean()
                         

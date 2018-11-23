@@ -33,8 +33,8 @@ parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
-                  help='Correlator F-engine gain, automatically set if 0 (the '
-                       'default) and left alone if negative')
+                  help='Correlator F-engine gain, automatically determined '
+                       'if 0 (the default)')
 parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards')
 # Set default value for any option (both standard and experiment-specific options)
