@@ -18,8 +18,7 @@ class NoTargetsUpError(Exception):
 
 
 # Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {4096: 200, 32768: 4000}
-
+DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
@@ -67,7 +66,10 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         if opts.fengine_gain <= 0:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            opts.fengine_gain = DEFAULT_GAIN.get(num_channels, -1)
+            try:
+                opts.fengine_gain = DEFAULT_GAIN[num_channels]
+            except KeyError:
+                raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
         gains = {}
         delays = {}
         for inp in session.get_cal_inputs():

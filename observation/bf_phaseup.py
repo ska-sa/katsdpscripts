@@ -15,7 +15,7 @@ class NoTargetsUpError(Exception):
 
 
 # Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {4096: 200, 32768: 4000}
+DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 
 # Set up standard script options
@@ -68,8 +68,11 @@ with verify_and_connect(opts) as kat:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
         gains = {}
         if not opts.default_gain:
-            channels = 32768 if session.product.endswith('32k') else 4096
-            opts.default_gain = DEFAULT_GAIN[channels]
+            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+            try:
+                opts.default_gain = DEFAULT_GAIN[num_channels]
+            except KeyError:
+                raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                          opts.default_gain)
         for inp in session.cbf.fengine.inputs:
