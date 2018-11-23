@@ -118,3 +118,6 @@ with verify_and_connect(opts) as kat:
             for inp in delays:
                 delays[inp] = 0.0
             session.set_delays(delays)
+
+        # Set last-delay-calibration script sensor on the subarray.
+        session.sub.req.set_script_param('script-last-delay-calibration', kat.sb_id_code)

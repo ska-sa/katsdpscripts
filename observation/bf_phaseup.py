@@ -140,3 +140,6 @@ with verify_and_connect(opts) as kat:
                                  target.name, opts.verify_duration)
                 session.label('corrected')
                 session.track(target, duration=opts.verify_duration, announce=False)
+
+        # Set last-phaseup script sensor on the subarray.
+        session.sub.req.set_script_param('script-last-phaseup', kat.sb_id_code)
