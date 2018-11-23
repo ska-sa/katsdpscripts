@@ -66,10 +66,10 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         if opts.fengine_gain <= 0:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            try :
+            try:
                 opts.fengine_gain = DEFAULT_GAIN[num_channels]
             except KeyError:
-                raise KeyError("%i channel mode not present in dict of valid modes" % num_channels)
+                raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
         gains = {}
         delays = {}
         for inp in session.get_cal_inputs():

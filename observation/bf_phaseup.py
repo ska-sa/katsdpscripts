@@ -69,10 +69,10 @@ with verify_and_connect(opts) as kat:
         gains = {}
         if not opts.default_gain:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            try :
+            try:
                 opts.default_gain = DEFAULT_GAIN[num_channels]
             except KeyError:
-                raise KeyError("%i channel mode not present in dict of valid modes" % num_channels)
+                raise KeyError("No default gain available for F-engine with %i channels - please specify --fengine-gain" % num_channels)
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
                          opts.default_gain)
         for inp in session.cbf.fengine.inputs:
