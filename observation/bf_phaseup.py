@@ -33,8 +33,8 @@ parser.add_option('--verify-duration', type='float', default=64.0,
 parser.add_option('--reset', action='store_true', default=False,
                   help='Reset the gains to the default value then exit')
 parser.add_option('--fengine-gain', type='int', default=0,
-                  help='Correlator F-engine gain (average magnitude), '
-                       'automatically determined if 0 (the default)')
+                  help='Override correlator F-engine gain (average magnitude), '
+                       'using the default gain value for the mode if 0')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
 parser.add_option('--random-phase', action='store_true', default=False,

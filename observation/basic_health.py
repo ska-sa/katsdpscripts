@@ -29,8 +29,8 @@ parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
-                  help='Correlator F-engine gain (average magnitude), '
-                       'automatically determined if 0 (the default)')
+                  help='Override correlator F-engine gain (average magnitude), '
+                       'using the default gain value for the mode if 0')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='basic_health', nd_params='off',
                     project_id='MKAIV-308', reduction_label='MKAIV-308',
