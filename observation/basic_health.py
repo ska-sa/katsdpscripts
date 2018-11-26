@@ -123,11 +123,7 @@ with verify_and_connect(opts) as kat:
                 if not kat.dry_run:
                     session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
                 nd_params = session.nd_params
-                session.fire_noise_diode(announce=True, **nd_params)
-                if kat.dry_run:
-                    session.track(target, duration=opts.track_duration, announce=False)
-                else:
-                    time.sleep(opts.track_duration)  # Snooze
+                session.track(target, duration=opts.track_duration, announce=False)
         session.ants.req.offset_fixed(0, 0, opts.projection)  # reset any dangling offsets
         # Tsys and averaging
         user_logger.info("Performing Tsys and averaging tests")
