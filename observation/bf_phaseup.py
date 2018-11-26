@@ -35,8 +35,6 @@ parser.add_option('--reset', action='store_true', default=False,
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain (average magnitude), '
                        'automatically determined if 0 (the default)')
-parser.add_option('--default-gain', type='int',
-                  help='**DEPRECATED** Use equivalent --fengine-gain instead')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Applies magnitude bandpass correction in addition to phase correction')
 parser.add_option('--random-phase', action='store_true', default=False,
@@ -62,9 +60,6 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
         sdp.req.product_reconfigure()
-    if opts.default_gain is not None:
-        user_logger.warning("The --default-gain option is deprecated, use --fengine-gain instead")
-        opts.fengine_gain = opts.default_gain
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe or not enough antennas

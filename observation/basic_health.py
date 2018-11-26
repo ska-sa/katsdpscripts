@@ -31,8 +31,6 @@ parser.add_option('--verify-duration', type='float', default=64.0,
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Correlator F-engine gain (average magnitude), '
                        'automatically determined if 0 (the default)')
-parser.add_option('--default-gain', type='int',
-                  help='**DEPRECATED** Use equivalent --fengine-gain instead')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='basic_health', nd_params='off',
                     project_id='MKAIV-308', reduction_label='MKAIV-308',
@@ -52,9 +50,6 @@ nd_on = {'diode': 'coupler', 'on': opts.track_duration, 'off': 0., 'period': 0.}
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    if opts.default_gain is not None:
-        user_logger.warning("The --default-gain option is deprecated, use --fengine-gain instead")
-        opts.fengine_gain = opts.default_gain
     observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
     observation_sources.add(J1934)
     observation_sources.add(J0408)
