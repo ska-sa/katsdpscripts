@@ -15,6 +15,10 @@ class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
+# Default F-engine gain as a function of number of channels
+DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
+
+
 # Set up standard script options
 usage = "%prog"
 description = 'Observe either 1934-638, 0408-65 or 3C286 to establish some ' \
@@ -24,8 +28,9 @@ parser = standard_script_options(usage, description)
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
-parser.add_option('--default-gain', type='int', default=200,
-                  help='Default correlator F-engine gain (default=%default)')
+parser.add_option('--fengine-gain', type='int', default=0,
+                  help='Override correlator F-engine gain (average magnitude), '
+                       'using the default gain value for the mode if 0')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='basic_health', nd_params='off',
                     project_id='MKAIV-308', reduction_label='MKAIV-308',
@@ -60,19 +65,25 @@ with verify_and_connect(opts) as kat:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
-        session.capture_init()
-        session.cbf.correlator.req.capture_start()
-        gains = {}
         # Pick source with the highest elevation as our target
         target = observation_sources.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         # Calibration tests
         user_logger.info("Performing calibration tests")
+        if opts.fengine_gain <= 0:
+            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
+            try:
+                opts.fengine_gain = DEFAULT_GAIN[num_channels]
+            except KeyError:
+                raise KeyError("No default gain available for F-engine with "
+                               "%i channels - please specify --fengine-gain"
+                               % (num_channels,))
         user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                         opts.default_gain)
-        for inp in session.cbf.fengine.inputs:
-            gains[inp] = opts.default_gain
+                         opts.fengine_gain)
+        gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
         session.set_fengine_gains(gains)
+        session.capture_init()
+        session.cbf.correlator.req.capture_start()
         session.label('calibration')
         user_logger.info("Initiating %g-second track on target '%s'",
                          opts.track_duration, target.name)
@@ -99,7 +110,7 @@ with verify_and_connect(opts) as kat:
                 orig_weights *= delay_weights  # unwrap the delays
                 amp_weights = np.abs(orig_weights)
                 phase_weights = orig_weights / amp_weights
-                new_weights[inp] = opts.default_gain * phase_weights.conj()
+                new_weights[inp] = opts.fengine_gain * phase_weights.conj()
         session.set_fengine_gains(new_weights)
         if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
@@ -148,7 +159,6 @@ with verify_and_connect(opts) as kat:
                             scan_spacing=0.25, scan_in_azimuth=True,
                             projection=opts.projection)
         # reset the gains always
-        user_logger.info("Resetting F-engine gains to %g", opts.default_gain)
-        for inp in gains:
-            gains[inp] = opts.default_gain
+        user_logger.info("Resetting F-engine gains to %g", opts.fengine_gain)
+        gains = {inp: opts.fengine_gain for inp in gains}
         session.set_fengine_gains(gains)
