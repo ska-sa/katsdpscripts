@@ -52,14 +52,10 @@ def measure_atten(ant, pol, atten_ref=None, band='l'):
 # Set up standard script options
 usage = "%prog  <atten_ref.csv> "
 description = 'Sets the attenuation according to a attenuation reference file  '
-
 parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Set Attenuate', nd_params='off')
-parser.add_option('--force', action="store_True", dest="verbose", default=False,  
-                  help='Forces the attenuation change (default=%default)')
-
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -86,7 +82,7 @@ with verify_and_connect(opts) as kat:
                 if '%s%s' % (ant.name, pol) in atten_ref:
                     atten = measure_atten(
                         ant, pol, atten_ref=atten_ref['%s%s' % (ant.name, pol)], band='l')
-                    if atten != atten_ref['%s%s' % (ant.name, pol)] or opts.force :
+                    if atten != atten_ref['%s%s' % (ant.name, pol)]:
                         user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
                             ant.name, pol, atten, atten_ref['%s%s' % (ant.name, pol)]))
                         ant.req.dig_attenuation(
