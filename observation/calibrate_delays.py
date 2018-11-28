@@ -117,3 +117,6 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
             delays = {inp: 0.0 for inp in delays}
             session.set_delays(delays)
+        else:
+            # Set last-delay-calibration script sensor on the subarray.
+            session.sub.req.set_script_param('script-last-delay-calibration', kat.sb_id_code)
