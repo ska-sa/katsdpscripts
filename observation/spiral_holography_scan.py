@@ -370,6 +370,8 @@ parser.add_option('--kind', type='string', default='uniform',
                   help='Kind of spiral, could be "radial", "raster", "uniform" or "dense-core" (default=%default)')
 parser.add_option('--tracktime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
+parser.add_option('--cycle-tracktime', type='float', default=30.0,
+                  help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
 parser.add_option('--slewtime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to slew when passing from one spiral arm to another (default=%default)')
 parser.add_option('--slowtime', type='float', default=1.0,
@@ -458,6 +460,9 @@ with verify_and_connect(opts) as kat:
         # Add metadata
         session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
         session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
+        # Get observers
+        scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
+        track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
@@ -477,13 +482,13 @@ with verify_and_connect(opts) as kat:
         session.track(target, duration=0, announce=False)
         user_logger.info("Performing initial track")
         session.telstate.add('obs_label','track')
-        session.track(target, duration=20, announce=False)
+        session.track(target, duration=opts.cycle_tracktime, announce=False)
         if opts.auto_delay is not None:
             user_logger.info("Setting auto delay to "+opts.auto_delay)
             session.cbf.req.auto_delay(opts.auto_delay)
             user_logger.info("Performing follow up track")
             session.telstate.add('obs_label','delay set track')
-            session.track(target, duration=20, announce=False)
+            session.track(target, duration=opts.cycle_tracktime, announce=False)
         session.telstate.add('obs_label','cycle.group.scan')
         lasttime = time.time()
         if (opts.debug):
@@ -510,11 +515,6 @@ with verify_and_connect(opts) as kat:
                                          opts.horizon + opts.scan_extent / 2. - targetel,
                                          opts.scan_extent, opts.horizon)
                         break
-                scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
-                track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
-                #get both antennas to target ASAP
-                session.ants = all_ants
-                session.track(target, duration=0, announce=False)
                 user_logger.info("Using Track antennas: %s",
                                  ' '.join([ant.name for ant in track_ants]))
                 lasttime = time.time()
@@ -560,9 +560,11 @@ with verify_and_connect(opts) as kat:
                     swap=track_ants
                     track_ants=scan_ants
                     scan_ants=swap
+                time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
+                #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
+                session.ants = all_ants
+                session.telstate.add('obs_label','track')
+                session.track(target, duration=opts.cycle_tracktime, announce=False)
 
-        time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
-        #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
-        session.ants = all_ants
         if (opts.debug):
             fp.close()
