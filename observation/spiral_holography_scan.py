@@ -428,7 +428,7 @@ with verify_and_connect(opts) as kat:
             for inp in session.cbf.fengine.inputs:
                 session.cbf.fengine.req.gain(inp, opts.default_gain)
         #determine scan antennas
-        all_ants = session.ants
+        all_ants = ant_array(kat, session.ants, 'all_ants')
         session.obs_params['num_scans'] = len(compositex)
         grouprange = [0]
         if (opts.track_ants and opts.track_ants.isdigit()):
@@ -477,7 +477,7 @@ with verify_and_connect(opts) as kat:
 
         session.set_target(target)
 
-        session.ants = all_ants
+        session.ants = ant_array(kat, all_ants, 'all_ants')
         user_logger.info("Slewing to target")
         session.track(target, duration=0, announce=False)
         user_logger.info("Performing initial track")
@@ -562,7 +562,7 @@ with verify_and_connect(opts) as kat:
                     scan_ants=swap
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
-                session.ants = all_ants
+                session.ants = ant_array(kat, all_ants, 'all_ants')
                 session.telstate.add('obs_label','track')
                 session.track(target, duration=opts.cycle_tracktime, announce=False)
 
