@@ -527,46 +527,47 @@ def receptor_UHFband_limit(frequency,elevation): # APH added elevation
 def plot_data_freq(frequency,Tsys,Tant,title='',aperture_efficiency=None,band='L'):
     fig = plt.figure(figsize=(16,9))
     if Tsys[:,0:2]  is None or np.shape(Tsys[:,0:2])[0] == 0 :
-        line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
-        plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
-        line2,=plt.plot(frequency, Tant[:,0], color='b'  )
-        line3,=plt.plot(frequency, Tsys[:,1], marker='^', color='r',  linewidth=0)
-        plt.errorbar(frequency, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
-        line4,=plt.plot(frequency, Tant[:,1], color='r')
-        plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
-        plt.title('Tipping curve: %s' % (title))
-        plt.xlabel('Frequency (MHz)')
-        if aperture_efficiency is not None:
-            #print Tsys[:,2]
-            recLim_apEffH = receptor_band_limit(frequency,Tsys[:,2])/aperture_efficiency.eff['HH'](frequency)
-            recLim_apEffV = receptor_band_limit(frequency,Tsys[:,2])/aperture_efficiency.eff['VV'](frequency)
-            plt.plot(frequency,recLim_apEffH,lw=1.1,color='limegreen',linestyle='-')
-            plt.plot(frequency,recLim_apEffV,lw=1.1,color='limegreen',linestyle='-')
-            for error_margin in [0.9,1.1]:
-                plt.plot(frequency,recLim_apEffH*error_margin, lw=1.1,color='g',linestyle='--')
-                plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')
+        return fig # Empty figure
+    line1,=plt.plot(frequency, Tsys[:,0], marker='o', color='b', linewidth=0)
+    plt.errorbar(frequency, Tsys[:,0], Tsys[:,3], ecolor='b', color='b', capsize=6, linewidth=0)
+    line2,=plt.plot(frequency, Tant[:,0], color='b'  )
+    line3,=plt.plot(frequency, Tsys[:,1], marker='^', color='r',  linewidth=0)
+    plt.errorbar(frequency, Tsys[:,1],  Tsys[:,4], ecolor='r', color='r', capsize=6, linewidth=0)
+    line4,=plt.plot(frequency, Tant[:,1], color='r')
+    plt.legend((line1, line2, line3,line4 ),  ('$T_{sys}/\eta_{ap}$ HH','$T_{ant}$ HH', '$T_{sys}/\eta_{ap}$ VV','$T_{ant}$ VV'), loc='best')
+    plt.title('Tipping curve: %s' % (title))
+    plt.xlabel('Frequency (MHz)')
+    if aperture_efficiency is not None:
+        #print Tsys[:,2]
+        recLim_apEffH = receptor_band_limit(frequency,Tsys[:,2])/aperture_efficiency.eff['HH'](frequency)
+        recLim_apEffV = receptor_band_limit(frequency,Tsys[:,2])/aperture_efficiency.eff['VV'](frequency)
+        plt.plot(frequency,recLim_apEffH,lw=1.1,color='limegreen',linestyle='-')
+        plt.plot(frequency,recLim_apEffV,lw=1.1,color='limegreen',linestyle='-')
+        for error_margin in [0.9,1.1]:
+            plt.plot(frequency,recLim_apEffH*error_margin, lw=1.1,color='g',linestyle='--')
+            plt.plot(frequency,recLim_apEffV*error_margin, lw=1.1,color='g',linestyle='--')
 
-        low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
-        low_lim = np.min(low_lim)
-        low_lim = -5. # np.max((low_lim , -5.))
-        def tmp(x):
-            return np.percentile(x,80)
-        high_lim = (r_lim(Tsys[:,0:2],tmp),r_lim(Tant[:,0:2],tmp))
-        high_lim = np.max(high_lim)
-        high_lim = np.max((high_lim , 46*1.3))
-        plt.ylim(low_lim,high_lim)
-        if band=='L':
-            plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-            plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-            if np.min(frequency) <= 1420 :
-                plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
-            if np.max(frequency) >=1420 :
-                plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
-        if band=='U':
-            plt.vlines(580,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-            plt.vlines(1050,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
-        plt.grid()
-        plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
+    low_lim = (r_lim(Tsys[:,0:2]),r_lim(Tant[:,0:2]) )
+    low_lim = np.min(low_lim)
+    low_lim = -5. # np.max((low_lim , -5.))
+    def tmp(x):
+        return np.percentile(x,80)
+    high_lim = (r_lim(Tsys[:,0:2],tmp),r_lim(Tant[:,0:2],tmp))
+    high_lim = np.max(high_lim)
+    high_lim = np.max((high_lim , 46*1.3))
+    plt.ylim(low_lim,high_lim)
+    if band=='L':
+        plt.vlines(900,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        plt.vlines(1680,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        if np.min(frequency) <= 1420 :
+            plt.hlines(42, np.min((frequency.min(),1420)), 1420, colors='k')
+        if np.max(frequency) >=1420 :
+            plt.hlines(46, np.max((1420,frequency.min())), np.max((frequency.max(),1420)), colors='k')
+    if band=='U':
+        plt.vlines(580,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+        plt.vlines(1050,low_lim,high_lim,lw=1.1,color='darkviolet',linestyle='--')
+    plt.grid()
+    plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
 
 
