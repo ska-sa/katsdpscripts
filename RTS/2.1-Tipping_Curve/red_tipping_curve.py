@@ -34,7 +34,7 @@ class Sky_temp:
        Read in  file, and provide a method of passing back the Tsky temp a at a position
     """
 
-    def __init__(self,nu=1828.0,path="/var/kat/archive/data/models/gsm",diameter=13.5,smooth=True):
+    def __init__(self,nu=1828.0,path="/var/kat/archive4/data/models/gsm",diameter=13.5,smooth=True):
         """ Load The Tsky data from an inputfile in FITS format and scale to frequency
         This takes in 1 parameter:
         nu (MHz) center frequency
