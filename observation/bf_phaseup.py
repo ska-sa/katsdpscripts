@@ -4,6 +4,8 @@
 # Obtain calibrated gains and apply them to the F-engine afterwards.
 
 import numpy as np
+import scipy.signal
+import scipy.ndimage
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
@@ -12,6 +14,50 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
 
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
+
+
+def clean_bandpass(bp_gains, cal_channel_freqs, kernel_size, max_gap_Hz):
+    """Clean up bandpass gains by median filtering and extending flagged regions."""
+    clean_gains = {}
+    # Median filter the gain magnitude spectrum first, before processing flags
+    for inp, bp in bp_gains.items():
+        abs_bp = np.abs(bp)
+        smooth_abs_bp = scipy.signal.medfilt(abs_bp, kernel_size)
+        clean_gains[inp] = bp * (smooth_abs_bp / abs_bp)
+    # Extend flagged regions by 2 channels to either side
+    gain_flags = {inp: np.isnan(clean_gains[inp]) for inp in clean_gains}
+    for inp, flagged in gain_flags.items():
+        expanded = flagged[:-4] + flagged[1:-3] + flagged[3:-1] + flagged[4:]
+        flagged[2:-2] += expanded
+        gain_flags[inp] = flagged
+    # Flag H pol wherever V pol is flagged, and vice versa
+    pols = {inp[-1] for inp in gain_flags}
+    for inp, flagged in gain_flags.items():
+        for pol in pols:
+            other_pol_inp = inp[:-1] + pol
+            if other_pol_inp != inp and other_pol_inp in gain_flags:
+                gain_flags[other_pol_inp] += flagged
+    # Linearly interpolate across flagged regions as long as
+    # they are not too large or on the edges of the band
+    for inp, flagged in gain_flags.items():
+        bp = clean_gains[inp]
+        if flagged.all():
+            clean_gains[inp] = np.full_like(bp, np.nan)
+            continue
+        chans = np.arange(len(bp))
+        interp_bp = np.interp(chans, chans[~flagged], bp[~flagged])
+        # Identify flagged regions and tag each with unique integer label
+        gaps, n_gaps = scipy.ndimage.label(flagged)
+        for n in range(n_gaps):
+            gap = np.nonzero(gaps == n + 1)[0]
+            gap_freqs = cal_channel_freqs[gap]
+            lower = gap_freqs.min()
+            upper = gap_freqs.max()
+            if (lower == cal_channel_freqs[0] or upper == cal_channel_freqs[-1]
+               or upper - lower > max_gap_Hz):
+                interp_bp[gap] = np.nan
+        clean_gains[inp] = interp_bp
+    return clean_gains
 
 
 # Default F-engine gain as a function of number of channels
@@ -110,6 +156,8 @@ with verify_and_connect(opts) as kat:
             bp_gains = session.get_cal_solutions('B')
             delays = session.get_cal_solutions('K')
             cal_channel_freqs = session.get_cal_channel_freqs()
+            bp_gains = clean_bandpass(bp_gains, cal_channel_freqs,
+                                      kernel_size=7, max_gap_Hz=40e6)
 
             if opts.random_phase:
                 user_logger.info("Setting F-engine gains with random phases")
@@ -119,10 +167,10 @@ with verify_and_connect(opts) as kat:
             for inp in gains:
                 orig_weights = gains[inp]
                 bp = bp_gains[inp]
-                valid = ~np.isnan(bp)
-                if valid.any():  # not all flagged
-                    chans = np.arange(len(bp))
-                    bp = np.interp(chans, chans[valid], bp[valid])
+                if np.isnan(bp).all():
+                    user_logger.warning("Input %s has no valid gains and will be zeroed", inp)
+                    new_weights[inp] = np.complex64(0)
+                else:  # not all flagged
                     orig_weights *= bp
                     delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
                     orig_weights *= delay_weights  # unwrap the delays
@@ -130,9 +178,10 @@ with verify_and_connect(opts) as kat:
                     phase_weights = orig_weights / amp_weights
                     if opts.random_phase:
                         phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
-                    new_weights[inp] = opts.fengine_gain * phase_weights.conj()
+                    corrections = opts.fengine_gain * phase_weights.conj()
                     if opts.flatten_bandpass:
-                        new_weights[inp] /= amp_weights / amp_weights.mean()
+                        corrections /= amp_weights / np.nanmedian(amp_weights)
+                    new_weights[inp] = np.nan_to_num(corrections)
 
             session.set_fengine_gains(new_weights)
             if opts.verify_duration > 0:
