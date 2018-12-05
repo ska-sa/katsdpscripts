@@ -126,8 +126,7 @@ parser.add_option('--backend-args',
 parser.add_option('--cycle-snr', action='store_true', default=False,
                   help='Perform SNR test by cycling between inputs (default=no)')
 parser.add_option('--step-snr', action='store_true', default=False,
-                  help='Perform SNR test by switching off successive inputs' 
-                  '(default=no)')
+                  help='Perform SNR test by switching off successive inputs (default=no)')
 parser.add_option('--drift-scan', action='store_true', default=False,
                   help="Perform drift scan instead of standard track (default=no)")
 parser.add_option('--noise-source', type=str, default=None,
@@ -176,13 +175,17 @@ with verify_and_connect(opts) as kat:
                 raise ValueError("Could not set beamformer %r passband - (%s)" %
                                  (stream.name, ' '.join(reply.messages[0].arguments)))
         user_logger.info('Setting beamformer weights for stream %r:', stream.name)
+        weights = []
         for inp in stream.inputs:
-            weight = 1.0 / np.sqrt(len(bf_ants)) if inp[:-1] in bf_ants else 0.0
-            reply = stream.req.weights(inp, weight)
-            if reply.succeeded:
-                user_logger.info('  input %r got weight %f', inp, weight)
-            else:
-                user_logger.warning('  input %r weight could not be set', inp)
+            weight = 1.0 if inp[:-1] in bf_ants else 0.0
+            weights.append(weight)
+            user_logger.info('  input %r will get weight %f', inp, weight)
+
+        reply = stream.req.weights(*weights)
+        if reply.succeeded:
+            user_logger.info('Set input weights successfully')
+        else:
+            user_logger.warning('Failed to set input weights!')
 
     # We are only interested in first target
     user_logger.info('Looking up main beamformer target...')
