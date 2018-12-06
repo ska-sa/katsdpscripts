@@ -497,8 +497,11 @@ def receptor_band_limit(frequency,elevation):
     
     if (frequency.min() < 800) :
         return receptor_UHFband_limit(frequency,elevation)
-    else :
+    elif (frequency.max() < 1800) :
         return receptor_Lband_limit(frequency,elevation)
+    else :
+        return 1.0  
+
 
 def receptor_Lband_limit(frequency,elevation): # APH added elevation
     """275-410 m^2/K at Receivers CDR"""
