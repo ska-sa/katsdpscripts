@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # run a simple scan script to derive the horizon mask for MeerKAT
 # scan over constant elevation range but loop over azimuth
 import time
