@@ -1,17 +1,13 @@
-# run a simple scan script to derive the horizon mask for KAT-7
+# run a simple scan script to derive the horizon mask for MeerKAT
 # scan over constant elevation range but loop over azimuth
-
-# The *with* keyword is standard in Python 2.6, but has to be explicitly imported in Python 2.5
-from __future__ import with_statement
-
 import time
 from katcorelib import standard_script_options, verify_and_connect, start_session, user_logger
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options]",
-                                 description="Derive the horizon mask for a KAT-7 dish. Scan over constant elevation "
-                                             "range but loop over azimuth. This takes the form of 2x180 raster scans "
-                                             "in opposite directions, with 180 seconds per scan. "
+                                 description="Derive the horizon mask for a MeerKAT dish. Scan over constant elevation "
+                                             "range but loop over azimuth. This takes the form of 2x179 raster scans "
+                                             "in opposite directions, with 180*2 seconds per scan. "
                                              "There are non-optional options.")
 # Add experiment-specific options
 parser.add_option('--elevation-range', dest='elevation_range', type="float", default=1.0,
