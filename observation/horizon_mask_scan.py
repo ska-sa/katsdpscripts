@@ -14,25 +14,41 @@ parser = standard_script_options(usage="%prog [options]",
                                              "in opposite directions, with 180 seconds per scan. "
                                              "There are non-optional options.")
 # Add experiment-specific options
-parser.add_option('--elevation-range', dest='elevation_range', type="float", default=13.0,
+parser.add_option('--elevation-range', dest='elevation_range', type="float", default=1.0,
                   help="The range in elevation to cover starting from 3.1 degrees elevation (default=%default)")
 parser.add_option('--scan-spacing', dest='scan_spacing', type="float", default=1.0,
                   help="The spacing of the scan lines in the experiment, in degrees (default=%default)")
+parser.add_option('--reset-gain', type='int', default=None,
+                  help='Value for the reset of the correlator F-engine gain '
+                       '(default=%default)')
+parser.add_option('--fft-shift', type='int',
+                  help='Set correlator F-engine FFT shift (default=leave as is)')
+
 ## Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Horizon mask')
 # Parse the command line
 opts, args = parser.parse_args()
 
-el_start =  3.1
+el_start =  16.
 el_end = el_start + opts.elevation_range
 scan_spacing = opts.scan_spacing
 num_scans = int((el_end - el_start) / scan_spacing)
-scan_duration = 180.
-scan_extent = 180.
+scan_duration = 179.*2.
+scan_extent = 179.
 
 with verify_and_connect(opts) as kat:
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
+        if opts.reset_gain is not None:
+            if not session.cbf.fengine.inputs:
+                raise RuntimeError("Failed to get correlator input labels, "
+                                   "cannot set the F-engine gains")
+            for inp in session.cbf.fengine.inputs:
+                session.cbf.fengine.req.gain(inp, opts.reset_gain)
+                user_logger.info("F-engine %s gain set to %g",
+                                 inp, opts.reset_gain)
+        if opts.fft_shift is not None:
+            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.capture_start()
         # First Half
         start_time = time.time()
