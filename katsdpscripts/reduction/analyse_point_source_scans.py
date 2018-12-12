@@ -15,6 +15,7 @@ import pickle
 
 import numpy as np
 import scape
+import katdal
 import katpoint
 import scikits.fitting as fit
 
@@ -365,6 +366,8 @@ def analyse_point_source_scans(filename, opts):
 
     # Load data set
     logger.info("Loading dataset '%s'" % (filename,))
+    if (opts.time_offset_multiple is not None): # This overrides time_offset
+        opts.time_offset = opts.time_offset_multiple * 1./scape.DataSet(filename).dump_rate
     dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
                             time_offset=opts.time_offset, katfile=not opts.old_loader, **kwargs)
 
