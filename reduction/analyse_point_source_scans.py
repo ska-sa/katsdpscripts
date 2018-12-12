@@ -50,6 +50,8 @@ parser.add_option("-p", "--pointing-model",
 parser.add_option("-s", "--plot-spectrum", action="store_true", help="Flag to include spectral plot")
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
+parser.add_option("--time-offset-multiple", type='int', default=None,
+                  help="Overrides --time-offset! Time offset to add to DBE timestamps, as a multiple of the dump interval (default = %default)")
 parser.add_option("-u", "--ku-band", action="store_true", help="Force center frequency to be 12500.5 MHz")
 parser.add_option("-X", "--freq-centre", type='float', default=None,
                   help="Frequency to use for the calculation of the beam size , "
