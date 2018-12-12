@@ -15,7 +15,6 @@ import pickle
 
 import numpy as np
 import scape
-import katdal
 import katpoint
 import scikits.fitting as fit
 
