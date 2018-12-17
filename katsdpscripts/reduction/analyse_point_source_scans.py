@@ -83,6 +83,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     mean_east_wind = np.mean(raw_wind_speed * np.sin(np.radians(raw_wind_direction)))
     wind_speed = np.sqrt(mean_north_wind ** 2 + mean_east_wind ** 2)
     wind_direction = np.degrees(np.arctan2(mean_east_wind, mean_north_wind))
+    wind_std = np.std(raw_wind_speed)
     sun = katpoint.Target('Sun, special')
     # Calculate pointing offset
     # Obtain middle timestamp of compound scan, where all pointing calculations are done
@@ -113,11 +114,11 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
         offset_azel = np.array([np.nan, np.nan])
     # Outputs that are not expected to change if visibility data is perturbed
     fixed_names = 'antenna dataset target timestamp_ut data_unit frequency flux ' \
-                  'temperature pressure humidity wind_speed wind_direction ' \
+                  'temperature pressure humidity wind_speed wind_direction wind_std ' \
                   'azimuth elevation beam_expected_width_I sun_az sun_el timestamp'
     fixed = list(compscan_key(compscan)) + \
         [compscan.dataset.data_unit, compscan.dataset.freqs[0]] + \
-        [average_flux, temperature, pressure, humidity, wind_speed, wind_direction] + \
+        [average_flux, temperature, pressure, humidity, wind_speed, wind_direction, wind_std] + \
         requested_azel.tolist() + [expected_width] + sun_azel.tolist() + [middle_time]
     # Outputs that are expected to change if visibility data is perturbed
     var_names = 'delta_azimuth delta_elevation'
@@ -230,7 +231,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                         '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
                         '%(frequency).7f, %(flux).4f, ' \
                         '%(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
-                        '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
+                        '%(wind_direction).2f, %(wind_std).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
         output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
         output_data = [output_fields % out for out in reduced_data if out and out['keep']]
         f = file(opts.outfilebase + '.csv', 'w')
