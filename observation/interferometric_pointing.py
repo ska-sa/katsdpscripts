@@ -27,7 +27,7 @@ parser.add_option('--max-extent', type='float', default=1.0,
 parser.add_option('--number-of-steps', type='int', default=10,
                   help='Number of pointings to do while scaning , the script will scan ')
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Inferometric Pointing offset track')
+parser.set_defaults(description='Inferometric Pointing offset track', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -86,11 +86,8 @@ with verify_and_connect(opts) as kat:
                         if not kat.dry_run:
                             session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
                         nd_params = session.nd_params
-                        session.fire_noise_diode(announce=True, **nd_params)
-                        if kat.dry_run:
-                            session.track(target, duration=opts.track_duration, announce=False)
-                        else:
-                            time.sleep(opts.track_duration)  # Snooze
+                        #session.fire_noise_diode(announce=True, **nd_params)
+                        session.track(target, duration=opts.track_duration, announce=False)
                 targets_observed.append(target.name)
                 if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                     user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",

@@ -7,8 +7,6 @@ import time
 from ast import literal_eval
 from pprint import pprint
 
-from katcp import Sensor
-from katcp.resource import SensorResultTuple, KATCPSensorReading
 from katcorelib import standard_script_options, user_logger
 from katcorelib import cambuild
 from katmisc.utils.ansi import colors, get_sensor_colour, gotoxy, clrscr, col, getKeyIf
@@ -40,7 +38,7 @@ parser = standard_script_options(
     description="MeerKAT SKARAB CBF error check")
 parser.add_option("--subnr", type=int, default=1,
                   help="Subarray to check. (default='%default')")
-parser.add_option("--strategy", default="once",
+parser.add_option("--strategy", default="detail",
                   help="Strategy for this script. 'once|period|detail' "
                        "(default='%default')")
 
@@ -125,16 +123,22 @@ with cambuild(sub_nr=subnr) as kat:
         exit(0)
 
     cbf = kat.cbf
-    cbfmon = getattr(kat, "cbfmon_{}".format(subnr))
+    if 'cbf_dev_{}'.format(subnr) in sub_pool:
+        cbfmon_prefix = "cbfmon_dev"
+    else:
+        cbfmon_prefix = "cbfmon"
+    cbfmon = getattr(kat, "{}_{}".format(cbfmon_prefix, subnr))
 
-    log_message("Waiting for cbf_{0} and cbfmon_{0} to sync\n".format(subnr))
+    log_message("Waiting for cbf_{0} and {1}_{0} to sync\n".format(subnr, cbfmon_prefix))
     cbf_ok = cbf.until_synced(timeout=15)
     cbfmon_ok = cbfmon.until_synced(timeout=60)
 
     if not (cbf_ok and cbfmon_ok):
         log_message("Some resources did not sync \n kat.cbf_{}={} "
-                    "kat.cbfmon_{}={}\n{}\n\n"
-                    .format(subnr, cbf_ok, subnr, cbfmon_ok, kat.get_status()), 'error')
+                    "kat.{}_{}={}\n{}\n\n"
+                    .format(subnr, cbf_ok, cbfmon_prefix,
+                            subnr, cbfmon_ok, kat.get_status()),
+                    'error')
         log_message("Aborting script", 'error')
         raise RuntimeError(
             "Aborting - Some resources did not sync \n{}\n\n"
@@ -155,7 +159,7 @@ with cambuild(sub_nr=subnr) as kat:
             gotoxy(1, 1)
 
         truncate = False
-        sens_filter = 'device-status|feng-rxtime-ok|xeng-vaccs-synchronised'
+        sens_filter = 'device-status|feng-rxtime-ok|xeng-vaccs-synchronised|fhost\d+.network.[rt]x-gbps'
         sens_status = 'warn|error|unknown|failure'
         while c != 'q' and c != 'Q':
             if once:
@@ -283,8 +287,13 @@ with cambuild(sub_nr=subnr) as kat:
             sens = []
             for inform in informs:
                 timestamp, _count, name, status, value = inform.arguments
-                if status in sens_statuses:
-                    sens.append((name, float(timestamp), reading_time, status, value))
+                special = ""
+                if name.endswith('-gbps'):
+                    if float(value) < 1.0:
+                        special = "*** low data rate - host disabled?"
+                if status in sens_statuses or special:
+                    sens.append(
+                        (name, float(timestamp), reading_time, status, value, special))
 
             print('Filter: {}, Status: {},  {}/{} sensors\n'
                   .format(sens_filter, sens_status, len(sens), reply.arguments[1]))
@@ -293,7 +302,7 @@ with cambuild(sub_nr=subnr) as kat:
             xhosts_warn = set()
             fhosts_warn = set()
             for s in sens:
-                (name, value_time, reading_time, status, value) = s
+                (name, value_time, reading_time, status, value, special) = s
                 if name.startswith("i0.fhost"):
                     errors = fhosts_error
                     warns = fhosts_warn
@@ -305,7 +314,7 @@ with cambuild(sub_nr=subnr) as kat:
                 host = name.split(".")[1]
                 if status in ['error', 'failure', 'unknown']:
                     errors.add(host)
-                elif status in ['warn']:
+                elif status in ['warn'] or special:
                     warns.add(host)
 
             if fhosts_error or fhosts_warn:
@@ -391,16 +400,17 @@ with cambuild(sub_nr=subnr) as kat:
                 numpages, rest = divmod(len(sens), perpage or 1)
                 numpages = numpages + (1 if rest > 0 else 0)
             for s in sens[page * perpage:page * perpage + perpage]:
-                (name, value_time, reading_time, status, value) = s
+                (name, value_time, reading_time, status, value, special) = s
                 colour = get_sensor_colour(status)
                 # truncate value to first 75 characters
                 value = value if len(value) <= 100 or not truncate else value[:95] + "..."
                 value = r"\n".join(value.splitlines())
-                print("%s %s %s %s %s" % (col(colour) + name.ljust(45),
+                print("%s %s %s %s %s %s" % (col(colour) + name.ljust(45),
                       status.ljust(10),
                       get_time_str(value_time).ljust(15),
                       get_time_str(reading_time).ljust(15),
-                      str(value).ljust(45) + col('normal')))
+                      str(value).ljust(45),
+                      special + col('normal')))
                 sys.stdout.flush()
 
     except KeyboardInterrupt:

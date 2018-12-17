@@ -18,8 +18,7 @@ class NoTargetsUpError(Exception):
 
 
 # Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {4096: 200, 32768: 4000}
-
+DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
@@ -28,14 +27,16 @@ description = 'Track the source with the highest elevation and calibrate ' \
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
-                  help='Length of time to track the source for calibration, '\
+                  help='Length of time to track the source for calibration, '
                        'in seconds (default=%default)')
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
 parser.add_option('--fengine-gain', type='int', default=0,
-                  help='Correlator F-engine gain, automatically set if 0 (the '
-                       'default) and left alone if negative')
+                  help='Override correlator F-engine gain, using the default '
+                       'gain value for the mode if 0')
+parser.add_option('--fft-shift', type='int',
+                  help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards')
 # Set default value for any option (both standard and experiment-specific options)
@@ -65,18 +66,25 @@ with verify_and_connect(opts) as kat:
         target = observation_sources.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
+        if opts.fft_shift is not None:
+            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         if opts.fengine_gain <= 0:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            opts.fengine_gain = DEFAULT_GAIN.get(num_channels, -1)
-        gains = {}
-        delays = {}
-        for inp in session.get_cal_inputs():
-            gains[inp] = opts.fengine_gain
-            delays[inp] = 0.0
+            try:
+                opts.fengine_gain = DEFAULT_GAIN[num_channels]
+            except KeyError:
+                raise KeyError("No default gain available for F-engine with "
+                               "%i channels - please specify --fengine-gain"
+                               % (num_channels,))
+        cal_inputs = session.get_cal_inputs()
+        gains = {inp: opts.fengine_gain for inp in cal_inputs}
+        delays = {inp: 0.0 for inp in cal_inputs}
         session.set_fengine_gains(gains)
         user_logger.info("Zeroing all delay adjustments for starters")
         session.set_delays(delays)
-        session.capture_start()
+        session.capture_init()
+        user_logger.info("Only calling capture_start on correlator stream directly")
+        session.cbf.correlator.req.capture_start()
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
         session.label('un_corrected')
@@ -111,6 +119,8 @@ with verify_and_connect(opts) as kat:
             session.fire_noise_diode(on=opts.verify_duration, off=0)
         if opts.reset_delays:
             user_logger.info("Zeroing all delay adjustments on CBF proxy")
-            for inp in delays:
-                delays[inp] = 0.0
+            delays = {inp: 0.0 for inp in delays}
             session.set_delays(delays)
+        else:
+            # Set last-delay-calibration script sensor on the subarray.
+            session.sub.req.set_script_param('script-last-delay-calibration', kat.sb_id_code)

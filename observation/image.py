@@ -2,6 +2,7 @@
 # Track target and calibrators for imaging.
 
 import time
+from collections import defaultdict
 
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger)
@@ -62,19 +63,21 @@ with verify_and_connect(opts) as kat:
         # If bandpass interval is specified, force the first visit to be to the bandpass calibrator(s)
         time_of_last_bpcal = 0
         loop = True
+        source_total_duration = defaultdict(float)
         
-        source_total_duration = [0.0] * len(sources)
         while loop:
-            source_observed = [False] * len(sources)
             # Loop over sources in catalogue in sequence
-            for n, source in enumerate(sources):
+            source_observed = defaultdict(bool)
+            for source in sources:
                 # If it is time for a bandpass calibrator to be visited on an interval basis, do so
                 if opts.bpcal_interval is not None and time.time() - time_of_last_bpcal >= opts.bpcal_interval:
                     time_of_last_bpcal = time.time()
                     for bpcal in sources.filter('bpcal'):
                         session.label('track')
-                        session.track(bpcal, duration=duration['bpcal'])
-                        source_total_duration[n] += duration['bpcal']
+                        track_status = session.track(bpcal, duration=duration['bpcal'])
+                        
+                        if track_status:
+                            source_total_duration[bpcal] += duration['bpcal']
                 # Visit source if it is not a bandpass calibrator
                 # (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
@@ -85,17 +88,20 @@ with verify_and_connect(opts) as kat:
                     for tag in source.tags:
                         track_duration = duration.get(tag, track_duration)
                     session.label('track')
-                    source_observed[n] = session.track(source, duration=track_duration)
-                    source_total_duration[n] += track_duration
+                    track_status = source_observed[source] = session.track(source, duration=track_duration)
+                    
+                    if track_status:
+                        source_total_duration[source] += track_duration
+                        
                 if opts.max_duration and time.time() > start_time + opts.max_duration:
                     user_logger.info('Maximum script duration (%d s) exceeded, stopping script',
                                      opts.max_duration)
                     loop = False
                     break
-            if loop and not any(source_observed):
+            if loop and not any(source_observed.values()):
                 user_logger.warning('All imaging targets and gain cals are '
                                     'currently below horizon, stopping script')
                 loop = False
-        for n, source in enumerate(sources):
+        for source in sources:
             user_logger.info('Source %s observed for %.2f hrs',
-                             source.description, source_total_duration[n] / 3600.0)
+                             source.description, source_total_duration[source] / 3600.0)
