@@ -231,7 +231,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                         '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
                         '%(frequency).7f, %(flux).4f, ' \
                         '%(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
-                        '%(wind_direction).2f, %(wind_std).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
+                        '%(wind_direction).2f, %(wind_std).2f, %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
         output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
         output_data = [output_fields % out for out in reduced_data if out and out['keep']]
         f = file(opts.outfilebase + '.csv', 'w')
