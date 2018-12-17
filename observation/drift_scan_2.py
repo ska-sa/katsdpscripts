@@ -49,7 +49,7 @@ with verify_and_connect(opts) as kat:
             session.capture_start()
             target = observation_sources.filter(el_limit_deg=opts.horizon).targets[0]
 
-            session.track(target, duration=1) # APH added this 12/2018 to avoid first ND cycle whiletarget is drifting off bore sight
+            session.track(target, duration=1)
             time.sleep(4)
             start_time = time.time()
 
