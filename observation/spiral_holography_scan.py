@@ -218,6 +218,25 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
                 ncompositex[ia]=fullscanx
                 ncompositey[ia]=fullscany*y
         return compositex,compositey,ncompositex,ncompositey
+    elif (kind=='circle'):
+        ncircles=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
+        ntime=(tottime/np.float(ncircles)-tracktime)/sampletime #time per circle
+        compositex=[]
+        compositey=[]
+        r0=np.linspace(0,2,ntime/2)#for 1/r
+        #r0=(r0**2)/4.#for 1/r2
+        #r0=np.sqrt(r0)*np.sqrt(2.-1e-9)#for uniform
+        r1=1.
+        x=0.5*(1+r0**2-r1**2)
+        y=np.sqrt(r0**2-x**2)
+        x=np.r_[np.repeat(0.0,int(np.ceil(tracktime/sampletime/2.))),x,x[-2::-1],np.repeat(0.0,int(np.floor(tracktime/sampletime/2.)))]/4.
+        y=np.r_[np.repeat(0.0,int(np.ceil(tracktime/sampletime/2.))),y,-y[-2::-1],np.repeat(0.0,int(np.floor(tracktime/sampletime/2.)))]/4.
+        for th in np.linspace(0,360,ncircles,endpoint=False):
+            nx=x*np.cos(th*np.pi/180.)-y*np.sin(th*np.pi/180.)
+            ny=x*np.sin(th*np.pi/180.)+y*np.cos(th*np.pi/180.)
+            compositex.append(nx*totextent)
+            compositey.append(ny*totextent)
+        return compositex,compositey,compositex,compositey,0
     elif (kind=='radial'):
         c=180.0/(16.0*np.pi)
         narms=2*int(1.5*(np.sqrt(tottime/c+((tracktime+slewtime)/c)**2)-(tracktime+slewtime)/c))#ensures even number of arms - then scan pattern ends on target (if odd it will not)
