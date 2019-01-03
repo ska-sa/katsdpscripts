@@ -36,7 +36,7 @@ setup(name="katsdpscripts",
       zip_safe=False,
       ext_modules=[
           Extension(name='gsm', sources=['RTS/gsm/gsm.f'],
-                    extra_f77_compile_args=['-std=legacy -ffixed-line-length-0'])],
+                    extra_f77_compile_args=['-std=legacy', '-ffixed-line-length-0'])],
       package_data={'': ['RTS/gsm/gsm.f']},
       setup_requires=['katversion', good_numpy],
       use_katversion=True,

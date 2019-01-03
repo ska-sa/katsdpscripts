@@ -142,7 +142,8 @@ Cf2py   intent(in) path
       ! From numerical recipes.
       INTEGER   n, NMAX, i, k
       REAL*8    yp1,ypn,x(n),y(n),y2(n)
-      PARAMETER(NMAX=10000)	! Increased from 500 by Max
+      PARAMETER(NMAX=10000)
+      ! Paramater NMAX increased from 500 by Max
       REAL*8    p,qn,sig,un,u(NMAX)
       if (N.gt.NMAX)    pause 'SPLINE NMAX DEATH ERROR'          ! Added by Max
       if (x(1).gt.x(n)) pause 'SPLINE WARNING: x NOT INCREASING' ! Added by Max
