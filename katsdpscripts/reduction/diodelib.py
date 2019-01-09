@@ -52,9 +52,9 @@ def plot_Tsys_eta_A(freq,Tsys,eta_A,TAc,Ku=False,Tsys_std=None,ant = '', file_ba
         #if p == ant_num * 2 -1: plt.ylabel(ant)
         if Tsys_std[pol] is not None :
             plt.errorbar(freq/1e6,Tsys[pol],Tsys_std[pol],color = 'b',linestyle = '.',label='Measurement')
-        plt.plot(freq/1e6,Tsys[pol]/eta_A,'b.',label='Measurement: Y-method')
-        if not(Ku): plt.plot(freq/1e6,TAc/eta_A,'c.',label='Measurement: ND calibration')
-        plt.axhline(np.mean(Tsys[pol]/eta_A),linewidth=2,color='k',label='Mean: Y-method')
+        plt.plot(freq/1e6,Tsys[pol]/eta_A[pol],'b.',label='Measurement: Y-method')
+        if not(Ku): plt.plot(freq/1e6,TAc[pol]/eta_A[pol],'c.',label='Measurement: ND calibration')
+        plt.axhline(np.mean(Tsys[pol]/eta_A[pol]),linewidth=2,color='k',label='Mean: Y-method')
         if freq.min() < 2090e6:
             D = 13.5
             Ag = np.pi* (D/2)**2 # Antenna geometric area
@@ -194,7 +194,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
         h5.select(ants = a.name,channels=~static_flags)
         observer = h5.ants[0].observer; observer.date = time.gmtime(h5.timestamps.mean())[:6] # katdal resets this date to now()!
         fig0 = plot_ts(h5)
-        Tsys, Tsys_std = {}, {}
+        Tsys, TAc, Tsys_std = {}, {}, {}
+        eta_A = {}
         Tdiode = {}
         nd_temp = {}
         for pol in pols:
@@ -232,8 +233,8 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 # antenna temperature on the moon (from diode calibration)
                 TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp[pol] 
                 # antenna temperature on cold sky (from diode calibration) (Tsys)
-                TAc = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
-                print("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc.mean()))
+                TAc[pol] = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
+                print("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc[pol].mean()))
             Y = hot_spec / cold_spec
             D = 13.5 # Efficiency tables are defined for 13.5
             lam = 299792458./freq
@@ -242,10 +243,10 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
             R = 0.5*Dmoon(observer) # radius of the moon
             Os = 2*np.pi*(1-np.cos(R)) # disk source solid angle 
             _f_MHz, _eff_pct = np.loadtxt("/var/kat/katconfig/user/aperture-efficiency/mkat/ant_eff_%s_%s_AsBuilt.csv"%(band.upper(),pol.upper()), skiprows=2, delimiter="\t", unpack=True)
-            eta_A = np.interp(freq,_f_MHz*1e6,_eff_pct)/100. # EMSS aperture efficiency
-            if Ku: eta_A = 0.7
+            eta_A[pol] = np.interp(freq,_f_MHz,_eff_pct)/100. # EMSS aperture efficiency
+            if Ku: eta_A[pol] = 0.7
             Ag = np.pi* (D/2)**2 # Antenna geometric area
-            Ae = eta_A * Ag  # Effective aperture
+            Ae = eta_A[pol] * Ag  # Effective aperture
             x = 2*R/HPBW # ratio of source to beam
             K = ((x/1.2)**2) / (1-np.exp(-((x/1.2)**2))) # correction factor for disk source from Baars 1973
             TA_moon = 225 * (Os/Om) * (1/K) # contribution from the moon (disk of constant brightness temp)

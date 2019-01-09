@@ -35,6 +35,8 @@ parser.add_option('--verify-duration', type='float', default=64.0,
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Override correlator F-engine gain, using the default '
                        'gain value for the mode if 0')
+parser.add_option('--fft-shift', type='int',
+                  help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards')
 # Set default value for any option (both standard and experiment-specific options)
@@ -64,6 +66,8 @@ with verify_and_connect(opts) as kat:
         target = observation_sources.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
+        if opts.fft_shift is not None:
+            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         if opts.fengine_gain <= 0:
             num_channels = session.cbf.fengine.sensor.n_chans.get_value()
             try:
