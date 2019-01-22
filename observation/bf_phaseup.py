@@ -4,7 +4,6 @@
 # Obtain calibrated gains and apply them to the F-engine afterwards.
 
 import numpy as np
-import scipy.signal
 import scipy.ndimage
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
@@ -16,33 +15,15 @@ class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
-def clean_bandpass(bp_gains, cal_channel_freqs, kernel_size, max_gap_Hz):
-    """Clean up bandpass gains by median filtering and extending flagged regions."""
+def clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz):
+    """Clean up bandpass gains by linear interpolation across narrow flagged regions."""
     clean_gains = {}
-    # Median filter the gain magnitude spectrum first, before processing flags
-    for inp, bp in bp_gains.items():
-        abs_bp = np.abs(bp)
-        smooth_abs_bp = scipy.signal.medfilt(abs_bp, kernel_size)
-        clean_gains[inp] = bp * (smooth_abs_bp / abs_bp)
-    # Extend flagged regions by 2 channels to either side
-    gain_flags = {inp: np.isnan(clean_gains[inp]) for inp in clean_gains}
-    for inp, flagged in gain_flags.items():
-        expanded = flagged[:-4] + flagged[1:-3] + flagged[3:-1] + flagged[4:]
-        flagged[2:-2] += expanded
-        gain_flags[inp] = flagged
-    # Flag H pol wherever V pol is flagged, and vice versa
-    pols = {inp[-1] for inp in gain_flags}
-    for inp, flagged in gain_flags.items():
-        for pol in pols:
-            other_pol_inp = inp[:-1] + pol
-            if other_pol_inp != inp and other_pol_inp in gain_flags:
-                gain_flags[other_pol_inp] += flagged
     # Linearly interpolate across flagged regions as long as
     # they are not too large or on the edges of the band
-    for inp, flagged in gain_flags.items():
-        bp = clean_gains[inp]
+    for inp, bp in bp_gains.items():
+        flagged = np.isnan(bp)
         if flagged.all():
-            clean_gains[inp] = np.full_like(bp, np.nan)
+            clean_gains[inp] = bp
             continue
         chans = np.arange(len(bp))
         interp_bp = np.interp(chans, chans[~flagged], bp[~flagged])
@@ -156,8 +137,7 @@ with verify_and_connect(opts) as kat:
             bp_gains = session.get_cal_solutions('B')
             delays = session.get_cal_solutions('K')
             cal_channel_freqs = session.get_cal_channel_freqs()
-            bp_gains = clean_bandpass(bp_gains, cal_channel_freqs,
-                                      kernel_size=7, max_gap_Hz=40e6)
+            bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=40e6)
 
             if opts.random_phase:
                 user_logger.info("Setting F-engine gains with random phases")
