@@ -364,12 +364,6 @@ def gen_track(attime,target):
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
-
-def swap(array1,array2):
-    swp=array1
-    array1=array2
-    array2=swp
-
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='This script performs a holography scan on the specified target. '
@@ -581,11 +575,10 @@ with verify_and_connect(opts) as kat:
                         pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                     lasttime = scan_data[-1,0]
-                if (len(grouprange)==2):
-                    #swap scanning and tracking antennas
-                    swap(track_ants,scan_ants)
-                    swap(track_observers,scan_observers)
-                    swap(track_ants_array,scan_ants_array)
+                if (len(grouprange)==2):#swap scanning and tracking antennas
+                    track_ants,scan_ants=scan_ants,track_ants
+                    track_observers,scan_observers=scan_observers,track_observers
+                    track_ants_array,scan_ants_array=scan_ants_array,track_ants_array
 
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
