@@ -364,7 +364,6 @@ def gen_track(attime,target):
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
-
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='This script performs a holography scan on the specified target. '
@@ -476,6 +475,7 @@ with verify_and_connect(opts) as kat:
         # Assign rest of antennas to tracking antenna subarray (or use given antennas)
         track_ants = [ant for ant in all_ants if ant not in scan_ants]
         track_ants = ant_array(kat, track_ants, 'track_ants')
+        track_ants_array = [ant_array(kat, [track_ant], 'track_ant') for track_ant in track_ants]
         scan_ants_array = [ant_array(kat, [scan_ant], 'scan_ant') for scan_ant in scan_ants]
 
         # Add metadata
@@ -483,7 +483,7 @@ with verify_and_connect(opts) as kat:
         session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
         # Get observers
         scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
-        track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
+        track_observers = [katpoint.Antenna(track_ant.sensor.observer.get_value()) for track_ant in track_ants]
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
@@ -549,7 +549,7 @@ with verify_and_connect(opts) as kat:
                         if not kat.dry_run:
                             session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         session.ants = track_ants
-                        target.antenna = track_observer
+                        target.antenna = track_observers[0]
                         scan_track = gen_track(scan_data[:,0],target)
                         user_logger.info("Using Track antennas: %s",
                                          ' '.join([ant.name for ant in session.ants]))
@@ -575,11 +575,11 @@ with verify_and_connect(opts) as kat:
                         pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                     lasttime = scan_data[-1,0]
-                if (len(grouprange)==2):
-                    #swap scanning and tracking antennas
-                    swap=track_ants
-                    track_ants=scan_ants
-                    scan_ants=swap
+                if (len(grouprange)==2):#swap scanning and tracking antennas
+                    track_ants,scan_ants=scan_ants,track_ants
+                    track_observers,scan_observers=scan_observers,track_observers
+                    track_ants_array,scan_ants_array=scan_ants_array,track_ants_array
+
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                 session.ants = all_ants
