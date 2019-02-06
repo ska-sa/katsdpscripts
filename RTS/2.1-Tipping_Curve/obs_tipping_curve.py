@@ -30,9 +30,11 @@ on_time = 15.0
 with verify_and_connect(opts) as kat:
     # Ensure that azimuth is in valid physical range of -185 to 275 degrees
     if opts.az is None:
-        user_logger.info("No Azimuth selected , selecting clear Azimith")
+        user_logger.info("No Azimuth selected , selecting clear Azimuth")
         if not kat.dry_run:
-            timestamp = [katpoint.Timestamp(time.time()+i) for i in  ((np.arange(15.0,90.1,1)-15.0)*(15+20.0+1.0))]
+            timestamp = [katpoint.Timestamp(time.time()+i) for i in ((np.arange(15.0,90.1,opts.spacing)-15.0)*(on_time+20.0+1.0))]
+            #timestamps calculated as  number of pointings times the length of each pointing added to time.now()
+            #each pointing is on_time + 20s noisdiode + 1 second slew. 
             #load the standard KAT sources ... similar to the SkyPlot of the katgui
             observation_sources = kat.sources.filter(tags=['~Pulsars'])
             source_az = []
