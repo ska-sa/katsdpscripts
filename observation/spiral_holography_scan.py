@@ -349,18 +349,20 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep):
     scan_data = np.zeros((num_points,3))
     attime = lasttime+np.arange(1,num_points+1)*timeperstep
     #spiral arm scan
-    targetaz_rad,targetel_rad=target.azel(attime)
+    targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+    targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
     scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm )
     scan_data[:,0] = attime
-    scan_data[:,1] = katpoint.wrap_angle(scanaz)*180.0/np.pi
+    scan_data[:,1] = np.unwrap(scanaz)*180.0/np.pi
     scan_data[:,2] = scanel*180.0/np.pi
     return scan_data
 
 def gen_track(attime,target):
     track_data = np.zeros((len(attime),3))
-    targetaz_rad,targetel_rad=target.azel(attime)
+    targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+    targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
     track_data[:,0] = attime
-    track_data[:,1] = katpoint.wrap_angle(targetaz_rad)*180.0/np.pi
+    track_data[:,1] = np.unwrap(targetaz_rad)*180.0/np.pi
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
