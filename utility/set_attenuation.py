@@ -68,13 +68,13 @@ with verify_and_connect(opts) as kat:
                                        (band, pol), "period 1.0")
     tmp_data = np.loadtxt(args[0], dtype=np.str,delimiter=',')
     atten_ref = {}
-    for ant, pol, value in tmp_data:
+    for ant, value_h,value_v in tmp_data:
         try:
-            val = np.int(value)
-            atten_ref['%s%s' % (ant, pol)] = val
+            atten_ref['%s%s' % (ant, 'h')] = np.int(value_h)
+            atten_ref['%s%s' % (ant, 'v')] = np.int(value_v)
         except ValueError:
             user_logger.warning(
-                "%s %s: attenuation value '%s' is not an integer " % (ant, pol, value))
+                "%s %s: attenuation value '%s','%s' is not an integer " % (ant,  value_h,value_v))
             #print ("%s %s: attenuation value '%s' is not an integer  " % (ant, pol, value))
     if not kat.dry_run:
         for ant in kat.ants:
