@@ -1,10 +1,44 @@
 #!/usr/bin/env python
-# Track target(s) for a specified time.
+# Track SCP and and determine attenuation values
 
 import time
 import numpy as np
 from katcorelib import (
     user_logger, standard_script_options, verify_and_connect, colors)
+import smtplib
+from email.mime.text import MIMEText
+
+def send_email(email_to,lines, subject, messagefrom='operators@ska.ac.za'):
+    body = '\n'.join(lines)
+    body = string.replace(body, '\n', '<br>\n')
+    html = """\
+    <html>
+        <body>
+          <p>
+              """ + body + """\
+          </p>
+        </body>
+    </html>
+    """
+    if type(opts.email_to) is list:
+        messageto = ', '.join((opts.email_to).replace(' ', ''))
+    else:
+        messageto = (email_to).replace(' ', '')
+    msg = MIMEText(html, 'html')
+    msg['Subject'] = subject
+    msg['From'] = messagefrom
+    msg['To'] = messageto
+    if type(email_to) is list:
+        sendto = (email_to).replace(' ', '')
+    elif (email_to).find(',') >= 0:
+        sendto = ((email_to).replace(' ', '')).split(',')
+    elif (opts.email_to).find(';') >= 0:
+        sendto = ((email_to).replace(' ', '')).split(';')
+    else:
+        sendto = (email_to).replace(' ', '')
+    smtp_server = smtplib.SMTP('smtp.kat.ac.za')
+    smtp_server.sendmail(messagefrom, sendto, msg.as_string())
+    smtp_server.quit()
 
 
 def color_code(value, warn, error):
@@ -72,6 +106,9 @@ parser.add_option('--adc-std-in', type='float', default=12.0,
                   help='The target adc rms level  (default=%default)')
 parser.add_option('--adc-volt', type='float', default=190.0,
                   help='The target power level for the adc (default=%default)')
+parser.add_option('--email-to', type='str',
+    default='sean@ska.ac.za,operators@ska.ac.za,cgumede@ska.ac.za',
+    help='Comma separated email list of people to send report to (default=%default)')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Auto Attenuate', nd_params='off')
@@ -115,7 +152,11 @@ with verify_and_connect(opts) as kat:
                                 ant.name, pol, atten, atten-1))
                             ant.req.dig_attenuation(pol, atten-1)
                             ant_update[i] = True
-
+        lines = []
+        lines.append('Changing attenuation , report of refine_attenuation.py')
         for ant in kat.ants:
             for pol in {'h', 'v'}:
                 std, atten, voltage = sample_bits(ant, pol)
+                lines.append('%s%s,%i #  std:%f   vol:%f'%(ant.name, pol,atten,std,voltage))
+        try:
+            send_email(opts.email_to,lines, 'Changing attenuation', messagefrom='operators@ska.ac.za')
