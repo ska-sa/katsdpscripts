@@ -41,6 +41,46 @@ def clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz):
     return clean_gains
 
 
+def calculate_corrections(G_gains, B_gains, delays, cal_channel_freqs,
+                          random_phase, flatten_bandpass,
+                          target_average_correction):
+    """Turn cal pipeline products into corrections to be passed to F-engine."""
+    average_gain = {}
+    gain_corrections = {}
+    for inp in G_gains:
+        # Combine all calibration products for input into single array of gains
+        K_gains = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
+        gains = K_gains * B_gains[inp] * G_gains[inp]
+        if np.isnan(gains).all():
+            average_gain[inp] = gain_corrections[inp] = 0.0
+            continue
+        abs_gains = np.abs(gains)
+        # Track the average gain to fix overall power level (and as diagnostic)
+        average_gain[inp] = np.nanmedian(abs_gains)
+        corrections = 1.0 / gains
+        if not flatten_bandpass:
+            # Let corrections have constant magnitude equal to 1 / (avg gain),
+            # which ensures that power levels are still equalised between inputs
+            corrections *= abs_gains / average_gain[inp]
+        if random_phase:
+            corrections *= np.exp(2j * np.pi * np.random.rand(len(corrections)))
+        gain_corrections[inp] = np.nan_to_num(corrections)
+    # All invalid gains (NaNs) have now been turned into zeros
+    valid_average_gains = [g for g in average_gain.values() if g > 0]
+    if not valid_average_gains:
+        raise ValueError("All gains invalid and beamformer output will be zero!")
+    global_average_gain = np.median(valid_average_gains)
+    for inp in G_gains:
+        relative_gain = average_gain[inp] / global_average_gain
+        if relative_gain == 0.0:
+            user_logger.warning("%s has no valid gains and will be zeroed", inp)
+        else:
+            user_logger.info("%s: relative gain %5.2f", inp, relative_gain)
+        # This ensures that input at the global average gets target correction
+        gain_corrections[inp] *= target_average_correction * global_average_gain
+    return gain_corrections
+
+
 # Default F-engine gain as a function of number of channels
 DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
@@ -143,27 +183,10 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Setting F-engine gains with random phases")
             else:
                 user_logger.info("Setting F-engine gains to phase up antennas")
-            new_weights = {}
-            for inp in gains:
-                orig_weights = gains[inp]
-                bp = bp_gains[inp]
-                if np.isnan(bp).all():
-                    user_logger.warning("Input %s has no valid gains and will be zeroed", inp)
-                    new_weights[inp] = np.complex64(0)
-                else:  # not all flagged
-                    orig_weights *= bp
-                    delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights *= delay_weights  # unwrap the delays
-                    amp_weights = np.abs(orig_weights)
-                    phase_weights = orig_weights / amp_weights
-                    if opts.random_phase:
-                        phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
-                    corrections = opts.fengine_gain * phase_weights.conj()
-                    if opts.flatten_bandpass:
-                        corrections /= amp_weights / np.nanmedian(amp_weights)
-                    new_weights[inp] = np.nan_to_num(corrections)
-
-            session.set_fengine_gains(new_weights)
+            corrections = calculate_corrections(gains, bp_gains, delays,
+                                                cal_channel_freqs, opts.random_phase,
+                                                opts.flatten_bandpass, opts.fengine_gain)
+            session.set_fengine_gains(corrections)
             if opts.verify_duration > 0:
                 user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
                                  target.name, opts.verify_duration)
