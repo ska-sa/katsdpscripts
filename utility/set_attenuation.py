@@ -79,7 +79,8 @@ with verify_and_connect(opts) as kat:
         if not len(args) == 0:
             raise IOError(
                 'This script no longer takes in an attenuation file. Please raise an issue if you need this ')
-        user_logger.info("No directory passed to script , using katconfig ")
+        user_logger.info("This script used values found in katconf/katconfig")
+        user_logger.info("Reading file katconf:'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv'" % (band))
         file_string = katconf.resource_string(
             'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv' % (band))
         tmp_data = [a.split(',') for a in file_string.split('\n')]
@@ -104,7 +105,7 @@ with verify_and_connect(opts) as kat:
                         # print "%s band %s %s: Changing attenuation from %idB to %idB " % (
                         #    band,ant.name, pol, atten, atten_ref['%s_%s_%s' % (band,ant.name, pol)])
                         ant.req.dig_attenuation(
-                            pol, atten_ref['%s_%s_%s' % (band, ant, pol)])
+                            pol, atten_ref['%s_%s_%s' % (band, ant.name, pol)])
                 else:
                     user_logger.error("'%s' band %s %s: Has no attenuation value in the file " % (
                         band, ant.name, pol))
