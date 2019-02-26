@@ -133,7 +133,7 @@ with verify_and_connect(opts) as kat:
                 for pol in {'h', 'v'}:
                     if '%s_%s_%s' % (band, ant.name, pol) in atten_ref:
                         atten = measure_atten(
-                            ant, pol, atten_ref=atten_ref['%s_%s_%s' % (band, ant.name, pol)], band='l')
+                            ant, pol, atten_ref=atten_ref['%s_%s_%s' % (band, ant.name, pol)], band=band)
                         if atten != atten_ref['%s_%s_%s' % (band, ant.name, pol)]:
                             user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
                                 band, ant.name, pol, atten, atten_ref['%s_%s_%s' % (band, ant.name, pol)]))
