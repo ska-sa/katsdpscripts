@@ -8,9 +8,66 @@
 #
 
 import numpy as np
+import katconf
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
-                                CalSolutionsUnavailable)
+                                CalSolutionsUnavailable,colors)
+
+def color_code_eq(value, test, errorv=0.01):
+    """
+        This function returns the color code string bassed on if the values are within a range
+        Example:
+                $ color_code_eq(1., 2.,errorv=0.01)
+            returns yellow color code
+
+                $ color_code_eq(1., 1.0005,errorv=0.01)
+            returns green color code
+
+            value, test,errorv are floating point numbers
+            value and test are the 2 values tested
+            and errorv is the equality range.
+    """
+    code_color = colors.Green
+    if value >= test + errorv or value <= test - errorv:
+        code_color = colors.Yellow
+    return code_color
+
+
+def measure_atten(ant, pol, atten_ref=None, band='l'):
+    """ This function returns the attenuation of an antenna and colors the
+        logging if this number differs from the reference value
+    Example:
+            $ measure_atten('m064', 'h',atten_ref=5)
+        returns 4
+        with log message:
+        <<date time>> band l: m064 h  Attenuation : <yellow> 4 <default color> "
+
+        ant is an katcp antenna object
+        pol is a string
+        value and test are the antenna name and the polorisation
+        and atten_ref is the expected values.
+    """
+
+    sensor = "dig_%s_band_rfcu_%spol_attenuation" % (band, pol)
+    atten = ant.sensor[sensor].get_value()
+    color_d = color_code_eq(atten, atten_ref)
+    string = "'%s' band: %s %s  Attenuation : %s %-2i %s " % (
+        band, ant.name, pol, color_d, atten, colors.Normal)
+    print string
+    user_logger.info(string)
+    return atten
+
+
+def get_ant_band(ant):
+    """ This function returns the selected band of an antenna
+    Example:
+            $ get_ant_band('m064')
+        returns 'x'
+          ant is an katcp antenna object
+    """
+    sensor = "dig_selected_band"
+    band = ant.sensor[sensor].get_value()
+    return band
 
 
 class NoTargetsUpError(Exception):
@@ -39,6 +96,9 @@ parser.add_option('--fft-shift', type='int',
                   help='Set correlator F-engine FFT shift (default=leave as is)')
 parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards')
+parser.add_option('--set-attenuation', action='store_true', default=False,
+                  help='Set the attenuation of the system.')
+
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Delay calibration observation')
@@ -52,6 +112,38 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
+    if opts.set_attenuation :
+        atten_ref = {}
+        for band in ['l', 'u']:  # ,'s','x'   # Read in the bands
+            user_logger.info("Reading file katconf:'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv'" % (band))
+            file_string = katconf.resource_string(
+                'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv' % (band))
+            tmp_data = [a.split(',') for a in file_string.split('\n')]
+            for ant, value_h, value_v in tmp_data:
+                if not ant[0] == '#':
+                    try:
+                        atten_ref['%s_%s_%s' % (band, ant, 'h')] = np.int(value_h)
+                        atten_ref['%s_%s_%s' % (band, ant, 'v')] = np.int(value_v)
+                    except ValueError:
+                        user_logger.warning(
+                            "'%s' band  %s: attenuation value '%s','%s' is not an integer " % (band, ant,  value_h, value_v))
+        if not kat.dry_run:
+            for ant in kat.ants:  # note ant is an katcp antenna object
+                band = get_ant_band(ant)
+                for pol in {'h', 'v'}:
+                    if '%s_%s_%s' % (band, ant.name, pol) in atten_ref:
+                        atten = measure_atten(
+                            ant, pol, atten_ref=atten_ref['%s_%s_%s' % (band, ant.name, pol)], band='l')
+                        if atten != atten_ref['%s_%s_%s' % (band, ant.name, pol)]:
+                            user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
+                                band, ant.name, pol, atten, atten_ref['%s_%s_%s' % (band, ant.name, pol)]))
+                            # print "%s band %s %s: Changing attenuation from %idB to %idB " % (
+                            #    band,ant.name, pol, atten, atten_ref['%s_%s_%s' % (band,ant.name, pol)])
+                            ant.req.dig_attenuation(
+                                pol, atten_ref['%s_%s_%s' % (band, ant.name, pol)])
+                    else:
+                        user_logger.error("'%s' band %s %s: Has no attenuation value in the file " % (
+                            band, ant.name, pol))
     observation_sources = collect_targets(kat, args)
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
