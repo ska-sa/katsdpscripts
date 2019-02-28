@@ -3,6 +3,8 @@
 
 import numpy as np
 import katconf
+import time
+import StringIO
 from katcorelib import (
     user_logger, standard_script_options, verify_and_connect, colors)
 
@@ -83,19 +85,18 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reading file katconf:'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv'" % (band))
         file_string = katconf.resource_string(
             'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv' % (band))
-        tmp_data = [a.split(',') for a in file_string.split('\n')]
+        tmp_data =  np.loadtxt(StringIO(file_string),dtype=np.str,delimiter=',')
         for ant, value_h, value_v in tmp_data:
-            if not ant[0] == '#':
-                try:
-                    atten_ref['%s_%s_%s' % (band, ant, 'h')] = np.int(value_h)
-                    atten_ref['%s_%s_%s' % (band, ant, 'v')] = np.int(value_v)
-                except ValueError:
-                    user_logger.warning(
-                        "'%s' band  %s: attenuation value '%s','%s' is not an integer " % (band, ant,  value_h, value_v))
+            try:
+                atten_ref['%s_%s_%s' % (band, ant, 'h')] = np.int(value_h)
+                atten_ref['%s_%s_%s' % (band, ant, 'v')] = np.int(value_v)
+            except ValueError:
+                user_logger.warning(
+                    "'%s' band  %s: attenuation value '%s','%s' is not an integer " % (band, ant,  value_h, value_v))
     if not kat.dry_run:
-        for ant in kat.ants:  # note ant is an katcp antenna object
-            band = get_ant_band(ant)
-            for pol in {'h', 'v'}:
+        for pol in {'h', 'v'}:
+            for ant in kat.ants:  # note ant is an katcp antenna object
+                band = get_ant_band(ant)
                 if '%s_%s_%s' % (band, ant.name, pol) in atten_ref:
                     atten = measure_atten(
                         ant, pol, atten_ref=atten_ref['%s_%s_%s' % (band, ant.name, pol)], band=band)
@@ -109,3 +110,5 @@ with verify_and_connect(opts) as kat:
                 else:
                     user_logger.error("'%s' band %s %s: Has no attenuation value in the file " % (
                         band, ant.name, pol))
+            user_logger.info("Sleeping for 30 seconds ")
+            time.sleep(30)
