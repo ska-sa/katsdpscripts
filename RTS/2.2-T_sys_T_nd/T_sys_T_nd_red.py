@@ -2,6 +2,8 @@
 import argparse
 #from katsdpscripts.RTS import diodelib
 from katsdpscripts.reduction import diodelib
+import matplotlib
+matplotlib.use('Agg')
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=" This produces a pdf file with graphs verifying the ND model and Tsys for each antenna in the file")
