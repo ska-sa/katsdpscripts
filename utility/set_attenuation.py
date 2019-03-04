@@ -85,7 +85,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reading file katconf:'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv'" % (band))
         file_string = katconf.resource_string(
             'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv' % (band))
-        tmp_data =  np.loadtxt(StringIO(file_string),dtype=np.str,delimiter=',')
+        tmp_data =  np.loadtxt(StringIO.StringIO(file_string),dtype=np.str,delimiter=',')
         for ant, value_h, value_v in tmp_data:
             try:
                 atten_ref['%s_%s_%s' % (band, ant, 'h')] = np.int(value_h)
@@ -103,8 +103,8 @@ with verify_and_connect(opts) as kat:
                     if atten != atten_ref['%s_%s_%s' % (band, ant.name, pol)]:
                         user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
                             band, ant.name, pol, atten, atten_ref['%s_%s_%s' % (band, ant.name, pol)]))
-                        # print "%s band %s %s: Changing attenuation from %idB to %idB " % (
-                        #    band,ant.name, pol, atten, atten_ref['%s_%s_%s' % (band,ant.name, pol)])
+                        print "%s band %s %s: Changing attenuation from %idB to %idB " % (
+                            band,ant.name, pol, atten, atten_ref['%s_%s_%s' % (band,ant.name, pol)])
                         ant.req.dig_attenuation(
                             pol, atten_ref['%s_%s_%s' % (band, ant.name, pol)])
                 else:
