@@ -70,12 +70,13 @@ def calculate_corrections(G_gains, B_gains, delays, cal_channel_freqs,
     if not valid_average_gains:
         raise ValueError("All gains invalid and beamformer output will be zero!")
     global_average_gain = np.median(valid_average_gains)
-    for inp in G_gains:
+    for inp in sorted(G_gains):
         relative_gain = average_gain[inp] / global_average_gain
         if relative_gain == 0.0:
             user_logger.warning("%s has no valid gains and will be zeroed", inp)
         else:
-            user_logger.info("%s: relative gain %5.2f", inp, relative_gain)
+            user_logger.info("%s: average gain relative to global average = %5.2f",
+                             inp, relative_gain)
         # This ensures that input at the global average gets target correction
         gain_corrections[inp] *= target_average_correction * global_average_gain
     return gain_corrections
@@ -183,10 +184,11 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Setting F-engine gains with random phases")
             else:
                 user_logger.info("Setting F-engine gains to phase up antennas")
-            corrections = calculate_corrections(gains, bp_gains, delays,
-                                                cal_channel_freqs, opts.random_phase,
-                                                opts.flatten_bandpass, opts.fengine_gain)
-            session.set_fengine_gains(corrections)
+            if not kat.dry_run:
+                corrections = calculate_corrections(gains, bp_gains, delays,
+                                                    cal_channel_freqs, opts.random_phase,
+                                                    opts.flatten_bandpass, opts.fengine_gain)
+                session.set_fengine_gains(corrections)
             if opts.verify_duration > 0:
                 user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
                                  target.name, opts.verify_duration)
