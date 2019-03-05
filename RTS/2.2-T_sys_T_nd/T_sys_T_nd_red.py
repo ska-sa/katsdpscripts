@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import matplotlib
+matplotlib.use('Agg')
 import argparse
 #from katsdpscripts.RTS import diodelib
 from katsdpscripts.reduction import diodelib

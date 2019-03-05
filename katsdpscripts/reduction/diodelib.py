@@ -176,7 +176,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     colour = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     pols = ['v','h']
     
-    for a,col in zip(ants,colour):
+    for a in ants:
         ant = a.name
         try:
             rx_sn = h5.receivers[ant]
