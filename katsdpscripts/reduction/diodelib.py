@@ -10,7 +10,7 @@ from scipy.signal import medfilt
 import logging
 import scikits.fitting as fit
 import time, ephem
-import matplotlib
+
 
 def save_ND(diode_filename,file_base,freq,Tdiode_pol ):
     outfilename = diode_filename.split('/')[-1]
@@ -130,7 +130,6 @@ def Dmoon(observer):
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                         verbose = False,error_bars=False,target='off1',
                         write_nd=False,rfi_mask='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',**kwargs):
-    matplotlib.use('Agg') 
     print 'inside',kwargs
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
