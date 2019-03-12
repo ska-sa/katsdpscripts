@@ -180,10 +180,10 @@ with verify_and_connect(opts) as kat:
             count = count + 1
             time.sleep(5)
             print("New loop")
-            for ant in kat.ants:
-                band = get_ant_band(ant)
-                if band in bandlist:
-                    for pol in {'h', 'v'}:
+            for pol in {'h', 'v'}:
+                for ant in kat.ants:
+                    band = get_ant_band(ant)
+                    if band in bandlist:
                         i = i + 1
                         if ant_update[i]:
                             ant_update[i] = False
@@ -198,8 +198,8 @@ with verify_and_connect(opts) as kat:
                                     band,ant.name, pol, atten, atten-1))
                                 ant.req.dig_attenuation(pol, atten-1)
                                 ant_update[i] = True
-                else :
-                    user_logger.error("'%s' band is not in the list of valid bands " % (band))
+                    else :
+                        user_logger.error("'%s' band is not in the list of valid bands " % (band))
         lines = []
         summary = []
         atten_ref = {}
