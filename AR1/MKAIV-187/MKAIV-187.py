@@ -358,7 +358,7 @@ def fit_phase_std(x, y):
     #plot(y-(m*x))
     return  anglestd(y - (m * x))
 
-def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamples=1200):
+def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamples=10):
     """ calculate the Stats needed to evaluate the observation"""
     returntext = []
     #note gain is in radians
@@ -369,18 +369,17 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
     #full = np.where(window_occ==1)
     #note std is returned in degrees
-    std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))
-    peakmin= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemin,min_periods=minsamples)))
-    peakmax= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemax,min_periods=minsamples)))
-    gain_val_corr = ((pandas.rolling_apply(gain_ts,window=windowtime,func=angle_mean,min_periods=minsamples)))
+    std = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=angle_std,raw=True)
+    #  std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))
+    peakmin = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=anglemin,raw=True)
+    peakmax = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=anglemax,raw=True)
+    gain_val_corr = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=angle_mean,raw=True)
     #gain_val = pandas.Series(gain_ts-gain_val_corr, pandas.to_datetime(timestamps, unit='s') )
     gain_val = pandas.Series(np.angle(np.exp(1j*gain_ts)/np.exp(1j*gain_val_corr)), pandas.to_datetime(timestamps, unit='s'))
-
-    peak =  ((pandas.rolling_apply(gain_ts,window=windowtime,func=peak2peak,min_periods=minsamples)))
-    dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
+    peak =  gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=peak2peak,raw=True)
+    dtrend_std = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=detrend,raw=True)
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     timeval = timestamps.max()-timestamps.min()
-
 
     #rms = np.sqrt((gain**2).mean())
     returntext.append("Total time of observation : %f (seconds) with %i accumulations."%(timeval,timestamps.shape[0]))
@@ -388,12 +387,12 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Peak to Peak range over %i seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,np.degrees(peak.mean())))
-    returntext.append("The Max Peak to Peak range over %i seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,np.degrees(peak.max())) )
-    returntext.append("The mean variation over %i seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.mean())) )
-    returntext.append("The Max  variation over %i seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.max())) )
-    returntext.append("The mean detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.mean())))
-    returntext.append("The Max  detrended variation over %i seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
+    returntext.append("The mean Peak to Peak range over %s seconds of %s is: %.5f (req < 13 )  "%(windowtime,pol,np.degrees(peak.mean())))
+    returntext.append("The Max Peak to Peak range over %s seconds of %s is: %.5f  (req < 13 )  "%(windowtime,pol,np.degrees(peak.max())) )
+    returntext.append("The mean variation over %s seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.mean())) )
+    returntext.append("The Max  variation over %s seconds of %s is: %.5f    "%(windowtime,pol,np.degrees(std.max())) )
+    returntext.append("The mean detrended variation over %s seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.mean())))
+    returntext.append("The Max  detrended variation over %s seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
     pltobj = plt.figure(figsize=[11,20])
 
     plt.suptitle(h5.name)
@@ -407,14 +406,14 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     plt.ylabel('Gain phase (deg)')
 
     ax2 = plt.subplot(312)
-    plt.title('Peak to peak variation of %s, %i Second sliding Window'%(pol,windowtime,))
+    plt.title('Peak to peak variation of %s, %s Second sliding Window'%(pol,windowtime,))
     (peak* 180./np.pi).plot(color='blue')
     ax2.axhline(13,ls='--', color='red')
     #plt.legend(loc='best')
     plt.ylabel('Variation (deg)')
 
     ax3 = plt.subplot(313)
-    plt.title('Detrended Std of %s, %i Second sliding Window'%(pol,windowtime,))
+    plt.title('Detrended Std of %s, %s Second sliding Window'%(pol,windowtime,))
     (std* 180./np.pi).plot(color='blue',label='Std')
     (dtrend_std* 180./np.pi).plot(color='green',label='Detrended Std')
     ax3.axhline(2.2,ls='--', color='red')
@@ -448,7 +447,7 @@ parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rf
                   help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
 parser.add_option("-r", "--rfi-flagging", default='',
                   help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
-parser.add_option( '--ref', dest='ref_ant',  default=None,help="Reference antenna, default is first antenna in the python dictionary")
+parser.add_option( '--ref', dest='ref_ant',  default='',help="Reference antenna, default is first antenna in the python dictionary")
 
 (opts, args) = parser.parse_args()
 
@@ -458,8 +457,12 @@ if len(args) ==0:
 
 output_dir = '.'
 
-h5 = katdal.open(args[0],ref_ant=opts.ref_ant)
-ref_ant_ind = [ant.name for ant in h5.ants].index(h5.ref_ant)
+h5 = katdal.open(args[0])
+if opts.ref_ant == '':
+    ref_ant = h5.ants[0].name
+else :
+    ref_ant=opts.ref_ant
+ref_ant_ind = [ant.name for ant in h5.ants].index(ref_ant)
 n_chan = np.shape(h5.channels)[0]
 if not opts.freq_keep is None :
     start_freq_channel = int(opts.freq_keep.split(',')[0])
@@ -481,7 +484,7 @@ else:
     rfi_static_flags = np.tile(False, n_chan)
 static_flags = np.logical_or(edge,rfi_static_flags)
 fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1])[0])
-nice_filename =  fileprefix+ '_antenna_phase_stability'
+nice_filename =  fileprefix+ '_antenna_phase_stability_refant_'+ref_ant
 pp = PdfPages(nice_filename+'.pdf')
 
 for pol in ('h','v'):
@@ -491,7 +494,7 @@ for pol in ('h','v'):
     data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
     i = 0
     for scan in h5.scans():
-        vis = read_and_select_file(h5, flags_file=rfi_flagging)
+        vis = h5.vis[:]#read_and_select_file(h5, flags_file=rfi_flagging)
         print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
@@ -499,7 +502,7 @@ for pol in ('h','v'):
                          #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
         data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
-        print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
+        print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],ref_ant)
         i += h5.shape[0]
 
     fig = plt.figure()
@@ -516,7 +519,10 @@ for pol in ('h','v'):
         print "Generating Stats on the Antenna %s"%(ant)
         #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
         mask = slice(0,data.shape[0])
-        returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=1200//4,minsamples=1200//4)
+        pol_str = "%s,%s"%(ant,pol)
+        if ant == ref_ant :
+            pol_str = pol_str + ' Warning Reference Antenna'
+        returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int))
         pltfig.savefig(pp,format='pdf')
         plt.close(pltfig)
         pltfig2.savefig(pp,format='pdf')
