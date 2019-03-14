@@ -178,9 +178,10 @@ for ant_obj in h5.ants :
     nice_filename =  filename.split('/')[-1]+ '_' +ant+'_gain_stability'
     pp = PdfPages(nice_filename+'.pdf')
 
-    for filename in args:
-        #h5.select(ants=ant)
-        d = scape.DataSet(filename, baseline="%s,%s" % (ant,ant))
+    filename = args[0]
+    #h5.select(ants=ant)
+    d = scape.DataSet(filename, baseline="%s,%s" % (ant,ant))
+    if not d is None :  # check for bad data 
         d = d.select(freqkeep=~static_flags)
         d = remove_rfi(d,width=21,sigma=5)  # rfi flaging
         #Leave the d dataset unchanged after this so that it can be examined interactively if necessary
@@ -220,26 +221,28 @@ for ant_obj in h5.ants :
         #amp_hh = np.hstack(amp_hh.data)
         #amp_vv = np.hstack(amp_vv.data)
 
-    if True :
-        obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
-        returntext,fig = calc_stats(timestamps,gain_hh,'HH',1200,antname=ant)
-        fig.suptitle(obs_details)
-        plt.subplots_adjust(bottom=0.3)
-        plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
-        fig.savefig(pp,format='pdf')
-        plt.close()
-        tmp,fig = calc_stats(timestamps,gain_vv,'VV',1200,antname=ant)
-        fig.suptitle(obs_details)
-        plt.subplots_adjust(bottom=0.3)
-        plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
-        fig.savefig(pp,format='pdf')
+        if True :
+            obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
+            returntext,fig = calc_stats(timestamps,gain_hh,'HH',1200,antname=ant)
+            fig.suptitle(obs_details)
+            plt.subplots_adjust(bottom=0.3)
+            plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
+            fig.savefig(pp,format='pdf')
+            plt.close()
+            tmp,fig = calc_stats(timestamps,gain_vv,'VV',1200,antname=ant)
+            fig.suptitle(obs_details)
+            plt.subplots_adjust(bottom=0.3)
+            plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
+            fig.savefig(pp,format='pdf')
 
-        plt.close()
-        returntext += tmp
-        #detrend data
-        fig = plt.figure(None,figsize = (10,16))
-        plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
-        fig.savefig(pp,format='pdf')
+            plt.close()
+            returntext += tmp
+            #detrend data
+            fig = plt.figure(None,figsize = (10,16))
+            plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
+            fig.savefig(pp,format='pdf')
+    else:
+        print('Bad Data %'%(ant))
     pp.close()
     plt.close()
     ###
