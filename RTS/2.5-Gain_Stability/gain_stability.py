@@ -2,6 +2,8 @@
 #Plots uncalibrated power, noise diode firings, derived gains to assess gain stability and effectiveness of the gain calibration
 
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import optparse
 import scape
