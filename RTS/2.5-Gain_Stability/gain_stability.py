@@ -248,7 +248,7 @@ for ant_obj in h5.ants :
         d = None
         print('%s No Suitable Noise Diode Data Found '%(ant))
     else:
-        print('Bad Data %'%(ant))
+        print('Bad Data %s'%(ant))
     pp.close()
     plt.close()
     ###
