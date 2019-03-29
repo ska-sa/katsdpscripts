@@ -79,7 +79,7 @@ with verify_and_connect(opts) as kat:
     atten_ref = {}
     for band in ['l', 'u']:  # ,'s','x'   # Read in the bands
         if not len(args) == 0:
-            raise IOError(
+            raise RuntimeError(
                 'This script no longer takes in an attenuation file. Please raise an issue if you need this ')
         user_logger.info("This script used values found in katconf/katconfig")
         user_logger.info("Reading file katconf:'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv'" % (band))
@@ -97,18 +97,19 @@ with verify_and_connect(opts) as kat:
         for pol in {'h', 'v'}:
             for ant in kat.ants:  # note ant is an katcp antenna object
                 band = get_ant_band(ant)
-                if '%s_%s_%s' % (band, ant.name, pol) in atten_ref:
-                    atten = measure_atten(
-                        ant, pol, atten_ref=atten_ref['%s_%s_%s' % (band, ant.name, pol)], band=band)
-                    if atten != atten_ref['%s_%s_%s' % (band, ant.name, pol)]:
-                        user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
-                            band, ant.name, pol, atten, atten_ref['%s_%s_%s' % (band, ant.name, pol)]))
-                        print "%s band %s %s: Changing attenuation from %idB to %idB " % (
-                            band,ant.name, pol, atten, atten_ref['%s_%s_%s' % (band,ant.name, pol)])
-                        ant.req.dig_attenuation(
-                            pol, atten_ref['%s_%s_%s' % (band, ant.name, pol)])
-                else:
+                key_lookup = '%s_%s_%s' % (band, ant.name, pol)
+                if not key_lookup in atten_ref:
                     user_logger.error("'%s' band %s %s: Has no attenuation value in the file " % (
                         band, ant.name, pol))
+                else:
+                    atten = measure_atten(
+                        ant, pol, atten_ref=atten_ref[key_lookup], band=band)
+                    if atten != atten_ref[key_lookup]:
+                        user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
+                            band, ant.name, pol, atten, atten_ref[key_lookup]))
+                        print "%s band %s %s: Changing attenuation from %idB to %idB " % (
+                            band,ant.name, pol, atten, atten_ref[key_lookup])
+                        ant.req.dig_attenuation(
+                            pol, atten_ref[key_lookup])
             user_logger.info("Sleeping for 30 seconds ")
             time.sleep(30)
