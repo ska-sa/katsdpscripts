@@ -98,18 +98,19 @@ with verify_and_connect(opts) as kat:
             for ant in kat.ants:  # note ant is an katcp antenna object
                 band = get_ant_band(ant)
                 key_lookup = '%s_%s_%s' % (band, ant.name, pol)
-                if not key_lookup in atten_ref:
+                if key_lookup not in atten_ref
                     user_logger.error("'%s' band %s %s: Has no attenuation value in the file " % (
                         band, ant.name, pol))
-                else:
-                    atten = measure_atten(
-                        ant, pol, atten_ref=atten_ref[key_lookup], band=band)
-                    if atten != atten_ref[key_lookup]:
-                        user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
-                            band, ant.name, pol, atten, atten_ref[key_lookup]))
-                        print "%s band %s %s: Changing attenuation from %idB to %idB " % (
-                            band,ant.name, pol, atten, atten_ref[key_lookup])
-                        ant.req.dig_attenuation(
-                            pol, atten_ref[key_lookup])
+                    continue
+                atten = measure_atten(
+                    ant, pol, atten_ref=atten_ref[key_lookup], band=band)
+                if atten != atten_ref[key_lookup]:
+                    user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
+                        band, ant.name, pol, atten, atten_ref[key_lookup]))
+                    ant.req.dig_attenuation(
+                        pol, atten_ref[key_lookup])
             user_logger.info("Sleeping for 30 seconds ")
             time.sleep(30)
+            #The sleep is because there is a potential ±30sec loop in the
+            #state machine in the digitiser and sending a second command
+            #would clobber the values.
