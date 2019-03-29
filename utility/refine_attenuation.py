@@ -8,37 +8,16 @@ from katcorelib import (
 import smtplib
 from email.mime.text import MIMEText
 
-def send_email(email_to,lines, subject, messagefrom='operators@ska.ac.za'):
-    body = '\n'.join(lines)
-    body = string.replace(body, '\n', '<br>\n')
-    html = """\
-    <html>
-        <body>
-          <p>
-              """ + body + """\
-          </p>
-        </body>
-    </html>
-    """
-    if type(opts.email_to) is list:
-        messageto = ', '.join((opts.email_to).replace(' ', ''))
-    else:
-        messageto = (email_to).replace(' ', '')
-    msg = MIMEText(html, 'html')
+def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
+    if type(email_to) is not list :
+         emailto = email_to.replace(';', ','),split(',')
+    emailto = map(str.strip, emailto)
+    msg = MIMEText('\n'.join(lines))
     msg['Subject'] = subject
     msg['From'] = messagefrom
-    msg['To'] = messageto
-    if type(email_to) is list:
-        sendto = (email_to).replace(' ', '')
-    elif (email_to).find(',') >= 0:
-        sendto = ((email_to).replace(' ', '')).split(',')
-    elif (opts.email_to).find(';') >= 0:
-        sendto = ((email_to).replace(' ', '')).split(';')
-    else:
-        sendto = (email_to).replace(' ', '')
-    smtp_server = smtplib.SMTP('smtp.kat.ac.za')
-    smtp_server.sendmail(messagefrom, sendto, msg.as_string())
-    smtp_server.quit()
+    msg['To'] = emailto
+    with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
+        smtp_server.sendmail(messagefrom, emailto, msg.as_string())
 
 
 def color_code(value, warn, error):
@@ -152,7 +131,7 @@ parser.add_option('--adc-std-in', type='float', default=12.0,
 parser.add_option('--adc-volt', type='float', default=190.0,
                   help='The target power level for the adc (default=%default)')
 parser.add_option('--email-to', type='str',
-    default='sean@ska.ac.za,operators@ska.ac.za,cgumede@ska.ac.za',
+    default='sean@ska.ac.za',  #,operators@ska.ac.za
     help='Comma separated email list of people to send report to (default=%default)')
 
 # Set default value for any option (both standard and experiment-specific options)
@@ -199,7 +178,7 @@ with verify_and_connect(opts) as kat:
                                 ant.req.dig_attenuation(pol, atten-1)
                                 ant_update[i] = True
                     else :
-                        user_logger.error("'%s' band is not in the list of valid bands " % (band))
+                        user_logger.error("'%s' band %s %s band is not in the list of valid bands " % (band,ant.name, pol))
         lines = []
         summary = []
         atten_ref = {}
@@ -214,7 +193,7 @@ with verify_and_connect(opts) as kat:
                     lines.append("'%s' band %s %s: ,%i #  std:%f   vol:%f"%(band,ant.name, pol,atten,std,voltage))
                     atten_ref['%s_%s' % (ant.name, pol)] = [measure_atten(ant=ant, pol=pol,band=band),band]
             else :
-                user_logger.error("'%s' band is not in the list of valid bands " % (band))
+                user_logger.error("'%s' band %s band is not in the list of valid bands " % (band,ant.name))
             user_logger.info("Reading Back set Attenuations ")
             user_logger.info("# band Antenna Name, H-pol , V-pol " )
             summary.append("# band Antenna Name, H-pol , V-pol " )
@@ -224,5 +203,6 @@ with verify_and_connect(opts) as kat:
                 user_logger.info(string)
                 summary.append(string)
             lines = summary.append(lines)
-        #try:
-        #    send_email(opts.email_to,lines, 'Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
+        print lines
+        try:
+            send_email(opts.email_to,lines, 'Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
