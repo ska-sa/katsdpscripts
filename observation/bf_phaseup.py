@@ -18,8 +18,7 @@ class NoTargetsUpError(Exception):
 def clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz):
     """Clean up bandpass gains by linear interpolation across narrow flagged regions."""
     clean_gains = {}
-    # Linearly interpolate across flagged regions as long as
-    # they are not too large or on the edges of the band
+    # Linearly interpolate across flagged regions as long as they are not too large
     for inp, bp in bp_gains.items():
         flagged = np.isnan(bp)
         if flagged.all():
@@ -34,8 +33,7 @@ def clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz):
             gap_freqs = cal_channel_freqs[gap]
             lower = gap_freqs.min()
             upper = gap_freqs.max()
-            if (lower == cal_channel_freqs[0] or upper == cal_channel_freqs[-1]
-               or upper - lower > max_gap_Hz):
+            if upper - lower > max_gap_Hz:
                 interp_bp[gap] = np.nan
         clean_gains[inp] = interp_bp
     return clean_gains
