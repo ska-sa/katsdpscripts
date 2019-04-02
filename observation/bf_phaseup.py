@@ -45,6 +45,7 @@ def calculate_corrections(G_gains, B_gains, delays, cal_channel_freqs,
     """Turn cal pipeline products into corrections to be passed to F-engine."""
     average_gain = {}
     gain_corrections = {}
+    # First find relative corrections per input with arbitrary global average
     for inp in G_gains:
         # Combine all calibration products for input into single array of gains
         K_gains = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
@@ -68,15 +69,24 @@ def calculate_corrections(G_gains, B_gains, delays, cal_channel_freqs,
     if not valid_average_gains:
         raise ValueError("All gains invalid and beamformer output will be zero!")
     global_average_gain = np.median(valid_average_gains)
+
+    # Iterate over inputs again and fix average values of corrections
     for inp in sorted(G_gains):
         relative_gain = average_gain[inp] / global_average_gain
         if relative_gain == 0.0:
             user_logger.warning("%s has no valid gains and will be zeroed", inp)
-        else:
-            user_logger.info("%s: average gain relative to global average = %5.2f",
-                             inp, relative_gain)
+            continue
         # This ensures that input at the global average gets target correction
         gain_corrections[inp] *= target_average_correction * global_average_gain
+        safe_relative_gain = np.clip(relative_gain, 0.5, 2.0)
+        if relative_gain == safe_relative_gain:
+            user_logger.info("%s: average gain relative to global average = %5.2f",
+                             inp, relative_gain)
+        else:
+            user_logger.warning("%s: average gain relative to global average "
+                                "= %5.2f out of range, clipped to %.1f",
+                                inp, relative_gain, safe_relative_gain)
+            gain_corrections[inp] *= relative_gain / safe_relative_gain
     return gain_corrections
 
 
