@@ -590,6 +590,8 @@ parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-mo
 
 parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
                   help="Name of Directory containing aperture-efficiency models default= %default")
+parser.add_option( "--antennas",default='',
+                  help="Name of Antennas to reduce default=all")
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
@@ -607,7 +609,11 @@ def find_nearest(array,value):
 select_freq= np.array(opts.select_freq.split(','),dtype=float)
 select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
-h5.select(scans='track')
+if opts.antennas == '' :
+    h5.select(scans='track')
+else:
+    h5.select(scans='track',ants=opts.antennas)
+
 nd_models = opts.nd_models
 spill_over_models =  opts.spill_over_models
 filename = args[0]
