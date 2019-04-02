@@ -667,7 +667,7 @@ for ant in h5.ants:
 
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())
-    if  d is None :
+    if not d is None:
         tsys = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
         tant = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
 
