@@ -590,6 +590,8 @@ parser.add_option( "--nd-models",default='/var/kat/katconfig/user/noise-diode-mo
 
 parser.add_option( "--aperture-efficiency",default='/var/kat/katconfig/user/aperture-efficiency/mkat/',
                   help="Name of Directory containing aperture-efficiency models default= %default")
+parser.add_option( "--antennas",default='',
+                  help="Name of Antennas to reduce default=all")
 
 parser.add_option( "--fix-opacity",action="store_true", default=False,
                   help="The opacity is fixed to  0.01078 (Van Zee et al.,1997) or it is calculated according to ITU-R P.676-9.")
@@ -607,7 +609,11 @@ def find_nearest(array,value):
 select_freq= np.array(opts.select_freq.split(','),dtype=float)
 select_el = np.array(opts.select_el.split(','),dtype=float)
 h5 = katdal.open(args[0])
-h5.select(scans='track')
+if opts.antennas == '' :
+    h5.select(scans='track')
+else:
+    h5.select(scans='track',ants=opts.antennas)
+
 nd_models = opts.nd_models
 spill_over_models =  opts.spill_over_models
 filename = args[0]
@@ -661,73 +667,73 @@ for ant in h5.ants:
 
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())
+    if  d is None :
+        tsys = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
+        tant = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
 
-    tsys = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
-    tant = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN
-
-    receiver = Rec_Temp(receiver_model_H, receiver_model_V)
-    elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
-    ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
-    dec       = np.array([np.average(scan_dec) for scan_dec in scape.extract_scan_data(d.scans,'dec').data])
-    sort_ind  = elevation.argsort()
-    elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
-    surface_temperature = np.mean(d.enviro['temperature']['value'])
-    air_relative_humidity = h5.humidity.mean()/100. # Fractional
-    length = 0
-    #freq loop
-    for i,freq_val in enumerate(d.freqs):
-        if not d is None:
-            d.filename = [filename]
-            nu = d.freqs  #MHz Centre frequency of observation
-            #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
-            T_SysTemp = System_Temp(d,d.freqs[i],freq_index=i,elevation=elevation,ra=ra,dec=dec,surface_temperature = surface_temperature,air_relative_humidity=air_relative_humidity)
-            #print("Load T_sysTemp = %.2f Seconds"%(time.time()-time_start))
-            units = T_SysTemp.units+''
-            fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],receiver,fixopacity=fix_opacity)
-            #print("Fit tipping H = %.2f Seconds"%(time.time()-time_start))
-            fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],receiver,fixopacity=fix_opacity)
-            #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
-            #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
-            #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
-            length = len(T_SysTemp.elevation)
-            Tsky_spec = 2.725 + 1.6*(d.freqs[i]/1e3)**-2.75 # T_SysTemp.Tsys_sky  is Tsys-(Tsky-cmb) . We then add the spec sky aproxx (T_gal+Tcmb)
-            tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+Tsky_spec)/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+Tsky_spec)/aperture_efficiency.eff['VV'](d.freqs[i])
-            tsys[0:length,i,2] = T_SysTemp.elevation
-            tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
-            tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
-            tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]
-            tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]
-            tant[0:length,i,2] = T_SysTemp.elevation
-            #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
+        receiver = Rec_Temp(receiver_model_H, receiver_model_V)
+        elevation = np.array([np.average(scan_el) for scan_el in scape.extract_scan_data(d.scans,'el').data])
+        ra        = np.array([np.average(scan_ra) for scan_ra in scape.extract_scan_data(d.scans,'ra').data])
+        dec       = np.array([np.average(scan_dec) for scan_dec in scape.extract_scan_data(d.scans,'dec').data])
+        sort_ind  = elevation.argsort()
+        elevation,ra,dec = elevation[sort_ind],ra[sort_ind],dec[sort_ind]
+        surface_temperature = np.mean(d.enviro['temperature']['value'])
+        air_relative_humidity = h5.humidity.mean()/100. # Fractional
+        length = 0
+        #freq loop
+        for i,freq_val in enumerate(d.freqs):
+            if not d is None:
+                d.filename = [filename]
+                nu = d.freqs  #MHz Centre frequency of observation
+                #print("PreLoad T_sysTemp = %.2f Seconds"%(time.time()-time_start))
+                T_SysTemp = System_Temp(d,d.freqs[i],freq_index=i,elevation=elevation,ra=ra,dec=dec,surface_temperature = surface_temperature,air_relative_humidity=air_relative_humidity)
+                #print("Load T_sysTemp = %.2f Seconds"%(time.time()-time_start))
+                units = T_SysTemp.units+''
+                fit_H = fit_tipping(T_SysTemp,SpillOver,'HH',d.freqs[i],receiver,fixopacity=fix_opacity)
+                #print("Fit tipping H = %.2f Seconds"%(time.time()-time_start))
+                fit_V = fit_tipping(T_SysTemp,SpillOver,'VV',d.freqs[i],receiver,fixopacity=fix_opacity)
+                #print("Fit tipping V = %.2f Seconds"%(time.time()-time_start))
+                #print ('Chi square for HH  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_H['chisq'],))
+                #print ('Chi square for VV  at %s MHz is: %6f ' % (np.mean(d.freqs),fit_V['chisq'],))
+                length = len(T_SysTemp.elevation)
+                Tsky_spec = 2.725 + 1.6*(d.freqs[i]/1e3)**-2.75 # T_SysTemp.Tsys_sky  is Tsys-(Tsky-cmb) . We then add the spec sky aproxx (T_gal+Tcmb)
+                tsys[0:length,i,0] = (np.array(T_SysTemp.Tsys_sky['HH'])+Tsky_spec)/aperture_efficiency.eff['HH'](d.freqs[i])
+                tsys[0:length,i,1] = (np.array(T_SysTemp.Tsys_sky['VV'])+Tsky_spec)/aperture_efficiency.eff['VV'](d.freqs[i])
+                tsys[0:length,i,2] = T_SysTemp.elevation
+                tsys[0:length,i,3] = T_SysTemp.sigma_Tsys['HH']/aperture_efficiency.eff['HH'](d.freqs[i])
+                tsys[0:length,i,4] = T_SysTemp.sigma_Tsys['VV']/aperture_efficiency.eff['VV'](d.freqs[i])
+                tant[0:length,i,0] = np.array(fit_H['fit'])[:,0]
+                tant[0:length,i,1] = np.array(fit_V['fit'])[:,0]
+                tant[0:length,i,2] = T_SysTemp.elevation
+                #print("Debug: T_sys = %f   App_eff = %f  value = %f"%( np.array(fit_H['fit'])[22,0],aperture_efficiency.eff['HH'](d.freqs[i]),np.array(fit_H['fit'])[22,0]/aperture_efficiency.eff['HH'](d.freqs[i])))
 
 
-    fig = T_SysTemp.sky_fig(freq=freq_val.min())
-    fig.savefig(pp,format='pdf')
-    plt.close(fig)
+        fig = T_SysTemp.sky_fig(freq=freq_val.min())
+        fig.savefig(pp,format='pdf')
+        plt.close(fig)
 
-    for freq in select_freq :
-        title = ""
-        if np.abs(d.freqs[:]-freq).min() < freq_bw*1.1 :
-            i = (np.abs(d.freqs[:]-freq)).argmin()
-            lineval = None
-            if str.upper(Band) == 'L':
-                if freq > 1420 :
-                    lineval = 46
-                else:
-                    lineval = 42
-            fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,d.freqs[i]),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+        for freq in select_freq :
+            title = ""
+            if np.abs(d.freqs[:]-freq).min() < freq_bw*1.1 :
+                i = (np.abs(d.freqs[:]-freq)).argmin()
+                lineval = None
+                if str.upper(Band) == 'L':
+                    if freq > 1420 :
+                        lineval = 46
+                    else:
+                        lineval = 42
+                fig = plot_data_el(tsys[0:length,i,:],tant[0:length,i,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f MHz"%(nice_title,d.freqs[i]),units=units,line=lineval,aperture_efficiency=aperture_efficiency,frequency=d.freqs[i])
+                plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
+                fig.savefig(pp,format='pdf')
+                plt.close(fig)
+        for el in select_el :
+            title = ""
+            i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
+            fig = plot_data_freq(d.freqs[:],tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency,band=str.upper(Band))
             plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
             fig.savefig(pp,format='pdf')
             plt.close(fig)
-    for el in select_el :
-        title = ""
-        i = (np.abs(tsys[0:length,:,2].max(axis=1)-el)).argmin()
-        fig = plot_data_freq(d.freqs[:],tsys[i,:,:],tant[i,:,:],title=r"%s $T_{sys}/\eta_{ap}$ and $T_{ant}$ at %.1f Degrees elevation"%(nice_title,np.abs(tsys[0:length,:,2].max(axis=1))[i]),aperture_efficiency=aperture_efficiency,band=str.upper(Band))
-        plt.figtext(0.89, 0.11,git_info(), horizontalalignment='right',fontsize=10)
-        fig.savefig(pp,format='pdf')
-        plt.close(fig)
-                #break
+                    #break
 
     fig = plt.figure(None,figsize = (8,8))
     text =r"""The 'tipping curve' is calculated according to the expression below, with the parameters
