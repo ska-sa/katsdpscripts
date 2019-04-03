@@ -4,6 +4,7 @@
 # Obtain calibrated gains and apply them to the F-engine afterwards.
 
 import numpy as np
+import scipy.ndimage
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
@@ -12,6 +13,73 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
 
 class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
+
+
+def clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz):
+    """Clean up bandpass gains by linear interpolation across narrow flagged regions."""
+    clean_gains = {}
+    # Linearly interpolate across flagged regions as long as
+    # they are not too large or on the edges of the band
+    for inp, bp in bp_gains.items():
+        flagged = np.isnan(bp)
+        if flagged.all():
+            clean_gains[inp] = bp
+            continue
+        chans = np.arange(len(bp))
+        interp_bp = np.interp(chans, chans[~flagged], bp[~flagged])
+        # Identify flagged regions and tag each with unique integer label
+        gaps, n_gaps = scipy.ndimage.label(flagged)
+        for n in range(n_gaps):
+            gap = np.nonzero(gaps == n + 1)[0]
+            gap_freqs = cal_channel_freqs[gap]
+            lower = gap_freqs.min()
+            upper = gap_freqs.max()
+            if (lower == cal_channel_freqs[0] or upper == cal_channel_freqs[-1]
+               or upper - lower > max_gap_Hz):
+                interp_bp[gap] = np.nan
+        clean_gains[inp] = interp_bp
+    return clean_gains
+
+
+def calculate_corrections(G_gains, B_gains, delays, cal_channel_freqs,
+                          random_phase, flatten_bandpass,
+                          target_average_correction):
+    """Turn cal pipeline products into corrections to be passed to F-engine."""
+    average_gain = {}
+    gain_corrections = {}
+    for inp in G_gains:
+        # Combine all calibration products for input into single array of gains
+        K_gains = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
+        gains = K_gains * B_gains[inp] * G_gains[inp]
+        if np.isnan(gains).all():
+            average_gain[inp] = gain_corrections[inp] = 0.0
+            continue
+        abs_gains = np.abs(gains)
+        # Track the average gain to fix overall power level (and as diagnostic)
+        average_gain[inp] = np.nanmedian(abs_gains)
+        corrections = 1.0 / gains
+        if not flatten_bandpass:
+            # Let corrections have constant magnitude equal to 1 / (avg gain),
+            # which ensures that power levels are still equalised between inputs
+            corrections *= abs_gains / average_gain[inp]
+        if random_phase:
+            corrections *= np.exp(2j * np.pi * np.random.rand(len(corrections)))
+        gain_corrections[inp] = np.nan_to_num(corrections)
+    # All invalid gains (NaNs) have now been turned into zeros
+    valid_average_gains = [g for g in average_gain.values() if g > 0]
+    if not valid_average_gains:
+        raise ValueError("All gains invalid and beamformer output will be zero!")
+    global_average_gain = np.median(valid_average_gains)
+    for inp in sorted(G_gains):
+        relative_gain = average_gain[inp] / global_average_gain
+        if relative_gain == 0.0:
+            user_logger.warning("%s has no valid gains and will be zeroed", inp)
+        else:
+            user_logger.info("%s: average gain relative to global average = %5.2f",
+                             inp, relative_gain)
+        # This ensures that input at the global average gets target correction
+        gain_corrections[inp] *= target_average_correction * global_average_gain
+    return gain_corrections
 
 
 # Default F-engine gain as a function of number of channels
@@ -110,31 +178,17 @@ with verify_and_connect(opts) as kat:
             bp_gains = session.get_cal_solutions('B')
             delays = session.get_cal_solutions('K')
             cal_channel_freqs = session.get_cal_channel_freqs()
+            bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
 
             if opts.random_phase:
                 user_logger.info("Setting F-engine gains with random phases")
             else:
                 user_logger.info("Setting F-engine gains to phase up antennas")
-            new_weights = {}
-            for inp in gains:
-                orig_weights = gains[inp]
-                bp = bp_gains[inp]
-                valid = ~np.isnan(bp)
-                if valid.any():  # not all flagged
-                    chans = np.arange(len(bp))
-                    bp = np.interp(chans, chans[valid], bp[valid])
-                    orig_weights *= bp
-                    delay_weights = np.exp(-2j * np.pi * delays[inp] * cal_channel_freqs)
-                    orig_weights *= delay_weights  # unwrap the delays
-                    amp_weights = np.abs(orig_weights)
-                    phase_weights = orig_weights / amp_weights
-                    if opts.random_phase:
-                        phase_weights *= np.exp(2j * np.pi * np.random.random_sample(size=len(bp)))
-                    new_weights[inp] = opts.fengine_gain * phase_weights.conj()
-                    if opts.flatten_bandpass:
-                        new_weights[inp] /= amp_weights / amp_weights.mean()
-
-            session.set_fengine_gains(new_weights)
+            if not kat.dry_run:
+                corrections = calculate_corrections(gains, bp_gains, delays,
+                                                    cal_channel_freqs, opts.random_phase,
+                                                    opts.flatten_bandpass, opts.fengine_gain)
+                session.set_fengine_gains(corrections)
             if opts.verify_duration > 0:
                 user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
                                  target.name, opts.verify_duration)
