@@ -149,6 +149,8 @@ parser.add_option("-t", "--time_width", dest="time_width", type ="float", defaul
 #                  help="The antenna to examine the gain stability on")
 parser.add_option("--pickle", dest="pickle_filename", type="str", default = "",
                    help="Name of file containing static flags")
+parser.add_option( "--antennas",default='',
+                  help="Name of Antennas to reduce default=all")
 
 (opts, args) = parser.parse_args()
 
@@ -156,6 +158,9 @@ if len(args) ==0:
     raise RuntimeError('Please specify an h5 file to load.')
     
 h5 = katdal.open(args[0])
+if not opts.antennas == '' :
+    h5.select(ants=opts.antennas)
+
 n_chan = len(h5.channels)
 for ant_obj in h5.ants :
     ant = ant_obj.name
