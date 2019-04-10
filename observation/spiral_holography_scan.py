@@ -587,7 +587,11 @@ with verify_and_connect(opts) as kat:
                 session.ants = all_ants
                 session.telstate.add('obs_label','track')
                 session.track(target, duration=opts.cycle_tracktime, announce=False)
+                if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
+                    user_logger.info("Testing only one group for dry-run")
+                    break
             if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
+                user_logger.info("Testing only cycle for dry-run")
                 break
 
         if (opts.debug):
