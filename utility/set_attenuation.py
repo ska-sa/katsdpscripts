@@ -98,7 +98,7 @@ with verify_and_connect(opts) as kat:
             for ant in kat.ants:  # note ant is an katcp antenna object
                 band = get_ant_band(ant)
                 key_lookup = '%s_%s_%s' % (band, ant.name, pol)
-                if key_lookup not in atten_ref
+                if key_lookup not in atten_ref:
                     user_logger.error("'%s' band %s %s: Has no attenuation value in the file " % (
                         band, ant.name, pol))
                     continue
