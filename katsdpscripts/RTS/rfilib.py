@@ -390,11 +390,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
 
     for scan, state, target in mvf.scans():
         # We only want the abs of vis
-        if int(mvf.version[0]) < 4:
-            def transform(data, keep):
-                np.abs(data)
-            mvf.vis.transforms.append(LazyTransform('np.abs', transform))
-        else:
+        if int(mvf.version[0]) >= 4:
             mvf.vis.add_transform(da.absolute)
         if tracks_only and state != 'track':
             continue
