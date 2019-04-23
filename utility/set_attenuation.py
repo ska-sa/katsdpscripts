@@ -30,7 +30,7 @@ def color_code_eq(value, test, errorv=0.01):
 
 
 def measure_atten(ant, pol, atten_ref=None, band='l'):
-    """ This function returns the attenuation of an antenna and colors the 
+    """ This function returns the attenuation of an antenna and colors the
         logging if this number differs from the reference value
     Example:
             $ measure_atten('m064', 'h',atten_ref=5)
@@ -49,7 +49,6 @@ def measure_atten(ant, pol, atten_ref=None, band='l'):
     color_d = color_code_eq(atten, atten_ref)
     string = "'%s' band: %s %s  Attenuation : %s %-2i %s " % (
         band, ant.name, pol, color_d, atten, colors.Normal)
-    print string
     user_logger.info(string)
     return atten
 
@@ -85,7 +84,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reading file katconf:'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv'" % (band))
         file_string = katconf.resource_string(
             'katconfig/user/attenuation/mkat/dig_attenuation_%s.csv' % (band))
-        tmp_data =  np.loadtxt(StringIO.StringIO(file_string),dtype=np.str,delimiter=',')
+        tmp_data = np.loadtxt(StringIO.StringIO(file_string), dtype=np.str, delimiter=',')
         for ant, value_h, value_v in tmp_data:
             try:
                 atten_ref['%s_%s_%s' % (band, ant, 'h')] = np.int(value_h)
@@ -111,6 +110,6 @@ with verify_and_connect(opts) as kat:
                         pol, atten_ref[key_lookup])
             user_logger.info("Sleeping for 30 seconds ")
             time.sleep(30)
-            #The sleep is because there is a potential ±30sec loop in the
-            #state machine in the digitiser and sending a second command
-            #would clobber the values.
+            # The sleep is because there is a potential +/-30sec loop in the
+            # state machine in the digitiser and sending a second command
+            # would clobber the values.
