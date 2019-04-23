@@ -49,7 +49,6 @@ def measure_atten(ant, pol, atten_ref=None, band='l'):
     color_d = color_code_eq(atten, atten_ref)
     string = "'%s' band: %s %s  Attenuation : %s %-2i %s " % (
         band, ant.name, pol, color_d, atten, colors.Normal)
-    print string
     user_logger.info(string)
     return atten
 
