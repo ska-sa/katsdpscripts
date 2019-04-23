@@ -7,6 +7,7 @@ import multiprocessing
 import katdal
 from katdal.h5datav3 import FLAG_NAMES
 from katdal.lazy_indexer import DaskLazyIndexer
+from katdal.lazy_indexer import LazyTransform
 import katpoint
 
 from matplotlib.backends.backend_pdf import PdfPages
@@ -389,7 +390,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
 
     for scan, state, target in mvf.scans():
         # We only want the abs of vis
-        mvf.vis.add_transform(np.abs)
+        if int(mvf.version[0]) >= 4:
+            mvf.vis.add_transform(da.absolute)
         if tracks_only and state != 'track':
             continue
         # Take slices through scan if it is too large for memory
