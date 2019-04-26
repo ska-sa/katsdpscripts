@@ -132,7 +132,7 @@ with verify_and_connect(opts) as kat:
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
                 time.sleep(cam_sleep)
                 wait_time += cam_sleep
-                if wait_time >= 180:  # seconds
+                if wait_time >= 300:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
             print('Setting digitiser L-band sync epoch to DMC epoch')
