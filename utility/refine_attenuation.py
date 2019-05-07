@@ -10,14 +10,16 @@ from email.mime.text import MIMEText
 
 def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
     if type(email_to) is not list :
-         emailto = email_to.replace(';', ','),split(',')
-    emailto = map(str.strip, emailto)
+         emailto = email_to.replace(';', ',').split(',')
+    emailto = ','.join(map(str.strip, emailto))
     msg = MIMEText('\n'.join(lines))
     msg['Subject'] = subject
     msg['From'] = messagefrom
     msg['To'] = emailto
-    with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
-        smtp_server.sendmail(messagefrom, emailto, msg.as_string())
+    smtp_server = smtplib.SMTP('smtp.kat.ac.za')    
+    #with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
+    smtp_server.sendmail(messagefrom, emailto, msg.as_string())
+    smtp_server.close()
 
 
 def color_code(value, warn, error):
@@ -194,15 +196,14 @@ with verify_and_connect(opts) as kat:
                     atten_ref['%s_%s' % (ant.name, pol)] = [measure_atten(ant=ant, pol=pol,band=band),band]
             else :
                 user_logger.error("'%s' band %s band is not in the list of valid bands " % (band,ant.name))
-            user_logger.info("Reading Back set Attenuations ")
-            user_logger.info("# band Antenna Name, H-pol , V-pol " )
-            summary.append("# band Antenna Name, H-pol , V-pol " )
-            for ant in ant_list.sort():
-                string =  (" '%s' band : %s, %i, %i "%(
-                atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'h')][0] ) )
-                user_logger.info(string)
-                summary.append(string)
-            lines = summary.append(lines)
-        print lines
-        try:
-            send_email(opts.email_to,lines, 'Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
+        user_logger.info("Reading Back set Attenuations ")
+        user_logger.info("# band Antenna Name, H-pol , V-pol " )
+        summary.append("# band Antenna Name, H-pol , V-pol " )
+        ant_list.sort()
+        for ant in ant_list:
+            string =  (" '%s' band : %s, %i, %i "%(
+            atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'h')][0] ) )
+            user_logger.info(string)
+            summary.append(string)
+        send_email(opts.email_to,summary, 'Summary:Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
+        send_email('sean@ska.ac.za',lines, 'Details Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
