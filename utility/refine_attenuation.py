@@ -1,44 +1,23 @@
 #!/usr/bin/env python
-# Track target(s) for a specified time.
+# Track SCP and and determine attenuation values
 
 import time
-
-import numpy
+import numpy as np
 from katcorelib import (
     user_logger, standard_script_options, verify_and_connect, colors)
+import smtplib
+from email.mime.text import MIMEText
 
-
-def get_update(sensors):
-    # This samples the senors and obtains a new value
-    # this combats the https://xkcd.com/221/ situation.
-    for sensor in sensors:
-        value = kat.sensor.get(sensor).value  # value updated by cam
-        if value is None or value == []:
-            value = kat.sensor.get(sensor).get_value()  # Kick the system
-        if len(sensors[sensor]) == 0 or sensors[sensor][-1] != value:
-            sensors[sensor].append(value)
-
-
-def get_last_value(sensors):
-    # This samples the sensors and appends a new value
-    last_value = {}
-    for sensor in sensors:
-        if len(sensors[sensor]) == 0:
-            last_value[sensor] = None
-        else:
-            last_value[sensor] = sensors[sensor][-1]
-    return last_value
-
-
-def get_mean_value(sensors):
-    # This samples the senors and obtains a new value
-    last_value = {}
-    for sensor in sensors:
-        if len(sensors[sensor]) == 0:
-            last_value[sensor] = None
-        else:
-            last_value[sensor] = numpy.mean(sensors[sensor])
-    return last_value
+def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
+    if type(email_to) is not list :
+         emailto = email_to.replace(';', ','),split(',')
+    emailto = map(str.strip, emailto)
+    msg = MIMEText('\n'.join(lines))
+    msg['Subject'] = subject
+    msg['From'] = messagefrom
+    msg['To'] = emailto
+    with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
+        smtp_server.sendmail(messagefrom, emailto, msg.as_string())
 
 
 def color_code(value, warn, error):
@@ -50,6 +29,51 @@ def color_code(value, warn, error):
         code_color = colors.Red
     return code_color
 
+def color_code_eq(value, test, errorv=0.01):
+    """
+        This function returns the color code string bassed on if the values are within a range
+        Example:
+                $ color_code_eq(1., 2.,errorv=0.01)
+            returns yellow color code
+
+                $ color_code_eq(1., 1.0005,errorv=0.01)
+            returns green color code
+
+            value, test,errorv are floating point numbers
+            value and test are the 2 values tested
+            and errorv is the equality range.
+    """
+    code_color = colors.Green
+    if value >= test + errorv or value <= test - errorv:
+        code_color = colors.Yellow
+    return code_color
+
+def measure_atten(ant, pol, band='l'):
+    """ This function returns the attenuation of an antenna.
+    Example:
+            $ measure_atten('m064', 'h',band='x')
+        returns 4
+        ant is an katcp antenna object
+        pol is a string
+        value and test are the antenna name and the polorisation
+    """
+
+    sensor = "dig_%s_band_rfcu_%spol_attenuation" % (band, pol)
+    atten = ant.sensor[sensor].get_value()
+    return atten
+
+def get_ant_band(ant):
+    """ This function returns the selected band of an antenna
+    Example:
+            $ get_ant_band('m064')
+        returns 'x'
+          ant is an katcp antenna object
+    """
+    sensor = "dig_selected_band"
+    band = ant.sensor[sensor].get_value()
+    return band
+
+
 
 def point(ants, target, timeout=300):
     # send this target to the antenna.
@@ -57,6 +81,7 @@ def point(ants, target, timeout=300):
     ants.req.mode("POINT")
     user_logger.info("Slewing to target : %s" % (target,))
     # wait for antennas to lock onto target
+    ants.set_sampling_strategy("lock", "period 1.0")
     success = ants.wait("lock", True, timeout)
     if success:
         user_logger.info("Tracking Target : %s " % (target,))
@@ -70,22 +95,44 @@ def point(ants, target, timeout=300):
     return success
 
 
+def plus_minus(num):
+    return (np.mod(np.arange(num), 2)*2-1)
+
+
+def sample_bits(ant, pol, band='l'):
+    tmp_data = np.zeros((5, 4096, 4))
+    for i in range(5):
+        snap = ant.req.dig_adc_snap_shot(pol)
+        tmp_data[i, :, :] = np.array(
+            [snip.arguments[1:] for snip in snap.messages[1:]]).astype('float')
+    data = tmp_data.flatten()
+    std = (data*plus_minus(data.shape[0])).std()
+    color_d = color_code(std, 12, 8)
+    sensor = 'dig_%s_band_rfcu_%spol_attenuation' % (band, pol)
+    atten = ant.sensor[sensor].get_value()
+    windowed_data = data.reshape(-1, 256)
+    voltage = np.abs(np.fft.fft(windowed_data)[:, 67:89]).mean() # 67:89  corresponds to 1300 to 1450 MHz
+    # channels 67:89  correspond to a RFI free section of band (1300 to 1450 MHz).
+    string = "%s ADC rms %s: %s%-4.1f %s  vlevel: %-4.1f  Attenuation : %-2i  " % (
+        ant.name, pol, color_d, std, colors.Normal, voltage, atten)
+    user_logger.info(string)
+    return std, atten, voltage
+
+
+
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> "
-description = 'Calculate the predicted attenuation needed and Set the attenuation to appropriate levels'
+description = 'Calculate the attenuation needed and Set the attenuation to appropriate levels'
 parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
-parser.add_option('--rfcu-in', type='float', default=-40.0,
-                  help='The target power level for the rfcu (default=%default)')
-parser.add_option('--adc-in', type='float', default=-30.0,
-                  help='The target power level for the adc (default=%default)')
-parser.add_option('-t', '--track-duration', type='float', default=600.0,
-                  help='Length of time to track the source, in seconds (default=%default)')
-parser.add_option('-b', '--band', default='l',
-                  help='The band of the receiver  (default=%default)')
-parser.add_option('--change-attenuation', action="store_true", default=False,
-                  help='Change the attenuation to the predicted levels. ')
 
+parser.add_option('--adc-std-in', type='float', default=12.0,
+                  help='The target adc rms level  (default=%default)')
+parser.add_option('--adc-volt', type='float', default=190.0,
+                  help='The target power level for the adc (default=%default)')
+parser.add_option('--email-to', type='str',
+    default='sean@ska.ac.za',  #,operators@ska.ac.za
+    help='Comma separated email list of people to send report to (default=%default)')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Auto Attenuate', nd_params='off')
@@ -95,81 +142,67 @@ opts, args = parser.parse_args()
 # adc  : WARNING at -31dBm and ERROR at -37dBm
 # rfcu : WARNING at -41dBm and ERROR at -47dBm
 # Check options and build KAT configuration, connecting to proxies and devices
-band = opts.band
-track_duration = opts.track_duration
-rfcu_in, adc_in = opts.rfcu_in, opts.adc_in
-change_attenuation = opts.change_attenuation
+adc_volt = opts.adc_volt
+adc_std_in = opts.adc_std_in
+bandlist = ['l', 'u'] # ,'s','x'   # Read in the bands
 with verify_and_connect(opts) as kat:
-    rfcu_power = {}
-    adc_power = {}
-    attenuation = {}
-    user_logger.info('Input: --dBm->| RFCU |--dBm->| ADC  |--dBm->|')
-    user_logger.info('Desired:      | RFCU | %-4.1f | ADC  | %-4.1f |' %
-                     (rfcu_in, adc_in))
-    lookup = {}
-    new_atten = {}
-    if not kat.dry_run:
+    for band in bandlist:  # ,'s','x'   # Read in the bands
         for pol in {'h', 'v'}:
-            kat.ants.set_sampling_strategy("dig_%s_band_rfcu_%spol_rf_power_in" %
-                                           (band, pol), "period 1.0")
-            kat.ants.set_sampling_strategy("dig_%s_band_adc_%spol_rf_power_in" %
-                                           (band, pol), "period 1.0")
             kat.ants.set_sampling_strategy("dig_%s_band_adc_%spol_attenuation" %
-                                           (band, pol), "period 1.0")
-            kat.ants.req.sensor_sampling("lock", "event")
-            for ant in kat.ants:
-                sensor_list = []
-                rfcu_power['%s_dig_%s_band_rfcu_%spol_rf_power_in' %
-                           (ant.name, band, pol)] = []
-                sensor_list.append(
-                    '%s_dig_%s_band_rfcu_%spol_rf_power_in' % (ant.name, band, pol))
-                adc_power['%s_dig_%s_band_adc_%spol_rf_power_in' %
-                          (ant.name, band, pol)] = []
-                sensor_list.append('%s_dig_%s_band_adc_%spol_rf_power_in' %
-                                   (ant.name, band, pol))
-                attenuation['%s_dig_%s_band_rfcu_%spol_attenuation' %
-                            (ant.name, band, pol)] = []
-                sensor_list.append('%s_dig_%s_band_rfcu_%spol_attenuation' %
-                                   (ant.name, band, pol))
-                lookup["%s,%s" % (ant.name, pol)] = sensor_list
-                kat.sensor.get("%s_lock" % (ant.name)).set_strategy('event')
-        point(kat.ants, "SCP,radec,0,-90", timeout=300)
-        start_time = time.time()
-        while time.time()-start_time < track_duration:
-            get_update(rfcu_power)
-            get_update(adc_power)
-            time.sleep(10)
-        get_update(attenuation)
-        rfcu_power_v = get_mean_value(rfcu_power)
-        adc_power_v = get_mean_value(adc_power)
-        attenuation_v = get_last_value(attenuation)
-        for ant_pol in sorted(lookup.keys()):
-            ant, pol = ant_pol.split(',')
-            rfcu_st = rfcu_power_v[lookup[ant_pol][0]]
-            adc_st = adc_power_v[lookup[ant_pol][1]]
-            atten = attenuation_v[lookup[ant_pol][2]]
-            # rfcu : WARNING at -41dBm and ERROR at -47dBm
-            rfcu_color = color_code(rfcu_st, -41, -47)
-            # adc  : WARNING at -31dBm and ERROR at -37dBm
-            adc_color = color_code(adc_st, -31, -37)
-            attenuation_change = numpy.floor(
-                numpy.min([(adc_st-adc_in) + atten, (rfcu_st-rfcu_in) + atten])).astype(int)
-            atten_color = color_code(attenuation_change, 0, 0)
-            new_atten[lookup[ant_pol][2]] = attenuation_change
-            user_logger.info("%s %s: Start input power | atten | output power = %s%-4.1f %s| %-4.1f | %s%-4.1f %s    Attenuation needed %s %i %s" %
-                             (ant, pol, rfcu_color, rfcu_st, colors.Normal, atten, adc_color, adc_st, colors.Normal, atten_color, attenuation_change, colors.Normal))
-        if change_attenuation:
-            for ant in kat.ants:
+                                       (band, pol), "period 1.0")
+    if not kat.dry_run:
+        point(kat.ants, 'SCP,radec,0,-90', timeout=300)
+        ant_update = np.ones((len(kat.ants)*2)).astype(bool)
+        count = 0
+        while ant_update.sum() > 0 and count < 20:
+            i = -1
+            count = count + 1
+            time.sleep(5)
+            print("New loop")
+            for pol in {'h', 'v'}:
+                for ant in kat.ants:
+                    band = get_ant_band(ant)
+                    if band in bandlist:
+                        i = i + 1
+                        if ant_update[i]:
+                            ant_update[i] = False
+                            std, atten, voltage = sample_bits(ant, pol ,band=band)
+                            if atten < 32 and (voltage > adc_volt + 20):  # Up
+                                user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
+                                    band,ant.name, pol, atten, atten+1))
+                                ant.req.dig_attenuation(pol, atten+1)
+                                ant_update[i] = True
+                            if atten > 0 and (voltage < adc_volt or std < adc_std_in):
+                                user_logger.info("'%s' band %s %s: Changing attenuation from %idB to %idB " % (
+                                    band,ant.name, pol, atten, atten-1))
+                                ant.req.dig_attenuation(pol, atten-1)
+                                ant_update[i] = True
+                    else :
+                        user_logger.error("'%s' band %s %s band is not in the list of valid bands " % (band,ant.name, pol))
+        lines = []
+        summary = []
+        atten_ref = {}
+        ant_list = []
+        lines.append('Changing attenuation , report of refine_attenuation.py')
+        for ant in kat.ants:
+            band = get_ant_band(ant)
+            if band in bandlist:
+                ant_list.append(ant.name)
                 for pol in {'h', 'v'}:
-                    key = lookup["%s,%s" % (ant.name, pol)][2]
-                    if new_atten[key] < 0:
-                        user_logger.error(
-                            "%s %s: input power detected is too low to correct, setting to 0dB attenuation" % (ant.name, pol))
-                        new_atten[key] = 0
-                    if new_atten[key] >= 0 and attenuation_v[key] != new_atten[key]:
-                        user_logger.info("%s %s: Changing attenuation from %idB to %idB " % (
-                            ant.name, pol, attenuation_v[key], new_atten[key]))
-                        ant.req.get("dig_attenuation")(pol, new_atten[key])
-                    else:
-                        user_logger.warning("%s %s: Will not try change attenuation from %idB to %idB " % (
-                            ant, pol, attenuation_v[key], new_atten[key]))
+                    std, atten, voltage = sample_bits(ant, pol,band=band)
+                    lines.append("'%s' band %s %s: ,%i #  std:%f   vol:%f"%(band,ant.name, pol,atten,std,voltage))
+                    atten_ref['%s_%s' % (ant.name, pol)] = [measure_atten(ant=ant, pol=pol,band=band),band]
+            else :
+                user_logger.error("'%s' band %s band is not in the list of valid bands " % (band,ant.name))
+            user_logger.info("Reading Back set Attenuations ")
+            user_logger.info("# band Antenna Name, H-pol , V-pol " )
+            summary.append("# band Antenna Name, H-pol , V-pol " )
+            for ant in ant_list.sort():
+                string =  (" '%s' band : %s, %i, %i "%(
+                atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'h')][0] ) )
+                user_logger.info(string)
+                summary.append(string)
+            lines = summary.append(lines)
+        print lines
+        try:
+            send_email(opts.email_to,lines, 'Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')

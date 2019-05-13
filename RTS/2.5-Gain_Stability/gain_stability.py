@@ -2,6 +2,8 @@
 #Plots uncalibrated power, noise diode firings, derived gains to assess gain stability and effectiveness of the gain calibration
 
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import optparse
 import scape
@@ -87,15 +89,15 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     """ calculate the Stats needed to evaluate the observation"""
     returntext = []
     gain_ts = pandas.Series(gain, pandas.to_datetime(np.round(timestamps), unit='s'))#.asfreq(freq='1s')
-    mean = pandas.rolling_mean(gain_ts,windowtime,minsamples)
-    std = pandas.rolling_std(gain_ts,windowtime,minsamples)
+    mean = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=np.mean,raw=True)
+    std = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=np.std,raw=True)
     windowgainchange = std/mean*100
-    dtrend_std = pandas.rolling_apply(gain_ts,windowtime,detrend,minsamples)
+    dtrend_std = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=detrend,raw=True)
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     detrended_windowgainchange = dtrend_std/mean*100
     timeval = timestamps.max()-timestamps.min()
-    window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
-    full = np.where(window_occ==1)
+    window_occ = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=np.count_nonzero,raw=True)
+    full = np.where(window_occ>window_occ.max()*0.9)
 
     #rms = np.sqrt((gain**2).mean())
     returntext.append("Antenna : %s:%s"%(antname,pol) )
@@ -104,14 +106,14 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #returntext.append("The Std. dev of the gain of %s is: %.5f"%(pol,gain.std()))
     #returntext.append("The RMS of the gain of %s is : %.5f"%(pol,rms))
     #returntext.append("The Percentage variation of %s is: %.5f"%(pol,gain.std()/gain.mean()*100))
-    returntext.append("The mean Percentage variation over %i seconds of %s is: %.5f    (req < 2 )"%(windowtime,pol,windowgainchange.mean()))
-    returntext.append("The Max  Percentage variation over %i seconds of %s is: %.5f    (req < 2 )"%(windowtime,pol,windowgainchange.max()))
-    returntext.append("The mean detrended Percentage variation over %i seconds of %s is: %.5f    (req < 2 )"%(windowtime,pol,detrended_windowgainchange.mean()))
-    returntext.append("The Max  detrended Percentage variation over %i seconds of %s is: %.5f    (req < 2 )"%(windowtime,pol,detrended_windowgainchange.max()))
+    returntext.append("The mean Percentage variation over %s of %s is: %.5f    (req < 2 )"%(windowtime,pol,windowgainchange.mean()))
+    returntext.append("The Max  Percentage variation over %s of %s is: %.5f    (req < 2 )"%(windowtime,pol,windowgainchange.max()))
+    returntext.append("The mean detrended Percentage variation over %s of %s is: %.5f    (req < 2 )"%(windowtime,pol,detrended_windowgainchange.mean()))
+    returntext.append("The Max  detrended Percentage variation over %s of %s is: %.5f    (req < 2 )"%(windowtime,pol,detrended_windowgainchange.max()))
     #a - np.round(np.polyfit(b,a.T,1)[0,:,np.newaxis]*b + np.polyfit(b,a.T,1)[1,:,np.newaxis])
 
     pltobj = plt.figure()
-    plt.title('Percentage Variation of %s:%s pol, %i Second sliding Window'%(ant,pol,windowtime,))
+    plt.title('Percentage Variation of %s:%s pol, %s sliding Window'%(ant,pol,windowtime,))
     windowgainchange.iloc[full].plot(label='Original')
     detrended_windowgainchange.iloc[full].plot(label='Detrended')
 
@@ -143,10 +145,12 @@ parser.add_option("-m", "--min_nd", dest="min_nd", type="float", default=10,
                   help="minimum samples of noise diode to use for calibration")
 parser.add_option("-t", "--time_width", dest="time_width", type ="float", default=240,
                   help="time-width over which to smooth the gains")
-parser.add_option("-a", "--ant", dest="ant", type ="str", default='',
-                  help="The antenna to examine the gain stability on")
+#parser.add_option("-a", "--ant", dest="ant", type ="str", default='',
+#                  help="The antenna to examine the gain stability on")
 parser.add_option("--pickle", dest="pickle_filename", type="str", default = "",
                    help="Name of file containing static flags")
+parser.add_option( "--antennas",default='',
+                  help="Name of Antennas to reduce default=all")
 
 (opts, args) = parser.parse_args()
 
@@ -154,96 +158,103 @@ if len(args) ==0:
     raise RuntimeError('Please specify an h5 file to load.')
     
 h5 = katdal.open(args[0])
-if opts.ant=='' :
-    ant= h5.ants[0].name
-else:
-    ant = opts.ant
+if not opts.antennas == '' :
+    h5.select(ants=opts.antennas)
+
 n_chan = len(h5.channels)
-    
-# frequency channels to keep - usually set to exclude edges
-start_freq_channel = int(opts.freq_keep.split(',')[0])
-end_freq_channel = int(opts.freq_keep.split(',')[1])
-edge = np.tile(True, n_chan)
-edge[slice(start_freq_channel, end_freq_channel)] = False
-#load static flags if pickle file is given
-if len(opts.pickle_filename)>0:
-    pickle_file = open(opts.pickle_filename) 
-    rfi_static_flags = pickle.load(pickle_file)
-    pickle_file.close()
-else:
-    rfi_static_flags = np.tile(False, n_chan)
-static_flags = np.logical_or(edge,rfi_static_flags)
+for ant_obj in h5.ants :
+    ant = ant_obj.name
+    # frequency channels to keep - usually set to exclude edges
+    start_freq_channel = int(opts.freq_keep.split(',')[0])
+    end_freq_channel = int(opts.freq_keep.split(',')[1])
+    edge = np.tile(True, n_chan)
+    edge[slice(start_freq_channel, end_freq_channel)] = False
+    #load static flags if pickle file is given
+    if len(opts.pickle_filename)>0:
+        pickle_file = open(opts.pickle_filename)
+        rfi_static_flags = pickle.load(pickle_file)
+        pickle_file.close()
+    else:
+        rfi_static_flags = np.tile(False, n_chan)
+    static_flags = np.logical_or(edge,rfi_static_flags)
 
-gain_hh = np.array(())
-gain_vv = np.array(())
-timestamps = np.array(())
-filename = args[0]
-nice_filename =  filename.split('/')[-1]+ '_' +ant+'_gain_stability'
-pp = PdfPages(nice_filename+'.pdf')
+    gain_hh = np.array(())
+    gain_vv = np.array(())
+    timestamps = np.array(())
+    filename = args[0]
+    nice_filename =  filename.split('/')[-1]+ '_' +ant+'_gain_stability'
+    pp = PdfPages(nice_filename+'.pdf')
 
-for filename in args:
+    filename = args[0]
     #h5.select(ants=ant)
-    d = scape.DataSet(filename, baseline="%s,%s" % (ant,ant)) 
-    d = d.select(freqkeep=~static_flags)
-    d = remove_rfi(d,width=21,sigma=5)  # rfi flaging
-    #Leave the d dataset unchanged after this so that it can be examined interactively if necessary
-    antenna = d.antenna
-    d_uncal = d.select(copy = True)
-    d_uncal.average()
-    d_cal = d.select(copy=True)
-    print("do selects")
-    #extract timestamps from data
-    timestampfile = np.hstack([scan.timestamps for scan in d_cal.scans])
-    #get a user-friendly time axis that will plot in the same way as plot_xyz
-    time = scape.extract_scan_data(d_cal.scans, 'time')
-    tmin = np.min(np.hstack(time.data))
-    tmax = np.max(np.hstack(time.data))
-    #Get the gain from the noise diodes
-    g_hh, g_vv, delta_re_hv, delta_im_hv = scape.gaincal.estimate_gain(d_cal)
-    gain_hh = np.r_[gain_hh,g_hh(timestampfile, d.freqs).mean(axis=1)]
-    gain_vv = np.r_[gain_vv,g_vv(timestampfile, d.freqs).mean(axis=1)]
-    timestamps = np.r_[timestamps,timestampfile]
-    print("Applied gains")
-    print " gain_hh  %i, gain_vv %i, timestamps %i"%(gain_hh.shape[0],gain_vv.shape[0],timestamps.shape[0])
-    #Apply noise diode calibration
-    if False:
-        d_cal.convert_power_to_temperature(min_samples=opts.min_nd, time_width=opts.time_width)
-        d_cal.average()
-        fig = plot_figures(d_uncal, d_cal, time, gain_hh, 'HH',antname=ant)
-        fig.savefig(pp,format='pdf')
-        plt.close()
-        fig = plot_figures(d_uncal, d_cal, time, gain_vv, 'VV',antname=ant)
-        fig.savefig(pp,format='pdf')
-        plt.close()
+    try :
+        d = scape.DataSet(filename, baseline="%s,%s" % (ant,ant))
+        if not d is None :  # check for bad data 
+            d = d.select(freqkeep=~static_flags)
+            d = remove_rfi(d,width=21,sigma=5)  # rfi flaging
+            #Leave the d dataset unchanged after this so that it can be examined interactively if necessary
+            antenna = d.antenna
+            d_uncal = d.select(copy = True)
+            d_uncal.average()
+            d_cal = d.select(copy=True)
+            print("do selects")
+            #extract timestamps from data
+            timestampfile = np.hstack([scan.timestamps for scan in d_cal.scans])
+            #get a user-friendly time axis that will plot in the same way as plot_xyz
+            time = scape.extract_scan_data(d_cal.scans, 'time')
+            tmin = np.min(np.hstack(time.data))
+            tmax = np.max(np.hstack(time.data))
+            #Get the gain from the noise diodes
+            g_hh, g_vv, delta_re_hv, delta_im_hv = scape.gaincal.estimate_gain(d_cal)
+            gain_hh = np.r_[gain_hh,g_hh(timestampfile, d.freqs).mean(axis=1)]
+            gain_vv = np.r_[gain_vv,g_vv(timestampfile, d.freqs).mean(axis=1)]
+            timestamps = np.r_[timestamps,timestampfile]
+            print("Applied gains")
+            print " gain_hh  %i, gain_vv %i, timestamps %i"%(gain_hh.shape[0],gain_vv.shape[0],timestamps.shape[0])
+            #Apply noise diode calibration
+            if False:
+                d_cal.convert_power_to_temperature(min_samples=opts.min_nd, time_width=opts.time_width)
+                d_cal.average()
+                fig = plot_figures(d_uncal, d_cal, time, gain_hh, 'HH',antname=ant)
+                fig.savefig(pp,format='pdf')
+                plt.close()
+                fig = plot_figures(d_uncal, d_cal, time, gain_vv, 'VV',antname=ant)
+                fig.savefig(pp,format='pdf')
+                plt.close()
 
-    #extract data to look at stats
-    #time, amp_hh, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'HH')
-    #time, amp_vv, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'VV')
-    #time = np.hstack(time.data)
-    #amp_hh = np.hstack(amp_hh.data)
-    #amp_vv = np.hstack(amp_vv.data)
+            #extract data to look at stats
+            #time, amp_hh, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'HH')
+            #time, amp_vv, z =  scape.extract_xyz_data(d_uncal.select(flagkeep='~nd_on', copy=False), 'time', 'amp', pol = 'VV')
+            #time = np.hstack(time.data)
+            #amp_hh = np.hstack(amp_hh.data)
+            #amp_vv = np.hstack(amp_vv.data)
 
-if True :
-    obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
-    returntext,fig = calc_stats(timestamps,gain_hh,'HH',1200,antname=ant)
-    fig.suptitle(obs_details)
-    plt.subplots_adjust(bottom=0.3)
-    plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
-    fig.savefig(pp,format='pdf')
+            if True :
+                obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
+                returntext,fig = calc_stats(timestamps,gain_hh,'HH',pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int),antname=ant)
+                fig.suptitle(obs_details)
+                plt.subplots_adjust(bottom=0.3)
+                plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
+                fig.savefig(pp,format='pdf')
+                plt.close()
+                tmp,fig = calc_stats(timestamps,gain_vv,'VV',pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int),antname=ant)
+                fig.suptitle(obs_details)
+                plt.subplots_adjust(bottom=0.3)
+                plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
+                fig.savefig(pp,format='pdf')
+
+                plt.close()
+                returntext += tmp
+                #detrend data
+                fig = plt.figure(None,figsize = (10,16))
+                plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
+                fig.savefig(pp,format='pdf')
+    except scape.gaincal.NoSuitableNoiseDiodeDataFound :
+        d = None
+        print('%s No Suitable Noise Diode Data Found '%(ant))
+    else:
+        print('Bad Data %s'%(ant))
+    pp.close()
     plt.close()
-    tmp,fig = calc_stats(timestamps,gain_vv,'VV',1200,antname=ant)
-    fig.suptitle(obs_details)
-    plt.subplots_adjust(bottom=0.3)
-    plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
-    fig.savefig(pp,format='pdf')
-
-    plt.close()
-    returntext += tmp
-    #detrend data
-    fig = plt.figure(None,figsize = (10,16))
-    plt.figtext(0.1,0.1,'\n'.join(returntext),fontsize=10)
-    fig.savefig(pp,format='pdf')
-pp.close()
-plt.close()
-###
+    ###
 

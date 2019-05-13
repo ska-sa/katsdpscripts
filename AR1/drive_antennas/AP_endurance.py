@@ -163,7 +163,9 @@ def track(ant, taz, tel, total=1, dry_run=False):
             # of the receptor proxy mode requests
             time.sleep(3)
 
-        indexer_timeout = 120
+        # NOTE: Using the indexer positioning time spec as we are more
+        #       concerned with repetitions than accuracy for this test.
+        indexer_timeout = 60
         # Position raw changed after indexer configurations
         ridx_angle={'s':-0.618,'l':39.248,'x':79.143,'u':119.405}
         ridx_sequence = ['s','l','x','u']
@@ -199,9 +201,15 @@ def track(ant, taz, tel, total=1, dry_run=False):
                 time.sleep(3)
                 try:
                     # Wait for indexer brakes to engage again
-                    ant.wait('ap.ridx-brakes-released', False, timeout=60)
+                    ant.wait('ap.ridx-brakes-released', False, timeout=indexer_timeout)
                 except:
-                    raise
+                    user_logger.error("Indexer brakes did not engage "
+                                      "(hunting issue). Giving up and "
+                                      "trying the next position.")
+                    ant.req.mode('STOP')
+                    time.sleep(3)
+                    # NOTE: We do not raise the timeout exception as we want
+                    #       to try to continue.
 
                 # Wait for power to encoder to switch off
                 time.sleep(5)
@@ -225,11 +233,8 @@ def track(ant, taz, tel, total=1, dry_run=False):
                                       abs(ridx_angle[pos] - ridx_position_raw),
                                       ridx_brakes_released)
 
-                    user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
-                    user_logger.info("26/23 deg slews: az - '%s', el - '%s' ", az_26_deg_slews, el_23_deg_slews)
-                    user_logger.info("Total degrees travelled: az - '%s', el - '%s' ", az_total_angle, el_total_angle)
-
-                    raise UndefinedPosition("Indexer failed to reach the requested position.") 
+                    # NOTE: We ignore the failed check here for now and
+                    #       continue the script by not raising an exception.
                 else:
                     user_logger.info("Brake engaged. The offset from the requested position: "
                                      "'%s' is %.6f degree(s)",

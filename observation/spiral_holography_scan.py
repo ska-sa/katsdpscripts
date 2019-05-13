@@ -218,6 +218,25 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
                 ncompositex[ia]=fullscanx
                 ncompositey[ia]=fullscany*y
         return compositex,compositey,ncompositex,ncompositey
+    elif (kind=='circle'):
+        ncircles=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
+        ntime=(tottime/np.float(ncircles)-tracktime)/sampletime #time per circle
+        compositex=[]
+        compositey=[]
+        r0=np.linspace(0,2,ntime/2)#for 1/r
+        #r0=(r0**2)/4.#for 1/r2
+        #r0=np.sqrt(r0)*np.sqrt(2.-1e-9)#for uniform
+        r1=1.
+        x=0.5*(1+r0**2-r1**2)
+        y=np.sqrt(r0**2-x**2)
+        x=np.r_[np.repeat(0.0,int(np.ceil(tracktime/sampletime/2.))),x,x[-2::-1],np.repeat(0.0,int(np.floor(tracktime/sampletime/2.)))]/4.
+        y=np.r_[np.repeat(0.0,int(np.ceil(tracktime/sampletime/2.))),y,-y[-2::-1],np.repeat(0.0,int(np.floor(tracktime/sampletime/2.)))]/4.
+        for th in np.linspace(0,360,ncircles,endpoint=False):
+            nx=x*np.cos(th*np.pi/180.)-y*np.sin(th*np.pi/180.)
+            ny=x*np.sin(th*np.pi/180.)+y*np.cos(th*np.pi/180.)
+            compositex.append(nx*totextent)
+            compositey.append(ny*totextent)
+        return compositex,compositey,compositex,compositey,0
     elif (kind=='radial'):
         c=180.0/(16.0*np.pi)
         narms=2*int(1.5*(np.sqrt(tottime/c+((tracktime+slewtime)/c)**2)-(tracktime+slewtime)/c))#ensures even number of arms - then scan pattern ends on target (if odd it will not)
@@ -330,21 +349,22 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep):
     scan_data = np.zeros((num_points,3))
     attime = lasttime+np.arange(1,num_points+1)*timeperstep
     #spiral arm scan
-    targetaz_rad,targetel_rad=target.azel(attime)
+    targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+    targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
     scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm )
     scan_data[:,0] = attime
-    scan_data[:,1] = katpoint.wrap_angle(scanaz)*180.0/np.pi
+    scan_data[:,1] = np.unwrap(scanaz)*180.0/np.pi
     scan_data[:,2] = scanel*180.0/np.pi
     return scan_data
 
 def gen_track(attime,target):
     track_data = np.zeros((len(attime),3))
-    targetaz_rad,targetel_rad=target.azel(attime)
+    targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+    targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
     track_data[:,0] = attime
-    track_data[:,1] = katpoint.wrap_angle(targetaz_rad)*180.0/np.pi
+    track_data[:,1] = np.unwrap(targetaz_rad)*180.0/np.pi
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
-
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
@@ -370,6 +390,8 @@ parser.add_option('--kind', type='string', default='uniform',
                   help='Kind of spiral, could be "radial", "raster", "uniform" or "dense-core" (default=%default)')
 parser.add_option('--tracktime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
+parser.add_option('--cycle-tracktime', type='float', default=30.0,
+                  help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
 parser.add_option('--slewtime', type='float', default=1.0,
                   help='Extra time in seconds for scanning antennas to slew when passing from one spiral arm to another (default=%default)')
 parser.add_option('--slowtime', type='float', default=1.0,
@@ -388,6 +410,11 @@ parser.add_option('--fft-shift', type='int', default=None,
                   help='Set CBF fft shift (default=%default)')
 parser.add_option('--default-gain', type='float', default=None,
                   help='Set CBF gain (default=%default)')
+parser.add_option('--auto-delay', type='string', default=None,
+                  help='Set CBF auto-delay on or off (default=%default)')
+parser.add_option('--debugtrack', action="store_true", default=False,
+                  help='disables load_scan tracking command (default=%default)')
+                  
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Spiral holography scan', nd_params='off')
 # Parse the command line
@@ -450,20 +477,41 @@ with verify_and_connect(opts) as kat:
         # Assign rest of antennas to tracking antenna subarray (or use given antennas)
         track_ants = [ant for ant in all_ants if ant not in scan_ants]
         track_ants = ant_array(kat, track_ants, 'track_ants')
+        track_ants_array = [ant_array(kat, [track_ant], 'track_ant') for track_ant in track_ants]
+        scan_ants_array = [ant_array(kat, [scan_ant], 'scan_ant') for scan_ant in scan_ants]
+
         # Add metadata
         session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
         session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
+        # Get observers
+        scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
+        track_observers = [katpoint.Antenna(track_ant.sensor.observer.get_value()) for track_ant in track_ants]
         # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
         nd_params = session.nd_params
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         # This also does capture_init, which adds capture_block_id view to telstate and saves obs_params
         session.capture_start()
-        session.telstate.add('obs_label','cycle.group.scan')
+        session.telstate.add('obs_label','slew')
+
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second "
                          "cycles extending %g degrees) on target '%s'",
                          opts.num_cycles, opts.cycle_duration,
                          opts.scan_extent, target.name)
+
         session.set_target(target)
+
+        user_logger.info("Slewing to target")
+        session.track(target, duration=0, announce=False)
+        user_logger.info("Performing initial track")
+        session.telstate.add('obs_label','track')
+        session.track(target, duration=opts.cycle_tracktime, announce=False)
+        if opts.auto_delay is not None:
+            user_logger.info("Setting auto delay to "+opts.auto_delay)
+            session.cbf.req.auto_delay(opts.auto_delay)
+            user_logger.info("Performing follow up track")
+            session.telstate.add('obs_label','delay set track')
+            session.track(target, duration=opts.cycle_tracktime, announce=False)
+        session.telstate.add('obs_label','cycle.group.scan')
         lasttime = time.time()
         if (opts.debug):
             fp=open('/home/kat/usersnfs/mattieu/spiral_holography_scan_debug','wb')
@@ -489,28 +537,36 @@ with verify_and_connect(opts) as kat:
                                          opts.horizon + opts.scan_extent / 2. - targetel,
                                          opts.scan_extent, opts.horizon)
                         break
-                scan_observer = katpoint.Antenna(scan_ants[0].sensor.observer.get_value())
-                track_observer = katpoint.Antenna(track_ants[0].sensor.observer.get_value())
-                #get both antennas to target ASAP
-                session.ants = all_ants
-                session.track(target, duration=0, announce=False)
+                user_logger.info("Using Track antennas: %s",
+                                 ' '.join([ant.name for ant in track_ants]))
                 lasttime = time.time()
                 for iarm in range(len(cx)):#spiral arm index
                     user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
-                    session.ants = scan_ants
-                    target.antenna = scan_observer
-                    scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
-                    user_logger.info("Using Scan antennas: %s",
-                                     ' '.join([ant.name for ant in session.ants]))
-                    if not kat.dry_run:
-                        session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                    session.ants = track_ants
-                    target.antenna = track_observer
-                    scan_track = gen_track(scan_data[:,0],target)
-                    user_logger.info("Using Track antennas: %s",
-                                     ' '.join([ant.name for ant in session.ants]))
-                    if not kat.dry_run:
-                        session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                    if (opts.debugtrack):#original
+                        session.ants = scan_ants
+                        target.antenna = scan_observers[0]
+                        scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                        user_logger.info("Using Scan antennas: %s",
+                                         ' '.join([ant.name for ant in session.ants]))
+                        if not kat.dry_run:
+                            session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                        session.ants = track_ants
+                        target.antenna = track_observers[0]
+                        scan_track = gen_track(scan_data[:,0],target)
+                        user_logger.info("Using Track antennas: %s",
+                                         ' '.join([ant.name for ant in session.ants]))
+                        if not kat.dry_run:
+                            session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
+                    else:#fix individual target.antenna issue
+                        user_logger.info("Using Scan antennas: %s",
+                                         ' '.join([ant.name for ant in scan_ants]))
+                        for iant,scan_ant in enumerate(scan_ants):
+                            session.ants = scan_ants_array[iant]
+                            target.antenna = scan_observers[iant]
+                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                            if not kat.dry_run:
+                                session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                        
                     if (iarm%2==0):#outward arm
                         session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
                         if (nextraslew>0):
@@ -521,14 +577,22 @@ with verify_and_connect(opts) as kat:
                         pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                     lasttime = scan_data[-1,0]
-                if (len(grouprange)==2):
-                    #swap scanning and tracking antennas
-                    swap=track_ants
-                    track_ants=scan_ants
-                    scan_ants=swap
+                if (len(grouprange)==2):#swap scanning and tracking antennas
+                    track_ants,scan_ants=scan_ants,track_ants
+                    track_observers,scan_observers=scan_observers,track_observers
+                    track_ants_array,scan_ants_array=scan_ants_array,track_ants_array
 
-        time.sleep(lasttime-time.time()+1.0)#wait for 1 second more than timestamp for last coordinate
-        #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
-        session.ants = all_ants
+                time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
+                #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
+                session.ants = all_ants
+                session.telstate.add('obs_label','track')
+                session.track(target, duration=opts.cycle_tracktime, announce=False)
+                if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
+                    user_logger.info("Testing only one group for dry-run")
+                    break
+            if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
+                user_logger.info("Testing only cycle for dry-run")
+                break
+
         if (opts.debug):
             fp.close()

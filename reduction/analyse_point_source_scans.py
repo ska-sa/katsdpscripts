@@ -9,9 +9,26 @@ from katsdpscripts.reduction.analyse_point_source_scans import analyse_point_sou
 
 # Parse command-line opts and arguments
 parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
-                               description="This processes an HDF5 dataset and extracts fitted beam parameters "
-                                           "from the compound scans in it. It runs interactively by default, "
-                                           "which allows the user to inspect results and discard bad scans.")
+                               description="""This processes an HDF5 dataset and extracts fitted beam parameters 
+                                           from the compound scans in it. It runs interactively by default, 
+                                           which allows the user to inspect results and discard bad scans.
+                                           Scan series plots are coloured as follows:
+                                           * measured data (Stokes I) is BLUE
+                                           * beam colour: RED and GREEN indicate a valid beam, YELLOW is an invalid beam
+                                             fit. If the beam is 'refined' then the main lobe is drawn as a solid line
+                                             while the outer skirts are drawn in broken lines.
+                                           * baseline colour: RED indicates a valid per-scan baseline, else GREEN
+                                           * no beam / no baseline in a scan window: fitting failed completely
+                                           Scan target maps are coloured as follows:
+                                           * measured data (Stokes I - baseline as fitted) is BLUE
+                                           * fitted ellipses are RED for a valid beam or YELLOW for an invalid beam
+                                           * 'expected beam' ellipses are broken BLACK
+                                           Only scans with fitted PER-SCAN baselines are drawn - even though the fit does
+                                           use scans with a 2D COMPSCAN baseline rather than a 1D SCAN baseline.
+                                           Debug messages:
+                                           * main_compscan.beam.is_valid: False only for YELLOW beams
+                                           * keep_all & keep: only used in batch mode, keep=True only if the beam fit is
+                                             valid or if command line includes '--keep-all'""")
 parser.add_option("-a", "--baseline", default='sd',
                   help="Baseline to load (e.g. 'ant1' for antenna 1 or 'ant1,ant2' for 1-2 baseline), "
                        "default is first single-dish baseline in file")
