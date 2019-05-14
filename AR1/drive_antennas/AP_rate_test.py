@@ -35,7 +35,7 @@ def rate_slew(ants, azim, elev, speed=0.5, reverse=False, dry_run=False):
         user_logger.info("Antennas will perform a rate slew to azimuth %s",
                          expected_azim)
     else:
-        raise ParametersExceedTravelRange("Cannot perform 360 degree slew "
+        raise ParametersExceedTravelRange("Cannot perform 365 degree slew "
                                           "within the AP azim travel range "
                                           "from the given start position.")
 
@@ -124,7 +124,7 @@ with verify_and_connect(opts) as kat:
         time.sleep(2)
     else:
         if not kat.dry_run:
-            user_logger.error("Unable to set antennas to mode 'STOP'!")
+            raise RuntimeError("Unable to set antennas to mode 'STOP'!")
 
     receptors = kat.ants
 
@@ -132,8 +132,6 @@ with verify_and_connect(opts) as kat:
         rate_slew(receptors, float(opts.start_az), float(opts.start_el),
                   speed=float(opts.azim_speed), reverse=opts.reverse,
                   dry_run=kat.dry_run)
-    except Exception as e:
-        raise
     finally:
         if not kat.dry_run:
             kat.ants.req.mode('STOP')
