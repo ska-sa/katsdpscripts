@@ -26,7 +26,7 @@ def rate_slew(ants, azim, elev, speed=0.5, reverse=False, dry_run=False):
     elev_speed = 0.0
     sensor_name = "ap.actual-azim"
     # Only testing 365 degrees, not full travel range (460 degrees)
-    expected_azim = [azim + 365.0 if speed > 0 else azim - 365.0]
+    expected_azim = (azim + 365.0 if speed > 0 else azim - 365.0)
     # Position threshold 2 degrees to catch it at 0.5 second polling
     # period at full speed (2 deg/sec).
     threshold = 2
