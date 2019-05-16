@@ -133,7 +133,7 @@ parser.add_option('--adc-std-in', type='float', default=12.0,
 parser.add_option('--adc-volt', type='float', default=190.0,
                   help='The target power level for the adc (default=%default)')
 parser.add_option('--email-to', type='str',
-    default='sean@ska.ac.za',  #,operators@ska.ac.za
+    default='sean@ska.ac.za,operators@ska.ac.za',
     help='Comma separated email list of people to send report to (default=%default)')
 
 # Set default value for any option (both standard and experiment-specific options)
@@ -159,7 +159,7 @@ with verify_and_connect(opts) as kat:
         while ant_update.sum() > 0 and count < 20:
             i = -1
             count = count + 1
-            time.sleep(5)
+            time.sleep(30)
             print("New loop")
             for pol in {'h', 'v'}:
                 for ant in kat.ants:
@@ -202,7 +202,7 @@ with verify_and_connect(opts) as kat:
         ant_list.sort()
         for ant in ant_list:
             string =  (" '%s' band : %s, %i, %i "%(
-            atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'h')][0] ) )
+            atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'v')][0] ) )
             user_logger.info(string)
             summary.append(string)
         send_email(opts.email_to,summary, 'Summary:Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
