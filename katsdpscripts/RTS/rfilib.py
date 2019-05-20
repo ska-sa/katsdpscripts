@@ -513,6 +513,10 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
             grp = outfile.create_group(targetname)
             # populate the group with the data
             for datasetname, data in six.iteritems(targetdata):
+                # h5py doesn't support numpy Unicode arrays, so convert to ASCII.
+                # (http://docs.h5py.org/en/stable/strings.html)
+                if isinstance(data, np.ndarray) and data.dtype.kind == 'U':
+                    data = np.core.defchararray.encode(data, 'ascii', 'strict')
                 grp.create_dataset(datasetname, data=data)
         outfile.close()
 
