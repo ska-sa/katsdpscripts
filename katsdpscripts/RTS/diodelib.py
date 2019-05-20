@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from __future__ import absolute_import
+from __future__ import print_function
 import katdal as katfile
 import scape
 import numpy as np
@@ -9,9 +11,10 @@ from katsdpscripts import git_info
 from scipy.signal import medfilt
 import logging
 import scape
+from six.moves import zip
 
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = False,error_bars=False,target='off1',write_nd=False,**kwargs):
-    print 'inside',kwargs
+    print('inside',kwargs)
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
 
@@ -173,7 +176,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,verbose = Fal
                 plt.plot(freq/1e6,Tdiode,'b.',label='Measurement: Y-method')
                 if write_nd:
                     outfilename = diode_filename.split('/')[-1]
-                    outfile = file(outfilename, 'w')
+                    outfile = open(outfilename, 'w')
                     outfile.write('#Data from %s\n# Frequency [Hz], Temperature [K]\n'%file_base)
                     # Write CSV part of file
                     outfile.write(''.join(['%s, %s\n' % (entry[0], entry[1]) for entry in zip(freq,medfilt(Tdiode))]))
@@ -245,5 +248,5 @@ if __name__ == "__main__":
     error_bars = False
     target = 'off1'
     write_nd = False
-    print 'Performing test run with: ' + filename
+    print('Performing test run with: ' + filename)
     read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)

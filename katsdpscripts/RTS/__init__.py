@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from .weatherlib import weather_report
 from .rfilib import generate_flag_table, generate_rfi_report
 from . import diodelib                         # For QT 2_2

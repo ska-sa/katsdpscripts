@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 
 import numpy as np
@@ -16,6 +18,7 @@ from katsdpscripts.RTS import rfilib
 from katsdpscripts import git_info
 
 import h5py
+from six.moves import range
 
 
 def read_and_select_file(data, bline, target=None, channels=None, polarisation=None, flags_file=None, **kwargs):
@@ -63,7 +66,7 @@ def read_and_select_file(data, bline, target=None, channels=None, polarisation=N
     else:
         start_chan = int(channels.split(',')[0])
         end_chan = int(channels.split(',')[1])
-    chan_range = range(start_chan,end_chan+1)
+    chan_range = list(range(start_chan,end_chan+1))
     select_data['channels']=chan_range
 
     data.select(strict=False, **select_data)
@@ -143,7 +146,7 @@ class onedbackground():
         if axis == -1 : axis = len(a.shape)-1 
         if pad :
             pad_width = []
-            for i in xrange(len(a.shape)):
+            for i in range(len(a.shape)):
                 if i == axis: 
                     pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
                 else :  
@@ -342,7 +345,7 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
     basename = fileprefix+'_SpecBase_'+baseline.replace(',','')
     pdf = PdfPages(basename+'.pdf')
     for this_pol in polarisation.split(','):
-        print this_pol,"polarisation."
+        print(this_pol,"polarisation.")
         # Get data from h5 file and use 'select' to obtain a useable subset of it.
         visdata, weightdata, h5data = \
             read_and_select_file(h5data, baseline, target=target, channels=freq_chans, polarisation=this_pol, flags_file=flags_file)
@@ -356,13 +359,13 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
             bg = onedbackground(smoothing=smooth,background_method=correct)
             #Knots will have to satisfy Schoenberg-Whitney conditions for spline else revert to straight mean of channels
             try:
-                print "Fitting background using "+correct+" smoothing."
+                print("Fitting background using "+correct+" smoothing.")
                 corr_vis = np.ma.masked_invalid(np.ma.masked_array([data - bg.getbackground(data) for data in visdata],mask=visdata.mask,fill_value=0.0))
                 #Fill masked values with zero (these will not contribute to the average - and deals with nans returned from the spline fit creeping into the average)
                 removed_dumps=np.all(corr_vis.mask,axis=1)
-                print np.sum(removed_dumps),"out of",len(removed_dumps),"dumps have been rejected during fitting."
+                print(np.sum(removed_dumps),"out of",len(removed_dumps),"dumps have been rejected during fitting.")
             except ValueError:
-                print "Background fitting failed- using mean deviation instead."
+                print("Background fitting failed- using mean deviation instead.")
                 corr_vis = correct_by_mean(visdata,axis="Channel")
                 corr_vis = correct_by_mean(corr_vis,axis="Time")
 
@@ -370,17 +373,17 @@ def analyse_spectrum(input_file,output_dir='.',polarisation='HH,VV',baseline=Non
         dumpav = max(1,int(np.round(timeav*60.0 / h5data.dump_period)))
         if dumpav > len(h5data.timestamps):
             dumpav = 1
-            print "Time averaging interval of %4.1fmin is longer than the observation length. No time averaging will be applied."%(timeav)
+            print("Time averaging interval of %4.1fmin is longer than the observation length. No time averaging will be applied."%(timeav))
             timeav = dumpav*(h5data.dump_period/60.0)
-        print "Averaging time to %3d x %4.1fmin (%d dump) intervals."%(len(h5data.timestamps)//dumpav,timeav,dumpav)
+        print("Averaging time to %3d x %4.1fmin (%d dump) intervals."%(len(h5data.timestamps)//dumpav,timeav,dumpav))
 
         #Get the number of channels to average
         chanav = max(1,int(np.round(freqav*1e6 / h5data.channel_width)))
         if chanav > len(h5data.channel_freqs):
             chanav = 1
-            print "Frequency averaging interval of %4.1fMHz is wider than available bandwidth. No frequency averaging will be applied."%(freqav)
+            print("Frequency averaging interval of %4.1fMHz is wider than available bandwidth. No frequency averaging will be applied."%(freqav))
             freqav = h5data.channel_width/1e6
-        print "Averaging frequency to %d x %4.1fMHz intervals."%(len(h5data.channel_freqs)//chanav,freqav)
+        print("Averaging frequency to %d x %4.1fMHz intervals."%(len(h5data.channel_freqs)//chanav,freqav))
 
         #Average the data over all time in chanav channels
         av_visdata = averager.average_visibilities(visdata.data, weightdata, visdata.mask, h5data.timestamps, h5data.channel_freqs, timeav=len(h5data.timestamps), chanav=chanav)

@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 import katdal
 import katpoint
 import os
 import pylab as plt
 import numpy as np
 import scipy.interpolate as interpolate
+from six.moves import range
 
 def select_and_average(filename, average_time):
     # Read a file into katdal, and average the data to the prescribed averaging time
@@ -27,7 +29,7 @@ def select_and_average(filename, average_time):
     num_average = max(int(np.round(average_time/raw_dumptime)),1)
 
     #Array of block indices
-    indices = range(min(num_average,raw_timestamps.shape[0]),raw_timestamps.shape[0]+1,min(num_average,raw_timestamps.shape[0]))
+    indices = list(range(min(num_average,raw_timestamps.shape[0]),raw_timestamps.shape[0]+1,min(num_average,raw_timestamps.shape[0])))
     
     timestamps = np.average(np.array(np.split(raw_timestamps,indices)[:-1]),axis=1)
     wind_speed = np.average(np.array(np.split(raw_wind_speed,indices)[:-1]),axis=1)
@@ -84,7 +86,7 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     if axis == -1 : axis = len(a.shape)-1 
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(len(a.shape)):
             if i == axis: 
                 pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
             else :  

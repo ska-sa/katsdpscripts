@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 import shutil
 import time
@@ -20,6 +22,8 @@ import h5py
 import concurrent.futures
 
 from katsdpsigproc.rfi.twodflag import SumThresholdFlagger
+import six
+from six.moves import range
 
 
 def plot_RFI_mask(pltobj, main=True, extra=None, channelwidth=1e6):
@@ -59,7 +63,7 @@ def plot_RFI_mask(pltobj, main=True, extra=None, channelwidth=1e6):
         pltobj.axvspan(1232e6, 1259e6, alpha=0.3, color='green')  # GLONASS  1232 -> 1259 L2
         pltobj.axvspan(1616e6, 1630e6, alpha=0.3, color='grey')  # IRIDIUM
     if extra is not None:
-        for i in xrange(extra.shape[0]):
+        for i in range(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2, extra[i]+channelwidth/2, alpha=0.1, color='Maroon')
 
 
@@ -172,7 +176,7 @@ def plot_waterfall_subsample(visdata, flagdata, freqs=None, times=None, label=''
     ax.text(0.01, 0.02, repo_info, horizontalalignment='left', fontsize=10, transform=ax.transAxes)
     display_limits = ax.get_window_extent()
     if freqs is None:
-        freqs = range(0, visdata.shape[1])
+        freqs = list(range(0, visdata.shape[1]))
     # 300dpi, and one pixel per desired data-point in pixels at 300dpi
     display_width = display_limits.width * resolution/72.
     display_height = display_limits.height * resolution/72.
@@ -341,7 +345,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             raise Exception("--write-input will only work for mvf v3 files")
         output_file = os.path.join(output_root, input_file.split('/')[-1])
         if not os.path.exists(output_file) or not os.path.samefile(input_file, output_file):
-            print "Copying input file from %s to %s" % (input_file, os.path.abspath(output_root),)
+            print("Copying input file from %s to %s" % (input_file, os.path.abspath(output_root),))
             shutil.copy(input_file, output_root)
         mvf = katdal.open(os.path.join(output_file), mode='r+')
         outfile = mvf.file
@@ -413,8 +417,8 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
                 detected_flags = flagger.get_flags(this_data, flags, pool)
             if or_pols:
                 detected_flags = or_flags_pols(detected_flags, mvf.corr_products, mvf.ants)
-            print "Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%" % \
-                  (scan, target.name, mvf.shape[0], (np.sum(detected_flags)*100.)/detected_flags.size,)
+            print("Scan: %4d, Target: %15s, Dumps: %3d, Flagged %5.1f%%" % \
+                  (scan, target.name, mvf.shape[0], (np.sum(detected_flags)*100.)/detected_flags.size,))
             # Add new flags to flag table
             flags = np.zeros((this_slice.stop-this_slice.start, mvf.shape[1], mvf.shape[2],), dtype=np.uint8)
             # Add mask to 'static' flags
@@ -437,7 +441,7 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
             flags[:, freq_range, :] |= detected_flags.astype(np.uint8)*(2**FLAG_NAMES.index('cal_rfi'))
             flags_dataset[mvf.dumps[this_slice], :, :] |= flags
     outfile.close()
-    print "Flagging processing time: %4.1f minutes." % ((time.time() - start_time) / 60.0)
+    print("Flagging processing time: %4.1f minutes." % ((time.time() - start_time) / 60.0))
     return
 
 
@@ -477,7 +481,7 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
     else:
         start_chan = int(freq_chans.split(',')[0])
         end_chan = int(freq_chans.split(',')[1])
-    chan_range = range(start_chan, end_chan+1)
+    chan_range = list(range(start_chan, end_chan+1))
 
     if targets is 'all':
         targets = mvf.catalogue.targets
@@ -504,11 +508,11 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
         data_dict = get_flag_stats(mvf, thisdata=vis, flags=flags)
         # Output to h5 file
         outfile = h5py.File(basename + '.h5', 'w')
-        for targetname, targetdata in data_dict.iteritems():
+        for targetname, targetdata in six.iteritems(data_dict):
             # Create a group in the h5 file corresponding to the target
             grp = outfile.create_group(targetname)
             # populate the group with the data
-            for datasetname, data in targetdata.iteritems():
+            for datasetname, data in six.iteritems(targetdata):
                 grp.create_dataset(datasetname, data=data)
         outfile.close()
 
@@ -520,7 +524,7 @@ def generate_rfi_report(input_file, input_flags=None, flags_to_show='all', outpu
             # Extract target from file
             mvf.select(reset='TFB', targets=target, scans='track', corrprods=corrprodselect, channels=chan_range)
             if mvf.shape[0] == 0:
-                print 'No data to process for ' + target
+                print('No data to process for ' + target)
                 continue
             # Get HH and VV cross pol indices
             hh_index = np.all(np.char.endswith(mvf.corr_products, 'h'), axis=1)
