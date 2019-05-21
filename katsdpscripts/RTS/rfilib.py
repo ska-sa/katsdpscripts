@@ -356,7 +356,11 @@ def generate_flag_table(input_file, output_root='.', static_flags=None,
         elif mvf.version[0] == '4':
             in_flags_dataset = mvf.source.data.flags
         basename = os.path.join(output_root, os.path.splitext(os.path.basename(input_file))[0]+'_flags')
-        da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(mvf.corr_products, 1), '/flags': in_flags_dataset})
+        corr_products = mvf.corr_products
+        if corr_products.dtype.kind == 'U':
+            # HDF5 can't store fixed-length Unicode, so encode as ASCII
+            corr_products = np.core.defchararray.encode(mvf.corr_products, 'ascii', 'strict')
+        da.to_hdf5(basename + '.h5', {'/corr_products': da.from_array(corr_products, 1), '/flags': in_flags_dataset})
         # Use the local copy of the flags to avoid reading over the network again
         outfile = h5py.File(basename + '.h5', mode='r+')
         flags_dataset = outfile['flags']
