@@ -42,19 +42,19 @@ basename = filename.split('/')[-1]
 flags_basename=os.path.join(opts.output_dir,os.path.splitext(basename)[0]+'_flags')
 
 if opts.ku_band:
-       opts.static_flags = None
+    opts.static_flags = None
 
 if opts.write_input:
-	input_flags = None
-	report_input = os.path.join(opts.output_dir,basename)
+    input_flags = None
+    report_input = os.path.join(opts.output_dir,basename)
 else:
-	input_flags = flags_basename+'.h5'
-	report_input = filename
+    input_flags = flags_basename+'.h5'
+    report_input = filename
 
 if opts.flags_only:
-	generate_flag_table(filename,**vars(opts))
+    generate_flag_table(filename,**vars(opts))
 elif opts.report_only:
-	generate_rfi_report(filename,input_flags=None,**vars(opts))
+    generate_rfi_report(filename,input_flags=None,**vars(opts))
 else:
-	generate_flag_table(filename,**vars(opts))
-	generate_rfi_report(report_input,input_flags=input_flags,**vars(opts))
+    generate_flag_table(filename,**vars(opts))
+    generate_rfi_report(report_input,input_flags=input_flags,**vars(opts))

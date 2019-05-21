@@ -10,6 +10,8 @@
 #
 # TM: 27/11/2013
 
+from __future__ import absolute_import
+from __future__ import print_function
 from matplotlib.backends.backend_pdf import PdfPages
 import pylab as plt
 
@@ -23,7 +25,8 @@ import pickle
 import scape
 from scape.stats import robust_mu_sigma
 
-import rfilib
+from . import rfilib
+from six.moves import range
 
 def read_and_select_file(file, bline=None, channels=None, rfi_mask=None, nd_models=None, **kwargs):
     """
@@ -46,7 +49,7 @@ def read_and_select_file(file, bline=None, channels=None, rfi_mask=None, nd_mode
     else:
         start_chan = int(channels.split(',')[0])
         end_chan = int(channels.split(',')[1])
-    chan_select = range(start_chan,end_chan+1)
+    chan_select = list(range(start_chan,end_chan+1))
     if rfi_mask:
         mask_file = open(rfi_mask)
         chan_select = ~(pickle.load(mask_file))
@@ -186,7 +189,7 @@ def analyse_noise_diode(input_file,output_dir='.',antenna='sd',targets='all',fre
     if len(average_specs)==2:
         difftemp = present_difference_results(pdf, average_specs, data.freqs, data.antenna.name, data.bandwidths[0])
     else:
-        print "No before and after tracks. Not plotting difference spectrum."
+        print("No before and after tracks. Not plotting difference spectrum.")
     #Plot the scan track strong scans
     average_specs=[]
     plottitles=[]
