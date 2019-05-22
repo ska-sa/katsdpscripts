@@ -3,6 +3,7 @@
 
 import time
 import numpy as np
+from contextlib import closing
 from katcorelib import (
     user_logger, standard_script_options, verify_and_connect, colors)
 import smtplib
@@ -16,10 +17,8 @@ def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
     msg['Subject'] = subject
     msg['From'] = messagefrom
     msg['To'] = emailto
-    smtp_server = smtplib.SMTP('smtp.kat.ac.za')
-    #with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
-    smtp_server.sendmail(messagefrom, emailto, msg.as_string())
-    smtp_server.close()
+    with closing(smtplib.SMTP('smtp.kat.ac.za')) as smtp_server:
+        smtp_server.sendmail(messagefrom, emailto, msg.as_string())
 
 
 def color_code(value, warn, error):
