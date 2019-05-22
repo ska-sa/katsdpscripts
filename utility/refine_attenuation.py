@@ -10,7 +10,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
-    if type(email_to) is not list :
+    if not isinstance(email_to,list) :
         emailto = email_to.replace(';', ',').split(',')
     emailto = ','.join(map(str.strip, emailto))
     msg = MIMEText('\n'.join(lines))
