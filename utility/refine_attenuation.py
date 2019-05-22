@@ -10,13 +10,13 @@ from email.mime.text import MIMEText
 
 def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
     if type(email_to) is not list :
-         emailto = email_to.replace(';', ',').split(',')
+        emailto = email_to.replace(';', ',').split(',')
     emailto = ','.join(map(str.strip, emailto))
     msg = MIMEText('\n'.join(lines))
     msg['Subject'] = subject
     msg['From'] = messagefrom
     msg['To'] = emailto
-    smtp_server = smtplib.SMTP('smtp.kat.ac.za')    
+    smtp_server = smtplib.SMTP('smtp.kat.ac.za')
     #with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
     smtp_server.sendmail(messagefrom, emailto, msg.as_string())
     smtp_server.close()
@@ -199,8 +199,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reading Back set Attenuations ")
         user_logger.info("# band Antenna Name, H-pol , V-pol " )
         summary.append("# band Antenna Name, H-pol , V-pol " )
-        ant_list.sort()
-        for ant in ant_list:
+        for ant in sorted(ant_list):
             string =  (" '%s' band : %s, %i, %i "%(
             atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'v')][0] ) )
             user_logger.info(string)
