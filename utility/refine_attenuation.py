@@ -2,12 +2,13 @@
 # Track SCP and and determine attenuation values
 
 import time
-import numpy as np
 from contextlib import closing
-from katcorelib import (
-    user_logger, standard_script_options, verify_and_connect, colors)
 import smtplib
 from email.mime.text import MIMEText
+
+import numpy as np
+from katcorelib import (user_logger, standard_script_options,
+                                        verify_and_connect, colors)
 
 def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
     if not isinstance(email_to,list) :
