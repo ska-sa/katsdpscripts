@@ -498,12 +498,9 @@ with verify_and_connect(opts) as kat:
         session.track(target, duration=0, announce=False)
         # Point to the requested offsets and collect extra data at middle time
         for n, offset in enumerate(offsets):
-            user_logger.info("slewing to offset of (%g, %g) degrees", *offset)
+            user_logger.info("initiating track on offset of (%g, %g) degrees", *offset)
             session.ants.req.offset_fixed(offset[0], offset[1], opts.projection)
-            if not kat.dry_run:
-                session.wait(session.ants, 'lock', True, timeout=10)
-            user_logger.info("tracking offset for %g seconds", opts.track_duration)
-            time.sleep(opts.track_duration)
+            session.track(target, duration=opts.track_duration, announce=False)
             offset_end_times[n] = time.time()
             if not kat.dry_run and n == len(offsets) // 2 - 1:
                 # Get weather data for refraction correction at middle time
@@ -518,7 +515,9 @@ with verify_and_connect(opts) as kat:
                                  middle_time, temperature, pressure, humidity)
         # Clear offsets in order to jiggle cal pipeline to drop its final gains
         # XXX We assume that the final entry in `offsets` is not the origin
+        user_logger.info("returning to target to complete the scan")
         session.ants.req.offset_fixed(0., 0., opts.projection)
+        session.track(target, duration=0, announce=False)
         user_logger.info("Waiting for gains to materialise in cal pipeline")
 
         # Perform basic interferometric pointing reduction
