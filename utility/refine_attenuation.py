@@ -2,21 +2,23 @@
 # Track SCP and and determine attenuation values
 
 import time
-import numpy as np
-from katcorelib import (
-    user_logger, standard_script_options, verify_and_connect, colors)
+from contextlib import closing
 import smtplib
 from email.mime.text import MIMEText
 
+import numpy as np
+from katcorelib import (user_logger, standard_script_options,
+                                        verify_and_connect, colors)
+
 def send_email(email_to,lines,subject, messagefrom='operators@ska.ac.za'):
-    if type(email_to) is not list :
-         emailto = email_to.replace(';', ','),split(',')
-    emailto = map(str.strip, emailto)
+    if not isinstance(email_to,list) :
+        emailto = email_to.replace(';', ',').split(',')
+    emailto = ','.join(map(str.strip, emailto))
     msg = MIMEText('\n'.join(lines))
     msg['Subject'] = subject
     msg['From'] = messagefrom
     msg['To'] = emailto
-    with smtplib.SMTP('smtp.kat.ac.za') as smtp_server:
+    with closing(smtplib.SMTP('smtp.kat.ac.za')) as smtp_server:
         smtp_server.sendmail(messagefrom, emailto, msg.as_string())
 
 
@@ -131,7 +133,7 @@ parser.add_option('--adc-std-in', type='float', default=12.0,
 parser.add_option('--adc-volt', type='float', default=190.0,
                   help='The target power level for the adc (default=%default)')
 parser.add_option('--email-to', type='str',
-    default='sean@ska.ac.za',  #,operators@ska.ac.za
+    default='sean@ska.ac.za,operators@ska.ac.za',
     help='Comma separated email list of people to send report to (default=%default)')
 
 # Set default value for any option (both standard and experiment-specific options)
@@ -157,7 +159,7 @@ with verify_and_connect(opts) as kat:
         while ant_update.sum() > 0 and count < 20:
             i = -1
             count = count + 1
-            time.sleep(5)
+            time.sleep(30)
             print("New loop")
             for pol in {'h', 'v'}:
                 for ant in kat.ants:
@@ -194,15 +196,13 @@ with verify_and_connect(opts) as kat:
                     atten_ref['%s_%s' % (ant.name, pol)] = [measure_atten(ant=ant, pol=pol,band=band),band]
             else :
                 user_logger.error("'%s' band %s band is not in the list of valid bands " % (band,ant.name))
-            user_logger.info("Reading Back set Attenuations ")
-            user_logger.info("# band Antenna Name, H-pol , V-pol " )
-            summary.append("# band Antenna Name, H-pol , V-pol " )
-            for ant in ant_list.sort():
-                string =  (" '%s' band : %s, %i, %i "%(
-                atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'h')][0] ) )
-                user_logger.info(string)
-                summary.append(string)
-            lines = summary.append(lines)
-        print lines
-        try:
-            send_email(opts.email_to,lines, 'Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
+        user_logger.info("Reading Back set Attenuations ")
+        user_logger.info("# band Antenna Name, H-pol , V-pol " )
+        summary.append("# band Antenna Name, H-pol , V-pol " )
+        for ant in sorted(ant_list):
+            string =  (" '%s' band : %s, %i, %i "%(
+            atten_ref['%s_%s'%(ant,'h')][1] ,ant, atten_ref['%s_%s'%(ant,'h')][0] ,atten_ref['%s_%s'%(ant,'v')][0] ) )
+            user_logger.info(string)
+            summary.append(string)
+        send_email(opts.email_to,summary, 'Summary:Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
+        send_email('sean@ska.ac.za',lines, 'Details Changing attenuation %s'%(time.strftime('%d/%m/%Y %H:%M:%S')), messagefrom='operators@ska.ac.za')
