@@ -351,7 +351,7 @@ def calc_pointing_offsets(session, beams, target, middle_time,
         beams_freq = beams.get(ant.name, [])
         beams_freq = [b for b in beams_freq if b is not None and b.is_valid]
         if not beams_freq:
-            user_logger.debug("%s has no valid primary beam fit", ant.name)
+            user_logger.debug("%s had no valid primary beam fitted", ant.name)
             continue
         offsets_freq = np.array([b.center for b in beams_freq])
         offsets_freq_std = np.array([b.std_center for b in beams_freq])
@@ -430,8 +430,7 @@ def save_pointing_offsets(session, pointing_offsets, middle_time):
         try:
             offsets = pointing_offsets[ant.name].copy()
         except KeyError:
-            user_logger.warn('%s has no valid primary beam fit',
-                             ant.name)
+            user_logger.warn('%s had no valid primary beam fitted', ant.name)
         else:
             sensor_name = '%s_pointing_offsets' % (ant.name,)
             telstate.add(sensor_name, offsets, middle_time)
