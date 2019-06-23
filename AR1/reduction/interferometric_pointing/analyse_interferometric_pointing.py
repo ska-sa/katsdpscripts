@@ -19,7 +19,7 @@ def activity(h5,state = 'track'):
     for i,ant in enumerate(antlist) :
         sensor = h5.sensor['%s_activity'%(ant)] ==state
         if ~np.any(sensor):
-            print ("Antenna %s has no valid %s data"%(ant,state))
+            print(("Antenna %s has no valid %s data"%(ant,state)))
         noise_diode = ~h5.sensor['Antennas/%s/nd_coupler'%(ant)]
         activityV[i,:] +=   noise_diode &  sensor
     return np.all(activityV,axis=0)
@@ -32,7 +32,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
     chunk_size = chunks
     rfi_static_flags = np.tile(False, h5.shape[0])
     if len(channel_mask)>0:
-        pickle_file = open(channel_mask)
+        pickle_file = open(channel_mask , "rb" )
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     gains_p = {}
@@ -161,7 +161,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
             h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['HH'],:,ant])
             v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['VV'],:,ant])
             valid_solutions = np.count_nonzero(h_pol & v_pol) # Note this is twice the number of solutions because of the Az & El parts
-            print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
+            print(("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time)))))
             if debug :#debug_text
                 for pol_i,pol in enumerate( ["H","V"]):
                     for chunk in range(chunks*pol_i,chunks*(pol_i+1)):
@@ -232,7 +232,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                     ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],0,ant]**2) )
                     ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],1,ant]**2) )
             else:
-                print("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
+                print(("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time)))))
         if debug :#debug_text
             debug_text.append('')
             base = "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing_DEBUG")
@@ -287,7 +287,7 @@ if opts.ex_ants is not None :
         if ant in ant_list:
             ant_list.remove(ant)
 h5 = katdal.open(args[0],ref_ant=ant_list[0])
-print("Using %s as the reference antenna "%(ant_list[0]))
+print(("Using %s as the reference antenna "%(ant_list[0])))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 h5.antlist = [a.name for a in h5.ants]
@@ -299,11 +299,11 @@ else:
 f = {}
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
-    f[name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
+    f[name] = open('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
     f[name].write('# antenna = %s\n' % h5.ants[ant].description)
     f[name].write(', '.join(output_field_names) + '\n')
 for compscan_index  in h5.compscan_indices :
-    print("Compound scan %i  "%(compscan_index) )
+    print(("Compound scan %i  "%(compscan_index) ))
     offset_data = reduce_compscan_inf(h5,channel_mask,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
