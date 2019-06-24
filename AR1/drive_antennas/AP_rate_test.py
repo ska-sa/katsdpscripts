@@ -17,7 +17,7 @@ class ParametersExceedTravelRange(Exception):
     """Indexer is stuck in an undefined position."""
 
 
-def rate_slew(ants, azim, elev, speed=0.5, reverse=False, dry_run=False):
+def rate_slew(ants, azim, elev, speed=0.5, reverse=False, disable_corrections=False, dry_run=False):
 
     # Scale timeout with requested test speed. Full speed timeout is 5 min
     rate_timeout = (float(2)/speed)*300
@@ -62,6 +62,12 @@ def rate_slew(ants, azim, elev, speed=0.5, reverse=False, dry_run=False):
     user_logger.info("AP has reached start position.")
 
     if not dry_run:
+        if disable_corrections:
+            SPEM_state = False # np.any([a.sensors.ap_point_error_systematic_enabled.get_value() for a in ants]) # TODO finalize the commented-out snippet
+            TILT_state = True # np.any([a.sensors.ap_point_error_tiltmeter_enabled.get_value() for a in ants])
+            ants.req.ap_enable_point_error_systematic(False)
+            ants.req.ap_enable_point_error_tiltmeter(False)
+        
         ants.req.mode('STOP')
         time.sleep(3)
 
@@ -85,6 +91,10 @@ def rate_slew(ants, azim, elev, speed=0.5, reverse=False, dry_run=False):
                       lambda c: abs(c.value - azim) < threshold,
                       timeout=rate_timeout)
 
+        if disable_corrections:
+            ants.req.ap_enable_point_error_systematic(SPEM_state)
+            ants.req.ap_enable_point_error_tiltmeter(TILT_state)
+
     user_logger.info("Sequence Completed!")
 
 
@@ -104,6 +114,8 @@ parser.add_option('--azim-speed', type='float',
                   help='Azimuth slew speed in deg/sec (default=%default)')
 parser.add_option('--reverse', action='store_true', default=False,
                   help='Do the rate movement in both directions')
+parser.add_option('--no-corrections', action='store_true',
+                  help='Disable static and tilt corrections during the controlled movement, restore afterwards.')
 
 
 # Parse the command line
@@ -131,7 +143,7 @@ with verify_and_connect(opts) as kat:
     try:
         rate_slew(receptors, float(opts.start_az), float(opts.start_el),
                   speed=float(opts.azim_speed), reverse=opts.reverse,
-                  dry_run=kat.dry_run)
+                  disable_corrections=opts.no_corrections, dry_run=kat.dry_run)
     finally:
         if not kat.dry_run:
             kat.ants.req.mode('STOP')
