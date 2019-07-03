@@ -139,7 +139,7 @@ def residuals(params, w, Z):
 def v_detrend(x):
     result = np.zeros((x.shape[0], 3))
     for i in range(x.shape[0]) :
-        if i%200 == 0 :print((" %i of %i"%(i,x.shape[0]) ))
+        if i%200 == 0 :print(" %i of %i"%(i,x.shape[0]))
         result[i,:] = fit_phase_std(np.arange(x.shape[-1]),x[i,:])
     return result
 
