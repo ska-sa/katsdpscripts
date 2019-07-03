@@ -501,14 +501,12 @@ with verify_and_connect(opts) as kat:
         session.set_target(target)
         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
         targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
-        azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(int(el),targetazel[0], targetazel[1]))
-        session.ants.req.target(azeltarget)#this part of hack to ensure last_az in antenna proxy is updated, see below
+        azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(targetazel[0], targetazel[1]))
         session.track(azeltarget, duration=0, announce=False)#azel target
 
-        session.ants.req.target(target)#radec target this part of hack to ensure last_az in antenna proxy is updated, see below
         user_logger.info("Performing initial track")
         session.telstate.add('obs_label','track')
-        session.track(target, duration=opts.cycle_tracktime, announce=False)
+        session.track(target, duration=opts.cycle_tracktime, announce=False)#radec target
         if opts.auto_delay is not None:
             user_logger.info("Setting auto delay to "+opts.auto_delay)
             session.cbf.req.auto_delay(opts.auto_delay)
