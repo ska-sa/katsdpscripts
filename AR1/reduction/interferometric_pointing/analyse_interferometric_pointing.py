@@ -19,7 +19,7 @@ def activity(h5,state = 'track'):
     for i,ant in enumerate(antlist) :
         sensor = h5.sensor['%s_activity'%(ant)] ==state
         if ~np.any(sensor):
-            print ("Antenna %s has no valid %s data"%(ant,state))
+            print("Antenna %s has no valid %s data"%(ant,state))
         noise_diode = ~h5.sensor['Antennas/%s/nd_coupler'%(ant)]
         activityV[i,:] +=   noise_diode &  sensor
     return np.all(activityV,axis=0)
@@ -32,7 +32,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
     chunk_size = chunks
     rfi_static_flags = np.tile(False, h5.shape[0])
     if len(channel_mask)>0:
-        pickle_file = open(channel_mask)
+        pickle_file = open(channel_mask , "rb" )
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     gains_p = {}
@@ -299,7 +299,7 @@ else:
 f = {}
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
-    f[name] = file('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
+    f[name] = open('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
     f[name].write('# antenna = %s\n' % h5.ants[ant].description)
     f[name].write(', '.join(output_field_names) + '\n')
 for compscan_index  in h5.compscan_indices :

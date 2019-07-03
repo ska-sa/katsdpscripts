@@ -114,7 +114,7 @@ def rolling_window(a, window, axis=-1, pad=False, mode='reflect', **kargs):
         axis = len(a.shape)-1
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(len(a.shape)):
             if i == axis:
                 pad_width += [(window // 2, window // 2 -1 +np.mod(window, 2))]
             else :
@@ -138,8 +138,8 @@ def residuals(params, w, Z):
 
 def v_detrend(x):
     result = np.zeros((x.shape[0], 3))
-    for i in xrange(x.shape[0]) :
-        if i%200 == 0 :print(" %i of %i"%(i,x.shape[0]) )
+    for i in range(x.shape[0]) :
+        if i%200 == 0 :print(" %i of %i"%(i,x.shape[0]))
         result[i,:] = fit_phase_std(np.arange(x.shape[-1]),x[i,:])
     return result
 
@@ -477,7 +477,7 @@ else :
 channel_mask = opts.channel_mask
 rfi_flagging = opts.rfi_flagging
 if len(channel_mask)>0:
-    pickle_file = open(channel_mask)
+    pickle_file = open(channel_mask , "rb" )
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
     if n_chan > rfi_static_flags.shape[0] :
@@ -497,14 +497,14 @@ for pol in ('h','v'):
     i = 0
     for scan in h5.scans():
         vis = h5.vis[:]#read_and_select_file(h5, flags_file=rfi_flagging)
-        print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
+        print("Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0]))
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
         cal_baselines = vis.mean(axis=1)
                          #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
-        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
+        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
-        print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],ref_ant)
+        print("Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],ref_ant))
         i += h5.shape[0]
 
     fig = plt.figure()
@@ -518,7 +518,7 @@ for pol in ('h','v'):
     plt.close(fig)
 
     for i,ant in  enumerate(h5.antlist):
-        print "Generating Stats on the Antenna %s"%(ant)
+        print("Generating Stats on the Antenna %s"%(ant))
         #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
         mask = slice(0,data.shape[0])
         pol_str = "%s,%s"%(ant,pol)
