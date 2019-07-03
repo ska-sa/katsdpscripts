@@ -499,9 +499,13 @@ with verify_and_connect(opts) as kat:
                          opts.scan_extent, target.name)
 
         session.set_target(target)
+        user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
+        targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
+        azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(int(el),targetazel[0], targetazel[1]))
+        session.ants.req.target(azeltarget)#this part of hack to ensure last_az in antenna proxy is updated, see below
+        session.track(azeltarget, duration=0, announce=False)#azel target
 
-        user_logger.info("Slewing to target")
-        session.track(target, duration=0, announce=False)
+        session.ants.req.target(target)#radec target this part of hack to ensure last_az in antenna proxy is updated, see below
         user_logger.info("Performing initial track")
         session.telstate.add('obs_label','track')
         session.track(target, duration=opts.cycle_tracktime, announce=False)
@@ -585,6 +589,9 @@ with verify_and_connect(opts) as kat:
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                 session.ants = all_ants
+                #this is a hack to ensure last_az in antenna proxy code is updated to avoid unexpected unwraps occurring;
+                #current azimuth may change during long observations, and ap code for track is otherwise not aware of loadscan updating current azimuth position
+                session.ants.req.target(target)
                 session.telstate.add('obs_label','track')
                 session.track(target, duration=opts.cycle_tracktime, announce=False)
                 if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
