@@ -342,7 +342,8 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
 
     return compositex,compositey,ncompositex,ncompositey,nextraslew
 
-def gen_scan(lasttime,target,az_arm,el_arm,timeperstep):
+#high_elevation_slowdown_factor: normal speed up to 60degrees elevation slowed down linearly by said factor at 90 degrees elevation
+def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0):
     num_points = np.shape(az_arm)[0]
     az_arm = az_arm*np.pi/180.0
     el_arm = el_arm*np.pi/180.0
@@ -351,7 +352,16 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep):
     #spiral arm scan
     targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
     targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
-    scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm )
+    scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
+    if high_elevation_slowdown_factor>1.0:
+        meanscanarmel=np.mean(scanel)*180./np.pi
+        if meanscanarmel>60.:#recompute slower scan arm based on average elevation at if measured at normal speed
+            slowdown_factor=(meanscanarmel-60.)/(90.-60.)*(high_elevation_slowdown_factor-1.)+1.0#scales linearly from 1 at 60 deg el, to high_elevation_slowdown_factor at 90 deg el
+            attime = lasttime+np.arange(1,num_points+1)*timeperstep*slowdown_factor
+            targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+            targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
+            scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
+    
     scan_data[:,0] = attime
     scan_data[:,1] = np.unwrap(scanaz)*180.0/np.pi
     scan_data[:,2] = scanel*180.0/np.pi
@@ -400,6 +410,8 @@ parser.add_option('--sampletime', type='float', default=1.0,
                   help='time in seconds to spend on pointing (default=%default)')
 parser.add_option('--spacetime', type='float', default=1.0,
                   help='time in seconds used to equalize arm spacing, match with dumprate for equal two-dimensional sample spacing (default=%default)')
+parser.add_option('--high-elevation-slowdown-factor', type='float', default=1.0,
+                  help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')                  
 parser.add_option('--prepopulatetime', type='float', default=10.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
@@ -547,7 +559,7 @@ with verify_and_connect(opts) as kat:
                     if (opts.debugtrack):#original
                         session.ants = scan_ants
                         target.antenna = scan_observers[0]
-                        scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                        scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor)
                         user_logger.info("Using Scan antennas: %s",
                                          ' '.join([ant.name for ant in session.ants]))
                         if not kat.dry_run:
@@ -565,7 +577,7 @@ with verify_and_connect(opts) as kat:
                         for iant,scan_ant in enumerate(scan_ants):
                             session.ants = scan_ants_array[iant]
                             target.antenna = scan_observers[iant]
-                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime)
+                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor)
                             if not kat.dry_run:
                                 session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         
