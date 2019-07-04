@@ -602,6 +602,10 @@ with verify_and_connect(opts) as kat:
                 #this is a hack to ensure last_az in antenna proxy code is updated to avoid unexpected unwraps occurring;
                 #current azimuth may change during long observations, and ap code for track is otherwise not aware of loadscan updating current azimuth position
                 # session.ants.req.target(target)
+                session.telstate.add('obs_label','slew')#this unwrap code may be removed once CAM fixes issue looking at current azimuth wrap as opposed to last used azimuth wrap after a mode change
+                targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
+                azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(targetazel[0], targetazel[1]))
+                session.track(azeltarget, duration=0, announce=False)#azel target
                 session.telstate.add('obs_label','track')
                 session.track(target, duration=opts.cycle_tracktime, announce=False)
                 if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
