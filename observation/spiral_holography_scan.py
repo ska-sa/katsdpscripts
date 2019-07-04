@@ -589,7 +589,7 @@ with verify_and_connect(opts) as kat:
                 session.ants = all_ants
                 #this is a hack to ensure last_az in antenna proxy code is updated to avoid unexpected unwraps occurring;
                 #current azimuth may change during long observations, and ap code for track is otherwise not aware of loadscan updating current azimuth position
-                session.ants.req.target(target)
+                # session.ants.req.target(target)
                 session.telstate.add('obs_label','track')
                 session.track(target, duration=opts.cycle_tracktime, announce=False)
                 if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
