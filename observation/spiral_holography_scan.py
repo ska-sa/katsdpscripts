@@ -411,7 +411,7 @@ parser.add_option('--sampletime', type='float', default=1.0,
 parser.add_option('--spacetime', type='float', default=1.0,
                   help='time in seconds used to equalize arm spacing, match with dumprate for equal two-dimensional sample spacing (default=%default)')
 parser.add_option('--high-elevation-slowdown-factor', type='float', default=1.0,
-                  help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')                  
+                  help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
 parser.add_option('--prepopulatetime', type='float', default=10.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
