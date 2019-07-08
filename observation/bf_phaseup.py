@@ -125,10 +125,10 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Set of targets with flux models
-J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
-J0408 = 'J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
-J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
+if len(args) == 0:
+    raise ValueError("Please specify at least one target argument via name "
+                     "('PKS1934-638'), description ('azel, 20, 30') or "
+                     "catalogue file name ('three_calib.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -155,13 +155,7 @@ with verify_and_connect(opts) as kat:
         gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
         session.set_fengine_gains(gains)
         if not opts.reset:
-            if len(args) == 0:
-                observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-                observation_sources.add(J1934)
-                observation_sources.add(J0408)
-                observation_sources.add(J1331)
-            else:
-                observation_sources = collect_targets(kat, args)
+            observation_sources = collect_targets(kat, args)
             if len(session.ants) < 4:
                 raise ValueError('Not enough receptors to do calibration - you '
                                  'need 4 and you have %d' % (len(session.ants),))

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Observe either 1934-638, 0408-65 or 3C286 to establish some basic health
+# Observe a bandpass calibrator to establish some basic health
 # properties of the MeerKAT AR1 system.
 
 import time
@@ -8,7 +8,7 @@ import time
 import numpy as np
 import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                start_session, user_logger)
+                                collect_targets, start_session, user_logger)
 
 
 class NoTargetsUpError(Exception):
@@ -20,8 +20,8 @@ DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 
 # Set up standard script options
-usage = "%prog"
-description = 'Observe either 1934-638, 0408-65 or 3C286 to establish some ' \
+usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
+description = 'Observe a bandpass calibrator to establish some ' \
               'basic health properties of the MeerKAT system.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
@@ -39,10 +39,10 @@ parser.set_defaults(observer='basic_health', nd_params='off',
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Set of targets with flux models
-J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
-J0408 = 'J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
-J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
+if len(args) == 0:
+    raise ValueError("Please specify at least one target argument via name "
+                     "('PKS1934-638'), description ('azel, 20, 30') or "
+                     "catalogue file name ('three_calib.csv')")
 
 # ND states
 nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
@@ -50,10 +50,7 @@ nd_on = {'diode': 'coupler', 'on': opts.track_duration, 'off': 0., 'period': 0.}
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    observation_sources.add(J1934)
-    observation_sources.add(J0408)
-    observation_sources.add(J1331)
+    observation_sources = collect_targets(kat, args)
     user_logger.info(observation_sources.visibility_list())
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
