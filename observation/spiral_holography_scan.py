@@ -346,7 +346,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
 #note due to the azimuth branch cut moved to -135 degrees, it gives 45 degrees (center to extreme) azimuth range before hitting limits either side
 #for a given 10 degree (5 degree center to extreme) scan, this limits maximum elevation of a target to np.arccos(5./45)*180./np.pi=83.62 degrees before experiencing unachievable azimuth values within a scan arm in the worst case scenario
 #note scan arms are unwrapped based on current target azimuth position, so may choose new branch cut for next scan arm, possibly corrupting current cycle.
-def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0):
+def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0,clip_safety_margin=1.0,min_elevation=15.):
     num_points = np.shape(az_arm)[0]
     az_arm = az_arm*np.pi/180.0
     el_arm = el_arm*np.pi/180.0
@@ -364,11 +364,15 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
             targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
             targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
             scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
-    
+    #clipping prevents antenna from hitting hard limit and getting stuck until technician reset it, 
+    #but not ideal to reach this because then actual azel could be equal to requested azel even though not right and may falsely cause one to believe everything is ok
+    azdata=np.unwrap(scanaz)*180.0/np.pi
+    eldata=scanel*180.0/np.pi
     scan_data[:,0] = attime
-    scan_data[:,1] = np.unwrap(scanaz)*180.0/np.pi
-    scan_data[:,2] = scanel*180.0/np.pi
-    return scan_data
+    scan_data[:,1] = np.clip(np.nan_to_num(azdata),-180.0+clip_safety_margin,270.0-clip_safety_margin)
+    scan_data[:,2] = np.clip(np.nan_to_num(eldata),min_elevation+clip_safety_margin,90.0-clip_safety_margin)
+    clipping_occurred=(np.sum(azdata==scan_data[:,1])+np.sum(eldata==scan_data[:,2])!=len(eldata)*2)
+    return scan_data,clipping_occurred
 
 def gen_track(attime,target):
     track_data = np.zeros((len(attime),3))
@@ -379,6 +383,25 @@ def gen_track(attime,target):
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
+def test_target_azel_limits(target,clip_safety_margin,min_elevation):
+    now=time.time()
+    targetazel=gen_track([now],target)[0][1:]
+    slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentaz-targetazel[1])])+1.0
+    starttime=now+slewtotargettime
+    targetel=np.array(target.azel([starttime,starttime+1.])[1])*180.0/np.pi
+    rising=targetel[1]>targetel[0]
+    if rising:#target is rising - scan top half of pattern first
+        cx=compositex
+        cy=compositey
+    else:  #target is setting - scan bottom half of pattern first
+        cx=ncompositex
+        cy=ncompositey
+    for iarm in range(len(cx)):#spiral arm index
+        scan_data,clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation)
+        if clipping_occurred:
+            return False, rising
+    return True, rising
+    
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='This script performs a holography scan on the specified target. '
@@ -521,29 +544,26 @@ with verify_and_connect(opts) as kat:
             user_logger.info("Using all antennas: %s",' '.join([ant.name for ant in session.ants]))
 
             for igroup in grouprange:
+                #determine current azel for all antennas
+                currentaz=np.zeros(len(all_ants))
+                currentel=np.zeros(len(all_ants))
+                for iant,ant in enumerate(all_ants):
+                    currentaz[iant]=ant.sensor.pos_actual_scan_azim
+                    currentel[iant]=ant.sensor.pos_actual_scan_elev
                 #choose target
                 target=None
                 rising=False
-                for overridetarget in targets:
-                    now=time.time()
-                    targetel=np.array(overridetarget.azel([now,now+opts.cycle_duration])[1])*180.0/np.pi
-                    if np.mean(targetel)>=opts.target_elevation_override:
+                for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
+                    suitable, rising = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override)
+                    if suitable:
                         target=overridetarget
-                        rising=targetel[1]>targetel[0]
                         break
                 if target is None:#no override found
                     for testtarget in targets:
-                        now=time.time()
-                        targetel=np.array(testtarget.azel([now,now+opts.cycle_duration])[1])*180.0/np.pi
-                        rising=targetel[1]>targetel[0]
-                        if rising:#this target is rising
-                            if targetel[0]>opts.horizon:#choose this target
-                                target=testtarget
-                                break
-                        else:#target is setting
-                            if targetel[1]>opts.horizon+(opts.scan_extent/2.0):#choose this target
-                                target=testtarget
-                                break
+                        suitable, rising = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon)
+                        if suitable:
+                            target=testtarget
+                            break
                 if target is None:
                     user_logger.info("Quitting because none of the preferred targets are up")
                     break
@@ -578,7 +598,7 @@ with verify_and_connect(opts) as kat:
                     if (opts.debugtrack):#original
                         session.ants = scan_ants
                         target.antenna = scan_observers[0]
-                        scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor)
+                        scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                         user_logger.info("Using Scan antennas: %s",
                                          ' '.join([ant.name for ant in session.ants]))
                         if not kat.dry_run:
@@ -596,8 +616,10 @@ with verify_and_connect(opts) as kat:
                         for iant,scan_ant in enumerate(scan_ants):
                             session.ants = scan_ants_array[iant]
                             target.antenna = scan_observers[iant]
-                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor)
+                            scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                             if not kat.dry_run:
+                                if clipping_occurred:
+                                    user_logger.info("Warning unexpected clipping occurred in scan pattern")
                                 session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         
                     if (iarm%2==0):#outward arm
