@@ -62,8 +62,11 @@ with verify_and_connect(opts) as kat:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
-        # Pick source with the highest elevation as our target
-        target = observation_sources.sort('el').targets[-1]
+        # Get the centre frequency of the band in MHz for flux calculations
+        # TODO: check if this is the most suitable way (especially for UHF)
+        observation_sources.flux_freq_MHz = session.get_centre_freq()
+        # Pick source with the biggest flux density at centre freq as our target
+        target = observation_sources.filter(flux_limit_Jy=0).sort('flux').targets[-1]
         target.add_tags('bfcal single_accumulation')
         # Calibration tests
         user_logger.info("Performing calibration tests")

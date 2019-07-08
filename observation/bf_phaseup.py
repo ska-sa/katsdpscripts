@@ -96,7 +96,7 @@ DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track the source with the highest elevation and calibrate ' \
+description = 'Track the source with the biggest flux density and calibrate ' \
               'gains based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
@@ -162,8 +162,11 @@ with verify_and_connect(opts) as kat:
             if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
                 raise NoTargetsUpError("No targets are currently visible - "
                                        "please re-run the script later")
-            # Pick source with the highest elevation as our target
-            target = observation_sources.sort('el').targets[-1]
+            # Get the centre frequency of the band in MHz for flux calculations
+            # TODO: check if this is the most suitable way (especially for UHF)
+            observation_sources.flux_freq_MHz = session.get_centre_freq()
+            # Pick source with the biggest flux density at centre freq as our target
+            target = observation_sources.filter(flux_limit_Jy=0).sort('flux').targets[-1]
             target.add_tags('bfcal single_accumulation')
             user_logger.info("Target to be observed: %s", target.description)
             session.capture_init()
