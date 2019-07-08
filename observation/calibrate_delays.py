@@ -66,7 +66,15 @@ with verify_and_connect(opts) as kat:
         # TODO: check if this is the most suitable way (especially for UHF)
         observation_sources.flux_freq_MHz = session.get_centre_freq()
         # Pick source with the biggest flux density at centre freq as our target
-        target = observation_sources.filter(flux_limit_Jy=0).sort('flux').targets[-1]
+        # or fall back to source with highest elevation if flux isn't available
+        sources_with_valid_flux = observation_sources.filter(flux_limit_Jy=0)
+        if sources_with_valid_flux:
+            target = sources_with_valid_flux.sort('flux').targets[-1]
+        else:
+            user_logger.warning("Could not determine flux density at %f MHz "
+                                "of any target - picking highest one instead",
+                                observation_sources.flux_freq_MHz)
+            target = observation_sources.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
