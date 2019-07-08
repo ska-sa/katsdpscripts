@@ -397,7 +397,8 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation):
         cx=ncompositex
         cy=ncompositey
     for iarm in range(len(cx)):#spiral arm index
-        scan_data,clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation)
+        scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation)
+        starttime=scan_data[-1,0]
         if clipping_occurred:
             return False, rising
     return True, rising
