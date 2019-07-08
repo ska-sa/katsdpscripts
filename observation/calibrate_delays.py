@@ -134,4 +134,5 @@ with verify_and_connect(opts) as kat:
             session.set_delays(delays)
         else:
             # Set last-delay-calibration script sensor on the subarray.
-            session.sub.req.set_script_param('script-last-delay-calibration', kat.sb_id_code)
+            session.sub.req.set_script_param('script-last-delay-calibration',
+                                             kat.sb_id_code)

@@ -5,7 +5,6 @@
 
 import numpy as np
 import scipy.ndimage
-import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
                                 SessionSDP)

@@ -3,10 +3,7 @@
 # Observe a bandpass calibrator to establish some basic health
 # properties of the MeerKAT AR1 system.
 
-import time
-
 import numpy as np
-import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger)
 
@@ -140,7 +137,8 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Offset of (%f, %f) degrees", *offset_target)
                 session.set_target(target)
                 if not kat.dry_run:
-                    session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
+                    session.ants.req.offset_fixed(offset_target[0], offset_target[1],
+                                                  opts.projection)
                 nd_params = session.nd_params
                 session.track(target, duration=opts.track_duration, announce=False)
         session.ants.req.offset_fixed(0, 0, opts.projection)  # reset any dangling offsets
@@ -163,9 +161,9 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Doing scan of '%s' with current azel (%s, %s)",
                          target.description, *target.azel())
         # Do different raster scan on strong and weak targets
-        session.raster_scan(target, num_scans=5, scan_duration=80, scan_extent=6.0,
-                            scan_spacing=0.25, scan_in_azimuth=True,
-                            projection=opts.projection)
+        session.raster_scan(target, num_scans=5, scan_duration=80,
+                            scan_extent=6.0, scan_spacing=0.25,
+                            scan_in_azimuth=True, projection=opts.projection)
         # reset the gains always
         user_logger.info("Resetting F-engine gains to %g", opts.fengine_gain)
         gains = {inp: opts.fengine_gain for inp in gains}
