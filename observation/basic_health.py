@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # Observe a bandpass calibrator to establish some basic health
-# properties of the MeerKAT AR1 system.
+# properties of the MeerKAT telescope.
 
 import numpy as np
 from katcorelib.observe import (standard_script_options, verify_and_connect,
@@ -38,7 +38,7 @@ opts, args = parser.parse_args()
 
 if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name "
-                     "('PKS1934-638'), description ('azel, 20, 30') or "
+                     "('J1939-6342'), description ('radec, 19:39, -63:42') or "
                      "catalogue file name ('three_calib.csv')")
 
 # ND states

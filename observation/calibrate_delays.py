@@ -22,8 +22,9 @@ DEFAULT_GAIN = {1024: 1856, 4096: 1120, 32768: 5760}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track the source with the biggest flux density and calibrate ' \
-              'delays based on it. At least one target must be specified.'
+description = 'Track the source with the largest flux density which is above ' \
+              'the horizon and calibrate delays based on it. At least one ' \
+              'target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
@@ -47,8 +48,8 @@ opts, args = parser.parse_args()
 
 if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name "
-                     "('Cygnus A'), description ('azel, 20, 30') or catalogue "
-                     "file name ('sources.csv')")
+                     "('J1939-6342'), description ('radec, 19:39, -63:42') or "
+                     "catalogue file name ('three_calib.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
