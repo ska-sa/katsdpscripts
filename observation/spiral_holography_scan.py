@@ -386,7 +386,7 @@ def gen_track(attime,target):
 def test_target_azel_limits(target,clip_safety_margin,min_elevation):
     now=time.time()
     targetazel=gen_track([now],target)[0][1:]
-    slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentaz-targetazel[1])])+1.0
+    slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentel-targetazel[1])])+1.0
     starttime=now+slewtotargettime+opts.cycle_tracktime
     targetel=np.array(target.azel([starttime,starttime+1.])[1])*180.0/np.pi
     rising=targetel[1]>targetel[0]
