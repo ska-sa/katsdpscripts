@@ -60,22 +60,23 @@ with verify_and_connect(opts) as kat:
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
                              'need 4 and you have %d' % (len(session.ants),))
-        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
+        if not sources_above_horizon:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
         # Get the centre frequency of the band in MHz for flux calculations
         # TODO: check if this is the most suitable way (especially for UHF)
-        observation_sources.flux_freq_MHz = session.get_centre_freq()
+        sources_above_horizon.flux_freq_MHz = session.get_centre_freq()
         # Pick source with the biggest flux density at centre freq as our target
         # or fall back to source with highest elevation if flux isn't available
-        sources_with_valid_flux = observation_sources.filter(flux_limit_Jy=0)
+        sources_with_valid_flux = sources_above_horizon.filter(flux_limit_Jy=0)
         if sources_with_valid_flux:
             target = sources_with_valid_flux.sort('flux').targets[-1]
         else:
             user_logger.warning("Could not determine flux density at %f MHz "
                                 "of any target - picking highest one instead",
-                                observation_sources.flux_freq_MHz)
-            target = observation_sources.sort('el').targets[-1]
+                                sources_above_horizon.flux_freq_MHz)
+            target = sources_above_horizon.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
