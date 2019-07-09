@@ -400,8 +400,8 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation):
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation)
         starttime=scan_data[-1,0]
         if clipping_occurred:
-            return False, rising
-    return True, rising
+            return False, rising, starttime-now
+    return True, rising, starttime-now
     
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
@@ -557,14 +557,15 @@ with verify_and_connect(opts) as kat:
                 #choose target
                 target=None
                 rising=False
+                expected_duration=None
                 for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                    suitable, rising = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override)
+                    suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override)
                     if suitable:
                         target=overridetarget
                         break
                 if target is None:#no override found
                     for testtarget in targets:
-                        suitable, rising = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon)
+                        suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon)
                         if suitable:
                             target=testtarget
                             break
@@ -573,6 +574,7 @@ with verify_and_connect(opts) as kat:
                     break
                 else:
                     user_logger.info("Using target '%s'",target.name)
+                    user_logger.info("Current scan estimated to complete at %s (in %.1f minutes)'",time.ctime(time.time()+expected_duration),expected_duration/60.)
                 
                 session.set_target(target)
                 user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
