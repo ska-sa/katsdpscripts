@@ -574,7 +574,7 @@ with verify_and_connect(opts) as kat:
                     break
                 else:
                     user_logger.info("Using target '%s'",target.name)
-                    user_logger.info("Current scan estimated to complete at %s (in %.1f minutes)'",time.ctime(time.time()+expected_duration),expected_duration/60.)
+                    user_logger.info("Current scan estimated to complete at %s (in %.1f minutes)",time.ctime(time.time()+expected_duration),expected_duration/60.)
                 
                 session.set_target(target)
                 user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
