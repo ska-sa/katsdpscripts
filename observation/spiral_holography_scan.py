@@ -552,8 +552,8 @@ with verify_and_connect(opts) as kat:
                 currentaz=np.zeros(len(all_ants))
                 currentel=np.zeros(len(all_ants))
                 for iant,ant in enumerate(all_ants):
-                    currentaz[iant]=ant.sensor.pos_actual_scan_azim
-                    currentel[iant]=ant.sensor.pos_actual_scan_elev
+                    currentaz[iant]=ant.sensor.pos_actual_scan_azim.get_value()
+                    currentel[iant]=ant.sensor.pos_actual_scan_elev.get_value()
                 #choose target
                 target=None
                 rising=False
