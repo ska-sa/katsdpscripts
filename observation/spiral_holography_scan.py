@@ -464,6 +464,9 @@ compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totexten
 if len(args) == 0:
     args=['3C 273','PKS 1934-63','3C 279','PKS 0408-65','PKS 0023-26','J0825-5010','PKS J1924-2914','Hyd A']
 
+if 'J0825-5010' in args:#not in catalogue
+    args[args.index('J0825-5010')]='J0825-5010,radec, 08:25:26.869, -50:10:38.4877'
+
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
     catalogue = collect_targets(kat, args)
