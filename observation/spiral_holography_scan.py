@@ -540,7 +540,6 @@ with verify_and_connect(opts) as kat:
         lasttime = time.time()
         cycle=0
         while cycle<opts.num_cycles or opts.num_cycles<0:
-            session.telstate.add('obs_label','slew')
             if opts.num_cycles<0:
                 user_logger.info("Performing scan cycle %d of unlimited", cycle + 1)
             else:
@@ -641,6 +640,7 @@ with verify_and_connect(opts) as kat:
                     track_observers,scan_observers=scan_observers,track_observers
                     track_ants_array,scan_ants_array=scan_ants_array,track_ants_array
 
+                session.telstate.add('obs_label','slew',ts=lasttime)
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                 session.ants = all_ants
