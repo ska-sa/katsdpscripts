@@ -520,6 +520,7 @@ with verify_and_connect(opts) as kat:
         scan_ants_array = [ant_array(kat, [scan_ant], 'scan_ant') for scan_ant in scan_ants]
 
         # Add metadata
+        #note obs_params is immutable and can only be changed before capture_start is called
         session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
         session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
         # Get observers
@@ -644,7 +645,6 @@ with verify_and_connect(opts) as kat:
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                 session.ants = all_ants
-                session.obs_params['num_cycles']=cycle+1#completed a cycle of atleast one group at this point; overrwrites -1, or whatever number requested to actual value in case interrupted
                 user_logger.info("Safe to interrupt script now if necessary")
                 if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
                     user_logger.info("Testing only one group for dry-run")
