@@ -22,8 +22,9 @@ DEFAULT_GAIN = {1024: 1856, 4096: 1120, 32768: 5760}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track the source with the highest elevation and calibrate ' \
-              'delays based on it. At least one target must be specified.'
+description = 'Track the source with the largest flux density which is above ' \
+              'the horizon and calibrate delays based on it. At least one ' \
+              'target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
@@ -47,8 +48,8 @@ opts, args = parser.parse_args()
 
 if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name "
-                     "('Cygnus A'), description ('azel, 20, 30') or catalogue "
-                     "file name ('sources.csv')")
+                     "('J1939-6342'), description ('radec, 19:39, -63:42') or "
+                     "catalogue file name ('three_calib.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
@@ -59,11 +60,23 @@ with verify_and_connect(opts) as kat:
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
                              'need 4 and you have %d' % (len(session.ants),))
-        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
+        if not sources_above_horizon:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        # Pick source with the highest elevation as our target
-        target = observation_sources.sort('el').targets[-1]
+        # Get the centre frequency of the band in MHz for flux calculations
+        # TODO: check if this is the most suitable way (especially for UHF)
+        sources_above_horizon.flux_freq_MHz = session.get_centre_freq()
+        # Pick source with the biggest flux density at centre freq as our target
+        # or fall back to source with highest elevation if flux isn't available
+        sources_with_valid_flux = sources_above_horizon.filter(flux_limit_Jy=0)
+        if sources_with_valid_flux:
+            target = sources_with_valid_flux.sort('flux').targets[-1]
+        else:
+            user_logger.warning("Could not determine flux density at %f MHz "
+                                "of any target - picking highest one instead",
+                                sources_above_horizon.flux_freq_MHz)
+            target = sources_above_horizon.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
@@ -123,4 +136,5 @@ with verify_and_connect(opts) as kat:
             session.set_delays(delays)
         else:
             # Set last-delay-calibration script sensor on the subarray.
-            session.sub.req.set_script_param('script-last-delay-calibration', kat.sb_id_code)
+            session.sub.req.set_script_param('script-last-delay-calibration',
+                                             kat.sb_id_code)

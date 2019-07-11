@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 #
-# Observe either 1934-638, 0408-65 or 3C286 to establish some basic health
-# properties of the MeerKAT AR1 system.
-
-import time
+# Observe a bandpass calibrator to establish some basic health
+# properties of the MeerKAT telescope.
 
 import numpy as np
-import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                start_session, user_logger)
+                                collect_targets, start_session, user_logger)
 
 
 class NoTargetsUpError(Exception):
@@ -20,8 +17,8 @@ DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 
 # Set up standard script options
-usage = "%prog"
-description = 'Observe either 1934-638, 0408-65 or 3C286 to establish some ' \
+usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
+description = 'Observe a bandpass calibrator to establish some ' \
               'basic health properties of the MeerKAT system.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
@@ -39,10 +36,10 @@ parser.set_defaults(observer='basic_health', nd_params='off',
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Set of targets with flux models
-J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
-J0408 = 'J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
-J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
+if len(args) == 0:
+    raise ValueError("Please specify at least one target argument via name "
+                     "('J1939-6342'), description ('radec, 19:39, -63:42') or "
+                     "catalogue file name ('three_calib.csv')")
 
 # ND states
 nd_off = {'diode': 'coupler', 'on': 0., 'off': 0., 'period': -1.}
@@ -50,10 +47,7 @@ nd_on = {'diode': 'coupler', 'on': opts.track_duration, 'off': 0., 'period': 0.}
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
-    observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-    observation_sources.add(J1934)
-    observation_sources.add(J0408)
-    observation_sources.add(J1331)
+    observation_sources = collect_targets(kat, args)
     user_logger.info(observation_sources.visibility_list())
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
@@ -61,13 +55,25 @@ with verify_and_connect(opts) as kat:
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
                              'need 4 and you have %d' % (len(session.ants),))
-        if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+        sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
+        if not sources_above_horizon:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        session.standard_setup(**vars(opts))
-        # Pick source with the highest elevation as our target
-        target = observation_sources.sort('el').targets[-1]
+        # Get the centre frequency of the band in MHz for flux calculations
+        # TODO: check if this is the most suitable way (especially for UHF)
+        sources_above_horizon.flux_freq_MHz = session.get_centre_freq()
+        # Pick source with the biggest flux density at centre freq as our target
+        # or fall back to source with highest elevation if flux isn't available
+        sources_with_valid_flux = sources_above_horizon.filter(flux_limit_Jy=0)
+        if sources_with_valid_flux:
+            target = sources_with_valid_flux.sort('flux').targets[-1]
+        else:
+            user_logger.warning("Could not determine flux density at %f MHz "
+                                "of any target - picking highest one instead",
+                                sources_above_horizon.flux_freq_MHz)
+            target = sources_above_horizon.sort('el').targets[-1]
         target.add_tags('bfcal single_accumulation')
+        session.standard_setup(**vars(opts))
         # Calibration tests
         user_logger.info("Performing calibration tests")
         if opts.fengine_gain <= 0:
@@ -132,7 +138,8 @@ with verify_and_connect(opts) as kat:
                 user_logger.info("Offset of (%f, %f) degrees", *offset_target)
                 session.set_target(target)
                 if not kat.dry_run:
-                    session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
+                    session.ants.req.offset_fixed(offset_target[0], offset_target[1],
+                                                  opts.projection)
                 nd_params = session.nd_params
                 session.track(target, duration=opts.track_duration, announce=False)
         session.ants.req.offset_fixed(0, 0, opts.projection)  # reset any dangling offsets
@@ -155,9 +162,9 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Doing scan of '%s' with current azel (%s, %s)",
                          target.description, *target.azel())
         # Do different raster scan on strong and weak targets
-        session.raster_scan(target, num_scans=5, scan_duration=80, scan_extent=6.0,
-                            scan_spacing=0.25, scan_in_azimuth=True,
-                            projection=opts.projection)
+        session.raster_scan(target, num_scans=5, scan_duration=80,
+                            scan_extent=6.0, scan_spacing=0.25,
+                            scan_in_azimuth=True, projection=opts.projection)
         # reset the gains always
         user_logger.info("Resetting F-engine gains to %g", opts.fengine_gain)
         gains = {inp: opts.fengine_gain for inp in gains}

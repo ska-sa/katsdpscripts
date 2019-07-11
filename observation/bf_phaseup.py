@@ -5,7 +5,6 @@
 
 import numpy as np
 import scipy.ndimage
-import katpoint
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
                                 SessionSDP)
@@ -96,8 +95,9 @@ DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
 
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track the source with the highest elevation and calibrate ' \
-              'gains based on it. At least one target must be specified.'
+description = 'Track the source with the largest flux density which is above ' \
+              'the horizon and calibrate gains based on it. At least one ' \
+              'target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=64.0,
@@ -125,10 +125,10 @@ parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST'
 # Parse the command line
 opts, args = parser.parse_args()
 
-# Set of targets with flux models
-J1934 = 'PKS1934-638, radec, 19:39:25.03, -63:42:45.7, (200.0 10000.0 -30.7667 26.4908 -7.0977 0.605334)'
-J0408 = 'J0408-6545, radec, 04:08:20.3788, -65:45:09.08, (300.0 50000.0 0.4288422 1.9395659 -0.66243187 0.03926736)'
-J1331 = '3C286, radec, 13:31:08.29, +30:30:33.0, (300.0 50000.0 0.1823 1.4757 -0.4739 0.0336)'
+if len(args) == 0:
+    raise ValueError("Please specify at least one target argument via name "
+                     "('J1939-6342'), description ('radec, 19:39, -63:42') or "
+                     "catalogue file name ('three_calib.csv')")
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -138,7 +138,6 @@ with verify_and_connect(opts) as kat:
         sdp.req.product_reconfigure()
     # Start capture session, which creates HDF5 file
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe or not enough antennas
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
             session.cbf.fengine.req.fft_shift(opts.fft_shift)
@@ -155,21 +154,28 @@ with verify_and_connect(opts) as kat:
         gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
         session.set_fengine_gains(gains)
         if not opts.reset:
-            if len(args) == 0:
-                observation_sources = katpoint.Catalogue(antenna=kat.sources.antenna)
-                observation_sources.add(J1934)
-                observation_sources.add(J0408)
-                observation_sources.add(J1331)
-            else:
-                observation_sources = collect_targets(kat, args)
+            # Quit early if there are no sources to observe or not enough antennas
             if len(session.ants) < 4:
                 raise ValueError('Not enough receptors to do calibration - you '
                                  'need 4 and you have %d' % (len(session.ants),))
-            if len(observation_sources.filter(el_limit_deg=opts.horizon)) == 0:
+            observation_sources = collect_targets(kat, args)
+            sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
+            if not sources_above_horizon:
                 raise NoTargetsUpError("No targets are currently visible - "
                                        "please re-run the script later")
-            # Pick source with the highest elevation as our target
-            target = observation_sources.sort('el').targets[-1]
+            # Get the centre frequency of the band in MHz for flux calculations
+            # TODO: check if this is the most suitable way (especially for UHF)
+            sources_above_horizon.flux_freq_MHz = session.get_centre_freq()
+            # Pick source with the biggest flux density at centre freq as our target
+            # or fall back to source with highest elevation if flux isn't available
+            sources_with_valid_flux = sources_above_horizon.filter(flux_limit_Jy=0)
+            if sources_with_valid_flux:
+                target = sources_with_valid_flux.sort('flux').targets[-1]
+            else:
+                user_logger.warning("Could not determine flux density at %f MHz "
+                                    "of any target - picking highest one instead",
+                                    sources_above_horizon.flux_freq_MHz)
+                target = sources_above_horizon.sort('el').targets[-1]
             target.add_tags('bfcal single_accumulation')
             user_logger.info("Target to be observed: %s", target.description)
             session.capture_init()
