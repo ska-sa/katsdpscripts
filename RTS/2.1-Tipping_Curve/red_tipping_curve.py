@@ -323,7 +323,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
         edge = np.tile(False, n_chan)
     #load static flags if pickle file is given
     if len(channel_mask)>0:
-        pickle_file = open(channel_mask)
+        pickle_file = open(channel_mask,mode='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     else:
