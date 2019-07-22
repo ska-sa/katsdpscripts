@@ -115,7 +115,7 @@ for scan in h5.scans() :
         full_vis = np.concatenate((vis, vis.conj()), axis=-1)
         full_antA = np.r_[antA, antB]
         full_antB = np.r_[antB, antA]
-        corrprods = zip(full_antA,full_antB)
+        corrprods = list(zip(full_antA,full_antB))
         up = {}
         for i,(x,y)  in enumerate(zip(full_antA,full_antB)): # make lookup table
             up[x,y]=i
