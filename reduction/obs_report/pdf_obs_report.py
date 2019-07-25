@@ -35,7 +35,7 @@ def plot_flags(timestamps,freqs,flags):
     as a function of time vs frequency  """
     fig=plt.figure(figsize=(10,5))
     #
-    print (timestamps[:]-timestamps[0]).shape,(freqs).shape,((flags).T).shape
+    print((timestamps[:]-timestamps[0]).shape,(freqs).shape,((flags).T).shape)
     plt.pcolormesh(timestamps[:]-timestamps[0],freqs,(flags).T,rasterized=True)
     plt.title('Flags in "quiet" part of the band')
     plt.xlabel('Time (s), since %s' % (katpoint.Timestamp(timestamps[0]).local(),))
@@ -49,7 +49,7 @@ def plot_flagtype(flag_dat,labels):
     """flag_dat is an array of length labels of percentages. 
     lables is a list of str corresponting to the bits in flags"""
     fig=plt.figure(figsize=(10,5))
-    plt.xticks(range(len(labels)), labels, rotation=38)
+    plt.xticks(list(range(len(labels))), labels, rotation=38)
     plt.ylabel('Percentage Flagged')
     plt.title('Flag Types ')
     plt.plot(flag_dat,'*',rasterized=True)
@@ -80,10 +80,10 @@ def plot_timeseries(num_bls,baseline_names,scan_az,scan_el,scan_timestamps,scan_
     """
     #plot timeseries,spectrograph and spectrum for each antenna
     #for p,active_pol in enumerate(['H','V']):
-    print 'active_pol',active_pol
+    print('active_pol',active_pol)
     return_figs = []
     for i in range(num_ants):
-        print 'Antenna name', data.corr_products[i][0],i
+        print('Antenna name', data.corr_products[i][0],i)
         ant_name = data.corr_products[i][0]
         amp = np.vstack([scan[:,:,i] for scan in scan_autos])
         az = np.hstack([a[i] for a in scan_az])
@@ -168,18 +168,18 @@ if len(args)<1:
     raise RuntimeError('Please specify the data file to reduce')
 else:
     for filename in args:
-        print 'Opening ', filename
+        print('Opening ', filename)
         try:
             res = get_reduction_metadata(filename.split('/')[-1],reduction_name = 'AR1 Generate RFI Flags');
             flag_results = res[0]['CAS.ReferenceDatastore']
             for fl in flag_results:
                 if fl.endswith('flags.h5'):
                     flag_filename = fl.split(':')[-1]
-            print flag_filename
+            print(flag_filename)
             h5_flags = h5py.File(flag_filename,'r')
             cal_flags = True
         except:
-            print "no calibration pipeline flags found"
+            print("no calibration pipeline flags found")
             cal_flags=False
 
         #Loading data 
@@ -201,7 +201,7 @@ else:
         M = 4 * np.shape(data)[1] / 4096
         start_chan = 2200*M//4
         end_chan = 2800*M//4
-        if data.receivers[data.receivers.keys()[0]][0] == 'u' :
+        if data.receivers[list(data.receivers.keys())[0]][0] == 'u' :
             start_chan = 0#2200*M//4
             end_chan = data.shape[1]#2800*M//4
         data.select(channels=slice(start_chan,end_chan))
