@@ -107,7 +107,7 @@ def fit_pointing_model(filename, opts):
     if opts.pmfilename:
         try:
             old_model = katpoint.PointingModel(file(opts.pmfilename).readline())
-            print("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename))
+            print(("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename)))
         except IOError:
             raise RuntimeError("Could not load old pointing model from '%s'" % (opts.pmfilename,))
     # Load data file in one shot as an array of strings
@@ -119,7 +119,7 @@ def fit_pointing_model(filename, opts):
     # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
     formats[[fields.index(name) for name in string_fields if name in fields]] = data.dtype
     # Convert to heterogeneous record array
-    data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
+    data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fields, formats)))
     # Load antenna description string from first line of file and construct antenna object from it
     antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
@@ -145,7 +145,7 @@ def fit_pointing_model(filename, opts):
     # Initialise new pointing model and set default enabled parameters
     new_model = katpoint.PointingModel()
     num_params = len(new_model)
-    default_enabled = np.nonzero(old_model.values())[0]
+    default_enabled = np.nonzero(list(old_model.values()))[0]
     # If the old model is empty / null, select the most basic set of parameters for starters
     if len(default_enabled) == 0:
         default_enabled = np.array([1, 3, 4, 5, 6, 7]) - 1
@@ -169,11 +169,11 @@ def fit_pointing_model(filename, opts):
     # The original pointing model description string was comma-separated
     outfile.write(new_model.description.replace(" ", ", "))
     outfile.close()
-    print("Saved %d-parameter pointing model to '%s'" % (len(new_model), opts.outfilebase + '.csv'))
+    print(("Saved %d-parameter pointing model to '%s'" % (len(new_model), opts.outfilebase + '.csv')))
     # Turn data recarray into list of dicts and add residuals to the mix
     extended_data = []
     for n in range(len(data)):
-        rec_dict = dict(zip(data.dtype.names, data[n]))
+        rec_dict = dict(list(zip(data.dtype.names, data[n])))
         rec_dict['keep'] = int(keep[n])
         rec_dict['old_residual_xel'] = rad2deg(old.residual_xel[n])
         rec_dict['old_residual_el'] = rad2deg(old.residual_el[n])
@@ -324,7 +324,7 @@ def fit_pointing_model(filename, opts):
         param_button_color = ['0.65', '0.0']
         param_button_weight = ['normal', 'bold']
         # For display purposes, throw out unused parameters P2 and P10
-        display_params = range(num_params)
+        display_params = list(range(num_params))
         display_params.pop(9)
         display_params.pop(1)
         def setup_param_button(p):
@@ -347,7 +347,7 @@ def fit_pointing_model(filename, opts):
                 update(fig)
             param_button.on_clicked(toggle_param_callback)
             return param_button # This is to stop the gc from deleting the data
-        param_buttons = [setup_param_button(p) for p in xrange(len(display_params))]
+        param_buttons = [setup_param_button(p) for p in range(len(display_params))]
 
         # Add old pointing model and labels
         list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )
@@ -357,7 +357,7 @@ def fit_pointing_model(filename, opts):
         fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
         fig.text(0.225, 0.95, 'STD', ha='center', va='bottom', size='large')
         for p, param in enumerate(display_params):
-            param_str = param_to_str(old_model, param) if old_model.values()[param] else ''
+            param_str = param_to_str(old_model, param) if list(old_model.values())[param] else ''
             fig.text(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), param_str, ha='right', va='center')
 
         # Create target selector buttons and related text (title + target string)
@@ -383,7 +383,7 @@ def fit_pointing_model(filename, opts):
             std_param_str = ("%.2f'" % std_param) if param not in [8, 11] else ("%.0e" % std_param)
             fig.texts[2*p + 7].set_text(std_param_str if enabled_params[param] and opts.use_stats else '')
             # Turn parameter string bold if it changed significantly from old value
-            if np.abs(params[param] - old_model.values()[param]) > 3.0 * sigma_params[param]:
+            if np.abs(params[param] - list(old_model.values())[param]) > 3.0 * sigma_params[param]:
                 fig.texts[2*p + 6].set_weight('bold')
                 fig.texts[2*p + 7].set_weight('bold')
             else:

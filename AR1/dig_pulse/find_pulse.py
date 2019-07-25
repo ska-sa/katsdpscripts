@@ -16,7 +16,7 @@ def MAD_median(data,verbose=False):
     mad = np.median(np.abs(data-med) )
     end_time = time.time()
     if verbose :
-        print("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1))
+        print(("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1)))
     return mad,med
 
 def join_pulses_old(data,pulse_gap=10):
@@ -24,7 +24,7 @@ def join_pulses_old(data,pulse_gap=10):
     pulse_listtmp = []
     pulse_list = []
     temp = []
-    for x in xrange(1,data.shape[0]):
+    for x in range(1,data.shape[0]):
         if data[x] -data[x-1] > pulse_gap : # new pulse
             pulse_listtmp.append(temp)
             temp = []
@@ -46,7 +46,7 @@ def join_pulses(data,pulse_gap=10):
     temp = []
     if len(data) > 0 :
         temp.append(data[0])
-        for x in xrange(1,data.shape[0]):
+        for x in range(1,data.shape[0]):
             #print "Hell ",data[x],data[x-1],x,x-1,data.shape
             if data[x] -data[x-1] > pulse_gap : # new pulse
                 pulse_listtmp.append(temp)
@@ -121,7 +121,7 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     if axis == -1 : axis = len(a.shape)-1
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(len(a.shape)):
             if i == axis:
                 pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
             else :
@@ -194,7 +194,7 @@ if plotting :
     pp = PdfPages(nice_filename+'.pdf')
 
 old_edge = 0
-for new_edge in xrange(chunk_size,data.shape[0],chunk_size):
+for new_edge in range(chunk_size,data.shape[0],chunk_size):
     trans = slice(old_edge,new_edge)
     old_edge = new_edge
     avg_data = (np.abs(data[trans]).reshape(-1,avg_num).mean(axis=-1)).astype(np.float)**2
@@ -223,7 +223,7 @@ for new_edge in xrange(chunk_size,data.shape[0],chunk_size):
             up_down = 'up  '
             if np.signbit(pchange):
                 up_down = 'down'
-            print("Pulse power change %s %.2f db & time is %33.12f seconds  %s,%s "%(up_down,10*np.log10(np.abs(pchange)),ptime,pmin,pmax))
+            print(("Pulse power change %s %.2f db & time is %33.12f seconds  %s,%s "%(up_down,10*np.log10(np.abs(pchange)),ptime,pmin,pmax)))
             if plotting :
                 fig = plt.figure()
                 plt.plot(1e6*ts*np.arange(data[selection].shape[0]),data[selection].astype(np.float)**2)

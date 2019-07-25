@@ -45,7 +45,7 @@ def read_offsetfile(filename):
     # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
     formats[[fields.index(name) for name in string_fields if name in fields]] = data.dtype
     # Convert to heterogeneous record array
-    data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
+    data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fields, formats)))
     # Load antenna description string from first line of file and construct antenna object from it
     antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
@@ -70,7 +70,7 @@ def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimu
         for key,targetv in enumerate(offsetdata['target']):
             keep[key] = target == targetv
             if keep[key] : 
-                print ("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key])) 
+                print(("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key]))) 
         
         #abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) *3600
         abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]) ** 2 + (residual_el[keep])** 2)) *3600
@@ -157,7 +157,7 @@ for filename in args:
 
 
 text.append("")
-for line in text: print line
+for line in text: print(line)
 # text.append(git_info(get_git_path()) )
 
 if not opts.no_plot :
