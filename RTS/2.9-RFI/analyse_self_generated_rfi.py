@@ -113,7 +113,7 @@ def plot_RFI_mask(pltobj,extra=None,channelwidth=1e6):
     pltobj.axvspan(1232e6,1259e6, alpha=0.3, color='green')#GLONASS  1232 -> 1259 L2
     pltobj.axvspan(1616e6,1630e6, alpha=0.3, color='grey')#IRIDIUM
     if not extra is None:
-        for i in xrange(extra.shape[0]):
+        for i in range(extra.shape[0]):
             pltobj.axvspan(extra[i]-channelwidth/2,extra[i]+channelwidth/2, alpha=0.7, color='Maroon')
                 
 
@@ -287,7 +287,7 @@ def detect_spikes_median(data,blarray=None,spike_width=10,outlier_sigma=11.0):
         The number of sigma in the first iteration of the sumthreshold method.
     """
     flags = np.zeros(list(data.shape), dtype=np.uint8)
-    for bl_index in xrange(data.shape[-1]):
+    for bl_index in range(data.shape[-1]):
         spectral_data = data[...,bl_index]
         #spectral_data = np.atleast_1d(spectral_data)
         kernel_size=spike_width
@@ -344,7 +344,7 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     if axis == -1 : axis = len(a.shape)-1 
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(len(a.shape)):
             if i == axis: 
                 pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
             else :  
@@ -440,7 +440,7 @@ def plot_selection_per_antenna(h5, pol, chan_range,detectfunc=None):
     for i,ant in  enumerate(h5.ants):
         text.append("\n Flagged channels and frequencies %s, %s polarisation:"%(ant.name, pol))
         d1 = h5.channel_freqs[:]
-        for j in xrange(h5.channel_freqs[:].shape[0]):
+        for j in range(h5.channel_freqs[:].shape[0]):
             d2 = spikes[:,:,i].mean(axis=0)
             if d2[j] > 0.8 :
                 text.append('Channel: %5d,    %f MHz , Percentage of pointings contaminated is %.3f  ' %(j+1,d1[j]/1e6,d2[j]*100) )
@@ -561,7 +561,7 @@ detection_function = detect_spikes_sumthreshold
 for pol in ['H','V']:
     (all_text, figlist) = plot_selection_per_antenna(h5, pol, chan_range, detection_function)
     line = 0
-    for page in xrange(int(np.ceil(len(all_text)/page_length))):
+    for page in range(int(np.ceil(len(all_text)/page_length))):
         fig = plt.figure(None,figsize = (10,16))
         #fig, ax = plt.subplots(figsize = (10,16))
         lineend = line+int(np.min((page_length,len(all_text[line:]))))
@@ -587,4 +587,4 @@ for pol in ['H','V']:
 pdf.close()
 
 print ("Done!")
-print("Open the file %s" % (filename.split('/')[-1]+'_RFI.pdf'))
+print(("Open the file %s" % (filename.split('/')[-1]+'_RFI.pdf')))
