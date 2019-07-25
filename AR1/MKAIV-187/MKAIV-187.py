@@ -514,7 +514,7 @@ for pol in ('h','v'):
     plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
     plt.ylabel('Time, (colour angle in degrees)');plt.xlabel('Antenna')
     plt.colorbar()
-    fig.savefig(pp,format='pdf')
+    fig.savefig(pp,format='pdf',rasterized=True)
     plt.close(fig)
 
     for i,ant in  enumerate(h5.antlist):
@@ -525,9 +525,9 @@ for pol in ('h','v'):
         if ant == ref_ant :
             pol_str = pol_str + ' Warning Reference Antenna'
         returntext,pltfig,pltfig2 = calc_stats(h5.timestamps[mask],data[mask,i].data ,pol="%s,%s"%(ant,pol),windowtime=pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int))
-        pltfig.savefig(pp,format='pdf')
+        pltfig.savefig(pp,format='pdf',rasterized=True)
         plt.close(pltfig)
-        pltfig2.savefig(pp,format='pdf')
+        pltfig2.savefig(pp,format='pdf',rasterized=True)
         plt.close(pltfig2)
         fig = plt.figure(None,figsize = (10,10))
         plt.figtext(0.1,0.5,'\n'.join(returntext),fontsize=10)
