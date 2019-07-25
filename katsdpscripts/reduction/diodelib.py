@@ -31,7 +31,7 @@ def get_nd_on_off(h5,buff = 2,log=None):
         if log is not None:
             log.critical('No noise diode fired during track of %s'%target)
         else :
-            print('No noise diode fired during track of %s'%target)
+            print(('No noise diode fired during track of %s'%target))
     else:
         #jumps = (np.diff(on).nonzero()[0] + 1).tolist()
         n_on[on.nonzero()[0][buff:-buff]]   = True
@@ -130,7 +130,7 @@ def Dmoon(observer):
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                         verbose = False,error_bars=False,target='off1',
                         write_nd=False,rfi_mask='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',**kwargs):
-    print 'inside',kwargs
+    print('inside',kwargs)
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
     
@@ -234,7 +234,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp[pol] 
                 # antenna temperature on cold sky (from diode calibration) (Tsys)
                 TAc[pol] = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
-                print("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc[pol].mean()))
+                print(("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc[pol].mean())))
             Y = hot_spec / cold_spec
             D = 13.5 # Efficiency tables are defined for 13.5
             lam = 299792458./freq
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     error_bars = False
     target = 'off1'
     write_nd = True
-    print 'Performing test run with: ' + filename
+    print('Performing test run with: ' + filename)
     read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)
 # Output checsums of the noisediode files for 1453216690.h5s
 #md5sum rx.* 
