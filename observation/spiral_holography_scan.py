@@ -346,7 +346,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
 #note due to the azimuth branch cut moved to -135 degrees, it gives 45 degrees (center to extreme) azimuth range before hitting limits either side
 #for a given 10 degree (5 degree center to extreme) scan, this limits maximum elevation of a target to np.arccos(5./45)*180./np.pi=83.62 degrees before experiencing unachievable azimuth values within a scan arm in the worst case scenario
 #note scan arms are unwrapped based on current target azimuth position, so may choose new branch cut for next scan arm, possibly corrupting current cycle.
-def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0):
+def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0,clip_safety_margin=1.0,min_elevation=15.):
     num_points = np.shape(az_arm)[0]
     az_arm = az_arm*np.pi/180.0
     el_arm = el_arm*np.pi/180.0
@@ -364,11 +364,15 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
             targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
             targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
             scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
-    
+    #clipping prevents antenna from hitting hard limit and getting stuck until technician reset it, 
+    #but not ideal to reach this because then actual azel could be equal to requested azel even though not right and may falsely cause one to believe everything is ok
+    azdata=np.unwrap(scanaz)*180.0/np.pi
+    eldata=scanel*180.0/np.pi
     scan_data[:,0] = attime
-    scan_data[:,1] = np.unwrap(scanaz)*180.0/np.pi
-    scan_data[:,2] = scanel*180.0/np.pi
-    return scan_data
+    scan_data[:,1] = np.clip(np.nan_to_num(azdata),-180.0+clip_safety_margin,270.0-clip_safety_margin)
+    scan_data[:,2] = np.clip(np.nan_to_num(eldata),min_elevation+clip_safety_margin,90.0-clip_safety_margin)
+    clipping_occurred=(np.sum(azdata==scan_data[:,1])+np.sum(eldata==scan_data[:,2])!=len(eldata)*2)
+    return scan_data,clipping_occurred
 
 def gen_track(attime,target):
     track_data = np.zeros((len(attime),3))
@@ -379,48 +383,68 @@ def gen_track(attime,target):
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
+def test_target_azel_limits(target,clip_safety_margin,min_elevation):
+    now=time.time()
+    targetazel=gen_track([now],target)[0][1:]
+    slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentel-targetazel[1])])+1.0
+    starttime=now+slewtotargettime+opts.cycle_tracktime
+    targetel=np.array(target.azel([starttime,starttime+1.])[1])*180.0/np.pi
+    rising=targetel[1]>targetel[0]
+    if rising:#target is rising - scan top half of pattern first
+        cx=compositex
+        cy=compositey
+    else:  #target is setting - scan bottom half of pattern first
+        cx=ncompositex
+        cy=ncompositey
+    for iarm in range(len(cx)):#spiral arm index
+        scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation)
+        starttime=scan_data[-1,0]
+        if clipping_occurred:
+            return False, rising, starttime-now
+    return True, rising, starttime-now
+    
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
                                  description='This script performs a holography scan on the specified target. '
                                              'All the antennas initially track the target, whereafter a subset '
                                              'of the antennas (the "scan antennas" specified by the --scan-ants '
                                              'option) perform a scan on the target. Note also some '
-                                             '**required** options below.')
+                                             '**required** options below. Targets ordered by preference.')
 # Add experiment-specific options
-parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically. GroupAB to alternate between GroupA and GroupB. An integer specifies number of scanning antennas, chosen automatically.')
+parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically. GroupAB to alternate between GroupA and GroupB. An integer specifies number of scanning antennas, chosen automatically.',default='GroupAB')
 parser.add_option('--track-ants', help='Subset of all antennas that will track source. An integer specifies number of tracking antennas, chosen automatically. (default=all non-scanning antennas)')
-parser.add_option('--num-cycles', type='int', default=1,
-                  help='Number of beam measurement cycles to complete (default=%default)')
+parser.add_option('--num-cycles', type='int', default=-1,
+                  help='Number of beam measurement cycles to complete (default=%default) use -1 for indefinite')
 parser.add_option('--num-scans', type='int', default=None,
                   help='Number of raster scans or spiral arms in scan pattern. This value is usually automatically determined. (default=%default)')
 parser.add_option('--scan-duration', type='float', default=None,
                   help='Time in seconds to spend on each scan. This value is usually automatically determined (default=%default)')
-parser.add_option('--cycle-duration', type='float', default=300.0,
+parser.add_option('--cycle-duration', type='float', default=1800,
                   help='Time to spend measuring beam pattern per cycle, in seconds (default=%default)')
-parser.add_option('-l', '--scan-extent', type='float', default=4.0,
+parser.add_option('-l', '--scan-extent', type='float', default=10,
                   help='Diameter of beam pattern to measure, in degrees (default=%default)')
 parser.add_option('--kind', type='string', default='uniform',
                   help='Kind of spiral, could be "radial", "raster", "uniform" or "dense-core" (default=%default)')
-parser.add_option('--tracktime', type='float', default=1.0,
+parser.add_option('--tracktime', type='float', default=2,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
-parser.add_option('--cycle-tracktime', type='float', default=30.0,
+parser.add_option('--cycle-tracktime', type='float', default=30,
                   help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
-parser.add_option('--slewtime', type='float', default=1.0,
+parser.add_option('--slewtime', type='float', default=3,
                   help='Extra time in seconds for scanning antennas to slew when passing from one spiral arm to another (default=%default)')
-parser.add_option('--slowtime', type='float', default=1.0,
+parser.add_option('--slowtime', type='float', default=6,
                   help='Time in seconds to slow down at start and end of each spiral arm (default=%default)')
-parser.add_option('--sampletime', type='float', default=1.0,
+parser.add_option('--sampletime', type='float', default=0.25,
                   help='time in seconds to spend on pointing (default=%default)')
-parser.add_option('--spacetime', type='float', default=1.0,
+parser.add_option('--spacetime', type='float', default=3,
                   help='time in seconds used to equalize arm spacing, match with dumprate for equal two-dimensional sample spacing (default=%default)')
-parser.add_option('--high-elevation-slowdown-factor', type='float', default=1.0,
+parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                   help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
+parser.add_option('--target-elevation-override', type='float', default=90.0,
+                  help='Honour preferred target order except if lower ranking target exceeds this elevation limit (default=%default)')
 parser.add_option('--prepopulatetime', type='float', default=10.0,
                   help='time in seconds to prepopulate buffer in advance (default=%default)')
 parser.add_option('--mirrorx', action="store_true", default=False,
                   help='Mirrors x coordinates of pattern (default=%default)')
-parser.add_option('--debug', action="store_true", default=False,
-                  help='Writes to file timestamps and az-el coordinates for debugging (default=%default)')
 parser.add_option('--fft-shift', type='int', default=None,
                   help='Set CBF fft shift (default=%default)')
 parser.add_option('--default-gain', type='float', default=None,
@@ -431,15 +455,17 @@ parser.add_option('--debugtrack', action="store_true", default=False,
                   help='disables load_scan tracking command (default=%default)')
                   
 # Set default value for any option (both standard and experiment-specific options)
-parser.set_defaults(description='Spiral holography scan', nd_params='off')
+parser.set_defaults(description='Spiral holography scan', quorum=1.0, nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
 
 compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration)
 
 if len(args) == 0:
-    raise ValueError("Please specify a target argument via name ('Ori A'), "
-                     "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
+    args=['3C 273','PKS 1934-63','3C 279','PKS 0408-65','PKS 0023-26','J0825-5010','PKS J1924-2914','Hyd A']
+
+if 'J0825-5010' in args:#not in catalogue
+    args[args.index('J0825-5010')]='J0825-5010,radec, 08:25:26.869, -50:10:38.4877'
 
 # Check basic command-line options and obtain a kat object connected to the appropriate system
 with verify_and_connect(opts) as kat:
@@ -448,8 +474,6 @@ with verify_and_connect(opts) as kat:
     if len(targets) == 0:
         raise ValueError("Please specify a target argument via name ('Ori A'), "
                          "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
-    target=targets[0]#only use first target
-    lasttargetel=target.azel()[1]*180.0/np.pi
     # Initialise a capturing session (which typically opens an HDF5 file)
     with start_session(kat, **vars(opts)) as session:
         # Use the command-line options to set up the system
@@ -496,6 +520,7 @@ with verify_and_connect(opts) as kat:
         scan_ants_array = [ant_array(kat, [scan_ant], 'scan_ant') for scan_ant in scan_ants]
 
         # Add metadata
+        #note obs_params is immutable and can only be changed before capture_start is called
         session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
         session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
         # Get observers
@@ -506,63 +531,80 @@ with verify_and_connect(opts) as kat:
         session.nd_params = {'diode': 'coupler', 'off': 0, 'on': 0, 'period': -1}
         # This also does capture_init, which adds capture_block_id view to telstate and saves obs_params
         session.capture_start()
-        session.telstate.add('obs_label','slew')
+        session.telstate.add('obs_label','cycle.group.scan')
 
         user_logger.info("Initiating spiral holography scan cycles (%d %g-second "
-                         "cycles extending %g degrees) on target '%s'",
+                         "cycles extending %g degrees) on targets %s",
                          opts.num_cycles, opts.cycle_duration,
-                         opts.scan_extent, target.name)
+                         opts.scan_extent, ','.join(["'%s'"%(t.name) for t in targets]))
 
-        session.set_target(target)
-        user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
-        targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
-        azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(targetazel[0], targetazel[1]))
-        session.track(azeltarget, duration=0, announce=False)#azel target
-
-        user_logger.info("Performing initial track")
-        session.telstate.add('obs_label','track')
-        session.track(target, duration=opts.cycle_tracktime, announce=False)#radec target
-        if opts.auto_delay is not None:
-            user_logger.info("Setting auto delay to "+opts.auto_delay)
-            session.cbf.req.auto_delay(opts.auto_delay)
-            user_logger.info("Performing follow up track")
-            session.telstate.add('obs_label','delay set track')
-            session.track(target, duration=opts.cycle_tracktime, announce=False)
-        session.telstate.add('obs_label','cycle.group.scan')
         lasttime = time.time()
-        if (opts.debug):
-            fp=open('/home/kat/usersnfs/mattieu/spiral_holography_scan_debug','wb')
-        for cycle in range(opts.num_cycles):
-            user_logger.info("Performing scan cycle %d of %d", cycle + 1, opts.num_cycles)
-            user_logger.info("Using all antennas: %s",
-                             ' '.join([ant.name for ant in session.ants]))
+        cycle=0
+        while cycle<opts.num_cycles or opts.num_cycles<0:
+            if opts.num_cycles<0:
+                user_logger.info("Performing scan cycle %d of unlimited", cycle + 1)
+            else:
+                user_logger.info("Performing scan cycle %d of %d", cycle + 1, opts.num_cycles)
+            user_logger.info("Using all antennas: %s",' '.join([ant.name for ant in session.ants]))
+
             for igroup in grouprange:
-                targetel=target.azel()[1]*180.0/np.pi
-                if (targetel>lasttargetel):#target is rising - scan top half of pattern first
+                #determine current azel for all antennas
+                currentaz=np.zeros(len(all_ants))
+                currentel=np.zeros(len(all_ants))
+                for iant,ant in enumerate(all_ants):
+                    currentaz[iant]=ant.sensor.pos_actual_scan_azim.get_value()
+                    currentel[iant]=ant.sensor.pos_actual_scan_elev.get_value()
+                #choose target
+                target=None
+                rising=False
+                expected_duration=None
+                for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
+                    suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override)
+                    if suitable:
+                        target=overridetarget
+                        break
+                if target is None:#no override found
+                    for testtarget in targets:
+                        suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon)
+                        if suitable:
+                            target=testtarget
+                            break
+                if target is None:
+                    user_logger.info("Quitting because none of the preferred targets are up")
+                    break
+                else:
+                    user_logger.info("Using target '%s'",target.name)
+                    user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+expected_duration+time.timezone),expected_duration/60.)
+                
+                session.set_target(target)
+                user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
+                targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
+                azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(targetazel[0], targetazel[1]))
+                session.track(azeltarget, duration=0, announce=False)#azel target
+
+                user_logger.info("Performing initial track")
+                session.telstate.add('obs_label','track')
+                session.track(target, duration=opts.cycle_tracktime, announce=False)#radec target
+                if opts.auto_delay is not None:
+                    user_logger.info("Setting auto delay to "+opts.auto_delay)
+                    session.cbf.req.auto_delay(opts.auto_delay)
+                    user_logger.info("Performing follow up track")
+                    session.telstate.add('obs_label','delay set track')
+                    session.track(target, duration=opts.cycle_tracktime, announce=False)
+                if (rising):#target is rising - scan top half of pattern first
                     cx=compositex
                     cy=compositey
-                    if (targetel<opts.horizon):
-                        user_logger.info("Exiting because target is %g degrees below horizon limit of %g.",
-                                         opts.horizon - targetel, opts.horizon)
-                        break  # else it is ok that target just above horizon limit
                 else:  #target is setting - scan bottom half of pattern first
                     cx=ncompositex
                     cy=ncompositey
-                    if (targetel<opts.horizon+(opts.scan_extent/2.0)):
-                        user_logger.info("Exiting because target is %g degrees too low "
-                                         "to accommodate a scan extent of %g degrees above the horizon limit of %g.",
-                                         opts.horizon + opts.scan_extent / 2. - targetel,
-                                         opts.scan_extent, opts.horizon)
-                        break
-                user_logger.info("Using Track antennas: %s",
-                                 ' '.join([ant.name for ant in track_ants]))
+                user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants]))
                 lasttime = time.time()
                 for iarm in range(len(cx)):#spiral arm index
                     user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
                     if (opts.debugtrack):#original
                         session.ants = scan_ants
                         target.antenna = scan_observers[0]
-                        scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor)
+                        scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                         user_logger.info("Using Scan antennas: %s",
                                          ' '.join([ant.name for ant in session.ants]))
                         if not kat.dry_run:
@@ -580,8 +622,10 @@ with verify_and_connect(opts) as kat:
                         for iant,scan_ant in enumerate(scan_ants):
                             session.ants = scan_ants_array[iant]
                             target.antenna = scan_observers[iant]
-                            scan_data = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor)
+                            scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                             if not kat.dry_run:
+                                if clipping_occurred:
+                                    user_logger.info("Warning unexpected clipping occurred in scan pattern")
                                 session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         
                     if (iarm%2==0):#outward arm
@@ -590,8 +634,6 @@ with verify_and_connect(opts) as kat:
                             session.telstate.add('obs_label','slew',ts=scan_data[-nextraslew,0])
                     else:#inward arm
                         session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[nextraslew,0])
-                    if (opts.debug):
-                        pickle.dump(scan_data,fp)
                     time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                     lasttime = scan_data[-1,0]
                 if (len(grouprange)==2):#swap scanning and tracking antennas
@@ -599,24 +641,15 @@ with verify_and_connect(opts) as kat:
                     track_observers,scan_observers=scan_observers,track_observers
                     track_ants_array,scan_ants_array=scan_ants_array,track_ants_array
 
+                session.telstate.add('obs_label','slew',ts=lasttime)
                 time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                 #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                 session.ants = all_ants
-                #this is a hack to ensure last_az in antenna proxy code is updated to avoid unexpected unwraps occurring;
-                #current azimuth may change during long observations, and ap code for track is otherwise not aware of loadscan updating current azimuth position
-                # session.ants.req.target(target)
-                session.telstate.add('obs_label','slew')#this unwrap code may be removed once CAM fixes issue looking at current azimuth wrap as opposed to last used azimuth wrap after a mode change
-                targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
-                azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(targetazel[0], targetazel[1]))
-                session.track(azeltarget, duration=0, announce=False)#azel target
-                session.telstate.add('obs_label','track')
-                session.track(target, duration=opts.cycle_tracktime, announce=False)
+                user_logger.info("Safe to interrupt script now if necessary")
                 if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
                     user_logger.info("Testing only one group for dry-run")
                     break
             if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
                 user_logger.info("Testing only cycle for dry-run")
                 break
-
-        if (opts.debug):
-            fp.close()
+            cycle+=1
