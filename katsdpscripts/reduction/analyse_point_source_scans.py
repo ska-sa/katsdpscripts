@@ -381,7 +381,7 @@ def analyse_point_source_scans(filename, opts):
     chan_select = list(range(start_chan, end_chan + 1))
     # Check if a channel mask is specified and apply
     if opts.channel_mask:
-        mask_file = open(opts.channel_mask)
+        mask_file = open(opts.channel_mask,mode='rb')
         chan_select = ~(pickle.load(mask_file))
         mask_file.close()
         if len(chan_select) != num_channels:

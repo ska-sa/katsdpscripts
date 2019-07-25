@@ -152,7 +152,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     else :
         h5 = katfile.open(filename,**kwargs)
         length = h5.shape[1]
-        pickle_file = open(rfi_mask)
+        pickle_file = open(rfi_mask,mode='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
         # Now find the edges of the mask
