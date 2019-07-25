@@ -35,7 +35,7 @@ def read_offsetfile(filename):
     # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
     formats[[fields.index(name) for name in string_fields if name in fields]] = data.dtype
     # Convert to heterogeneous record array
-    data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
+    data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fields, formats)))
     # Load antenna description string from first line of file and construct antenna object from it
     antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
@@ -150,7 +150,7 @@ def update(fig):
         std_param_str = ("%.2f'" % std_param) if param not in [8, 11] else ("%.0e" % std_param)
         fig.texts[2*p + 7].set_text(std_param_str if enabled_params[param] and opts.use_stats else '')
         # Turn parameter string bold if it changed significantly from old value
-        if np.abs(params[param] - old_model.values()[param]) > 3.0 * sigma_params[param]:
+        if np.abs(params[param] - list(old_model.values())[param]) > 3.0 * sigma_params[param]:
             fig.texts[2*p + 6].set_weight('bold')
             fig.texts[2*p + 7].set_weight('bold')
         else:
@@ -300,7 +300,7 @@ enabled_params[default_enabled] = True
 enabled_params = enabled_params.tolist()
 
 # For display purposes, throw out unused parameters P2 and P10
-display_params = range(num_params)
+display_params = list(range(num_params))
 display_params.pop(9)
 display_params.pop(1)
 
@@ -346,7 +346,7 @@ text.append("")
 #print new_model.description
 
 text.append("")
-for line in text: print line
+for line in text: print(line)
 
 ###################################
 # Plot pointing model comparison.
@@ -459,7 +459,7 @@ if opts.compare:
     # Create buttons to toggle parameter selection
     param_button_color = ['0.65', '0.0']
     param_button_weight = ['normal', 'bold']
-    param_buttons = [setup_param_button(p) for p in xrange(len(display_params))]
+    param_buttons = [setup_param_button(p) for p in range(len(display_params))]
 
     # Add old pointing model and labels
     list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )
@@ -470,7 +470,7 @@ if opts.compare:
     fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
     fig.text(0.225, 0.95, 'STD', ha='center', va='bottom', size='large')
     for p, param in enumerate(display_params):
-        param_str = param_to_str(old_model, param) if old_model.values()[param] else ''
+        param_str = param_to_str(old_model, param) if list(old_model.values())[param] else ''
         fig.text(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), param_str, ha='right', va='center')
     
     # Create quiver scale slider

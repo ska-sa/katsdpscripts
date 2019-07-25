@@ -43,7 +43,7 @@ def read_offsetfile(filename):
     # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
     formats[[fields.index(name) for name in string_fields if name in fields]] = data.dtype
     # Convert to heterogeneous record array
-    data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
+    data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fields, formats)))
     # Load antenna description string from first line of file and construct antenna object from it
     antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
@@ -71,7 +71,7 @@ def referencemetrics(ant,data,num_samples_limit=1,power_sample_limit=0):
     good_beam = (data['beam_height_I'] > beam*.8) * (data['beam_height_I'] <  beam*1.2) * (data['beam_height_I']  > power_sample_limit)
     data = data[good_beam]
     
-    if data.shape[0]  > 0 and not np.all(good_beam) : print "bad scan", data['target'][0]
+    if data.shape[0]  > 0 and not np.all(good_beam) : print("bad scan", data['target'][0])
     if data.shape[0]  >= num_samples_limit and (data['timestamp'][-1] - data['timestamp'][0])    < 2000: # check all fitted Ipks are valid
         condition_str = ['ideal' ,'optimal', 'normal' , 'other']
         condition = 3
@@ -201,7 +201,7 @@ def plot_diagnostics(data,title):
     ax2 = fig.add_subplot(232)
     def time_hour(x):
         y = (x/3600.)%24 + (x/3600.)/24
-        for i in xrange(x.shape[0]) :
+        for i in range(x.shape[0]) :
             y = time.localtime(x[i]).tm_hour 
         return y
     for i,label in enumerate(labels):
@@ -301,7 +301,7 @@ def plots_histogram(data,title,fit=stats.rayleigh):
     y = pdf(x)
     plt.plot(x,y, label=r"Fitted a '%s' distribution with a mean = %3.3f "%(fit.name,params[1]*np.sqrt(np.pi/2.)))
     plt.legend(numpoints=1,loc='upper right')
-    print "%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.))
+    print("%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.)))
     return fig
 
 def plots_cuhistogram(data,title,fit=stats.rayleigh ,fig=None):
@@ -340,7 +340,7 @@ def plots_cuhistogram(data,title,fit=stats.rayleigh ,fig=None):
     text.append("%s Cumulative distribution %3.1f %c of samples are within %3.3f "%(title,90,'%',ppf(0.90) ) )
     text.append("%s Fitted a '%s' distribution with mean = %3.3f "%(title,fit.name,params[1]*np.sqrt(np.pi/2.)) )
     text.append("===========================")
-    for line in text : print line
+    for line in text : print(line)
     return fig , text 
 
     
@@ -368,7 +368,7 @@ def chunk_data(data, field='target', chunk_size=5):
     """
     index_list = []
     field_val = data[field][0]
-    for i in xrange(len(data)):
+    for i in range(len(data)):
         if data[field][i] == field_val: # the test to see if the scan is good
             if len(index_list) >= chunk_size:
                 yield data[index_list]
@@ -392,7 +392,7 @@ def pointing_model(antenna,data):
     enabled_params = enabled_params.tolist()
 
     # For display purposes, throw out unused parameters P2 and P10
-    display_params = range(num_params)
+    display_params = list(range(num_params))
     display_params.pop(9)
     display_params.pop(1)
 
@@ -450,7 +450,7 @@ data['delta_azimuth_std'], data['delta_elevation_std'] = deg2rad(data['delta_azi
  
 if opts.refit_pointing_model :
     ant = pointing_model(ant,data[(data['beam_height_I']  < np.float(opts.power_sample_limit))])
-    print ant.pointing_model
+    print(ant.pointing_model)
     
 output_data = None
 for offsetdata in chunk_data(data):
@@ -544,7 +544,7 @@ if not opts.no_plot :
         ax,fig = write_text('\n'.join(textString[lines:new_line]))
         #print '\n'.join(textString[lines:new_line] )
         fig.savefig(pp,format='pdf')
-        print("Page  lines  %i to %i of %i "%(lines,new_line,len(textString)))
+        print(("Page  lines  %i to %i of %i "%(lines,new_line,len(textString))))
         old_line = lines
         plt.close(fig)
     pp.close()
