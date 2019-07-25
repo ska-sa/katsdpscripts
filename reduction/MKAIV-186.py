@@ -110,7 +110,7 @@ def rolling_window(a, window, axis=-1, pad=False, mode='reflect', **kargs):
         axis = len(a.shape)-1
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(len(a.shape)):
             if i == axis:
                 pad_width += [(window // 2, window // 2 -1 +np.mod(window, 2))]
             else :
@@ -134,8 +134,8 @@ def residuals(params, w, Z):
 
 def v_detrend(x):
     result = np.zeros((x.shape[0], 3))
-    for i in xrange(x.shape[0]) :
-        if i%200 == 0 :print(" %i of %i"%(i,x.shape[0]) )
+    for i in range(x.shape[0]) :
+        if i%200 == 0 :print((" %i of %i"%(i,x.shape[0]) ))
         result[i,:] = fit_phase_std(np.arange(x.shape[-1]),x[i,:])
     return result
 
@@ -299,7 +299,7 @@ def plot_BaselineGain(gains, freq, inputs):
     returned_plots = []
     if len(gains.shape) == 2 :
         gains =gains[np.newaxis, :, :]
-    for i in xrange(gains.shape[-1]):
+    for i in range(gains.shape[-1]):
         fig, ax = plt.subplots(nrows=1, sharex=True)
         ax.set_title('Baseline  Phase Correction %s'%(inputs[i]))
         #ax[1].set_title('Baseline Amplitude Correction  %s'%(inputs[i]))

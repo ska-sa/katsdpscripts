@@ -144,7 +144,7 @@ class Spill_Temp:
             self.spill['HH'] = T_H # The HH and VV is a scape thing
             self.spill['VV'] = T_V
             warnings.warn('Warning: Failed to load Spillover models, setting models to zeros')
-            print "error"
+            print("error")
         # the models are in a format of theta=0  == el=90
 
 
@@ -281,7 +281,7 @@ class System_Temp:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         i = -1
         while True:
             i = i + 1
@@ -309,7 +309,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
         edge = np.tile(False, n_chan)
     #load static flags if pickle file is given
     if len(channel_mask)>0:
-        pickle_file = open(channel_mask)
+        pickle_file = open(channel_mask,rb='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     else:
@@ -331,8 +331,8 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     #    d = d.select(freqkeep=freq_channel)
     #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
-    print "Converting to temperature"
-    print "Plotting the number of channels in each band of the list of lists freq_channel_flagged will be usefull "
+    print("Converting to temperature")
+    print("Plotting the number of channels in each band of the list of lists freq_channel_flagged will be usefull ")
     d = d.convert_power_to_temperature(freq_width=0.0)
     if not d is None:
         d = d.select(flagkeep='~nd_on')
@@ -420,7 +420,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
         # Height in meters above sea level, frequency in GHz.
     else:
         tau = 0.01078
-    print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
+    print(("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs)))
     tip = fit.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
     def know_quant(x):
         rx = T_rx.rec[pol](freqs)
@@ -619,13 +619,13 @@ for ant in h5.ants:
     aperture_efficiency = aperture_efficiency_models(filenameH=aperture_efficiency_h,filenameV=aperture_efficiency_v)
 
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
-    chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
+    chunks=[h5.channels[x:x+num_channels] for x in range(0, len(h5.channels), num_channels)]
 
     freq_list = np.zeros((len(chunks)))
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
-    print "Selecting channel data to form %f MHz Channels"%(channel_bw)
+    print("Selecting channel data to form %f MHz Channels"%(channel_bw))
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)
-    for j in xrange(len(d.freqs)):freq_list[j] = d.freqs[j]
+    for j in range(len(d.freqs)):freq_list[j] = d.freqs[j]
 
     tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
     tant = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN

@@ -49,8 +49,8 @@ def unpickle_cat(h5, sensor_name):
     temp = np.zeros(h5.file[sensor_name][:].shape + (2,))
     for i, (timestamp, val_str) in enumerate(h5.file[sensor_name][:]):
         val = pickle.loads(val_str)
-        if not cat_lookup.has_key(val):
-            cat_lookup[val] = len(cat_lookup.keys()) + 1
+        if val not in cat_lookup:
+            cat_lookup[val] = len(list(cat_lookup.keys())) + 1
         temp[i, :] = timestamp, cat_lookup[val]
     return temp, cat_lookup
 
@@ -98,11 +98,11 @@ def antenna_stats(h5, ants='', slew_from_angles=(30, 7), outdir=None):
         locked = locked.reindex_like(
             ts_az, method='nearest') & (delta_sky < 0.01)
 
-        if not activity_lookup.has_key('track'):
+        if 'track' not in activity_lookup:
             activity_lookup['track'] = -1  # not found
         tracking = (ts_activity.reindex_like(ts_az, method='ffill')
                     == activity_lookup['track']) & (delta_sky < 0.01)
-        if not activity_lookup.has_key('scan'):
+        if 'scan' not in activity_lookup:
             activity_lookup['scan'] = -1  # not found
         scaning = (ts_activity.reindex_like(ts_az, method='ffill')
                    == activity_lookup['scan']) & (delta_sky < 0.01)

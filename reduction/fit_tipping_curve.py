@@ -157,7 +157,7 @@ class System_Temp:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         i = -1
         while True:
             i = i + 1
@@ -167,7 +167,7 @@ class System_Temp:
 def load_cal(filename, baseline, start_freq_channel, end_freq_channel, nd_models):
     """ Load the dataset into memory """
     d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models)
-    d = d.select(freqkeep=range(start_freq_channel, end_freq_channel + 1))
+    d = d.select(freqkeep=list(range(start_freq_channel, end_freq_channel + 1)))
     d = d.convert_power_to_temperature(min_duration=opts.min_nd, jump_significance=10.0)
     d = d.select(flagkeep='~nd_on')
     d = d.select(labelkeep='track', copy=False)
@@ -303,7 +303,7 @@ plot_data(T_SysTemp,fit_HH,fit_VV)
 #
 # Save option to be added
 #
-save =  raw_input('Press s to save files, enter to continue: ')
+save =  input('Press s to save files, enter to continue: ')
 if save=='s' or save=='S':
     outfilebase = args[0]+ '_' +d.antenna.name+'_tipping'
     plt.figure(10)

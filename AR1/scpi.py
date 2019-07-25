@@ -30,7 +30,7 @@ class SCPI:
     # Querie instrument identificaton
     if display_info:
         self.write("*IDN?")
-        print "DEVICE: " + self.read()
+        print("DEVICE: " + self.read())
 
   def display_info(self):
     self.write("*IDN?")
@@ -102,8 +102,8 @@ class SCPI:
     try:
       return_freq=float(return_freq)
     except Exception as e:
-      print e
-      print return_freq.split('\n')
+      print(e)
+      print(return_freq.split('\n'))
     return return_freq # Hz
 
   # set requested power level
@@ -130,7 +130,7 @@ if __name__ == '__main__':
   sigme.outputOn()
   try:
     sigme.__close__()
-    print 'Closing all ports...'
+    print('Closing all ports...')
   except:
     pass # socket already closed
 #fin

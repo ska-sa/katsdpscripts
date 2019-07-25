@@ -185,7 +185,7 @@ data.select(channels=~static_flags)
 # Number of real normal variables squared and added together
 dof = 2 * data.shape[1] * data.channel_width * data.dump_period
 corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(
-    data.corr_products, range(len(data.corr_products)))])
+    data.corr_products, list(range(len(data.corr_products))))])
 
 outfile = 'noise_diode_timing_' + data.experiment_id + '.txt'
 offset_stats = {}
@@ -263,7 +263,7 @@ if offset_stats:
     fout.close()
 
 fout = open(outfile, 'a')
-for key, val in offset_stats.iteritems():
+for key, val in offset_stats.items():
     # Change unit to milliseconds, and from an array from list
     offset_ms, std_offset_ms = 1000 * np.asarray(val).T
     mean_offset = offset_ms.mean()
