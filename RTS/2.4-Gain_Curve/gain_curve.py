@@ -51,7 +51,7 @@ def parse_arguments():
     parser.add_option("--chan-range", default='211,3896', help="Range of frequency channels to keep (zero-based, specified as 'start,end', default is 211,3896)")
     (opts, args) = parser.parse_args()
     if len(args) ==0:
-        print 'Please specify a file to process.'
+        print('Please specify a file to process.')
         sys.exit(1)
     filename = args[0]
     return opts, filename
@@ -86,7 +86,7 @@ def parse_csv(filename):
     #Label the string fields as input datatype
     formats[[fieldnames.index(name) for name in STRING_FIELDS if name in fieldnames]] = data.dtype
     #Save the data as a heterogeneous record array  
-    data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fieldnames, formats))
+    data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fieldnames, formats)))
     return data, antenna
 
 
@@ -189,32 +189,32 @@ def determine_good_data(data, antenna, targets=None, tsys=None, tsys_lim=150, ef
     """
     #Initialise boolean array of True for defaults
     good = [True] * data.shape[0]
-    print "1: All data",np.sum(good)
+    print("1: All data",np.sum(good))
     #Check for wanted targets
     if targets is not None:
         good = good & np.array([test_targ in targets for test_targ in data['target']])
-    print "2: Flag for unwanted targets",np.sum(good)
+    print("2: Flag for unwanted targets",np.sum(good))
     #Check for wanted tsys
     if tsys is not None and not interferometric:
         good = good & (tsys < tsys_lim)
-    print "3: Flag for Tsys",np.sum(good)
+    print("3: Flag for Tsys",np.sum(good))
     #Check for wanted eff
     if eff is not None and not interferometric:
         good = good & ((eff>eff_lim[0]) & (eff<eff_lim[1]))
-    print "4: Flag for efficiency",np.sum(good)
+    print("4: Flag for efficiency",np.sum(good))
     #Check for nans
     good = good & ~(np.isnan(data['beam_height_'+pol])) & ~(np.isnan(data['baseline_height_'+pol]))
-    print "5: Flag for NaN in data",np.sum(good)
+    print("5: Flag for NaN in data",np.sum(good))
     #Check for units
     good = good & (data['data_unit'] == units)
-    print "6: Flag for correct units",np.sum(good)
+    print("6: Flag for correct units",np.sum(good))
     #Check for environmental conditions if required
     if condition_select!="none":
         good = good & select_environment(data, antenna, condition_select)
-    print "7: Flag for environmental condition", np.sum(good)
+    print("7: Flag for environmental condition", np.sum(good))
     #Flag discrepant gain values
     good = good & select_outliers(data,pol,targets,4.0)
-    print "8: Flag for gain outliers", np.sum(good)
+    print("8: Flag for gain outliers", np.sum(good))
 
     return good
 
@@ -677,7 +677,7 @@ for opts.polarisation in pol:
 
     # Check if we have flagged all the data
     if np.sum(good)==0:
-        print('Pol: %s, All data flagged according to selection criteria.'%opts.polarisation)
+        print(('Pol: %s, All data flagged according to selection criteria.'%opts.polarisation))
         continue
 
     # Obtain desired elevations in radians
