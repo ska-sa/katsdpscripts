@@ -125,7 +125,7 @@ page_length = 90.0
 
 #Set up the ignore mask
 if opts.ignore_mask:
-    ignorefile=open(opts.ignore_mask)
+    ignorefile=open(opts.ignore_mask,mode='rb')
     ignore_mask=pickle.load(ignorefile)
 else:
     ignore_mask=np.zeros(report_dict['channel_freqs'].shape,dtype=np.bool)
