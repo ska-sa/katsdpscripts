@@ -171,7 +171,7 @@ for ant_obj in h5.ants :
     edge[slice(start_freq_channel, end_freq_channel)] = False
     #load static flags if pickle file is given
     if len(opts.pickle_filename)>0:
-        pickle_file = open(opts.pickle_filename)
+        pickle_file = open(opts.pickle_filename,mode='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     else:
