@@ -85,7 +85,7 @@ with verify_and_connect(opts) as kat:
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
                         delay_list[x[0]] = int(x[1])
                 for ant in sorted(delay_list):
-                    print('Receptor: %s  delay: %s' % (ant, delay_list[ant]))
+                    print('Receptor: {}  delay: {}'.format(ant, delay_list[ant]))
             except Exception as exc:
                 raise RuntimeError('Failed to read pps delay file from config! '
                                    'File: {}.  Exception: {}.'
@@ -113,27 +113,29 @@ with verify_and_connect(opts) as kat:
                         else:
                             curr_delay = int(str(response).split(' ')[2])
                             if curr_delay == delay_list[ant.name]:
-                                print(ant.name + ': no change to PPS delay offset')
+                                print(
+                                    '{}: no change to PPS delay offset'.format(ant.name)
+                                )
                             else:
                                 print("{} is on {} band".format(ant.name, band.upper()))
                                 print("{} {}-band current delay : {}".format(
-                                    ant.name, band.uppe(), curr_delay_l)
+                                    ant.name, band.upper(), curr_delay)
                                 )
                                 digitiser_offset = ant.req.dig_digitiser_offset(band,
                                     delay_list[ant.name]
                                 )
                                 print("{} {}-band PPS delay offset : ".format(
-                                    ant.name, band.uppe(), digitiser_offset)
+                                    ant.name, band.upper(), digitiser_offset)
                                 )
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-            print('Performing global sync on MeerKAT ...')
+            print('Performing global sync on MeerKAT...')
             serial_sync_timeout = 300  # seconds
             start_time = time.time()
             cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
             print("Duration of global sync: {}".format(time.time() - start_time))
 
-            print('Previous sync time %d, waiting for new sync time' % init_epoch)
+            print('Previous sync time {:d}, waiting for new sync time'.format(init_epoch))
             cam_sleep = 2  # seconds to wait for CAM sensor retry
             wait_time = 0  # seconds
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
@@ -164,7 +166,7 @@ with verify_and_connect(opts) as kat:
                                     "is required...!!!!!!!!!!!!!!!!!!!!!".format(ant.name)
                                 )
                                 break
-                        print("  {} sync epoch:  {:d}" % (
+                        print("  {} sync epoch:  {:d}".format(
                             ant.name, epoch_sensor.get_value())
                         )
                         print("  Resetting capture destination {}".format(ant.name))
@@ -173,7 +175,7 @@ with verify_and_connect(opts) as kat:
                         for line in capture_list.splitlines():
                             print('\t{}'.format(line))
                     except Exception as errmsg:
-                        print("Caught an exception: {}".format(str(msg)))
+                        print("Caught an exception: {}".format(str(errmsg)))
 
             print('\n')
             print("Script complete")
