@@ -19,9 +19,9 @@ import time
 
 from concurrent.futures import TimeoutError
 
+import katconf
 from katcorelib import standard_script_options, verify_and_connect
 from katcorelib import cambuild
-import katconf
 
 
 # Parse command-line options that allow the defaults to be overridden
@@ -102,22 +102,29 @@ with verify_and_connect(opts) as kat:
             for ant in ants_active:
                 # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
-                    # set the delay compensations for a digitiser (assuming L band)
-                    try:
-                        response = ant.req.dig_digitiser_offset('l')
-                    except Exception as msg:
-                        print('Caught exception antenna %s' % ant.name)
-                        print(msg)
-                        raise
-
-                    curr_delay_l = int(str(response).split(' ')[2])
-                    if curr_delay_l == delay_list[ant.name]:
-                        print(ant.name + ': no change to PPS delay offset')
-                    else:
-                        print(ant.name + " is on L band")
-                        print(ant.name + ' L-band current delay : ' + str(curr_delay_l))
-                        response = ant.req.dig_digitiser_offset('l', delay_list[ant.name])
-                        print(ant.name + ' L-band PPS delay offset : ' + str(response))
+                    # set the delay compensations for a digitiser (both L and U band)
+                    for band in ['l', 'u']:
+                        try:
+                            response = ant.req.dig_digitiser_offset(band)
+                        except Exception as msg:
+                            print('Caught exception antenna %s' % ant.name)
+                            print(msg)
+                            raise
+                        else:
+                            curr_delay = int(str(response).split(' ')[2])
+                            if curr_delay == delay_list[ant.name]:
+                                print(ant.name + ': no change to PPS delay offset')
+                            else:
+                                print("{} is on {} band".format(ant.name, band.upper()))
+                                print("{} {}-band current delay : {}".format(
+                                    ant.name, band.uppe(), curr_delay_l)
+                                )
+                                digitiser_offset = ant.req.dig_digitiser_offset(band,
+                                    delay_list[ant.name]
+                                )
+                                print("{} {}-band PPS delay offset : ".format(
+                                    ant.name, band.uppe(), digitiser_offset)
+                                )
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             print('Performing global sync on MeerKAT ...')
@@ -134,31 +141,40 @@ with verify_and_connect(opts) as kat:
                 wait_time += cam_sleep
                 if wait_time >= 300:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
+            for band in ['l', 'u']:
+                print('Setting digitiser {}-band sync epoch to DMC epoch'.format(
+                    band.upper())
+                )
+                dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
+                for ant in ants_active:
+                    try:
+                        print("Verify digitiser epoch for antenna {}".format(ant.name))
+                        epoch_sensor = getattr(
+                            ant.sensor,
+                            "dig_{}_band_time_synchronisation_epoch".format(band)
+                        )
+                        dig_sleep = 2  # seconds
+                        wait_time = 0  # seconds
+                        while epoch_sensor.get_value() != dmc_epoch:
+                            time.sleep(dig_sleep)
+                            wait_time += dig_sleep
+                            if wait_time >= 60:  # seconds
+                                print(
+                                    "ant {} could not sync with DMC, investigation "
+                                    "is required...!!!!!!!!!!!!!!!!!!!!!".format(ant.name)
+                                )
+                                break
+                        print("  {} sync epoch:  {:d}" % (
+                            ant.name, epoch_sensor.get_value())
+                        )
+                        print("  Resetting capture destination {}".format(ant.name))
+                        ant.req.deactivate()
+                        capture_list = str(ant.req.dig_capture_list())
+                        for line in capture_list.splitlines():
+                            print('\t{}'.format(line))
+                    except Exception as errmsg:
+                        print("Caught an exception: {}".format(str(msg)))
 
-            print('Setting digitiser L-band sync epoch to DMC epoch')
-            dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-            for ant in ants_active:
-                try:
-                    print("Verify digitiser epoch for antenna %s" % ant.name)
-                    epoch_sensor = ant.sensor.dig_l_band_time_synchronisation_epoch
-                    dig_sleep = 2  # seconds
-                    wait_time = 0  # seconds
-                    while epoch_sensor.get_value() != dmc_epoch:
-                        time.sleep(dig_sleep)
-                        wait_time += dig_sleep
-                        if wait_time >= 60:  # seconds
-                            print ("ant %s could not sync with DMC, investigation "
-                                   "is required...!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                                   % ant.name)
-                            break
-                except Exception:
-                    pass
-                print("  %s sync epoch:  %d" % (ant.name, epoch_sensor.get_value()))
-                print("  Resetting capture destination %s" % ant.name)
-                ant.req.deactivate()
-                capture_list = str(ant.req.dig_capture_list())
-                for line in capture_list.splitlines():
-                    print('    %s' % line)
             print('\n')
             print("Script complete")
     finally:
@@ -166,6 +182,6 @@ with verify_and_connect(opts) as kat:
             print("Cleaning up cam object")
             cam.disconnect()
 
-    print("\nGlobal Sync Date %s" % time.ctime(dmc_epoch))
+    print("\nGlobal Sync Date {}".format(time.ctime(dmc_epoch)))
 
 # -fin-
