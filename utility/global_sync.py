@@ -105,9 +105,9 @@ with verify_and_connect(opts) as kat:
                     # set the delay compensations for a digitiser (both L and U band)
                     for band in ['l', 'u']:
                         # Check if antenna has either l/u-band digitizer to avoid errors.
-                        if any(
-                            [i for i in dir(ant.sensor) if '{}_band'.format(band) in i]
-                        ):
+                        if any([
+                            i for i in dir(ant.sensor) if 'dig_{}_band'.format(band) in i
+                        ]):
                             try:
                                 response = ant.req.dig_digitiser_offset(band)
                             except Exception as msg:
@@ -155,30 +155,38 @@ with verify_and_connect(opts) as kat:
                         sensor_name = (
                             "dig_{}_band_time_synchronisation_epoch".format(band)
                         )
-                        # Check if sensor is available in this antenna.
-                        if hasattr(ant.sensor, sensor_name):
-                            print(
-                                "Verify digitiser epoch for antenna {} in {}-band"
-                                .format(ant.name, band)
-                            )
-                            epoch_sensor = getattr(ant.sensor, sensor_name)
-                            dig_sleep = 2  # seconds
-                            wait_time = 0  # seconds
-                            while epoch_sensor.get_value() != dmc_epoch:
-                                time.sleep(dig_sleep)
-                                wait_time += dig_sleep
-                                if wait_time >= 60:  # seconds
-                                    print(
-                                        "ant {} on {}-band could not sync with DMC, "
-                                        "investigation is required...!!!!!".format(
-                                            ant.name, band)
-                                    )
-                                    break
-                            print("  {} sync epoch:  {:d}".format(
-                                ant.name, epoch_sensor.get_value())
-                            )
+                        # Check if sensor is available in this antenna,
+                        # if not raise AssertionError
+                        assert hasattr(ant.sensor, sensor_name)
+                    except AssertionError:
+                        print(
+                            "[WARNING] Skipping antenna {}, "
+                            "it's missing the {}-band digitiser".format(
+                                ant.sensor, band.upper())
+                        )
                     except Exception as errmsg:
                         print("Caught an exception: {}".format(str(errmsg)))
+                    else:
+                        print(
+                            "Verify digitiser epoch for antenna {} in {}-band"
+                            .format(ant.name, band)
+                        )
+                        epoch_sensor = getattr(ant.sensor, sensor_name)
+                        dig_sleep = 2  # seconds
+                        wait_time = 0  # seconds
+                        while epoch_sensor.get_value() != dmc_epoch:
+                            time.sleep(dig_sleep)
+                            wait_time += dig_sleep
+                            if wait_time >= 60:  # seconds
+                                print(
+                                    "ant {} on {}-band could not sync with DMC, "
+                                    "investigation is required...!!!!!".format(
+                                        ant.name, band.upper())
+                                )
+                                break
+                        print("  {} sync epoch:  {:d}".format(
+                            ant.name, epoch_sensor.get_value())
+                        )
 
                 print("  Resetting capture destination {}".format(ant.name))
                 ant.req.deactivate()
@@ -186,12 +194,12 @@ with verify_and_connect(opts) as kat:
                 for line in capture_list.splitlines():
                     print('\t{}'.format(line))
 
-            print("\nGlobal Sync Date {}".format(time.ctime(dmc_epoch)))
             print('\n')
-            print("Script complete...")
+            print("Script complete")
     finally:
         if cam:
             print("Cleaning up cam object")
             cam.disconnect()
-
+        if dmc_epoch:
+            print("\nGlobal Sync Date {}".format(time.ctime(dmc_epoch)))
 # -fin-
