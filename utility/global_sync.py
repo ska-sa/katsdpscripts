@@ -48,6 +48,7 @@ if opts.mcpsetband and opts.mcpsetband != 'l':
     raise RuntimeError('Unavailable band: mcpsetband has been specified as %s'
                        % opts.mcpsetband)
 
+dmc_epoch = None
 with verify_and_connect(opts) as kat:
     print("_______________________")
     print(kat.controlled_objects)
@@ -61,7 +62,6 @@ with verify_and_connect(opts) as kat:
                                          "running this script.")
     try:
         cam = None
-
         if not kat.dry_run:
             print('Building CAM object')
             ant_names = [ant.name for ant in kat.ants]
@@ -104,29 +104,33 @@ with verify_and_connect(opts) as kat:
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (both L and U band)
                     for band in ['l', 'u']:
-                        try:
-                            response = ant.req.dig_digitiser_offset(band)
-                        except Exception as msg:
-                            print('Caught exception antenna %s' % ant.name)
-                            print(msg)
-                            raise
-                        else:
-                            curr_delay = int(response.reply.arguments[2])
-                            if curr_delay == delay_list[ant.name]:
-                                print(
-                                    '{} on {}-band: no change to PPS delay offset.'
-                                    .format(ant.name, band.upper())
-                                )
+                        # Check if antenna has either l/u-band digitizer to avoid errors.
+                        if any(
+                            [i for i in dir(ant.sensor) if '{}_band'.format(band) in i]
+                        ):
+                            try:
+                                response = ant.req.dig_digitiser_offset(band)
+                            except Exception as msg:
+                                print('Caught exception antenna %s' % ant.name)
+                                print(msg)
+                                raise
                             else:
-                                print("{} {}-band current delay : {}.".format(
-                                    ant.name, band.upper(), curr_delay)
-                                )
-                                digitiser_offset = ant.req.dig_digitiser_offset(band,
-                                    delay_list[ant.name]
-                                )
-                                print("{} {}-band PPS delay offset : {}.".format(
-                                    ant.name, band.upper(), digitiser_offset)
-                                )
+                                curr_delay = int(response.reply.arguments[2])
+                                if curr_delay == delay_list[ant.name]:
+                                    print(
+                                        '{} on {}-band: no change to PPS delay offset.'
+                                        .format(ant.name, band.upper())
+                                    )
+                                else:
+                                    print("{} {}-band current delay : {}.".format(
+                                        ant.name, band.upper(), curr_delay)
+                                    )
+                                    digitiser_offset = ant.req.dig_digitiser_offset(band,
+                                        delay_list[ant.name]
+                                    )
+                                    print("{} {}-band PPS delay offset : {}.".format(
+                                        ant.name, band.upper(), digitiser_offset)
+                                    )
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             print('Performing global sync on MeerKAT...')
@@ -139,38 +143,40 @@ with verify_and_connect(opts) as kat:
             cam_sleep = 2  # seconds to wait for CAM sensor retry
             wait_time = 0  # seconds
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
-                dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
                 time.sleep(cam_sleep)
                 wait_time += cam_sleep
                 if wait_time >= 300:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
+            dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ants_active:
                 for band in ['l', 'u']:
-                    print('Setting digitiser {}-band sync epoch to DMC epoch'.format(
-                        band.upper())
-                    )
                     try:
-                        print("Verify digitiser epoch for antenna {}".format(ant.name))
-                        epoch_sensor = getattr(
-                            ant.sensor,
+                        sensor_name = (
                             "dig_{}_band_time_synchronisation_epoch".format(band)
                         )
-                        dig_sleep = 2  # seconds
-                        wait_time = 0  # seconds
-                        while epoch_sensor.get_value() != dmc_epoch:
-                            time.sleep(dig_sleep)
-                            wait_time += dig_sleep
-                            if wait_time >= 60:  # seconds
-                                print(
-                                    "ant {} on {}-band could not sync with DMC, "
-                                    "investigation is required...!!!!!".format(
-                                        ant.name, band)
-                                )
-                                break
-                        print("  {} sync epoch:  {:d}".format(
-                            ant.name, epoch_sensor.get_value())
-                        )
+                        # Check if sensor is available in this antenna.
+                        if hasattr(ant.sensor, sensor_name):
+                            print(
+                                "Verify digitiser epoch for antenna {} in {}-band"
+                                .format(ant.name, band)
+                            )
+                            epoch_sensor = getattr(ant.sensor, sensor_name)
+                            dig_sleep = 2  # seconds
+                            wait_time = 0  # seconds
+                            while epoch_sensor.get_value() != dmc_epoch:
+                                time.sleep(dig_sleep)
+                                wait_time += dig_sleep
+                                if wait_time >= 60:  # seconds
+                                    print(
+                                        "ant {} on {}-band could not sync with DMC, "
+                                        "investigation is required...!!!!!".format(
+                                            ant.name, band)
+                                    )
+                                    break
+                            print("  {} sync epoch:  {:d}".format(
+                                ant.name, epoch_sensor.get_value())
+                            )
                     except Exception as errmsg:
                         print("Caught an exception: {}".format(str(errmsg)))
 
@@ -180,13 +186,12 @@ with verify_and_connect(opts) as kat:
                 for line in capture_list.splitlines():
                     print('\t{}'.format(line))
 
+            print("\nGlobal Sync Date {}".format(time.ctime(dmc_epoch)))
             print('\n')
-            print("Script complete")
+            print("Script complete...")
     finally:
         if cam:
             print("Cleaning up cam object")
             cam.disconnect()
-
-    print("\nGlobal Sync Date {}".format(time.ctime(dmc_epoch)))
 
 # -fin-
