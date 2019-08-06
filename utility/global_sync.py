@@ -115,7 +115,7 @@ with verify_and_connect(opts) as kat:
                                 print(msg)
                                 raise
                             else:
-                                curr_delay = int(response.reply.arguments[2])
+                                curr_delay = int(response.reply.arguments[1])
                                 if curr_delay == delay_list[ant.name]:
                                     print(
                                         '{} on {}-band: no change to PPS delay offset.'
@@ -162,14 +162,14 @@ with verify_and_connect(opts) as kat:
                         print(
                             "[WARNING] Skipping antenna {}, "
                             "it's missing the {}-band digitiser".format(
-                                ant.sensor, band.upper())
+                                ant.name, band.upper())
                         )
                     except Exception as errmsg:
                         print("Caught an exception: {}".format(str(errmsg)))
                     else:
                         print(
                             "Verify digitiser epoch for antenna {} in {}-band"
-                            .format(ant.name, band)
+                            .format(ant.name, band.upper())
                         )
                         epoch_sensor = getattr(ant.sensor, sensor_name)
                         dig_sleep = 2  # seconds
