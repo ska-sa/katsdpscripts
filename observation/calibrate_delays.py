@@ -64,19 +64,9 @@ with verify_and_connect(opts) as kat:
         if not sources_above_horizon:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        # Get the centre frequency of the band in MHz for flux calculations
-        # TODO: check if this is the most suitable way (especially for UHF)
-        sources_above_horizon.flux_freq_MHz = session.get_centre_freq()
-        # Pick source with the biggest flux density at centre freq as our target
-        # or fall back to source with highest elevation if flux isn't available
-        sources_with_valid_flux = sources_above_horizon.filter(flux_limit_Jy=0)
-        if sources_with_valid_flux:
-            target = sources_with_valid_flux.sort('flux').targets[-1]
-        else:
-            user_logger.warning("Could not determine flux density at %f MHz "
-                                "of any target - picking highest one instead",
-                                sources_above_horizon.flux_freq_MHz)
-            target = sources_above_horizon.sort('el').targets[-1]
+        # Pick the first source that is up (this assumes that the sources in
+        # the catalogue are ordered from highest to lowest priority)
+        target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
