@@ -17,6 +17,7 @@ from __future__ import with_statement
 
 import time
 
+from ast import literal_eval
 from concurrent.futures import TimeoutError
 
 import katconf
@@ -123,7 +124,7 @@ with verify_and_connect(opts) as kat:
                             print(msg)
                             raise
                         else:
-                            curr_delay = int(response.reply.arguments[1])
+                            curr_delay = literal_eval(response.reply.arguments[1])
                             if curr_delay == delay_list[ant.name]:
                                 print(
                                     '{} on {}-band: no change to PPS delay offset.'
