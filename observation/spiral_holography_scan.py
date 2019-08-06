@@ -143,7 +143,7 @@ def SplitArray(x,y,doplot=False):
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
 #slowtime redistributes samples on each arm so that start and stop of scan occurs slower within this timerange in seconds
-def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletime=1,spacetime=1,kind='uniform',mirrorx=False,num_scans=None,scan_duration=None):
+def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletime=1,spacetime=1,kind='uniform',mirrorx=False,num_scans=None,scan_duration=None,polish_factor=1.0):
     totextent=np.float(totextent)
     tottime=np.float(tottime)
     sampletime=np.float(sampletime)
@@ -218,6 +218,28 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
                 ncompositex[ia]=fullscanx
                 ncompositey[ia]=fullscany*y
         return compositex,compositey,ncompositex,ncompositey
+    elif (kind=='polish'):
+        nextraslew=0
+        nleaves=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
+        nptsperarm=(tottime/np.float(nleaves)-tracktime)/sampletime #time per circle
+        t=np.pi*np.tanh(polish_factor*np.linspace(-1,1,nptsperarm))/np.tanh(polish_factor)
+        ix=np.zeros(len(t))
+        iy=np.zeros(len(t))
+        x=np.sin(t)
+        y=(np.cos(t)+1.)
+        compositex=[]
+        compositey=[]
+        for theta in np.linspace(0,2.*np.pi,nleaves,endpoint=False):
+            for i,itheta in enumerate(np.linspace(0,2.*np.pi/nleaves,len(t))):
+                ix[i]=x[i]*np.cos(itheta)+(y[i])*np.sin(itheta)
+                iy[i]=(y[i])*np.cos(itheta)-x[i]*np.sin(itheta)        
+            xx=totextent/4.*(ix*np.cos(theta)+(iy)*np.sin(theta))
+            yy=totextent/4.*(iy*np.cos(theta)-ix*np.sin(theta))
+            if nextrazeros:
+                x=np.r_[np.repeat(0.0,nextrazeros),x]
+            compositex.append(np.r_[np.repeat(0.0,nextrazeros),xx])
+            compositey.append(np.r_[np.repeat(0.0,nextrazeros),yy])
+        return compositex,compositey,compositex,compositey,0
     elif (kind=='circle'):
         ncircles=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
         ntime=(tottime/np.float(ncircles)-tracktime)/sampletime #time per circle
@@ -437,6 +459,8 @@ parser.add_option('--sampletime', type='float', default=0.25,
                   help='time in seconds to spend on pointing (default=%default)')
 parser.add_option('--spacetime', type='float', default=3,
                   help='time in seconds used to equalize arm spacing, match with dumprate for equal two-dimensional sample spacing (default=%default)')
+parser.add_option('--polish-factor', type='float', default=1.0,
+                  help='factor by which to slow down nominal scanning close to boresight for polish scan pattern (default=%default)')
 parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                   help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
 parser.add_option('--target-elevation-override', type='float', default=90.0,
@@ -459,7 +483,7 @@ parser.set_defaults(description='Spiral holography scan', quorum=1.0, nd_params=
 # Parse the command line
 opts, args = parser.parse_args()
 
-compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration)
+compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration,polish_factor=opts.polish_factor)
 
 if len(args) == 0:
     args=['3C 273','PKS 1934-63','3C 279','PKS 0408-65','PKS 0023-26','J0825-5010','PKS J1924-2914','Hyd A']
