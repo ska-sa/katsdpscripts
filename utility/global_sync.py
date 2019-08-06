@@ -79,6 +79,7 @@ with verify_and_connect(opts) as kat:
                 raise RuntimeError("CAM clients did not sync.")
 
             delay_list = {}
+            print("PPS delay values from file: {}".format(opts.configdelayfile))
             try:
                 delay_values = katconf.resource_string(opts.configdelayfile).split('\n')
                 for line in delay_values:
@@ -86,7 +87,7 @@ with verify_and_connect(opts) as kat:
                     if (len(x[0]) == 4 and x[0][0] == 'm'):
                         delay_list[x[0]] = int(x[1])
                 for ant in sorted(delay_list):
-                    print('Receptor: {}  delay: {}'.format(ant, delay_list[ant]))
+                    print('  Receptor: {}  delay: {}'.format(ant, delay_list[ant]))
             except Exception as exc:
                 raise RuntimeError('Failed to read pps delay file from config! '
                                    'File: {}.  Exception: {}.'
@@ -99,7 +100,7 @@ with verify_and_connect(opts) as kat:
                                kat.katpool.sensor.resources_in_maintenance.get_value()]
             ants_active.sort(key=lambda ant: ant.name)
 
-            print('Set PPS delay compensation for digitisers.')
+            print('\nSet PPS delay compensation for digitisers.')
             for ant in ants_active:
                 # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
@@ -111,7 +112,6 @@ with verify_and_connect(opts) as kat:
                                 ant.sensor, "dig_{}_band_marking".format(band)
                             ).get_value()
                             assert sensor_avail == 'ready'
-                            assert hasattr(ant.req, "dig_digitiser_offset")
                             response = ant.req.dig_digitiser_offset(band)
                         except AssertionError:
                             print(
@@ -142,8 +142,12 @@ with verify_and_connect(opts) as kat:
                                 )
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
-            print('Performing global sync on MeerKAT...')
-            serial_sync_timeout = 300  # seconds
+            # Takes approximately 5 seconds per digitiser, assuming the are 128 digitisers
+            # gives 640 seconds.
+            serial_sync_timeout = 640  # seconds
+            print('Performing global sync on MeerKAT (timeout: {})...'.format(
+                serial_sync_timeout)
+            )
             start_time = time.time()
             cam.mcp.req.dmc_global_synchronise(timeout=serial_sync_timeout)
             print("Duration of global sync: {}".format(time.time() - start_time))
@@ -163,13 +167,9 @@ with verify_and_connect(opts) as kat:
                     try:
                         # Check if sensor is available in this antenna, and confirm if
                         # digitiser has the freq band if not raise AssertionError
-                        sensor_name = (
-                            "dig_{}_band_time_synchronisation_epoch".format(band)
-                        )
                         sensor_avail = getattr(
                              ant.sensor, "dig_{}_band_marking".format(band)
                         ).get_value()
-                        assert hasattr(ant.sensor, sensor_name)
                         assert sensor_avail == 'ready'
                     except AssertionError:
                         print(
@@ -184,7 +184,15 @@ with verify_and_connect(opts) as kat:
                             "Verify digitiser epoch for antenna {} in {}-band"
                             .format(ant.name, band.upper())
                         )
+                        sensor_name = (
+                            "dig_{}_band_time_synchronisation_epoch".format(band)
+                        )
                         epoch_sensor = getattr(ant.sensor, sensor_name)
+                        if not epoch_sensor:
+                            raise AttributeError(
+                                "Missing `cam.ant[x].sensor.{}`".format(sensor_name)
+                            )
+
                         dig_sleep = 2  # seconds
                         wait_time = 0  # seconds
                         while epoch_sensor.get_value() != dmc_epoch:
@@ -192,12 +200,12 @@ with verify_and_connect(opts) as kat:
                             wait_time += dig_sleep
                             if wait_time >= 60:  # seconds
                                 print(
-                                    "ant {} on {}-band could not sync with DMC, "
+                                    "  ant {} on {}-band could not sync with DMC, "
                                     "investigation is required...!!!!!".format(
                                         ant.name, band.upper())
                                 )
                                 break
-                        print("  {} sync epoch:  {:d}".format(
+                        print("  {} sync epoch:  {}".format(
                             ant.name, epoch_sensor.get_value())
                         )
 
@@ -207,8 +215,7 @@ with verify_and_connect(opts) as kat:
                 for line in capture_list.splitlines():
                     print('\t{}'.format(line))
 
-            print('\n')
-            print("Script complete")
+            print("\nScript complete")
     finally:
         if cam:
             print("Cleaning up cam object")
