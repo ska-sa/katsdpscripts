@@ -104,33 +104,41 @@ with verify_and_connect(opts) as kat:
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (both L and U band)
                     for band in ['l', 'u']:
-                        # Check if antenna has either l/u-band digitizer to avoid errors.
-                        if any([
-                            i for i in dir(ant.sensor) if 'dig_{}_band'.format(band) in i
-                        ]):
-                            try:
-                                response = ant.req.dig_digitiser_offset(band)
-                            except Exception as msg:
-                                print('Caught exception antenna %s' % ant.name)
-                                print(msg)
-                                raise
+                        try:
+                            # Check if antenna has either l/u-band digitizer
+                            sensor_avail = getattr(
+                                ant.sensor, "dig_{}_band_marking".format(band)
+                            ).get_value()
+                            assert sensor_avail == 'ready'
+                            assert hasattr(ant.req, "dig_digitiser_offset")
+                            response = ant.req.dig_digitiser_offset(band)
+                        except AssertionError:
+                            print(
+                                "[WARNING] Skipping antenna {}, "
+                                "it's missing the {}-band digitiser".format(
+                                    ant.name, band.upper())
+                            )
+                        except Exception as msg:
+                            print('Caught exception antenna %s' % ant.name)
+                            print(msg)
+                            raise
+                        else:
+                            curr_delay = int(response.reply.arguments[1])
+                            if curr_delay == delay_list[ant.name]:
+                                print(
+                                    '{} on {}-band: no change to PPS delay offset.'
+                                    .format(ant.name, band.upper())
+                                )
                             else:
-                                curr_delay = int(response.reply.arguments[1])
-                                if curr_delay == delay_list[ant.name]:
-                                    print(
-                                        '{} on {}-band: no change to PPS delay offset.'
-                                        .format(ant.name, band.upper())
-                                    )
-                                else:
-                                    print("{} {}-band current delay : {}.".format(
-                                        ant.name, band.upper(), curr_delay)
-                                    )
-                                    digitiser_offset = ant.req.dig_digitiser_offset(band,
-                                        delay_list[ant.name]
-                                    )
-                                    print("{} {}-band PPS delay offset : {}.".format(
-                                        ant.name, band.upper(), digitiser_offset)
-                                    )
+                                print("{} {}-band current delay : {}.".format(
+                                    ant.name, band.upper(), curr_delay)
+                                )
+                                digitiser_offset = ant.req.dig_digitiser_offset(band,
+                                    delay_list[ant.name]
+                                )
+                                print("{} {}-band PPS delay offset : {}.".format(
+                                    ant.name, band.upper(), digitiser_offset)
+                                )
 
             init_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             print('Performing global sync on MeerKAT...')
@@ -152,12 +160,16 @@ with verify_and_connect(opts) as kat:
             for ant in ants_active:
                 for band in ['l', 'u']:
                     try:
+                        # Check if sensor is available in this antenna, and confirm if
+                        # digitiser has the freq band if not raise AssertionError
                         sensor_name = (
                             "dig_{}_band_time_synchronisation_epoch".format(band)
                         )
-                        # Check if sensor is available in this antenna,
-                        # if not raise AssertionError
+                        sensor_avail = getattr(
+                             ant.sensor, "dig_{}_band_marking".format(band)
+                        ).get_value()
                         assert hasattr(ant.sensor, sensor_name)
+                        assert sensor_avail == 'ready'
                     except AssertionError:
                         print(
                             "[WARNING] Skipping antenna {}, "
