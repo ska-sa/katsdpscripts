@@ -45,9 +45,12 @@ parser.set_defaults(description='MeerKAT Global sync')
 (opts, args) = parser.parse_args()
 print("global_sync_MeerKAT script: start")
 
-if opts.mcpsetband and opts.mcpsetband != 'l':
-    raise RuntimeError('Unavailable band: mcpsetband has been specified as %s'
-                       % opts.mcpsetband)
+bands = ['l', 'u']
+if opts.mcpsetband not in bands:
+    raise RuntimeError(
+        'Unavailable band: mcpsetband has been specified as {}. (Available bands: {})'
+        .format(opts.mcpsetband, band)
+    )
 
 dmc_epoch = None
 with verify_and_connect(opts) as kat:
@@ -105,7 +108,7 @@ with verify_and_connect(opts) as kat:
                 # look at current delay and program in delay specified in CSV
                 if ant.name in delay_list:
                     # set the delay compensations for a digitiser (both L and U band)
-                    for band in ['l', 'u']:
+                    for band in bands:
                         try:
                             # Check if antenna has either l/u-band digitizer
                             sensor_avail = getattr(
@@ -158,12 +161,12 @@ with verify_and_connect(opts) as kat:
             while cam.mcp.sensor.dmc_synchronisation_epoch.get_value() == init_epoch:
                 time.sleep(cam_sleep)
                 wait_time += cam_sleep
-                if wait_time >= 300:  # seconds
+                if wait_time >= serial_sync_timeout:  # seconds
                     raise RuntimeError("dmc could not sync, investigation is required...")
 
             dmc_epoch = cam.mcp.sensor.dmc_synchronisation_epoch.get_value()
             for ant in ants_active:
-                for band in ['l', 'u']:
+                for band in bands:
                     try:
                         # Check if sensor is available in this antenna, and confirm if
                         # digitiser has the freq band if not raise AssertionError
