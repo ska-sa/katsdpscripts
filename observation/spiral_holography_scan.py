@@ -36,11 +36,6 @@ try:
     import matplotlib.pyplot as plt
 except:
     pass
-try:
-    import pickle
-except:
-    pass
-
 
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
 def plane_to_sphere_holography(targetaz,targetel,ll,mm):
