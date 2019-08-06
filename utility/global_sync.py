@@ -46,7 +46,7 @@ parser.set_defaults(description='MeerKAT Global sync')
 print("global_sync_MeerKAT script: start")
 
 bands = ['l', 'u']
-if opts.mcpsetband not in bands:
+if opts.mcpsetband and opts.mcpsetband not in bands:
     raise RuntimeError(
         'Unavailable band: mcpsetband has been specified as {}. (Available bands: {})'
         .format(opts.mcpsetband, band)
