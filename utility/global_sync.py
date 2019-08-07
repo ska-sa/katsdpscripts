@@ -35,9 +35,6 @@ parser.add_option('--configdelayfile', type="string",
                   default='katconfig/user/delay-models/mkat/pps_delays.csv',
                   help='Specify the katconfig path to the csv file containing receptor '
                        'delays in the format m0xx, <delay> (default="%default")')
-parser.add_option('--mcpsetband', type="string", default='',
-                  help='If specified, script will call cam.mcp.req.set_band() '
-                       'with given parameter (default="%default")')
 parser.add_option('--all', action="store_true", default=False,
                   help='Include all antennas in the global sync')
 # assume basic options passed from instruction_set
@@ -46,12 +43,6 @@ parser.set_defaults(description='MeerKAT Global sync')
 print("global_sync_MeerKAT script: start")
 
 bands = ['l', 'u']
-if opts.mcpsetband and opts.mcpsetband not in bands:
-    raise RuntimeError(
-        'Unavailable band: mcpsetband has been specified as {}. (Available bands: {})'
-        .format(opts.mcpsetband, band)
-    )
-
 dmc_epoch = None
 with verify_and_connect(opts) as kat:
     print("_______________________")
