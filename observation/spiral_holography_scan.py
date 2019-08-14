@@ -178,12 +178,14 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         army=narmrad*np.sin(narmtheta)
     elif (kind=='raster' or kind=='rasterx' or kind=='rastery'):
         c=180.0/(16.0*np.pi)
+        slewtime=radextent+1.#antenna can slew at 1 degrees per second in elevation
+        slowtime=slewtime/3.
         narms=num_scans
         ntime=int((tottime/num_scans-tracktime*2-slewtime*2.0)/sampletime)
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
         if (slowtime>0.0):
-            repl=np.linspace(0.0,slowtime/sampletime,2+(slowtime)/sampletime)
+            repl=np.linspace(0.0,slowtime/sampletime,2+int((slowtime)/sampletime))
             dt=np.float(slowtime)/np.float(sampletime)*np.ones(ntime,dtype='float')
             dt[:len(repl)-1]=repl[1:]
             dt[1-len(repl):]=repl[:0:-1]
@@ -199,6 +201,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         scan=((scan-scan[0])/(scan[-1]-scan[0])-0.5)*radextent*2
         slew=np.cumsum(sdt)
         slew=((slew-slew[0])/(slew[-1]-slew[0]))*radextent
+        nextraslew=len(slew)
         fullscanx=np.r_[np.zeros(int(tracktime/sampletime)),-slew,scan,slew[::-1],np.zeros(int(tracktime/sampletime))]
         fullscany=np.r_[np.zeros(int(tracktime/sampletime)),slew/radextent,np.ones(len(scan)),slew[::-1]/radextent,np.zeros(int(tracktime/sampletime))]
         compositex=[[] for ia in range(narms)]
@@ -217,7 +220,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
                 compositey[ia]=fullscany*y
                 ncompositex[ia]=fullscanx
                 ncompositey[ia]=fullscany*y
-        return compositex,compositey,ncompositex,ncompositey
+        return compositex,compositey,ncompositex,ncompositey,nextraslew
     elif (kind=='polish'):
         nextraslew=0
         nleaves=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
@@ -237,7 +240,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             yy=totextent/4.*(iy*np.cos(theta)-ix*np.sin(theta))
             compositex.append(np.r_[np.repeat(0.0,nextrazeros),xx])
             compositey.append(np.r_[np.repeat(0.0,nextrazeros),yy])
-        return compositex,compositey,compositex,compositey,0
+        return compositex,compositey,compositex,compositey,nextraslew
     elif (kind=='circle'):
         ncircles=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
         ntime=(tottime/np.float(ncircles)-tracktime)/sampletime #time per circle
@@ -406,7 +409,7 @@ def gen_track(attime,target):
 def test_target_azel_limits(target,clip_safety_margin,min_elevation):
     now=time.time()
     targetazel=gen_track([now],target)[0][1:]
-    slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentel-targetazel[1])])+1.0
+    slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentel-targetazel[1])])+1.0#antenna can slew at 2 degrees per sec in azimuth and 1 degree per sec in elev
     starttime=now+slewtotargettime+opts.cycle_tracktime
     targetel=np.array(target.azel([starttime,starttime+1.])[1])*180.0/np.pi
     rising=targetel[1]>targetel[0]
@@ -657,12 +660,20 @@ if __name__=="__main__":
                                             user_logger.info("Warning unexpected clipping occurred in scan pattern")
                                         session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                         
-                            if (iarm%2==0):#outward arm
+                            if opts.kind[:6]=='raster':
+                                nextrazeros=int(np.float(opts.tracktime)/opts.sampletime)
                                 session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
-                                if (nextraslew>0):
-                                    session.telstate.add('obs_label','slew',ts=scan_data[-nextraslew,0])
-                            else:#inward arm
-                                session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[nextraslew,0])
+                                session.telstate.add('obs_label','slew',ts=scan_data[nextrazeros,0])
+                                session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[nextrazeros+nextraslew,0])
+                                session.telstate.add('obs_label','slew',ts=scan_data[-(nextrazeros+nextraslew),0])
+                                session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[-nextrazeros,0])
+                            else:
+                                if (iarm%2==0):#outward arm
+                                    session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[0,0])
+                                    if (nextraslew>0):
+                                        session.telstate.add('obs_label','slew',ts=scan_data[-nextraslew,0])
+                                else:#inward arm
+                                    session.telstate.add('obs_label','%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[nextraslew,0])
                             time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                             lasttime = scan_data[-1,0]
                         if (len(grouprange)==2):#swap scanning and tracking antennas
