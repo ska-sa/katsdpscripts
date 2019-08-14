@@ -16,7 +16,7 @@ def MAD_median(data,verbose=False):
     mad = np.median(np.abs(data-med) )
     end_time = time.time()
     if verbose :
-        print(("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1)))
+        print("Time for operations , 1st median = %f3 2nd median = %f3 "%(start_1-start_0,end_time-start_1))
     return mad,med
 
 def join_pulses_old(data,pulse_gap=10):
@@ -121,7 +121,7 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     if axis == -1 : axis = len(a.shape)-1
     if pad :
         pad_width = []
-        for i in range(len(a.shape)):
+        for i in range(a.ndim):
             if i == axis:
                 pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
             else :
@@ -223,7 +223,7 @@ for new_edge in range(chunk_size,data.shape[0],chunk_size):
             up_down = 'up  '
             if np.signbit(pchange):
                 up_down = 'down'
-            print(("Pulse power change %s %.2f db & time is %33.12f seconds  %s,%s "%(up_down,10*np.log10(np.abs(pchange)),ptime,pmin,pmax)))
+            print("Pulse power change %s %.2f db & time is %33.12f seconds  %s,%s "%(up_down,10*np.log10(np.abs(pchange)),ptime,pmin,pmax))
             if plotting :
                 fig = plt.figure()
                 plt.plot(1e6*ts*np.arange(data[selection].shape[0]),data[selection].astype(np.float)**2)

@@ -14,7 +14,7 @@ def histogramtxt(data,pos=None,num=10000,bit_range=6):
         pos = np.floor((data.shape[0]-num)*np.random.random() ).astype(int)
     aaa = np.histogram(data[pos:pos+num],bins=np.arange(2**bit_range+1)-(2**(bit_range-1)-.5) )
     print("Histogram of %i samples from position %i"%(num,pos))
-    for a,b in (list(zip(aaa[1][1:]-0.5,aaa[0])) ):
+    for a,b in zip(aaa[1][1:]-0.5,aaa[0]):
         print('%6i %10i %s' % (a,b, 'x'.rjust(np.max([1,int(np.float(b)/aaa[0].max()*50)]),'-')  ))
 
 

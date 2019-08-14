@@ -203,7 +203,7 @@ if __name__ == '__main__':
         beamrotation[ant]['maxazoffsetangle']=np.max(beamrotation[ant]['azoffsetangle'])
 
 ## Display calculated azimuth beam rotation
-    antennas=np.sort(list(beamrotation.keys()))[:-1] #ignore last antenna, dummy antenna
+    antennas=sorted(beamrotation)[:-1]#ignore last antenna, dummy antenna
 
     import operator
     fig1 = plt.figure(figsize=(15,15))
