@@ -107,7 +107,7 @@ def fit_pointing_model(filename, opts):
     if opts.pmfilename:
         try:
             old_model = katpoint.PointingModel(file(opts.pmfilename).readline())
-            print(("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename)))
+            print("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename))
         except IOError:
             raise RuntimeError("Could not load old pointing model from '%s'" % (opts.pmfilename,))
     # Load data file in one shot as an array of strings
@@ -169,7 +169,7 @@ def fit_pointing_model(filename, opts):
     # The original pointing model description string was comma-separated
     outfile.write(new_model.description.replace(" ", ", "))
     outfile.close()
-    print(("Saved %d-parameter pointing model to '%s'" % (len(new_model), opts.outfilebase + '.csv')))
+    print("Saved %d-parameter pointing model to '%s'" % (len(new_model), opts.outfilebase + '.csv'))
     # Turn data recarray into list of dicts and add residuals to the mix
     extended_data = []
     for n in range(len(data)):
@@ -347,7 +347,7 @@ def fit_pointing_model(filename, opts):
                 update(fig)
             param_button.on_clicked(toggle_param_callback)
             return param_button # This is to stop the gc from deleting the data
-        param_buttons = [setup_param_button(p) for p in range(len(display_params))]
+        param_buttons = [setup_param_button(p) for p in range(num_params-2)]
 
         # Add old pointing model and labels
         list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )

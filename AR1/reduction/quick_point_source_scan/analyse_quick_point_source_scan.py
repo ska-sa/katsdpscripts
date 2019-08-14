@@ -46,8 +46,8 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
         iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys())))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
-    var_mean = dict(list(zip(list(variable.keys()), var_output.mean(axis=0))))
-    var_std = dict(list(zip([name + '_std' for name in variable], var_output.std(axis=0))))
+    var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
+    var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
     keep = batch and main_compscan.beam and main_compscan.beam.is_valid
     output_dict = {'keep' : True, 'compscan' : main_compscan, 'unavg_dataset' : unavg_compscan_dataset}
@@ -401,13 +401,13 @@ if __name__ == '__main__':
         parser.print_usage()
         raise RuntimeError('Please specify a single  file as argument to the script')
 
-    print(('Loading HDF5 file %s into scape and reducing the data'%args[0]))
+    print('Loading HDF5 file %s into scape and reducing the data'%args[0])
     h5file = katdal.open(args[0])
     if opts.baseline == 'all': ants = [ant.name for ant in h5file.ants]
     else: ants = [opts.baseline]
     for ant in ants:
         opts.baseline = ant
-        print(("Loading dataset '%s'" % (opts.baseline,)))
+        print("Loading dataset '%s'" % (opts.baseline,))
         analyse_point_source_scans(args[0], h5file, opts)
 
     # Display plots - this should be called ONLY ONCE, at the VERY END of the script

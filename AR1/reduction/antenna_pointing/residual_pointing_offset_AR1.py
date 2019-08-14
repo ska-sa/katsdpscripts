@@ -70,7 +70,7 @@ def referencemetrics(ant,az, el,measured_delta_az, measured_delta_el,delta_azimu
         for key,targetv in enumerate(offsetdata['target']):
             keep[key] = target == targetv
             if keep[key] : 
-                print(("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key]))) 
+                print("Test Target: '%s'   fit accurecy %.3f\"  "%(target,abs_sky_delta_std[key])) 
         
         #abs_sky_error[keep] = rad2deg(np.sqrt((measured_delta_xel[keep]-measured_delta_xel[keep][0]) ** 2 + (measured_delta_el[keep]- measured_delta_el[keep][0])** 2)) *3600
         abs_sky_error[keep] = rad2deg(np.sqrt((residual_xel[keep]) ** 2 + (residual_el[keep])** 2)) *3600
