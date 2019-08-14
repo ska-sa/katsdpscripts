@@ -345,8 +345,8 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     #    d = d.select(freqkeep=freq_channel)
     #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
-    print("Converting to Tempreture")
-    print("Plotting the number of channels in each band of the list of lists freq_channel_flagged will be usefull ")
+    print("Converting to Temperature")
+    print("Plotting the number of channels in each band of the list of lists freq_channel_flagged will be useful")
     d = d.convert_power_to_temperature(freq_width=0.0)
     if not d is None:
         d = d.select(flagkeep='~nd_on')
@@ -434,7 +434,7 @@ def fit_tipping(T_sys,SpillOver,pol,freqs,T_rx,fixopacity=False):
         # Height in meters above sea level, frequency in GHz.
     else:
         tau = 0.01078
-    print(("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs)))
+    print("atmospheric_opacity = %f  at  %f MHz"%(tau,freqs))
     tip = fit.NonLinearLeastSquaresFit(None, [0, 0.00]) # nonsense Vars
     def know_quant(x):
         rx = T_rx.rec[pol](freqs)
@@ -648,12 +648,12 @@ for ant in h5.ants:
             channel_mask =  "/var/kat/katsdpscripts/RTS/rfi_mask.pickle"
         else :
             warnings.warn('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to nothing  '%(Band))
-            print(('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to None  '%(Band)))
+            print('Warning: Failed to have a Receiver channel_mask for "%s" band setting channel_mask to None  '%(Band))
             channel_mask = ''
     else :
         channel_mask =   opts.channel_mask
 
-    print(("Channel Mask :%s , Channel Band %s "%(channel_mask,Band)))
+    print("Channel Mask :%s , Channel Band %s "%(channel_mask,Band))
     receiver_model_H = str("{}/Rx{}_SN{:0>4d}_calculated_noise_H_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     receiver_model_V = str("{}/Rx{}_SN{:0>4d}_calculated_noise_V_chan.dat".format(opts.receiver_models,str.upper(Band),int(SN)))
     aperture_efficiency_h = "%s/ant_eff_%s_H_AsBuilt.csv"%(opts.aperture_efficiency,str.upper(Band))
@@ -665,7 +665,7 @@ for ant in h5.ants:
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
     chunks=[h5.channels[x:x+num_channels] for x in range(0, len(h5.channels), num_channels)]
 
-    print(("Selecting channel data to form %f MHz Channels"%(channel_bw) ))
+    print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())
     if not d is None:
         tsys = np.zeros((len(d.scans),len(d.freqs[:]),5))#*np.NaN

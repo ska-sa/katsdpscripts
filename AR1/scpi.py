@@ -103,7 +103,6 @@ class SCPI:
       return_freq=float(return_freq)
     except Exception as e:
       print(e)
-      print(return_freq.split('\n'))
     return return_freq # Hz
 
   # set requested power level
