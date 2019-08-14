@@ -31,7 +31,7 @@ def get_nd_on_off(h5,buff = 2,log=None):
         if log is not None:
             log.critical('No noise diode fired during track of %s'%target)
         else :
-            print(('No noise diode fired during track of %s'%target))
+            print('No noise diode fired during track of %s'%target)
     else:
         #jumps = (np.diff(on).nonzero()[0] + 1).tolist()
         n_on[on.nonzero()[0][buff:-buff]]   = True
@@ -234,7 +234,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                 TAh = hot_spec/(hot_nd_spec - hot_spec) * nd_temp[pol] 
                 # antenna temperature on cold sky (from diode calibration) (Tsys)
                 TAc[pol] = cold_spec/(cold_nd_spec - cold_spec) * nd_temp[pol] 
-                print(("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc[pol].mean())))
+                print("Mean TAh = %f  mean TAc = %f "%(TAh.mean(),TAc[pol].mean()))
             Y = hot_spec / cold_spec
             D = 13.5 # Efficiency tables are defined for 13.5
             lam = 299792458./freq

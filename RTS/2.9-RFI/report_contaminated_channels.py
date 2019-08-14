@@ -92,7 +92,7 @@ try:
 except BrokenFile:
     #Open the rfi_report
     report_data=h5py.File(input_file)['all_data']
-    report_dict=dict.fromkeys(list(report_data.keys()))
+    report_dict=dict.fromkeys(report_data)
     for key in report_dict: report_dict[key]=report_data[key].value
     #RFI reports only contain a single antenna
     ant=opts.antenna if opts.antenna else report_dict['corr_products'][0,0][:-1]

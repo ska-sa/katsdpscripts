@@ -344,7 +344,7 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     if axis == -1 : axis = len(a.shape)-1 
     if pad :
         pad_width = []
-        for i in range(len(a.shape)):
+        for i in range(a.ndim):
             if i == axis: 
                 pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
             else :  
@@ -587,4 +587,4 @@ for pol in ['H','V']:
 pdf.close()
 
 print ("Done!")
-print(("Open the file %s" % (filename.split('/')[-1]+'_RFI.pdf')))
+print("Open the file %s" % (filename.split('/')[-1]+'_RFI.pdf'))

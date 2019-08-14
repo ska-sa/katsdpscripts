@@ -126,7 +126,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     for beam in beams:
         var_names += ' beam_height_%s beam_width_%s baseline_height_%s refined_%s' % tuple([beam[0]] * 4)
         variable += list(beam[1])
-    return dict(list(zip(fixed_names.split(), fixed))), dict(list(zip(var_names.split(), variable)))
+    return dict(zip(fixed_names.split(), fixed))), dict(list(zip(var_names.split(), variable))
 
 
 def extract_cal_dataset(dataset):
@@ -182,8 +182,8 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
         iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys())))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
-    var_mean = dict(list(zip(list(variable.keys()), var_output.mean(axis=0))))
-    var_std = dict(list(zip([name + '_std' for name in variable], var_output.std(axis=0))))
+    var_mean = dict(zip(variable.keys()), var_output.mean(axis=0))))
+    var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0))))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
     keep = batch and main_compscan.beam is not None and (keep_all or main_compscan.beam.is_valid)
     if 'logger' in kwargs:
@@ -268,11 +268,11 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         if 'compscan' in out:
             # Display uncertainties if we are doing Monte Carlo
             if opts.mc_iterations > 1:
-                offset_az = "%.1f\u00B1%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
-                offset_el = "%.1f\u00B1%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
-                beam_width = "%.1f\u00B1%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
-                beam_height = "%.2f\u00B1%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
-                baseline_height = "%.1f\u00B1%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
+                offset_az = "%.1f+/-%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
+                offset_el = "%.1f+/-%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
+                beam_width = "%.1f+/-%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
+                beam_height = "%.2f+/-%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
+                baseline_height = "%.1f+/-%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
             else:
                 offset_az, offset_el = "%.1f" % (60. * out['delta_azimuth'],), "%.1f" % (60. * out['delta_elevation'],)
                 beam_width, beam_height = "%.1f" % (60. * out['beam_width_I'],), "%.2f" % (out['beam_height_I'],)

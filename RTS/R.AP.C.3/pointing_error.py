@@ -141,7 +141,7 @@ keep = np.ones((len(offsetdata)),dtype=np.bool)
 az, el = angle_wrap(deg2rad(offsetdata['azimuth'])),deg2rad(offsetdata['elevation'])
 measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
 time_stamps = np.zeros_like(az)
-for i in range(len(az)) :
+for i in range(az.shape[0]) :
     time_stamps[i] = katpoint.Timestamp(offsetdata['timestamp_ut'][i]).secs  # Fix Timestamps 
 
 

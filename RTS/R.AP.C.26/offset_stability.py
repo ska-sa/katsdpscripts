@@ -105,7 +105,7 @@ model_delta_az, model_delta_el = ant.pointing_model.offset(az, el)
 measured_delta_az = offsetdata['delta_azimuth'] - model_delta_az # pointing model correction
 measured_delta_el = offsetdata['delta_elevation'] - model_delta_el# pointing model correction
 time_stamps = np.zeros_like(az)
-for i in range(len(az)) :
+for i in range(az.shape[0]) :
     time_stamps[i] = katpoint.Timestamp(offsetdata['timestamp_ut'][i]).secs  # Fix Timestamps 
 
 

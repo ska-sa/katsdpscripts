@@ -77,7 +77,7 @@ def get_gain_value(filename,no_ants,level=70,plot_graph=False,power=-30):
 
     level = level
     pvals = []
-    for ant in np.sort(list(p.keys())) :
+    for ant in sorted(p) :
             #print ant
             poly = fit.PiecewisePolynomial1DFit()
             valid = (p[ant][3][:,1] > 10) & (p[ant][3][:,1] < 2000) 
@@ -151,4 +151,4 @@ if opts.ex_ants is None :
 else :
     ex_ants = opts.ex_ants
 gain = get_gain_value(args[0],ex_ants,plot_graph=opts.plot,level=opts.level,power=opts.power)
-print(("Optimal F-engine requantion for a target level of %f for a ADC power of %f is %f"%(opts.level,opts.power,gain)))
+print("Optimal F-engine requantion for a target level of %f for a ADC power of %f is %f"%(opts.level,opts.power,gain))

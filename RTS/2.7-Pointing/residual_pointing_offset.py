@@ -544,7 +544,7 @@ if not opts.no_plot :
         ax,fig = write_text('\n'.join(textString[lines:new_line]))
         #print '\n'.join(textString[lines:new_line] )
         fig.savefig(pp,format='pdf')
-        print(("Page  lines  %i to %i of %i "%(lines,new_line,len(textString))))
+        print("Page  lines  %i to %i of %i "%(lines,new_line,len(textString)))
         old_line = lines
         plt.close(fig)
     pp.close()

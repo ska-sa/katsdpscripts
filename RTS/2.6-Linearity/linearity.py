@@ -376,7 +376,7 @@ if __name__ == '__main__':
         d['Title'] = h5.description
         d['Author'] = 'Ruby van Rooyen'
         d['Subject'] = 'RTS linearity system engineering spec test'
-        d['CreationDate'] = datetime.datetime(2015, 0o6, 30)
+        d['CreationDate'] = datetime.datetime(2015, 6, 30)
         d['ModDate'] = datetime.datetime.today()
 
     print("Test report %s.pdf generated" % outfile)

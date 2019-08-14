@@ -406,7 +406,7 @@ def makedebugreport(dataset):
         dataset=katholog.Dataset(filename,'meerkat',method='direct',dobandpass=True,onaxissampling=0.1,ignoreantennas=[])
         dataset.printenv()
         dataset.h5.select(dumps=np.array((np.array((dataset.ll)**2+(dataset.mm)**2<(dataset.radialscan_sampling)**2,dtype='int') & (1-dataset.flagmask)),dtype='bool'));
-        corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(dataset.h5.corr_products, list(range(len(dataset.h5.corr_products))))])
+        corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(dataset.h5.corr_products, range(len(dataset.h5.corr_products)) )])
         ifig=1
         for iant in range(len(dataset.radialscan_allantenna)):
             for jant in range(iant+1,len(dataset.radialscan_allantenna)):

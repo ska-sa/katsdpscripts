@@ -25,7 +25,7 @@ def parse_arguments():
 if __name__ == "__main__":
     args,unknown = parse_arguments()
     print(unknown)
-    kwargs = dict(list(zip(unknown[0::2],unknown[1::2])))
+    kwargs = dict(zip(unknown[0::2],unknown[1::2]))
     diodelib.read_and_plot_data(args.filename[0],args.output_dir,args.pdf,args.Ku,args.verbose,args.error_bars,args.off_target,args.write_nd,**kwargs)
 
 

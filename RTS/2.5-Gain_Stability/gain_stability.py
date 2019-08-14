@@ -251,9 +251,9 @@ for ant_obj in h5.ants :
                 fig.savefig(pp,format='pdf')
     except scape.gaincal.NoSuitableNoiseDiodeDataFound :
         d = None
-        print(('%s No Suitable Noise Diode Data Found '%(ant)))
+        print('%s No Suitable Noise Diode Data Found '%(ant))
     else:
-        print(('Bad Data %s'%(ant)))
+        print('Bad Data %s'%(ant))
     pp.close()
     plt.close()
     ###

@@ -677,7 +677,7 @@ for opts.polarisation in pol:
 
     # Check if we have flagged all the data
     if np.sum(good)==0:
-        print(('Pol: %s, All data flagged according to selection criteria.'%opts.polarisation))
+        print('Pol: %s, All data flagged according to selection criteria.'%opts.polarisation)
         continue
 
     # Obtain desired elevations in radians
