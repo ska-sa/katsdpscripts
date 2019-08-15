@@ -110,7 +110,7 @@ with verify_and_connect(opts) as kat:
                             session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
                                                 scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
-                        if opts.fine:
+                        elif opts.fine:
                             session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
                                                 scan_spacing=4. / 60., scan_in_azimuth=not opts.scan_in_elevation,
                                                 projection=opts.projection)
