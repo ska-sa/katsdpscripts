@@ -347,7 +347,7 @@ def fit_pointing_model(filename, opts):
                 update(fig)
             param_button.on_clicked(toggle_param_callback)
             return param_button # This is to stop the gc from deleting the data
-        param_buttons = [setup_param_button(p) for p in range(num_params-2)]
+        param_buttons = [setup_param_button(p) for p in range(len(display_params))] 
 
         # Add old pointing model and labels
         list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )

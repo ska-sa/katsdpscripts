@@ -625,7 +625,8 @@ for ant in h5.ants:
     for j,chunk in enumerate(chunks):freq_list[j] = h5.channel_freqs[chunk].mean()/1e6
     print("Selecting channel data to form %f MHz Channels"%(channel_bw))
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans)
-    for j,freq_tmp in enumerate(d.freqs) :freq_list[j] = freq_tmp                      
+    for j,freq_tmp in enumerate(d.freqs):
+        freq_list[j] = freq_tmp                      
     tsys = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
     tant = np.zeros((len(d.scans),len(freq_list),5 ))#*np.NaN
 
