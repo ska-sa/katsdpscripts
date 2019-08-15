@@ -126,7 +126,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     for beam in beams:
         var_names += ' beam_height_%s beam_width_%s baseline_height_%s refined_%s' % tuple([beam[0]] * 4)
         variable += list(beam[1])
-    return dict(zip(fixed_names.split(), fixed))), dict(list(zip(var_names.split(), variable))
+    return dict(zip(fixed_names.split(), fixed)), dict(zip(var_names.split(), variable))
 
 
 def extract_cal_dataset(dataset):
@@ -182,8 +182,8 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
         iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys())))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
-    var_mean = dict(zip(variable.keys()), var_output.mean(axis=0))))
-    var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0))))
+    var_mean = dict(list(zip(list(variable.keys()))), var_output.mean(axis=0))
+    var_std = dict(list(zip([name + '_std' for name in variable], var_output.std(axis=0))))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
     keep = batch and main_compscan.beam is not None and (keep_all or main_compscan.beam.is_valid)
     if 'logger' in kwargs:
@@ -234,7 +234,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                         '%(wind_direction).2f, %(wind_std).2f, %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
         output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
         output_data = [output_fields % out for out in reduced_data if out and out['keep']]
-        f = file(opts.outfilebase + '.csv', 'w')
+        f = open(opts.outfilebase + '.csv', 'w')
         f.write('# antenna = %s\n' % dataset.antenna.description)
         f.write(', '.join(output_field_names) + '\n')
         f.writelines(output_data)
@@ -336,7 +336,7 @@ def analyse_point_source_scans(filename, opts):
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
     if opts.keepfilename:
-        ant_name = katpoint.Antenna(file(opts.keepfilename).readline().strip().partition('=')[2]).name
+        ant_name = katpoint.Antenna(open(opts.keepfilename).readline().strip().partition('=')[2]).name
         try:
             data = np.loadtxt(opts.keepfilename, dtype='string', comments='#', delimiter=', ')
         except ValueError:
@@ -399,7 +399,7 @@ def analyse_point_source_scans(filename, opts):
                            'data set (no scans labelled "scan", perhaps?)')
     # Override pointing model if it is specified (useful if it is not in data file, like on early KAT-7)
     if opts.pointing_model:
-        pm = file(opts.pointing_model).readline().strip()
+        pm = open(opts.pointing_model).readline().strip()
         logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pointing_model))
         dataset.antenna.pointing_model = katpoint.PointingModel(pm)
 
