@@ -39,7 +39,7 @@ def read_offsetfile(filename):
     # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
     formats[[fields.index(name) for name in string_fields if name in fields]] = data.dtype
     # Convert to heterogeneous record array
-    data = np.rec.fromarrays(data[1:].transpose(), dtype=zip(fields, formats))
+    data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fields, formats)))
     # Load antenna description string from first line of file and construct antenna object from it
     antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
@@ -141,7 +141,7 @@ keep = np.ones((len(offsetdata)),dtype=np.bool)
 az, el = angle_wrap(deg2rad(offsetdata['azimuth'])),deg2rad(offsetdata['elevation'])
 measured_delta_az, measured_delta_el = deg2rad(offsetdata['delta_azimuth']), deg2rad(offsetdata['delta_elevation'])
 time_stamps = np.zeros_like(az)
-for i in xrange(len(az)) :
+for i in range(az.shape[0]) :
     time_stamps[i] = katpoint.Timestamp(offsetdata['timestamp_ut'][i]).secs  # Fix Timestamps 
 
 
@@ -170,7 +170,7 @@ std_delta_el = np.clip(deg2rad(data['delta_elevation_std']), min_std, np.inf) \
 
 params, sigma_params = new_model.fit(az[keep], el[keep], measured_delta_az[keep], measured_delta_el[keep],
                                      enabled_params=enabled_params)
-print params
+print(params)
 
 no_off_model = katpoint.PointingModel()
 params_no_off = params

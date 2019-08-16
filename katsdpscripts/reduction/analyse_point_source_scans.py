@@ -171,7 +171,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     unavg_compscan_dataset.nd_gain = cal_dataset.nd_gain
     unavg_compscan_dataset.convert_power_to_temperature()
     # Add data from Monte Carlo perturbations
-    iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=variable.keys())]
+    iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys()))]
     for m in range(mc_iterations - 1):
         if 'logger' in kwargs:
             kwargs['logger'].info("---- Monte Carlo iteration %d of %d ----",
@@ -179,7 +179,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
         compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True).perturb()
         cal_dataset = extract_cal_dataset(dataset).perturb()
         fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
-        iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=variable.keys()))
+        iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys())))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
@@ -234,7 +234,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                         '%(wind_direction).2f, %(wind_std).2f, %(sun_az).7f, %(sun_el).7f, %(timestamp)i \n'
         output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
         output_data = [output_fields % out for out in reduced_data if out and out['keep']]
-        f = file(opts.outfilebase + '.csv', 'w')
+        f = open(opts.outfilebase + '.csv', 'w')
         f.write('# antenna = %s\n' % dataset.antenna.description)
         f.write(', '.join(output_field_names) + '\n')
         f.writelines(output_data)
@@ -246,7 +246,7 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         to_keep = []
         for field in output_field_names:
             to_keep.append([data[field] for data in reduced_data if data and data['keep']])
-        output_data = np.rec.fromarrays(to_keep, dtype=zip(output_field_names, [np.array(tk).dtype for tk in to_keep]))
+        output_data = np.rec.fromarrays(to_keep, dtype=list(zip(output_field_names, [np.array(tk).dtype for tk in to_keep])))
         return (dataset.antenna, output_data,)
 
     # Reduce current compound scan if results are not cached
@@ -268,32 +268,32 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
         if 'compscan' in out:
             # Display uncertainties if we are doing Monte Carlo
             if opts.mc_iterations > 1:
-                offset_az = u"%.1f\u00B1%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
-                offset_el = u"%.1f\u00B1%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
-                beam_width = u"%.1f\u00B1%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
-                beam_height = u"%.2f\u00B1%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
-                baseline_height = u"%.1f\u00B1%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
+                offset_az = "%.1f+/-%.3f" % (60. * out['delta_azimuth'], 60. * out['delta_azimuth_std'])
+                offset_el = "%.1f+/-%.3f" % (60. * out['delta_elevation'], 60. * out['delta_elevation_std'])
+                beam_width = "%.1f+/-%.2f" % (60. * out['beam_width_I'], 60. * out['beam_width_I_std'])
+                beam_height = "%.2f+/-%.5f" % (out['beam_height_I'], out['beam_height_I_std'])
+                baseline_height = "%.1f+/-%.4f" % (out['baseline_height_I'], out['baseline_height_I_std'])
             else:
                 offset_az, offset_el = "%.1f" % (60. * out['delta_azimuth'],), "%.1f" % (60. * out['delta_elevation'],)
                 beam_width, beam_height = "%.1f" % (60. * out['beam_width_I'],), "%.2f" % (out['beam_height_I'],)
                 baseline_height = "%.1f" % (out['baseline_height_I'],)
             scape.plot_compound_scan_in_time(out['compscan'], ax=ax1)
             ax1.set_title(("%(dataset)s %(antenna)s '%(target)s'\nazel=(%(azimuth).1f, %(elevation).1f) deg, " % out) +
-                          (u"offset=(%s, %s) arcmin" % (offset_az, offset_el)), size='medium')
+                          ("offset=(%s, %s) arcmin" % (offset_az, offset_el)), size='medium')
             ax1.set_ylabel('Total power (%(data_unit)s)' % out)
             scape.plot_compound_scan_on_target(out['compscan'], ax=ax2)
             if opts.plot_spectrum:
                 scape.plot_xyz(out['unavg_dataset'], 'freq', 'amp', labels=[], power_in_dB=True, ax=ax3)
             if out['compscan'].beam:
-                info.set_text((u"Beamwidth = %s' (expected %.1f')\nBeam height = %s %s\n"
-                               u"HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %s %s") %
+                info.set_text(("Beamwidth = %s' (expected %.1f')\nBeam height = %s %s\n"
+                               "HH/VV gain = %.3f/%.3f Jy/%s\nBaseline height = %s %s") %
                               (beam_width, 60. * out['beam_expected_width_I'], beam_height, out['data_unit'],
                                out['flux'] / out['beam_height_HH'], out['flux'] / out['beam_height_VV'],
                                out['data_unit'], baseline_height, out['data_unit']))
             else:
-                info.set_text(u"No beam\nBaseline height = %s %s" % (baseline_height, out['data_unit']))
+                info.set_text("No beam\nBaseline height = %s %s" % (baseline_height, out['data_unit']))
         else:
-            info.set_text(u"Reduction failed")
+            info.set_text("Reduction failed")
         counter.set_text("compscan %d of %d" % (current_compscan + 1, len(reduced_data)))
         plt.draw()
 
@@ -336,7 +336,7 @@ def analyse_point_source_scans(filename, opts):
     # Load old CSV file used to select compound scans from dataset
     keep_scans = keep_datasets = None
     if opts.keepfilename:
-        ant_name = katpoint.Antenna(file(opts.keepfilename).readline().strip().partition('=')[2]).name
+        ant_name = katpoint.Antenna(open(opts.keepfilename).readline().strip().partition('=')[2]).name
         try:
             data = np.loadtxt(opts.keepfilename, dtype='string', comments='#', delimiter=', ')
         except ValueError:
@@ -378,10 +378,10 @@ def analyse_point_source_scans(filename, opts):
     else:
         start_chan = int(opts.freq_chans.split(',')[0])
         end_chan = int(opts.freq_chans.split(',')[1])
-    chan_select = range(start_chan, end_chan + 1)
+    chan_select = list(range(start_chan, end_chan + 1))
     # Check if a channel mask is specified and apply
     if opts.channel_mask:
-        mask_file = open(opts.channel_mask)
+        mask_file = open(opts.channel_mask,mode='rb')
         chan_select = ~(pickle.load(mask_file))
         mask_file.close()
         if len(chan_select) != num_channels:
@@ -399,7 +399,7 @@ def analyse_point_source_scans(filename, opts):
                            'data set (no scans labelled "scan", perhaps?)')
     # Override pointing model if it is specified (useful if it is not in data file, like on early KAT-7)
     if opts.pointing_model:
-        pm = file(opts.pointing_model).readline().strip()
+        pm = open(opts.pointing_model).readline().strip()
         logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(pm.split(',')), opts.pointing_model))
         dataset.antenna.pointing_model = katpoint.PointingModel(pm)
 

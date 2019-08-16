@@ -33,11 +33,11 @@ def build_ipynb_obs_report_command(datafile,template):
 def generate_ipynb_obs_report(datafile,template):
     # call obs report
     obs_report_command = build_ipynb_obs_report_command(datafile,template)
-    print 'Command executed:'
-    print obs_report_command
+    print('Command executed:')
+    print(obs_report_command)
     # todo: we'll want to know know why the returncode was not 0
     call(obs_report_command, shell=True)
-    print 'jupyter nbconvert --to html --template full %s'%obs_report_command.split()[-1]
+    print('jupyter nbconvert --to html --template full %s'%obs_report_command.split()[-1])
     call('jupyter nbconvert --to html --template full %s'%obs_report_command.split()[-1], shell=True)
 
 parser = argparse.ArgumentParser(description="Runs the docker ipython obs-report on a file")

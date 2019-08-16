@@ -110,7 +110,7 @@ def rolling_window(a, window, axis=-1, pad=False, mode='reflect', **kargs):
         axis = len(a.shape)-1
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(a.ndim):
             if i == axis:
                 pad_width += [(window // 2, window // 2 -1 +np.mod(window, 2))]
             else :
@@ -134,8 +134,8 @@ def residuals(params, w, Z):
 
 def v_detrend(x):
     result = np.zeros((x.shape[0], 3))
-    for i in xrange(x.shape[0]) :
-        if i%200 == 0 :print(" %i of %i"%(i,x.shape[0]) )
+    for i in range(x.shape[0]) :
+        if i%200 == 0 :print((" %i of %i"%(i,x.shape[0]) ))
         result[i,:] = fit_phase_std(np.arange(x.shape[-1]),x[i,:])
     return result
 
@@ -568,11 +568,11 @@ for target in h5.catalogue.targets :
             for scan in h5.scans():
             
                 vis = read_and_select_file(h5, flags_file=rfi_flagging)#/bandpass
-                print "Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0])
+                print("Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0]))
                 bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
                 antA, antB = bl_ant_pairs
-                if not bandpass.has_key(scan[2].name):
-                    print "Calculating bandpass for target:%s  "%(scan[2].name)
+                if scan[2].name not in bandpass:
+                    print("Calculating bandpass for target:%s  "%(scan[2].name))
                     #bandpass[scan[2].name] = calprocs.g_fit(vis.mean(axis=0),h5.bls_lookup,refant=ref_ant_ind)
                     bandpass[scan[2].name] = vis.mean(axis=0)
                 bpfac = bandpass[scan[2].name][np.newaxis,:,:]
@@ -582,7 +582,7 @@ for target in h5.catalogue.targets :
                 scanbounds.append(i+h5.shape[0])  
                 data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],h5.bls_lookup,refant=ref_ant_ind)
                 #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
-                print "Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant)
+                print("Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],h5.ref_ant))
                 i += h5.shape[0]
         
             g_title = "%s : %s  : %i->%i MHz "%(h5.name.split('/')[-1],target.name,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))
@@ -612,7 +612,7 @@ for target in h5.catalogue.targets :
             plt.close(fig)
 
             for i,ant in  enumerate(h5.antlist):
-                print "Generating Stats on the Antenna %s"%(ant)
+                print("Generating Stats on the Antenna %s"%(ant))
                 #mask = ~data.mask[:,i] # this is for when g_fit handels masked arrays
                 mask = slice(0,data.shape[0])
                 g_title = "%s :  Antenna %s  :%s      frequency %i->%i MHz "%(h5.name.split('/')[-1],target.name,ant,np.int(h5.channel_freqs.min()/1e6),np.int(h5.channel_freqs.max()/1e6))

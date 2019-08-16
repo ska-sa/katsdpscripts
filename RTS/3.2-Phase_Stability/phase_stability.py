@@ -88,7 +88,7 @@ def rolling_window(a, window,axis=-1,pad=False,mode='reflect',**kargs):
     if axis == -1 : axis = len(a.shape)-1
     if pad :
         pad_width = []
-        for i in xrange(len(a.shape)):
+        for i in range(a.ndim):
             if i == axis:
                 pad_width += [(window//2,window//2 -1 +np.mod(window,2))]
             else :
@@ -112,8 +112,8 @@ def residuals(params, w, Z):
 
 def v_detrend(x):
     result = np.zeros((x.shape[0],3))
-    for i in xrange(x.shape[0]) :
-        if i%200 == 0 :print " %i of %i"%(i,x.shape[0])
+    for i in range(x.shape[0]) :
+        if i%200 == 0 :print(" %i of %i"%(i,x.shape[0]))
         result[i,:] = fit_phase_std(np.arange(x.shape[-1]),x[i,:])
     return result
 
@@ -268,7 +268,7 @@ def plot_BaselineGain(gains,freq,inputs):
     """
     returned_plots = []
     if len(gains.shape) == 2 : gains =gains[np.newaxis,:,:]
-    for i in xrange(gains.shape[-1]):
+    for i in range(gains.shape[-1]):
         fig, ax = plt.subplots(nrows=1, sharex=True)
         ax.set_title('Baseline  Phase Correction %s'%(inputs[i]))
         #ax[1].set_title('Baseline Amplitude Correction  %s'%(inputs[i]))
@@ -430,15 +430,15 @@ def calc_stats(timestamps,gain,pol='no polarizarion',windowtime=1200,minsamples=
     #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
     #full = np.where(window_occ==1)
     #note std is returned in degrees
-    std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))    
-    peakmin= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemin,min_periods=minsamples)))
-    peakmax= ((pandas.rolling_apply(gain_ts,window=windowtime,func=anglemax,min_periods=minsamples)))
-    gain_val_corr = ((pandas.rolling_apply(gain_ts,window=windowtime,func=angle_mean,min_periods=minsamples)))
+    std = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=angle_std,raw=True)
+    #std = (pandas.rolling_apply(gain_ts,window=windowtime,func=angle_std,min_periods=minsamples))    
+    peakmin = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=anglemin,raw=True)
+    peakmax = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=anglemax,raw=True)
+    gain_val_corr = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=angle_mean,raw=True)
     #gain_val = pandas.Series(gain_ts-gain_val_corr, pandas.to_datetime(timestamps, unit='s') )
     gain_val = pandas.Series(np.angle(np.exp(1j*gain_ts)/np.exp(1j*gain_val_corr)), pandas.to_datetime(timestamps, unit='s'))
-
-    peak =  ((pandas.rolling_apply(gain_ts,window=windowtime,func=peak2peak,min_periods=minsamples)))
-    dtrend_std = (pandas.rolling_apply(gain_ts,window=windowtime,func=detrend,min_periods=minsamples))
+    peak =  gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=peak2peak,raw=True)
+    dtrend_std = gain_ts.rolling(center=False,window=windowtime,min_periods=minsamples).apply(func=detrend,raw=True)
     #trend_std = pandas.rolling_apply(ts,5,lambda x : np.ma.std(x-(np.arange(x.shape[0])*np.ma.polyfit(np.arange(x.shape[0]),x,1)[0])),1)
     timeval = timestamps.max()-timestamps.min()
     
@@ -539,7 +539,7 @@ else :
     edge = np.tile(False, n_chan)
 #load static flags if pickle file is given
 if len(opts.channel_mask)>0:
-    pickle_file = open(opts.channel_mask)
+    pickle_file = open(opts.channel_mask,mode='rb')
     rfi_static_flags = pickle.load(pickle_file)
     pickle_file.close()
 else:

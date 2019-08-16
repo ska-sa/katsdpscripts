@@ -84,7 +84,7 @@ height = 1.0
 bins = opts.bins
 
 if opts.ku_band is None :
-    pickle_fn = open(opts.mask)
+    pickle_fn = open(opts.mask,mode='rb')
     rfi_static_flags = pickle.load(pickle_fn)
     pickle_fn.close()    
     h5 = katdal.open(args[0])

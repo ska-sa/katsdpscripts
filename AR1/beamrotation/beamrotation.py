@@ -131,21 +131,21 @@ if __name__ == '__main__':
 ## Debug output for implementation verification
     if opts.debug:
         skypoints = np.array(minimalcoverage())
-        print 'Sky points (Az,El)'
+        print('Sky points (Az,El)')
         import pprint
         pprint.pprint(skypoints)
         testmodel = '-0:05:30.6, -0:00:03.3, 00:02:14, 00:00:02, -0:01:30.6, 00:08:42'
-        print 'Test values: %s'%testmodel
+        print('Test values: %s'%testmodel)
         expectedvals = '-0.09183333333, -0.0009166666667, 0.03722222222, 0.0005555555556, -0.02516666667, 0.145'
-        print 'Expected values: %s'%expectedvals
+        print('Expected values: %s'%expectedvals)
         testcoeffs = ['%.6f'%DDMMSS2DEG(np.array(coeff.split(':'),dtype=float)) for coeff in testmodel.strip().split(',')]
-        print 'Calculated values: %s'% ','.join(testcoeffs)
+        print('Calculated values: %s'% ','.join(testcoeffs))
         [p1, p3, p4, p5, p6, p7] = np.array(testcoeffs,dtype=float)
         azoffsetangle=APHbeamrotation(skypoints[:,0], skypoints[:,1], p3, p4, p5, p6)
-        print 'Az\tEl\tdX'
+        print('Az\tEl\tdX')
         for i in range(skypoints.shape[0]):
-            print '%d\t%d\t%.6f' % (skypoints[i,0], skypoints[i,1], azoffsetangle[i])
-        print azoffsetangle.reshape(3,4).T
+            print('%d\t%d\t%.6f' % (skypoints[i,0], skypoints[i,1], azoffsetangle[i]))
+        print(azoffsetangle.reshape(3,4).T)
         import sys
         sys.exit(0)
 
@@ -191,7 +191,7 @@ if __name__ == '__main__':
         if opts.p6:
             p6 = 0
 
-        if not beamrotation.has_key(ant):
+        if ant not in beamrotation:
             beamrotation[ant]={}
         beamrotation[ant]['pointingmodel']=model
         beamrotation[ant]['azimuth']=skypoints[:,0]
@@ -203,7 +203,7 @@ if __name__ == '__main__':
         beamrotation[ant]['maxazoffsetangle']=np.max(beamrotation[ant]['azoffsetangle'])
 
 ## Display calculated azimuth beam rotation
-    antennas=np.sort(beamrotation.keys())[:-1] #ignore last antenna, dummy antenna
+    antennas=sorted(beamrotation)[:-1]#ignore last antenna, dummy antenna
 
     import operator
     fig1 = plt.figure(figsize=(15,15))
@@ -304,7 +304,7 @@ if __name__ == '__main__':
     spec = 3 # degrees
     plt.axhline(y=3, color='k', linestyle='--')
     if len(outlier_idx)>0:plt.plot(nantennas[outlier_idx], diffmaxazoffsetangles[outlier_idx],'ro')
-    plt.xticks(range(len(antennas)), antennas, size='small', rotation='vertical')
+    plt.xticks(list(range(len(antennas))), antennas, size='small', rotation='vertical')
     plt.xlabel('Antennas')
     plt.ylabel('Differential Beam Rotation')
     if opts.nopngs:
@@ -313,15 +313,15 @@ if __name__ == '__main__':
 ##Summary
     # diffparangle=diffmaxazoffsetangles
     diffparangle=maxazoffsetangles
-    print
-    print ' \tP1\t\tP3\t\tP4\t\tP5\t\tP6\t\tP7'
-    print ' \tAz\t\tAz,El\t\tRF axis\t\tVertical\tVertical\tEl\t\tBeam rotation'
-    print ' \toffset\t\torthogonality\torthogonality\ttilt N\t\ttilt E\t\toffset'
+    print()
+    print(' \tP1\t\tP3\t\tP4\t\tP5\t\tP6\t\tP7')
+    print(' \tAz\t\tAz,El\t\tRF axis\t\tVertical\tVertical\tEl\t\tBeam rotation')
+    print(' \toffset\t\torthogonality\torthogonality\ttilt N\t\ttilt E\t\toffset')
     for ant in antennas:
         coeffs = beamrotation[ant]['pointingmodel'].split(',')
         dX = beamrotation[ant]['maxazoffsetangle']
         diffparangle = np.delete(diffparangle, [0], axis=0)
-        print '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%.6f' % (ant, coeffs[0].strip(), coeffs[2].strip(), coeffs[3].strip(), coeffs[4].strip(), coeffs[5].strip(), coeffs[6].strip(),dX)
+        print('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%.6f' % (ant, coeffs[0].strip(), coeffs[2].strip(), coeffs[3].strip(), coeffs[4].strip(), coeffs[5].strip(), coeffs[6].strip(),dX))
 
 
     if opts.verbose:

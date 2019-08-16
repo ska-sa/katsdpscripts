@@ -130,7 +130,7 @@ def Dmoon(observer):
 def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
                         verbose = False,error_bars=False,target='off1',
                         write_nd=False,rfi_mask='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',**kwargs):
-    print 'inside',kwargs
+    print('inside',kwargs)
     file_base = filename.split('/')[-1].split('.')[0]
     nice_filename =  file_base + '_T_sys_T_nd'
     
@@ -152,7 +152,7 @@ def read_and_plot_data(filename,output_dir='.',pdf=True,Ku = False,
     else :
         h5 = katfile.open(filename,**kwargs)
         length = h5.shape[1]
-        pickle_file = open(rfi_mask)
+        pickle_file = open(rfi_mask,mode='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
         # Now find the edges of the mask
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     error_bars = False
     target = 'off1'
     write_nd = True
-    print 'Performing test run with: ' + filename
+    print('Performing test run with: ' + filename)
     read_and_plot_data(filename,out,pdf,Ku,verbose,error_bars,target,write_nd)
 # Output checsums of the noisediode files for 1453216690.h5s
 #md5sum rx.* 

@@ -55,7 +55,7 @@ def readOBS(filename, ant, pol, fc, fnull):
     # Channel indices for passband baseline
     min_idx=numpy.argmin(numpy.abs(passband-f_start))
     max_idx=numpy.argmin(numpy.abs(passband-f_stop))
-    baseline_idx = range(min_idx, max_idx)
+    baseline_idx = list(range(min_idx, max_idx))
 
     # Extract passband only
     visibilities = visibilities[:,baseline_idx,:]
@@ -63,11 +63,11 @@ def readOBS(filename, ant, pol, fc, fnull):
     # Channel indices over target
     min_idx = numpy.argmin(numpy.abs(passband-(fc-dft/2.)))
     max_idx = numpy.argmin(numpy.abs(passband-(fc+dft/2.)))
-    target_range = range(min_idx, max_idx)
+    target_range = list(range(min_idx, max_idx))
     # channel indices for null
     min_idx = numpy.argmin(numpy.abs(passband-(fnull-dfn/2)))
     max_idx = numpy.argmin(numpy.abs(passband-(fnull+dfn/2)))
-    null_range = range(min_idx, max_idx)
+    null_range = list(range(min_idx, max_idx))
 
     return [the_pointings, visibilities, chan_bw, passband, target_range, null_range]
 
@@ -246,7 +246,7 @@ if __name__ == '__main__':
         for line in fin.readlines():
             try:
                 noisemodel.append(numpy.array(line.strip().split(','), dtype=float))
-            except: print line.strip()
+            except: print(line.strip())
         fin.close()
         [nd_freqs, nd_temps, tcal] = noiseDIODE(passband, noisemodel=noisemodel)
     else:
@@ -376,10 +376,10 @@ if __name__ == '__main__':
         d['Title'] = h5.description
         d['Author'] = 'Ruby van Rooyen'
         d['Subject'] = 'RTS linearity system engineering spec test'
-        d['CreationDate'] = datetime.datetime(2015, 06, 30)
+        d['CreationDate'] = datetime.datetime(2015, 6, 30)
         d['ModDate'] = datetime.datetime.today()
 
-    print "Test report %s.pdf generated" % outfile
+    print("Test report %s.pdf generated" % outfile)
 
     if opts.verbose:
       pylab.show()

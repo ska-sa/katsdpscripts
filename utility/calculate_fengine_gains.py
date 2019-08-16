@@ -77,7 +77,7 @@ def get_gain_value(filename,no_ants,level=70,plot_graph=False,power=-30):
 
     level = level
     pvals = []
-    for ant in np.sort(p.keys()) :
+    for ant in sorted(p) :
             #print ant
             poly = fit.PiecewisePolynomial1DFit()
             valid = (p[ant][3][:,1] > 10) & (p[ant][3][:,1] < 2000) 
@@ -86,14 +86,14 @@ def get_gain_value(filename,no_ants,level=70,plot_graph=False,power=-30):
                 try:
                     fits = inversefunc(poly_func, y_values=level,domain=(p[ant][3][valid,0].min(),p[ant][3][valid,0].max()))
                 except :
-                    print "Error inverting function ",ant
+                    print("Error inverting function ",ant)
                     fits = 0.0
                 p[ant][2] = fits
                 pvals.append([p[ant][0],p[ant][2]*1])
                 #if fits < lowlim or fits > hilim:
                 #    print ant,fits
             else :
-                print " Error  no valid values:",ant 
+                print(" Error  no valid values:",ant) 
                 pass
                 
     pvals = np.array(pvals)
@@ -102,10 +102,10 @@ def get_gain_value(filename,no_ants,level=70,plot_graph=False,power=-30):
     mask = (pvals[:,1] > lowlim) *  (pvals[:,1] < hilim)
     linear = fit.LinearLeastSquaresFit()
     linear_func = linear.fit(pvals[mask,0],pvals[mask,1])
-    print data.description,linear_func(-30)[0]
+    print(data.description,linear_func(-30)[0])
     if plot_graph :
         fig, ax = plt.subplots(figsize=(20,10))
-        for ant in np.sort(p.keys()) :
+        for ant in np.sort(list(p.keys())) :
             if p[ant][2] > 0 :
                 plt.errorbar(p[ant][0],p[ant][2],xerr=p[ant][1],fmt='k.')
         #plot(poly_func(np.linspace(125,0,20)),np.linspace(125,0,20),'r')

@@ -171,7 +171,7 @@ for ant_obj in h5.ants :
     edge[slice(start_freq_channel, end_freq_channel)] = False
     #load static flags if pickle file is given
     if len(opts.pickle_filename)>0:
-        pickle_file = open(opts.pickle_filename)
+        pickle_file = open(opts.pickle_filename,mode='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     else:
@@ -210,7 +210,7 @@ for ant_obj in h5.ants :
             gain_vv = np.r_[gain_vv,g_vv(timestampfile, d.freqs).mean(axis=1)]
             timestamps = np.r_[timestamps,timestampfile]
             print("Applied gains")
-            print " gain_hh  %i, gain_vv %i, timestamps %i"%(gain_hh.shape[0],gain_vv.shape[0],timestamps.shape[0])
+            print(" gain_hh  %i, gain_vv %i, timestamps %i"%(gain_hh.shape[0],gain_vv.shape[0],timestamps.shape[0]))
             #Apply noise diode calibration
             if False:
                 d_cal.convert_power_to_temperature(min_samples=opts.min_nd, time_width=opts.time_width)

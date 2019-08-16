@@ -112,10 +112,10 @@ if __name__ == '__main__':
         raise RuntimeError('Cannot write file %s' % opts.outfile)
 
     # create big concatenated file
-    print 'Concatenating to file: %s' % opts.outfile
+    print('Concatenating to file: %s' % opts.outfile)
     headers = True
     for filename in args:
-        print 'Reading file %s' % filename
+        print('Reading file %s' % filename)
         concatcsv(filename, opts.outfile, writeheaders=headers)
         headers = False
 

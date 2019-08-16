@@ -22,7 +22,7 @@ except ImportError:
 
 def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1, batch=True, **kwargs):
     """Do complete point source reduction on a compound scan, with uncertainty."""
-    print "Do complete point source reduction on a compound scan, with uncertainty."
+    print("Do complete point source reduction on a compound scan, with uncertainty.")
     scan_dataset = dataset.select(labelkeep='scan', copy=False)
     compscan = scan_dataset.compscans[compscan_index]
 
@@ -38,12 +38,12 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     unavg_compscan_dataset.nd_gain = cal_dataset.nd_gain
     unavg_compscan_dataset.convert_power_to_temperature()
     # Add data from Monte Carlo perturbations
-    iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=variable.keys())]
+    iter_outputs = [np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys()))]
     for m in range(mc_iterations - 1):
         compscan_dataset = scan_dataset.select(flagkeep='~nd_on', copy=True).perturb()
         cal_dataset = extract_cal_dataset(dataset).perturb()
         fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
-        iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=variable.keys()))
+        iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys())))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
@@ -94,7 +94,7 @@ def local_reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=Non
         to_keep=[]
         for field in output_field_names: 
             to_keep.append([data[field] for data in reduced_data if data and data['keep']])
-        output_data = np.rec.fromarrays(to_keep, dtype=zip(output_field_names,[np.array(tk).dtype for tk in to_keep]))
+        output_data = np.rec.fromarrays(to_keep, dtype=list(zip(output_field_names,[np.array(tk).dtype for tk in to_keep])))
         return (dataset.antenna, output_data,)
 
     # Reduce current compound scan if results are not cached
@@ -146,11 +146,11 @@ def analyse_point_source_scans(filename, h5file, opts):
     else:
         start_chan = int(opts.freq_chans.split(',')[0])
         end_chan = int(opts.freq_chans.split(',')[1])
-    chan_select = range(start_chan,end_chan+1)
+    chan_select = list(range(start_chan,end_chan+1))
 
     # Check if a channel mask is specified and apply
     if opts.channel_mask:
-        mask_file = open(opts.channel_mask)
+        mask_file = open(opts.channel_mask,mode='rb')
         chan_select = ~(pickle.load(mask_file))
         mask_file.close()
         if len(chan_select) != num_channels:
@@ -295,30 +295,30 @@ def analyse_point_source_scans(filename, h5file, opts):
         pagetext += "\n\nAntenna %(antenna)s" % out
         pagetext += "\n------------"
         pagetext += ("\nTarget = '%(target)s', azel=(%(azimuth).1f, %(elevation).1f) deg, " % out) +\
-                    (u"offset=(%s, %s) arcmin" % (offset_az, offset_el))
-        pagetext += (u"\nBeam height = %s %s") % (beam_height, out['data_unit'])
-        pagetext += (u"\nBeamwidth = %s' (expected %.1f')") % (beam_width, 60. * out['beam_expected_width_I'])
-        pagetext += (u"\nHH gain = %.3f Jy/%s") % (out['flux'] / out['beam_height_HH'], out['data_unit'])
-        pagetext += (u"\nVV gain = %.3f Jy/%s") % (out['flux'] / out['beam_height_VV'], out['data_unit'])
-        pagetext += (u"\nBaseline height = %s %s") % (baseline_height, out['data_unit'])
+                    ("offset=(%s, %s) arcmin" % (offset_az, offset_el))
+        pagetext += ("\nBeam height = %s %s") % (beam_height, out['data_unit'])
+        pagetext += ("\nBeamwidth = %s' (expected %.1f')") % (beam_width, 60. * out['beam_expected_width_I'])
+        pagetext += ("\nHH gain = %.3f Jy/%s") % (out['flux'] / out['beam_height_HH'], out['data_unit'])
+        pagetext += ("\nVV gain = %.3f Jy/%s") % (out['flux'] / out['beam_height_VV'], out['data_unit'])
+        pagetext += ("\nBaseline height = %s %s") % (baseline_height, out['data_unit'])
         pagetext  = pagetext + "\n"
-        pagetext += (u"\nCurrent model AzEl=(%.3f, %.3f) deg" % (model_delta_az[0], model_delta_el[0]))
-        pagetext += (u"\nMeasured coordinates using rough fit")
-        pagetext += (u"\nMeasured AzEl=(%.3f, %.3f) deg" % (measured_delta_az[0], measured_delta_el[0]))
+        pagetext += ("\nCurrent model AzEl=(%.3f, %.3f) deg" % (model_delta_az[0], model_delta_el[0]))
+        pagetext += ("\nMeasured coordinates using rough fit")
+        pagetext += ("\nMeasured AzEl=(%.3f, %.3f) deg" % (measured_delta_az[0], measured_delta_el[0]))
         pagetext  = pagetext + "\n"
-        pagetext += (u"\nDetermine residuals from current pointing model")
+        pagetext += ("\nDetermine residuals from current pointing model")
         residual_az = measured_delta_az - model_delta_az
         residual_el = measured_delta_el - model_delta_el
-        pagetext += (u"\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
+        pagetext += ("\nResidual AzEl=(%.3f, %.3f) deg" % (residual_az[0], residual_el[0]))
         if dataset.compscans[0].beam is not None:
             if not dataset.compscans[0].beam.is_valid:
-                pagetext += (u"\nPossible bad fit!")
+                pagetext += ("\nPossible bad fit!")
         if (residual_az[0] < 1.) and (residual_el[0] < 1.):
-            pagetext += (u"\nResiduals withing L-band beam")
+            pagetext += ("\nResiduals withing L-band beam")
         else:
-            pagetext += (u"\nMaximum Residual, %.2f, larger than L-band beam"%(numpy.max(residual_az[0], residual_el[0])))
+            pagetext += ("\nMaximum Residual, %.2f, larger than L-band beam"%(numpy.max(residual_az[0], residual_el[0])))
         pagetext  = pagetext + "\n"
-        pagetext += (u"\nFitted parameters \n%s" % str(params[:5]))
+        pagetext += ("\nFitted parameters \n%s" % str(params[:5]))
 
         plt.figure(None,figsize = (16,8))
         plt.axes(frame_on=False)
@@ -401,7 +401,7 @@ if __name__ == '__main__':
         parser.print_usage()
         raise RuntimeError('Please specify a single  file as argument to the script')
 
-    print ('Loading HDF5 file %s into scape and reducing the data'%args[0])
+    print('Loading HDF5 file %s into scape and reducing the data'%args[0])
     h5file = katdal.open(args[0])
     if opts.baseline == 'all': ants = [ant.name for ant in h5file.ants]
     else: ants = [opts.baseline]

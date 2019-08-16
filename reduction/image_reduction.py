@@ -20,7 +20,7 @@ from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
 try:
     import pyfits
 except ImportError:
-    print "PyFITS not installed - script will not produce a FITS image as output"
+    print("PyFITS not installed - script will not produce a FITS image as output")
     pyfits = None
 
 parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]",
@@ -93,7 +93,7 @@ katpoint.logger.setLevel(30)
 
 ################################ LOAD DATA #####################################
 
-print "Opening data file(s)..."
+print("Opening data file(s)...")
 
 # Open data files
 data = katfile.open(args, ref_ant=opts.ref_ant, time_offset=opts.time_offset)
@@ -155,7 +155,7 @@ if gain_cal is None:
 
 ############################## STOP FRINGES ####################################
 
-print "Assembling bandpass calibrator data and checking fringe stopping..."
+print("Assembling bandpass calibrator data and checking fringe stopping...")
 
 # Assemble fringe-stopped visibility data for main (bandpass) calibrator
 orig_cal_vis_samples, cal_vis_samples, cal_timestamps = [], [], []
@@ -229,12 +229,12 @@ plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in cal_vis_samples],
 
 ############################## BANDPASS CAL ####################################
 
-print "Performing bandpass calibration on '%s'..." % (bandpass_cal.name,)
+print("Performing bandpass calibration on '%s'..." % (bandpass_cal.name,))
 
 # Vector that contains real and imaginary gain components for all signal paths
 full_params = np.zeros(2 * len(data.inputs))
 # Indices of gain parameters that will be optimised
-params_to_fit = range(len(full_params))
+params_to_fit = list(range(len(full_params)))
 ref_input_index = data.inputs.index(data.ref_ant + active_pol)
 # Don't fit the imaginary component of the gain on the reference signal path (this is assumed to be zero)
 params_to_fit.pop(2 * ref_input_index + 1)
@@ -276,7 +276,7 @@ def apply_gains(params, input_pairs, model_vis=1.0):
 # Vector that contains gain phase components for all signal paths
 phase_params = np.zeros(len(data.inputs))
 # Indices of phase parameters that will be optimised
-phase_params_to_fit = range(len(phase_params))
+phase_params_to_fit = list(range(len(phase_params)))
 # Don't fit the phase on the reference signal path (this is assumed to be zero)
 phase_params_to_fit.pop(ref_input_index)
 initial_phases = np.zeros(len(data.inputs))[phase_params_to_fit]
@@ -320,7 +320,7 @@ for solint_vis in cal_vis_samples:
     gainsol = np.zeros((len(data.inputs), solint_vis.shape[1]), dtype=np.complex64)
     input_pairs = np.tile(np.array(crosscorr).T, solint_vis.shape[0])
     # Iterate over frequency channels
-    for n in xrange(solint_vis.shape[1]):
+    for n in range(solint_vis.shape[1]):
         vis, model_vis = solint_vis[:, n, :].ravel(), bp_source_vis[n]
         fitter = NonLinearLeastSquaresFit(lambda p, x: apply_gains(p, x, model_vis), initial_gains)
         fitter.fit(input_pairs, np.vstack((vis.real, vis.imag)))
@@ -372,7 +372,7 @@ plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in bp_cal_vis_samples],
 
 ############################## BAND AVERAGE ####################################
 
-print "Averaging all calibrator data into single frequency band..."
+print("Averaging all calibrator data into single frequency band...")
 
 # Assemble visibility data for all calibrators, and average it to a single frequency band
 all_cal_vis_samples, cal_source, all_cal_times = [], [], []
@@ -417,7 +417,7 @@ plot_vis_crosshairs(fig, [vis for n, vis in enumerate(all_cal_vis_samples) if ca
 
 ################################ GAIN CAL ######################################
 
-print "Performing gain calibration on '%s'..." % (gain_cal.name,)
+print("Performing gain calibration on '%s'..." % (gain_cal.name,))
 
 # Average each solution interval as well, to get rid of secondary sources causing bubbles in visibility tracks
 gain_cal_vis = np.array([vis.mean(axis=0) for vis in all_cal_vis_samples])
@@ -512,7 +512,7 @@ plot_vis_crosshairs(fig, [vis[time_slice, :, :] for vis in bp_cal_vis_samples],
 
 ######################### TRANSFER CAL TO TARGET ###############################
 
-print "Applying calibration to imaging target..."
+print("Applying calibration to imaging target...")
 
 # Assemble visibility data and uvw coordinates for imaging target
 vis_samples_per_scan, uvw_samples_per_scan = [], []
@@ -572,7 +572,7 @@ ax.set_ylabel('Visibility amplitude (Jy)')
 
 ################################## IMAGE #######################################
 
-print "Producing dirty image of '%s'..." % (image_target.name,)
+print("Producing dirty image of '%s'..." % (image_target.name,))
 
 # Set up image grid coordinates (in radians)
 # First get some basic data parameters together (center freq in Hz, primary beamwidth in rads)
@@ -642,7 +642,7 @@ dirty_image_clim = ax.images[0].get_clim()
 
 ################################## CLEAN #######################################
 
-print "CLEANing the image..."
+print("CLEANing the image...")
 
 # The CLEAN variant that will be used
 def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, resThresh=0.0):
@@ -737,7 +737,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
             # endless loop is due to a bug somewhere else?)
             atomState = tuple(sorted(atomIndex[:numAtoms+1]))
             if atomState in atomHistory:
-                print "endless loop detected, terminating"
+                print("endless loop detected, terminating")
                 break
             else:
                 atomHistory.add(atomState)
@@ -747,7 +747,7 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
             while iterCount <= iterMax:
                 iterCount += 1
                 # Check for non-positive weights
-                nonPos = [n for n in xrange(len(newWeights)) if newWeights[n] <= 0.0]
+                nonPos = [n for n in range(len(newWeights)) if newWeights[n] <= 0.0]
                 if len(nonPos) == 0:
                     break
                 # Interpolate between old and new weights so that at least one atom
@@ -759,10 +759,10 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
                 # Make sure the selected atom really has 0 weight (round-off could change it)
                 oldWeights[nonPos[worst]] = 0.0
                 # Only keep the atoms with positive weights (could be more efficient...)
-                goodAtoms = [n for n in xrange(len(oldWeights)) if oldWeights[n] > 0.0]
+                goodAtoms = [n for n in range(len(oldWeights)) if oldWeights[n] > 0.0]
                 numAtoms = len(goodAtoms)
-                print "iter %d : best atom = %d, found negative weights, worst at %d, reduced atoms to %d" % \
-                      (iterCount, newAtom, atomIndex[nonPos[worst]], numAtoms)
+                print("iter %d : best atom = %d, found negative weights, worst at %d, reduced atoms to %d" % \
+                      (iterCount, newAtom, atomIndex[nonPos[worst]], numAtoms))
                 atomIndex[:numAtoms] = atomIndex[goodAtoms].copy()
                 atomIndex[numAtoms:] = -1
                 activeAtoms = atoms[:, goodAtoms].copy()
@@ -779,8 +779,8 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
             residual = y - np.dot(activeAtoms, newWeights)
             resSize = np.linalg.norm(residual) / np.linalg.norm(y)
             if printEveryIter and (iterCount % printEveryIter == 0):
-                print "iter %d : best atom = %d, dual = %.3e, atoms = %d, residual l2 = %.3e" % \
-                      (iterCount, newAtom, dual[newAtom], numAtoms, resSize)
+                print("iter %d : best atom = %d, dual = %.3e, atoms = %d, residual l2 = %.3e" % \
+                      (iterCount, newAtom, dual[newAtom], numAtoms, resSize))
 
     # Return last results on Ctrl-C, for the impatient ones
     except KeyboardInterrupt:
@@ -788,14 +788,14 @@ def omp_plus(A, y, S, At_times=None, A_column=None, N=None, printEveryIter=1, re
         x = np.zeros(N, dtype='float64')
         x[atomIndex[:numAtoms]] = atomWeights[:numAtoms]
         if printEveryIter:
-            print 'omp: atoms = %d, residual = %.3e (interrupted)' % (sum(x != 0.0), resSize)
+            print('omp: atoms = %d, residual = %.3e (interrupted)' % (sum(x != 0.0), resSize))
 
     else:
         # Create sparse solution vector
         x = np.zeros(N, dtype='float64')
         x[atomIndex[:numAtoms]] = atomWeights[:numAtoms]
         if printEveryIter:
-            print 'omp: atoms = %d, residual = %.3e' % (sum(x != 0.0), resSize)
+            print('omp: atoms = %d, residual = %.3e' % (sum(x != 0.0), resSize))
 
     return x
 
@@ -861,7 +861,7 @@ for comp_row, comp_col in zip(comps_row, comps_col):
 # Get final image and corresponding DR estimate
 final_image = clean_image + residual_image
 
-print "Estimated dynamic range = ", final_image.max() / residual_image.std()
+print("Estimated dynamic range = ", final_image.max() / residual_image.std())
 
 fig = plt.figure(13)
 fig.clear()
@@ -1016,7 +1016,7 @@ if pyfits:
     fits_filename = '%s_%.0fMHz.fits' % (image_target.name.replace(' ', ''), band_center / 1e6)
     # The PyFITS package has a problem with the clobber flag, therefore remove any existing file or face a crash
     if os.path.isfile(fits_filename):
-        print "Overwriting existing file '%s'" % (fits_filename,)
+        print("Overwriting existing file '%s'" % (fits_filename,))
         os.remove(fits_filename)
     # Normalise image by the beam volume to get to Jy/beam units
     save_fits_image(fits_filename, katpoint.rad2deg(ra0 + l_range[::-1]), katpoint.rad2deg(dec0 + m_range),

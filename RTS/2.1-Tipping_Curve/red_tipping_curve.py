@@ -286,7 +286,7 @@ class System_Temp:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         i = -1
         while True:
             i = i + 1
@@ -323,7 +323,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
         edge = np.tile(False, n_chan)
     #load static flags if pickle file is given
     if len(channel_mask)>0:
-        pickle_file = open(channel_mask)
+        pickle_file = open(channel_mask,mode='rb')
         rfi_static_flags = pickle.load(pickle_file)
         pickle_file.close()
     else:
@@ -345,8 +345,8 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     #    d = d.select(freqkeep=freq_channel)
     #print "Flagging RFI"
     #sd = remove_rfi(d,width=7,sigma=5)  # rfi flaging Needed ?
-    print "Converting to Tempreture"
-    print "Plotting the number of channels in each band of the list of lists freq_channel_flagged will be usefull "
+    print("Converting to Temperature")
+    print("Plotting the number of channels in each band of the list of lists freq_channel_flagged will be useful")
     d = d.convert_power_to_temperature(freq_width=0.0)
     if not d is None:
         d = d.select(flagkeep='~nd_on')
@@ -663,7 +663,7 @@ for ant in h5.ants:
     SpillOver = Spill_Temp(filename=spill_over_model_path) #/var/kat/katconfig/user/spillover-models/mkat/MK_L_Tspill_AsBuilt_atm_mask.dat
 
     num_channels = np.int(channel_bw/(h5.channel_width/1e6)) #number of channels per band
-    chunks=[h5.channels[x:x+num_channels] for x in xrange(0, len(h5.channels), num_channels)]
+    chunks=[h5.channels[x:x+num_channels] for x in range(0, len(h5.channels), num_channels)]
 
     print("Selecting channel data to form %f MHz Channels"%(channel_bw) )
     d = load_cal(filename, "%s" % (ant.name,), nd_models, chunks,channel_mask=channel_mask,n_chan=n_chans,channel_range=freq_chans,band_input=Band.lower())

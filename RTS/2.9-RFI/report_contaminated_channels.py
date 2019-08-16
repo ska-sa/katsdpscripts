@@ -92,7 +92,7 @@ try:
 except BrokenFile:
     #Open the rfi_report
     report_data=h5py.File(input_file)['all_data']
-    report_dict=dict.fromkeys(report_data.keys())
+    report_dict=dict.fromkeys(report_data)
     for key in report_dict: report_dict[key]=report_data[key].value
     #RFI reports only contain a single antenna
     ant=opts.antenna if opts.antenna else report_dict['corr_products'][0,0][:-1]
@@ -101,7 +101,7 @@ except BrokenFile:
 num_channels=len(report_dict['channel_freqs'])
 start_chan = num_channels//20
 end_chan   = num_channels - start_chan
-chan_range = range(start_chan,end_chan+1)
+chan_range = list(range(start_chan,end_chan+1))
 
 #Open the csv file with known rfi
 if opts.known_rfi is not None:
@@ -125,7 +125,7 @@ page_length = 90.0
 
 #Set up the ignore mask
 if opts.ignore_mask:
-    ignorefile=open(opts.ignore_mask)
+    ignorefile=open(opts.ignore_mask,mode='rb')
     ignore_mask=pickle.load(ignorefile)
 else:
     ignore_mask=np.zeros(report_dict['channel_freqs'].shape,dtype=np.bool)
@@ -139,7 +139,7 @@ for i,corrprod in enumerate(report_dict['corr_products'][:2]):
 for i,pol in  enumerate(["HH","VV"]):
     text=[]
     known_iterator=iter(known_lookup)
-    this_known=known_iterator.next()
+    this_known=next(known_iterator)
     end_known=report_dict['channel_freqs'][0]
     text.append(("Flagged channels and frequencies %s, %s polarisation:"%(ant, pol),'black','bold'))
     inside_known=False
@@ -162,7 +162,7 @@ for i,pol in  enumerate(["HH","VV"]):
             text.append((known_string,'red','bold'))
             end_known=max(end_known,this_end_known)
             try:
-                this_known=known_iterator.next()
+                this_known=next(known_iterator)
             except StopIteration:
                 this_known=(max(report_dict['channel_freqs']),-1,)
         occupancy = report_dict['flagfrac'][j,i]
@@ -172,7 +172,7 @@ for i,pol in  enumerate(["HH","VV"]):
             else:
                 text.append(('Channel: %5d,    %f MHz , Percentage of integrations contaminated is %.3f  ' %(j+1,freq/1e6,occupancy*100),'black','normal'))
     line=0
-    for page in xrange(int(np.ceil(len(text)/page_length))):
+    for page in range(int(np.ceil(len(text)/page_length))):
         fig = plt.figure(None,figsize = (10,16))
         lineend = line+int(np.min((page_length,len(text[line:]))))
         factadj = 0.91*(1-(lineend-line)/page_length)

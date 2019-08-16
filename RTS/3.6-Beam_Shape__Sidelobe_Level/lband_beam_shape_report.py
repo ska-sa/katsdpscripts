@@ -406,7 +406,7 @@ def makedebugreport(dataset):
         dataset=katholog.Dataset(filename,'meerkat',method='direct',dobandpass=True,onaxissampling=0.1,ignoreantennas=[])
         dataset.printenv()
         dataset.h5.select(dumps=np.array((np.array((dataset.ll)**2+(dataset.mm)**2<(dataset.radialscan_sampling)**2,dtype='int') & (1-dataset.flagmask)),dtype='bool'));
-        corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(dataset.h5.corr_products, range(len(dataset.h5.corr_products)))])
+        corrprod_to_index = dict([(tuple(cp), ind) for cp, ind in zip(dataset.h5.corr_products, range(len(dataset.h5.corr_products)) )])
         ifig=1
         for iant in range(len(dataset.radialscan_allantenna)):
             for jant in range(iant+1,len(dataset.radialscan_allantenna)):
@@ -470,15 +470,15 @@ for scanantenna in availablescanantennas:
         flags_hrs=dataset.findworstscanflags(freqMHz=freqs,dMHz=bandwidth,scanantennaname=dataset.radialscan_allantenna[dataset.scanantennas[0]],trackantennaname=dataset.radialscan_allantenna[dataset.trackantennas[0]],doplot=False)
         dataset.flagdata(flags_hrs=flags_hrs,ignoreantennas=ignoreantennas)
     elif (usecycle=='' or usecycle=='all'):
-        print 'Using all cycles'
+        print('Using all cycles')
         dataset=katholog.Dataset(filename,'meerkat',method='direct',dobandpass=True,onaxissampling=0.1,ignoreantennas=ignoreantennas)
     else:
         dataset=katholog.Dataset(filename,'meerkat',method='direct',dobandpass=True,onaxissampling=0.1,ignoreantennas=ignoreantennas)
         cyclestart,cyclestop,nscanspercycle=dataset.findcycles(cycleoffset=0,doplot=False)
         cycleoffset=int((float(usecycle)-floor(float(usecycle)))*nscanspercycle)
         cyclestart,cyclestop,nscanspercycle=dataset.findcycles(cycleoffset=cycleoffset,doplot=False)
-        cycles=zip(cyclestart,cyclestop)
-        print 'Using cycle %d of %d with cycleoffset %d of %d'%(int(float(usecycle)),len(cycles),cycleoffset,nscanspercycle)
+        cycles=list(zip(cyclestart,cyclestop))
+        print('Using cycle %d of %d with cycleoffset %d of %d'%(int(float(usecycle)),len(cycles),cycleoffset,nscanspercycle))
         cycle=cycles[int(float(usecycle))]
         dataset.flagdata(timestart_hrs=cycle[0],timeduration_hrs=cycle[1]-cycle[0],ignoreantennas=ignoreantennas)
 
