@@ -59,6 +59,13 @@ def test_sequence(ants, disable_corrections=False, dry_run=False):
     if disable_corrections:
         ants.req.ap_enable_point_error_systematic(False)
         ants.req.ap_enable_point_error_tiltmeter(False)
+        if not dry_run:
+            try:
+                ants.wait('ap.enable-point-error-systematic', False, timeout=1)
+                ants.wait('ap.enable-point-error-tiltmeter', False, timeout=1)
+            except:
+                user_logger.error("Failed to disable ACU pointing corrections.")
+                raise
         user_logger.warning("ACU pointing corrections have been disabled.")
 
     for azim in [-45, 45, 135, 225]:
@@ -116,13 +123,14 @@ with verify_and_connect(opts) as kat:
 
     # Set sensor strategies"
     kat.ants.set_sampling_strategy("ap.on-target", "event")
+    kat.ants.set_sampling_strategy("ap.enable-point-error-systematic", "event")
+    kat.ants.set_sampling_strategy("ap.enable-point-error-tiltmeter", "event")
 
-    if not kat.dry_run and kat.ants.req.mode('STOP'):
+    if not kat.ants.req.mode('STOP'):
         user_logger.info("Setting antennas to mode 'STOP'")
         time.sleep(2)
     else:
-        if not kat.dry_run:
-            raise RuntimeError("Unable to set antennas to mode 'STOP'!")
+        raise RuntimeError("Unable to set antennas to mode 'STOP'!")
 
     try:
         test_sequence(kat.ants,
@@ -132,6 +140,13 @@ with verify_and_connect(opts) as kat:
         # Restore ACU pointing corrections
         kat.ants.req.ap_enable_point_error_systematic(False)
         kat.ants.req.ap_enable_point_error_tiltmeter(True)
+        if not kat.dry_run:
+            try:
+                kat.ants.wait('ap.enable-point-error-systematic', False, timeout=1)
+                kat.ants.wait('ap.enable-point-error-tiltmeter', True, timeout=1)
+            except:
+                user_logger.error("Failed to reset ACU pointing corrections.")
+                raise
 
         kat.ants.req.mode('STOP')
         user_logger.info("Stopping antennas")
