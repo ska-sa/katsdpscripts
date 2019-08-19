@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Exercise the indexer at various elevations.
+# Test for azimuth discrepancies when moving in elevation
 
 import time
 import katpoint
