@@ -56,13 +56,10 @@ def move_antennas(ants, azim, elev):
 def test_sequence(ants, disable_corrections=False, dry_run=False):
 
     # Disable ACU pointing corrections
-    if not dry_run:
-        if disable_corrections:
-            SPEM_state = False
-            TILT_state = True
-            ants.req.ap_enable_point_error_systematic(False)
-            ants.req.ap_enable_point_error_tiltmeter(False)
-            user_logger.warning("ACU pointing corrections have been disabled.")
+    if disable_corrections:
+        ants.req.ap_enable_point_error_systematic(False)
+        ants.req.ap_enable_point_error_tiltmeter(False)
+        user_logger.warning("ACU pointing corrections have been disabled.")
 
     for azim in [-45, 45, 135, 225]:
 
@@ -84,6 +81,7 @@ def test_sequence(ants, disable_corrections=False, dry_run=False):
         if not dry_run:
             move_antennas(ants, azim, elev)
             # Wait for 10 minutes before moving to next position
+            user_logger.info("Dwell at high elevation for 10 minutes to check if indexer slips.")
             time.sleep(600)
 
         # Return to low elevation
@@ -94,12 +92,6 @@ def test_sequence(ants, disable_corrections=False, dry_run=False):
 
         if not dry_run:
             move_antennas(ants, azim, elev)
-
-    # Restore ACU pointing corrections
-    if not dry_run:
-        if disable_corrections:
-            ants.req.ap_enable_point_error_systematic(SPEM_state)
-            ants.req.ap_enable_point_error_tiltmeter(TILT_state)
 
     user_logger.info("Sequence Completed!")
 
@@ -137,6 +129,9 @@ with verify_and_connect(opts) as kat:
                       disable_corrections=opts.no_corrections,
                       dry_run=kat.dry_run)
     finally:
-        if not kat.dry_run:
-            kat.ants.req.mode('STOP')
-            user_logger.info("Stopping antennas")
+        # Restore ACU pointing corrections
+        kat.ants.req.ap_enable_point_error_systematic(False)
+        kat.ants.req.ap_enable_point_error_tiltmeter(True)
+
+        kat.ants.req.mode('STOP')
+        user_logger.info("Stopping antennas")
