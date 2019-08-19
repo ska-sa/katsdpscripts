@@ -179,7 +179,6 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
     elif (kind=='raster' or kind=='rasterx' or kind=='rastery'):
         c=180.0/(16.0*np.pi)
         slewtime=radextent*2+1.#antenna can slew at 1 degrees per second in elevation
-        slowtime=slewtime/3.
         narms=num_scans
         ntime=int((tottime/num_scans-tracktime*2-slewtime*2.0)/sampletime)
         armx=np.zeros(ntime)
