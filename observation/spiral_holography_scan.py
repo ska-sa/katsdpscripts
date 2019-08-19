@@ -178,7 +178,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         army=narmrad*np.sin(narmtheta)
     elif (kind=='raster' or kind=='rasterx' or kind=='rastery'):
         c=180.0/(16.0*np.pi)
-        slewtime=radextent+1.#antenna can slew at 1 degrees per second in elevation
+        slewtime=radextent*2+1.#antenna can slew at 1 degrees per second in elevation
         slowtime=slewtime/3.
         narms=num_scans
         ntime=int((tottime/num_scans-tracktime*2-slewtime*2.0)/sampletime)
@@ -488,9 +488,16 @@ if __name__=="__main__":
     compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration,polish_factor=opts.polish_factor)
     if testmode:
         plt.figure()
-        plt.clf()
+        x=[]
+        y=[]
         for iarm in range(len(compositex)):
             plt.plot(compositex[iarm],compositey[iarm],'.')
+            x.extend(compositex[iarm])
+            y.extend(compositey[iarm])
+        plt.figure()
+        t=np.arange(len(x))*np.float(opts.sampletime)
+        plt.plot(t,x,'-')
+        plt.plot(t,y,'--')
         plt.show()
     else:
         if len(args) == 0:
