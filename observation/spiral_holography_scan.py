@@ -217,7 +217,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         else:
             for ia,y in enumerate(np.linspace(-radextent,radextent,num_scans)):
                 compositex[ia]=fullscanx
-                compositey[ia]=fullscany*y
+                compositey[ia]=-fullscany*y#when target is rising do top first, doing rasterx pattern. For rastery pattern it has no advantage
                 ncompositex[ia]=fullscanx
                 ncompositey[ia]=fullscany*y
         return compositex,compositey,ncompositex,ncompositey,nextraslew
