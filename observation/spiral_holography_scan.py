@@ -503,6 +503,13 @@ if __name__=="__main__":
         plt.plot(t,x,'-')
         plt.plot(t,y,'--')
         plt.legend(['x','y'])
+        plt.title('Position profile')
+        plt.figure()
+        t=np.arange(len(x))*np.float(opts.sampletime)
+        plt.plot(t[:-1],np.diff(x),'-')
+        plt.plot(t[:-1],np.diff(y),'--')
+        plt.legend(['dx','dy'])
+        plt.title('Speed profile')
         plt.show()
     else:
         if len(args) == 0:
