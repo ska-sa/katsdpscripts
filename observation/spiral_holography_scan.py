@@ -223,8 +223,8 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         return compositex,compositey,ncompositex,ncompositey,nextraslew
     elif (kind=='polish'):
         nextraslew=0
-        nleaves=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
-        nptsperarm=(tottime/np.float(nleaves)-tracktime)/sampletime #time per circle
+        nleaves=int(tottime/(40.*np.sqrt(spacetime)+2*tracktime))
+        nptsperarm=(tottime/np.float(nleaves)-2*tracktime)/sampletime #time per circle
         t=np.pi*np.tanh(polish_factor*np.linspace(-1,1,nptsperarm))/np.tanh(polish_factor)
         ix=np.zeros(len(t))
         iy=np.zeros(len(t))
@@ -232,15 +232,19 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         y=(np.cos(t)+1.)
         compositex=[]
         compositey=[]
-        for theta in np.linspace(0,2.*np.pi,nleaves,endpoint=False):
+        ncompositex=[]
+        ncompositey=[]
+        for theta in np.linspace(-np.pi/2,-np.pi/2+2.*np.pi,nleaves,endpoint=False):
             for i,itheta in enumerate(np.linspace(0,2.*np.pi/nleaves,len(t))):
                 ix[i]=x[i]*np.cos(itheta)+(y[i])*np.sin(itheta)
                 iy[i]=y[i]*np.cos(itheta)-x[i]*np.sin(itheta)        
             xx=totextent/4.*(ix*np.cos(theta)+(iy)*np.sin(theta))
             yy=totextent/4.*(iy*np.cos(theta)-ix*np.sin(theta))
-            compositex.append(np.r_[np.repeat(0.0,nextrazeros),xx])
-            compositey.append(np.r_[np.repeat(0.0,nextrazeros),yy])
-        return compositex,compositey,compositex,compositey,nextraslew
+            compositex.append(np.r_[np.repeat(0.0,nextrazeros),xx,np.repeat(0.0,nextrazeros)])
+            compositey.append(np.r_[np.repeat(0.0,nextrazeros),yy,np.repeat(0.0,nextrazeros)])
+            ncompositex.append(np.r_[np.repeat(0.0,nextrazeros),xx,np.repeat(0.0,nextrazeros)])
+            ncompositey.append(np.r_[np.repeat(0.0,nextrazeros),-yy,np.repeat(0.0,nextrazeros)])
+        return compositex,compositey,ncompositex,ncompositey,nextraslew
     elif (kind=='circle'):
         ncircles=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
         ntime=(tottime/np.float(ncircles)-tracktime)/sampletime #time per circle
@@ -498,6 +502,7 @@ if __name__=="__main__":
         t=np.arange(len(x))*np.float(opts.sampletime)
         plt.plot(t,x,'-')
         plt.plot(t,y,'--')
+        plt.legend(['x','y'])
         plt.show()
     else:
         if len(args) == 0:
