@@ -106,8 +106,6 @@ parser.add_option('-t', '--track-duration', type='float', default=64.0,
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit the source for verification, '
                        'in seconds (default=%default)')
-parser.add_option('--reset', action='store_true', default=False,
-                  help='Reset the gains to the default value then exit')
 parser.add_option('--fengine-gain', type='int', default=0,
                   help='Override correlator F-engine gain (average magnitude), '
                        'using the default gain value for the mode if 0')
@@ -153,52 +151,51 @@ with verify_and_connect(opts) as kat:
                          opts.fengine_gain)
         gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
         session.set_fengine_gains(gains)
-        if not opts.reset:
-            # Quit early if there are no sources to observe or not enough antennas
-            if len(session.ants) < 4:
-                raise ValueError('Not enough receptors to do calibration - you '
-                                 'need 4 and you have %d' % (len(session.ants),))
-            observation_sources = collect_targets(kat, args)
-            sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
-            if not sources_above_horizon:
-                raise NoTargetsUpError("No targets are currently visible - "
-                                       "please re-run the script later")
-            # Pick the first source that is up (this assumes that the sources in
-            # the catalogue are ordered from highest to lowest priority)
-            target = sources_above_horizon.targets[0]
-            target.add_tags('bfcal single_accumulation')
-            user_logger.info("Target to be observed: %s", target.description)
-            session.capture_init()
-            session.cbf.correlator.req.capture_start()
-            session.label('un_corrected')
-            user_logger.info("Initiating %g-second track on target '%s'",
-                             opts.track_duration, target.name)
-            session.track(target, duration=opts.track_duration, announce=False)
-            # Attempt to jiggle cal pipeline to drop its gains
-            session.stop_antennas()
-            user_logger.info("Waiting for gains to materialise in cal pipeline")
-            # Wait for the last bfcal product from the pipeline
-            gains = session.get_cal_solutions('G', timeout=opts.track_duration)
-            bp_gains = session.get_cal_solutions('B')
-            delays = session.get_cal_solutions('K')
-            cal_channel_freqs = session.get_cal_channel_freqs()
-            bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
+        # Quit early if there are no sources to observe or not enough antennas
+        if len(session.ants) < 4:
+            raise ValueError('Not enough receptors to do calibration - you '
+                             'need 4 and you have %d' % (len(session.ants),))
+        observation_sources = collect_targets(kat, args)
+        sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
+        if not sources_above_horizon:
+            raise NoTargetsUpError("No targets are currently visible - "
+                                   "please re-run the script later")
+        # Pick the first source that is up (this assumes that the sources in
+        # the catalogue are ordered from highest to lowest priority)
+        target = sources_above_horizon.targets[0]
+        target.add_tags('bfcal single_accumulation')
+        user_logger.info("Target to be observed: %s", target.description)
+        session.capture_init()
+        session.cbf.correlator.req.capture_start()
+        session.label('un_corrected')
+        user_logger.info("Initiating %g-second track on target '%s'",
+                         opts.track_duration, target.name)
+        session.track(target, duration=opts.track_duration, announce=False)
+        # Attempt to jiggle cal pipeline to drop its gains
+        session.stop_antennas()
+        user_logger.info("Waiting for gains to materialise in cal pipeline")
+        # Wait for the last bfcal product from the pipeline
+        gains = session.get_cal_solutions('G', timeout=opts.track_duration)
+        bp_gains = session.get_cal_solutions('B')
+        delays = session.get_cal_solutions('K')
+        cal_channel_freqs = session.get_cal_channel_freqs()
+        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
 
-            if opts.random_phase:
-                user_logger.info("Setting F-engine gains with random phases")
-            else:
-                user_logger.info("Setting F-engine gains to phase up antennas")
-            if not kat.dry_run:
-                corrections = calculate_corrections(gains, bp_gains, delays,
-                                                    cal_channel_freqs, opts.random_phase,
-                                                    opts.flatten_bandpass, opts.fengine_gain)
-                session.set_fengine_gains(corrections)
-            if opts.verify_duration > 0:
-                user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
-                                 target.name, opts.verify_duration)
-                session.label('corrected')
-                session.track(target, duration=opts.verify_duration, announce=False)
+        if opts.random_phase:
+            user_logger.info("Setting F-engine gains with random phases")
+        else:
+            user_logger.info("Setting F-engine gains to phase up antennas")
+        if not kat.dry_run:
+            corrections = calculate_corrections(gains, bp_gains, delays,
+                                                cal_channel_freqs, opts.random_phase,
+                                                opts.flatten_bandpass, opts.fengine_gain)
+            session.set_fengine_gains(corrections)
+        if opts.verify_duration > 0:
+            user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
+                             target.name, opts.verify_duration)
+            session.label('corrected')
+            session.track(target, duration=opts.verify_duration, announce=False)
 
-            if not opts.random_phase:
-                # Set last-phaseup script sensor on the subarray.
-                session.sub.req.set_script_param('script-last-phaseup', kat.sb_id_code)
+        if not opts.random_phase:
+            # Set last-phaseup script sensor on the subarray.
+            session.sub.req.set_script_param('script-last-phaseup', kat.sb_id_code)
