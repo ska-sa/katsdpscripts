@@ -89,15 +89,10 @@ def calculate_corrections(G_gains, B_gains, delays, cal_channel_freqs,
     return gain_corrections
 
 
-# Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
-
-
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track the source with the largest flux density which is above ' \
-              'the horizon and calibrate gains based on it. At least one ' \
-              'target must be specified.'
+description = 'Track the first source above the horizon and calibrate ' \
+              'gains based on it. At least one target must be specified.'
 parser = standard_script_options(usage, description)
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=64.0,
@@ -106,20 +101,19 @@ parser.add_option('-t', '--track-duration', type='float', default=64.0,
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit the source for verification, '
                        'in seconds (default=%default)')
-parser.add_option('--fengine-gain', type='int', default=0,
-                  help='Override correlator F-engine gain (average magnitude), '
-                       'using the default gain value for the mode if 0')
+parser.add_option('--fengine-gain', type='int_or_default', default='default',
+                  help='Set correlator F-engine gain (average magnitude)')
+parser.add_option('--fft-shift', type='int_or_default',
+                  help='Override correlator F-engine FFT shift')
 parser.add_option('--flatten-bandpass', action='store_true', default=False,
-                  help='Applies magnitude bandpass correction in addition to phase correction')
+                  help='Apply bandpass magnitude correction on top of phase correction')
 parser.add_option('--random-phase', action='store_true', default=False,
-                  help='Applies random phases in F-engines')
-parser.add_option('--fft-shift', type='int',
-                  help='Set correlator F-engine FFT shift (default=leave as is)')
+                  help='Apply random phases in F-engine (incoherent beamformer)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
-                    description='Phase-up observation that sets the F-engine weights')
+                    description='Phase-up observation that sets F-engine gains')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -134,23 +128,8 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
         sdp.req.product_reconfigure()
-    # Start capture session, which creates HDF5 file
+    # Start capture session
     with start_session(kat, **vars(opts)) as session:
-        session.standard_setup(**vars(opts))
-        if opts.fft_shift is not None:
-            session.cbf.fengine.req.fft_shift(opts.fft_shift)
-        if opts.fengine_gain <= 0:
-            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            try:
-                opts.fengine_gain = DEFAULT_GAIN[num_channels]
-            except KeyError:
-                raise KeyError("No default gain available for F-engine with "
-                               "%i channels - please specify --fengine-gain"
-                               % (num_channels,))
-        user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                         opts.fengine_gain)
-        gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
-        session.set_fengine_gains(gains)
         # Quit early if there are no sources to observe or not enough antennas
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
@@ -165,6 +144,10 @@ with verify_and_connect(opts) as kat:
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
         user_logger.info("Target to be observed: %s", target.description)
+        session.standard_setup(**vars(opts))
+        if opts.fft_shift is not None:
+            session.set_fengine_fft_shift(opts.fft_shift)
+        fengine_gain = session.set_fengine_gains(opts.fengine_gain)
         session.capture_init()
         session.cbf.correlator.req.capture_start()
         session.label('un_corrected')
@@ -182,13 +165,14 @@ with verify_and_connect(opts) as kat:
         bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
 
         if opts.random_phase:
-            user_logger.info("Setting F-engine gains with random phases")
+            user_logger.warning("Setting F-engine gains with random phases "
+                                "(you asked for it)")
         else:
             user_logger.info("Setting F-engine gains to phase up antennas")
         if not kat.dry_run:
             corrections = calculate_corrections(gains, bp_gains, delays,
                                                 cal_channel_freqs, opts.random_phase,
-                                                opts.flatten_bandpass, opts.fengine_gain)
+                                                opts.flatten_bandpass, fengine_gain)
             session.set_fengine_gains(corrections)
         if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
