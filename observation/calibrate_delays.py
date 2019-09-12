@@ -49,7 +49,12 @@ with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe or not enough antennas
+        session.standard_setup(**vars(opts))
+        # Reset F-engine to a known good state first
+        session.set_fengine_fft_shift(opts.fft_shift)
+        session.set_fengine_gains(opts.fengine_gain)
+        session.adjust_fengine_delays(0)
+        # Quit if there are no sources to observe or not enough antennas for cal
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
                              'need 4 and you have %d' % (len(session.ants),))
@@ -61,10 +66,6 @@ with verify_and_connect(opts) as kat:
         # the catalogue are ordered from highest to lowest priority)
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
-        session.standard_setup(**vars(opts))
-        session.set_fengine_fft_shift(opts.fft_shift)
-        session.set_fengine_gains(opts.fengine_gain)
-        session.adjust_fengine_delays(0)
         session.capture_init()
         user_logger.info("Only calling capture_start on correlator stream directly")
         session.cbf.correlator.req.capture_start()

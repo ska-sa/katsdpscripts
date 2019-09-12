@@ -124,17 +124,22 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
+    observation_sources = collect_targets(kat, args)
     if opts.reconfigure_sdp:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
         sdp.req.product_reconfigure()
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe or not enough antennas
+        session.standard_setup(**vars(opts))
+        # Reset F-engine to a known good state first
+        if opts.fft_shift is not None:
+            session.set_fengine_fft_shift(opts.fft_shift)
+        fengine_gain = session.set_fengine_gains(opts.fengine_gain)
+        # Quit if there are no sources to observe or not enough antennas for cal
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
                              'need 4 and you have %d' % (len(session.ants),))
-        observation_sources = collect_targets(kat, args)
         sources_above_horizon = observation_sources.filter(el_limit_deg=opts.horizon)
         if not sources_above_horizon:
             raise NoTargetsUpError("No targets are currently visible - "
@@ -144,10 +149,6 @@ with verify_and_connect(opts) as kat:
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
         user_logger.info("Target to be observed: %s", target.description)
-        session.standard_setup(**vars(opts))
-        if opts.fft_shift is not None:
-            session.set_fengine_fft_shift(opts.fft_shift)
-        fengine_gain = session.set_fengine_gains(opts.fengine_gain)
         session.capture_init()
         session.cbf.correlator.req.capture_start()
         session.label('un_corrected')
