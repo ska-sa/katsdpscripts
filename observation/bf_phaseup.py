@@ -148,20 +148,34 @@ with verify_and_connect(opts) as kat:
         # the catalogue are ordered from highest to lowest priority)
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
-        user_logger.info("Target to be observed: %s", target.description)
         session.capture_init()
         session.cbf.correlator.req.capture_start()
         session.label('un_corrected')
-        user_logger.info("Initiating %g-second track on target '%s'",
-                         opts.track_duration, target.name)
-        session.track(target, duration=opts.track_duration, announce=False)
+        # Get onto the source
+        user_logger.info("Initiating %g-second track on target %r",
+                         opts.track_duration, target.description)
+        session.track(target, duration=0, announce=False)
+        # Fire noise diode during track
+        session.fire_noise_diode(on=opts.track_duration, off=0)
         # Attempt to jiggle cal pipeline to drop its gains
         session.stop_antennas()
         user_logger.info("Waiting for gains to materialise in cal pipeline")
         # Wait for the last bfcal product from the pipeline
-        gains = session.get_cal_solutions('G', timeout=opts.track_duration)
+        hv_gains = session.get_cal_solutions('BCROSS_DIODE',
+                                             timeout=opts.track_duration)
+        hv_delays = session.get_cal_solutions('KCROSS_DIODE')
+        gains = session.get_cal_solutions('G')
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
+        # Add HV delay to the usual delay
+        for inp in sorted(delays):
+            delays[inp] += hv_delays[inp]
+            if np.isnan(delays[inp]):
+                user_logger.warning("Delay fit failed on input %s (all its "
+                                    "data probably flagged)", inp)
+        # Add HV phase to bandpass phase
+        for inp in bp_gains:
+            bp_gains[inp] *= hv_gains[inp]
         cal_channel_freqs = session.get_cal_channel_freqs()
         bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
 
@@ -176,10 +190,11 @@ with verify_and_connect(opts) as kat:
                                                 opts.flatten_bandpass, fengine_gain)
             session.set_fengine_gains(corrections)
         if opts.verify_duration > 0:
-            user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
-                             target.name, opts.verify_duration)
             session.label('corrected')
-            session.track(target, duration=opts.verify_duration, announce=False)
+            user_logger.info("Revisiting target %r for %g seconds to verify "
+                             "phase-up", target.name, opts.verify_duration)
+            session.track(target, duration=0, announce=False)
+            session.fire_noise_diode(on=opts.verify_duration, off=0)
 
         if not opts.random_phase:
             # Set last-phaseup script sensor on the subarray.
