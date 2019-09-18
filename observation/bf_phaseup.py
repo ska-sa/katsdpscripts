@@ -149,18 +149,20 @@ with verify_and_connect(opts) as kat:
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
         session.capture_init()
+        user_logger.info("Only calling capture_start on correlator stream")
         session.cbf.correlator.req.capture_start()
+        user_logger.info("--------------------------")
         session.label('un_corrected')
-        # Get onto the source
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
+        # Get onto the source
         session.track(target, duration=0, announce=False)
         # Fire noise diode during track
         session.fire_noise_diode(on=opts.track_duration, off=0)
-        # Attempt to jiggle cal pipeline to drop its gains
+        # Attempt to jiggle cal pipeline to drop its gain solutions
         session.stop_antennas()
         user_logger.info("Waiting for gains to materialise in cal pipeline")
-        # Wait for the last bfcal product from the pipeline
+        # Wait for the last relevant bfcal product from the pipeline
         hv_gains = session.get_cal_solutions('BCROSS_DIODE',
                                              timeout=60 + opts.track_duration)
         hv_delays = session.get_cal_solutions('KCROSS_DIODE')
