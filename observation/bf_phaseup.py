@@ -162,7 +162,7 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Waiting for gains to materialise in cal pipeline")
         # Wait for the last bfcal product from the pipeline
         hv_gains = session.get_cal_solutions('BCROSS_DIODE',
-                                             timeout=opts.track_duration)
+                                             timeout=60 + opts.track_duration)
         hv_delays = session.get_cal_solutions('KCROSS_DIODE')
         gains = session.get_cal_solutions('G')
         bp_gains = session.get_cal_solutions('B')
