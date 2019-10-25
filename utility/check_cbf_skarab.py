@@ -52,19 +52,19 @@ else:
     subnr = str(opts.subnr)
 
 notes = """
-cbfmon_1_i0_hostname_functional_mapping
+cbfmon_1_wide_hostname_functional_mapping
 {'skarab02000-01': 'fhost00', 'skarab02007-01': 'xhost03', 'skarab02006-01': 'fhost03', 'skarab02005-01': 'xhost02', 'skarab02003-01': 'xhost01', 'skarab02002-01': 'fhost01', 'skarab02004-01': 'fhost02', 'skarab02001-01': 'xhost00'}
 
-cbfmon_1_i0_input_labelling
+cbfmon_1_wide_input_labelling
 [('m001h', 0, 'board020900', 0), ('m001v', 1, 'board020900', 1), ('m008h', 2, 'board020901', 0), ('m008v', 3, 'board020901', 1), ('m018h', 4, 'board020902', 0), ('m018v', 5, 'board020902', 1), ('m028h', 6, 'board020903', 0), ('m028v', 7, 'board020903', 1)]
 
 
 ROACH:
-Name: cbf_roach_2_i0_hostname_functional_mapping        Description: On which hostname is which functional host?
+Name: cbf_roach_2_wide_hostname_functional_mapping        Description: On which hostname is which functional host?
 {'roach020951': 'xhost10', 'roach020954': 'xhost11', 'roach020955': 'xhost12', 'roach020A12': 'fhost7', 'roach02093A': 'fhost3', 'roach02091D': 'fhost11', 'roach02091F': 'fhost0', 'roach02091C': 'fhost10', 'roach020A03': 'xhost13', 'roach02094E': 'xhost3', 'roach020962': 'fhost12', 'roach020A0E': 'xhost7', 'roach02094C': 'fhost13', 'roach020A0F': 'fhost6', 'roach020923': 'xhost8', 'roach020922': 'fhost1', 'roach020A0B': 'xhost15', 'roach020927': 'fhost2', 'roach02092B': 'xhost9', 'roach020961': 'xhost5', 'roach020946': 'xhost2', 'roach020A01': 'xhost6', 'roach020944': 'fhost4', 'roach020A08': 'xhost14', 'roach020A0D': 'fhost5', 'roach020936': 'xhost1', 'roach02095A': 'fhost14', 'roach02095C': 'xhost4', 'roach020933': 'fhost15', 'roach020910': 'fhost8', 'roach020911': 'xhost0', 'roach020912': 'fhost9'}
 
 
-Name: cbf_roach_2_i0_host_mapping                       Description: Indicates\_on\_which\_physical\_host\_a\_set\_of\_engines\_can\_be\_found.
+Name: cbf_roach_2_wide_host_mapping                       Description: Indicates\_on\_which\_physical\_host\_a\_set\_of\_engines\_can\_be\_found.
 {'roach020951': ['xeng40', 'xeng41', 'xeng42', 'xeng43'], 'roach020954': ['xeng44', 'xeng45', 'xeng46', 'xeng47'], 'roach020955': ['xeng48', 'xeng49', 'xeng50', 'xeng51'], 'roach020A12': ['feng14', 'feng15'], 'roach02093A': ['feng6', 'feng7'], 'roach02091D': ['feng22', 'feng23'], 'roach02091F': ['feng0', 'feng1'], 'roach02091C': ['feng20', 'feng21'], 'roach020A03': ['xeng52', 'xeng53', 'xeng54', 'xeng55'], 'roach02094E': ['xeng12', 'xeng13', 'xeng14', 'xeng15'], 'roach020962': ['feng24', 'feng25'], 'roach020A0E': ['xeng28', 'xeng29', 'xeng30', 'xeng31'], 'roach020922': ['feng2', 'feng3'], 'roach02094C': ['feng26', 'feng27'], 'roach020A0F': ['feng12', 'feng13'], 'roach020923': ['xeng32', 'xeng33', 'xeng34', 'xeng35'], 'roach020A0D': ['feng10', 'feng11'], 'roach020A0B': ['xeng60', 'xeng61', 'xeng62', 'xeng63'], 'roach020927': ['feng4', 'feng5'], 'roach02092B': ['xeng36', 'xeng37', 'xeng38', 'xeng39'], 'roach020961': ['xeng20', 'xeng21', 'xeng22', 'xeng23'], 'roach020946': ['xeng8', 'xeng9', 'xeng10', 'xeng11'], 'roach020A01': ['xeng24', 'xeng25', 'xeng26', 'xeng27'], 'roach020944': ['feng8', 'feng9'], 'roach020A08': ['xeng56', 'xeng57', 'xeng58', 'xeng59'], 'roach020936': ['xeng4', 'xeng5', 'xeng6', 'xeng7'], 'roach02095A': ['feng28', 'feng29'], 'roach02095C': ['xeng16', 'xeng17', 'xeng18', 'xeng19'], 'roach020933': ['feng30', 'feng31'], 'roach020910': ['feng16', 'feng17'], 'roach020911': ['xeng0', 'xeng1', 'xeng2', 'xeng3'], 'roach020912': ['feng18', 'feng19']}
 
 Receptor to digitser:
@@ -159,7 +159,10 @@ with cambuild(sub_nr=subnr) as kat:
             gotoxy(1, 1)
 
         truncate = False
-        sens_filter = 'device-status|feng-rxtime-ok|xeng-vaccs-synchronised|fhost\d+.network.[rt]x-gbps'
+        sens_filter_per_instrument = ('device-status|'
+                                      'feng-rxtime-ok|'
+                                      'xeng-vaccs-synchronised|'
+                                      'fhost\d+.network.[rt]x-gbps')
         sens_status = 'warn|error|unknown|failure'
         while c != 'q' and c != 'Q':
             if once:
@@ -180,7 +183,7 @@ with cambuild(sub_nr=subnr) as kat:
             # This is brittle because it relies on parsing the sensor value string
             # Process input labels - like
             #   [('m001h', 0, 'skarab02000-01', 0), ('m001v', 1, 'skarab02000-01', 1), ...
-            labels = cbf.sensor.i0_input_labelling.get_value()
+            labels = cbf.sensor.wide_input_labelling.get_value()
             labels_list = literal_eval(labels.strip())
             boards_to_ants = {}
             for (antpol, nr, board, pol) in labels_list:
@@ -193,12 +196,16 @@ with cambuild(sub_nr=subnr) as kat:
 
             # Process hostname-functional mappings - like
             #     {'skarab02000-01': 'fhost00', 'skarab02007-01': 'xhost03', ....}
-            func_mappings = cbfmon.sensor.i0_hostname_functional_mapping.get_value()
+            if hasattr(cbfmon.sensor, 'wide_hostname_functional_mapping'):
+                func_mappings = cbfmon.sensor.wide_hostname_functional_mapping.get_value()
+            else:
+                # some versions of CBF are missing this sensor for unknown reasons
+                func_mappings = ''
             func_mappings = func_mappings.strip()
             if func_mappings:
                 func_mappings_dict = literal_eval(func_mappings.strip())
             else:
-                # sometimes sensor is empty on site
+                # sometimes sensor is empty or missing on site
                 func_mappings_dict = {}
             print(type(func_mappings_dict), func_mappings_dict.keys())
             hosts_to_boards = {}
@@ -208,8 +215,8 @@ with cambuild(sub_nr=subnr) as kat:
             # Process host-engine mappings - like
             #     {'skarab020804-01': ['xeng012', 'xeng013', 'xeng014', 'xeng015'], ...
             engines_to_boards = {}
-            if hasattr(cbf.sensor, 'i0_host_mapping'):
-                host_mappings = cbf.sensor.i0_host_mapping.get_value()
+            if hasattr(cbf.sensor, 'wide_host_mapping'):
+                host_mappings = cbf.sensor.wide_host_mapping.get_value()
             else:
                 # probably simulated system, which excludes this sensor
                 host_mappings = ''
@@ -265,20 +272,33 @@ with cambuild(sub_nr=subnr) as kat:
             pprint(ants_to_hosts, indent=4)
             print('hosts_to_ants:')
             pprint(hosts_to_ants, indent=4)
-            print('i0_input_labelling - list:')
+            print('wide_input_labelling - list:')
             pprint(labels_list, indent=4)
             print('boards_to_ants:')
             pprint(boards_to_ants, indent=4)
-            print('i0_hostname_functional_mapping:')
+            print('wide_hostname_functional_mapping:')
             pprint(func_mappings_dict, indent=4)
             print('hosts_to_boards:')
             pprint(hosts_to_boards, indent=4)
-            print('i0_host_mapping:')
+            print('wide_host_mapping:')
             pprint(host_mappings_dict, indent=4)
             sys.stdout.flush()
 
+            # Determine which instruments are active, i.e., "connected"
+            all_instruments = ['wide', 'narrow1', 'narrow2',
+                               'narrow3', 'narrow4', 'narrow5']
+            active_instruments = []
+            for instrument in all_instruments:
+                sensor_name = '{}_connected'.format(instrument)
+                connected = getattr(cbfmon.sensor, sensor_name).get_value()
+                if connected:
+                    active_instruments.append(instrument)
+            print("Active instruments: {}".format(active_instruments))
+
             # Get all sensor readings with a single ?sensor-value request, which is much
             # faster than get_value.
+            sens_filter = r"({})\.({})".format(
+                '|'.join(active_instruments), sens_filter_per_instrument)
             req_sens_filter = "/"+sens_filter+"/"
             sens_statuses = sens_status.split("|")
             print("Getting sensor values for sensor filter: {}".format(req_sens_filter))
@@ -303,10 +323,10 @@ with cambuild(sub_nr=subnr) as kat:
             fhosts_warn = set()
             for s in sens:
                 (name, value_time, reading_time, status, value, special) = s
-                if name.startswith("i0.fhost"):
+                if name.startswith("wide.fhost"):
                     errors = fhosts_error
                     warns = fhosts_warn
-                elif name.startswith("i0.xhost"):
+                elif name.startswith("wide.xhost"):
                     errors = xhosts_error
                     warns = xhosts_warn
                 else:
@@ -424,3 +444,4 @@ with cambuild(sub_nr=subnr) as kat:
         print("=========="*6)
         print("CBF SKARAB error check : Done")
         print("=========="*6)
+
