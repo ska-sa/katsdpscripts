@@ -150,6 +150,7 @@ with verify_and_connect(opts) as kat:
         target.add_tags('bfcal single_accumulation')
         user_logger.info("Target to be observed: %s", target.description)
         session.capture_init()
+        user_logger.info("Only calling capture_start on correlator streams")
         for correlator in session.cbf.correlators:
             correlator.req.capture_start()
         session.label('un_corrected')
