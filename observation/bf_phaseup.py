@@ -150,7 +150,8 @@ with verify_and_connect(opts) as kat:
         target.add_tags('bfcal single_accumulation')
         user_logger.info("Target to be observed: %s", target.description)
         session.capture_init()
-        session.cbf.correlator.req.capture_start()
+        for correlator in session.cbf.correlators:
+            correlator.req.capture_start()
         session.label('un_corrected')
         user_logger.info("Initiating %g-second track on target '%s'",
                          opts.track_duration, target.name)

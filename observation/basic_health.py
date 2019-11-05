@@ -79,7 +79,8 @@ with verify_and_connect(opts) as kat:
         gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
         session.set_fengine_gains(gains)
         session.capture_init()
-        session.cbf.correlator.req.capture_start()
+        for correlator in session.cbf.correlators:
+            correlator.req.capture_start()
         session.label('calibration')
         user_logger.info("Initiating %g-second track on target '%s'",
                          opts.track_duration, target.name)
