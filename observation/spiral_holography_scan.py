@@ -475,10 +475,6 @@ if __name__=="__main__":
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--mirrorx', action="store_true", default=False,
                       help='Mirrors x coordinates of pattern (default=%default)')
-    parser.add_option('--fft-shift', type='int', default=None,
-                      help='Set CBF fft shift (default=%default)')
-    parser.add_option('--default-gain', type='float', default=None,
-                      help='Set CBF gain (default=%default)')
     parser.add_option('--auto-delay', type='string', default=None,
                       help='Set CBF auto-delay on or off (default=%default)')
     parser.add_option('--debugtrack', action="store_true", default=False,
@@ -535,18 +531,10 @@ if __name__=="__main__":
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
                                  "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
-            # Initialise a capturing session (which typically opens an HDF5 file)
+            # Initialise a capturing session
             with start_session(kat, **vars(opts)) as session:
                 # Use the command-line options to set up the system
                 session.standard_setup(**vars(opts))
-                #set up CBF if necessary
-                if opts.fft_shift is not None:
-                    user_logger.info("Setting CBF fft-shift to %d", opts.fft_shift)
-                    session.cbf.fengine.req.fft_shift(opts.fft_shift)
-                if opts.default_gain is not None:
-                    user_logger.info("Setting CBF gains to %f", opts.default_gain)
-                    for inp in session.cbf.fengine.inputs:
-                        session.cbf.fengine.req.gain(inp, opts.default_gain)
                 #determine scan antennas
                 all_ants = session.ants
                 session.obs_params['num_scans'] = len(compositex)
