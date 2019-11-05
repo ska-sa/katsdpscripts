@@ -38,9 +38,9 @@ parser.set_defaults(description='Target track', nd_params='coupler,30,0,-1')
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    args.append('SCP, radec, 0, -90') 
+    args.append('SCP, radec, 0, -90')
 
-g_start,g_end,g_step =np.array(opts.gain.split(',') ).astype(float)
+g_start, g_end, g_step = np.array(opts.gain.split(',')).astype(float)
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
@@ -66,7 +66,7 @@ with verify_and_connect(opts) as kat:
             keep_going = opts.max_duration is not None
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for gain in np.logspace(np.log10(g_start),np.log10(g_end),g_step):
+            for gain in np.logspace(np.log10(g_start), np.log10(g_end), g_step):
                 for target in targets.iterfilter(el_limit_deg=opts.horizon):
                     # Cut the track short if time ran out
                     duration = opts.track_duration
@@ -80,11 +80,11 @@ with verify_and_connect(opts) as kat:
                             break
                         duration = min(duration, time_left)
                     # Set the gain to a single non complex number if needed
-                    session.label('track_gain,%g,%gi'%(gain.real,gain.imag))
+                    session.label('track_gain,%g,%gi' % (gain.real, gain.imag))
                     for inp in session.cbf.fengine.inputs:
                         session.cbf.fengine.req.gain(inp, gain)
                         user_logger.info("F-engine %s gain set to %g +%gi",
-                                         inp, gain.real,gain.imag)
+                                         inp, gain.real, gain.imag)
                     if session.track(target, duration=duration):
                         targets_observed.append(target.description)
                 if keep_going and len(targets_observed) == targets_before_loop:
