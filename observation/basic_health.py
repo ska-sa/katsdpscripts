@@ -61,10 +61,7 @@ with verify_and_connect(opts) as kat:
         # the catalogue are ordered from highest to lowest priority)
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
-        session.capture_init()
-        user_logger.info("Only calling capture_start on correlator streams")
-        for correlator in session.cbf.correlators:
-            correlator.req.capture_start()
+        session.capture_start()
         # Calibration tests
         user_logger.info("Performing calibration tests")
         session.label('calibration')
