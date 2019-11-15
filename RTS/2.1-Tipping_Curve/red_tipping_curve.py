@@ -490,10 +490,10 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
 def r_lim(dataf,func=np.nanmin):
     """ Returns the func of the data , not used on nans"""
     dataf = np.array(dataf)
-    index = ~np.isnan(dataf)
-    if np.all(index==False) :
+    valid = ~np.isnan(dataf)
+    if np.all(valid==False) :
         return np.nan
-    return func(dataf[index,...])
+    return func(dataf[valid,...])
 
 
 def receptor_band_limit(frequency,elevation):
