@@ -490,10 +490,10 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
 def r_lim(dataf,func=np.nanmin):
     """ Returns the func of the data , not used on nans"""
     dataf = np.array(dataf)
-    index = ~np.isnan(dataf)
-    if np.all(index==False) :
+    valid = ~np.isnan(dataf)
+    if not valid.any() :
         return np.nan
-    return func(dataf[index,...])
+    return func(dataf[valid,...])
 
 
 def receptor_band_limit(frequency,elevation):
@@ -577,7 +577,7 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='600,700,800,900,1440,1670,1840',
+parser.add_option("-r", "--select-freq", default='600,700,800,900,1440,1670,1840,2300,2500,2700,2900',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
