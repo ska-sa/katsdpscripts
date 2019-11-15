@@ -491,7 +491,7 @@ def r_lim(dataf,func=np.nanmin):
     """ Returns the func of the data , not used on nans"""
     dataf = np.array(dataf)
     valid = ~np.isnan(dataf)
-    if np.all(valid==False) :
+    if not valid.any() :
         return np.nan
     return func(dataf[valid,...])
 
