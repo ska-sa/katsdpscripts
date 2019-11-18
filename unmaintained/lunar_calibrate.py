@@ -26,7 +26,7 @@ parser.add_option('-b', '--bpcal-duration', type='float', default=300,
 parser.add_option('-i', '--bpcal-interval', type='float',
                   help='Minimum interval between bandpass calibrator visits, in seconds '
                        '(visits each source in turn by default)')
-parser.add_option('--lunar-interval', type='float',default=1800
+parser.add_option('--lunar-interval', type='float',default=1800,
                   help='Minimum interval between Lunar calibrator visits, in seconds '
                        '(default="%default")')
 parser.add_option('-g', '--gaincal-duration', type='float', default=60,
@@ -83,9 +83,9 @@ with verify_and_connect(opts) as kat:
                 if time.time() - time_of_last_lunar_cal >= opts.lunar_interval:
                     time_of_last_lunar_cal = time.time()
                     session.label('Moon')
-                        track_status = session.track(katpoint.Target('Moon,special'), duration=duration['bpcal'])
-                        if track_status:
-                            source_total_duration[katpoint.Target('Moon,special')] += duration['bpcal']
+                    track_status = session.track(katpoint.Target('Moon,special'), duration=duration['bpcal'])
+                    if track_status:
+                        source_total_duration[katpoint.Target('Moon,special')] += duration['bpcal']
                 # Visit source if it is not a bandpass calibrator
                 # (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
