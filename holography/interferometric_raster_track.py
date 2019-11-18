@@ -175,7 +175,7 @@ with verify_and_connect(opts) as kat:
                         break
                     target = target_list[n]
                     _go_observe(session, target, targets_observed, target_total_duration, duration)
-                n += 1 # next target
+                    n += 1 # next target
 
             if keep_going and len(targets_observed) == targets_before_loop:
                 user_logger.warning("No targets are currently visible - "
