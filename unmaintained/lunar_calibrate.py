@@ -3,7 +3,7 @@
 
 import time
 from collections import defaultdict
-
+import katpoint
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger)
 
@@ -26,14 +26,15 @@ parser.add_option('-b', '--bpcal-duration', type='float', default=300,
 parser.add_option('-i', '--bpcal-interval', type='float',
                   help='Minimum interval between bandpass calibrator visits, in seconds '
                        '(visits each source in turn by default)')
+parser.add_option('--lunar-interval', type='float',default=1800
+                  help='Minimum interval between Lunar calibrator visits, in seconds '
+                       '(default="%default")')
 parser.add_option('-g', '--gaincal-duration', type='float', default=60,
                   help='Minimum duration to track gain calibrator per visit, in seconds '
                        '(default="%default")')
 parser.add_option('-m', '--max-duration', type='float',
                   help='Maximum duration of script, in seconds '
                        '(the default is to keep observing until all sources have set)')
-# Set default value for any option (both standard and experiment-specific options)
-# parser.set_defaults(description='Imaging run', nd_params='coupler,0,0,-1', dump_rate=0.1)
 parser.set_defaults(description='Imaging run', nd_params='off')
 # Parse the command line
 opts, args = parser.parse_args()
@@ -62,6 +63,7 @@ with verify_and_connect(opts) as kat:
         start_time = time.time()
         # If bandpass interval is specified, force the first visit to be to the bandpass calibrator(s)
         time_of_last_bpcal = 0
+        time_of_last_lunar_cal = 0
         loop = True
         source_total_duration = defaultdict(float)
         
@@ -78,6 +80,12 @@ with verify_and_connect(opts) as kat:
                         
                         if track_status:
                             source_total_duration[bpcal] += duration['bpcal']
+                if time.time() - time_of_last_lunar_cal >= opts.lunar_interval:
+                    time_of_last_lunar_cal = time.time()
+                    session.label('Moon')
+                        track_status = session.track(katpoint.Target('Moon,special'), duration=duration['bpcal'])
+                        if track_status:
+                            source_total_duration[katpoint.Target('Moon,special')] += duration['bpcal']
                 # Visit source if it is not a bandpass calibrator
                 # (or bandpass calibrators are not treated specially)
                 # If there are no targets specified, assume the calibrators are the targets, else
