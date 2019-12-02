@@ -66,9 +66,7 @@ with verify_and_connect(opts) as kat:
         # the catalogue are ordered from highest to lowest priority)
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
-        session.capture_init()
-        user_logger.info("Only calling capture_start on correlator stream directly")
-        session.cbf.correlator.req.capture_start()
+        session.capture_start()
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
         session.label('un_corrected')

@@ -12,10 +12,6 @@ class NoTargetsUpError(Exception):
     """No targets are above the horizon at the start of the observation."""
 
 
-# Default F-engine gain as a function of number of channels
-DEFAULT_GAIN = {1024: 116, 4096: 70, 32768: 360}
-
-
 # Set up standard script options
 usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
 description = 'Observe a bandpass calibrator to establish some ' \
@@ -25,9 +21,8 @@ parser = standard_script_options(usage, description)
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
-parser.add_option('--fengine-gain', type='int', default=0,
-                  help='Override correlator F-engine gain (average magnitude), '
-                       'using the default gain value for the mode if 0')
+parser.add_option('--fengine-gain', type='int_or_default', default='default',
+                  help='Set correlator F-engine gain (average magnitude)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='basic_health', nd_params='off',
                     project_id='MKAIV-308', reduction_label='MKAIV-308',
@@ -49,9 +44,12 @@ nd_on = {'diode': 'coupler', 'on': opts.track_duration, 'off': 0., 'period': 0.}
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
     user_logger.info(observation_sources.visibility_list())
-    # Start capture session, which creates HDF5 file
+    # Start capture session
     with start_session(kat, **vars(opts)) as session:
-        # Quit early if there are no sources to observe or not enough antennas
+        session.standard_setup(**vars(opts))
+        # Reset F-engine to a known good state first
+        fengine_gain = session.set_fengine_gains(opts.fengine_gain)
+        # Quit if there are no sources to observe or not enough antennas for cal
         if len(session.ants) < 4:
             raise ValueError('Not enough receptors to do calibration - you '
                              'need 4 and you have %d' % (len(session.ants),))
@@ -63,23 +61,9 @@ with verify_and_connect(opts) as kat:
         # the catalogue are ordered from highest to lowest priority)
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
-        session.standard_setup(**vars(opts))
+        session.capture_start()
         # Calibration tests
         user_logger.info("Performing calibration tests")
-        if opts.fengine_gain <= 0:
-            num_channels = session.cbf.fengine.sensor.n_chans.get_value()
-            try:
-                opts.fengine_gain = DEFAULT_GAIN[num_channels]
-            except KeyError:
-                raise KeyError("No default gain available for F-engine with "
-                               "%i channels - please specify --fengine-gain"
-                               % (num_channels,))
-        user_logger.info("Resetting F-engine gains to %g to allow phasing up",
-                         opts.fengine_gain)
-        gains = {inp: opts.fengine_gain for inp in session.cbf.fengine.inputs}
-        session.set_fengine_gains(gains)
-        session.capture_init()
-        session.cbf.correlator.req.capture_start()
         session.label('calibration')
         user_logger.info("Initiating %g-second track on target '%s'",
                          opts.track_duration, target.name)
@@ -106,7 +90,7 @@ with verify_and_connect(opts) as kat:
                 orig_weights *= delay_weights  # unwrap the delays
                 amp_weights = np.abs(orig_weights)
                 phase_weights = orig_weights / amp_weights
-                new_weights[inp] = opts.fengine_gain * phase_weights.conj()
+                new_weights[inp] = fengine_gain * phase_weights.conj()
         session.set_fengine_gains(new_weights)
         if opts.verify_duration > 0:
             user_logger.info("Revisiting target %r for %g seconds to verify phase-up",
@@ -156,6 +140,4 @@ with verify_and_connect(opts) as kat:
                             scan_extent=6.0, scan_spacing=0.25,
                             scan_in_azimuth=True, projection=opts.projection)
         # reset the gains always
-        user_logger.info("Resetting F-engine gains to %g", opts.fengine_gain)
-        gains = {inp: opts.fengine_gain for inp in gains}
-        session.set_fengine_gains(gains)
+        session.set_fengine_gains(opts.fengine_gain)

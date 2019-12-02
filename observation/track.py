@@ -28,11 +28,6 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
 parser.add_option('--repeat', action="store_true", default=False,
                   help='Repeatedly loop through the targets until maximum '
                        'duration (which must be set for this)')
-parser.add_option('--reset-gain', type='int', default=None,
-                  help='Value for the reset of the correlator F-engine gain '
-                       '(default=%default)')
-parser.add_option('--fft-shift', type='int',
-                  help='Set correlator F-engine FFT shift (default=leave as is)')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track', nd_params='off')
@@ -47,25 +42,13 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
-    # Start capture session, which creates HDF5 file
+    # Start capture session
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe
         if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        # Set the gain to a single non complex number if needed
-        if opts.reset_gain is not None:
-            if not session.cbf.fengine.inputs:
-                raise RuntimeError("Failed to get correlator input labels, "
-                                   "cannot set the F-engine gains")
-            for inp in session.cbf.fengine.inputs:
-                session.cbf.fengine.req.gain(inp, opts.reset_gain)
-                user_logger.info("F-engine %s gain set to %g",
-                                 inp, opts.reset_gain)
-
         session.standard_setup(**vars(opts))
-        if opts.fft_shift is not None:
-            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.capture_start()
 
         start_time = time.time()
