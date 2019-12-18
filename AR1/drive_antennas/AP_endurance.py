@@ -96,6 +96,16 @@ def exercise_antenna(ant, taz, tel, exercise_indexer, total=1, dry_run=False):
             taz += az_offset*h_direction  # Find new coordinate based on current position
             tel += el_offset*v_direction
 
+            # If there is an active windstow then wait 5 minutes to see if it clears. If not then bail out.
+            try:
+                ant.wait('windstow-active', False, timeout=300)
+            except Exception:
+                user_logger.error("Windstow active for over 5 minutes. Abandoning the rest of the test.")
+                user_logger.info("7 deg slews: az - '%s', el - '%s' ", az_7_deg_slews, el_7_deg_slews)
+                user_logger.info("26/23 deg slews: az - '%s', el - '%s' ", az_26_deg_slews, el_23_deg_slews)
+                user_logger.info("Total degrees travelled: az - '%s', el - '%s' ", az_total_angle, el_total_angle)
+                raise
+
             # send this target to the antenna.
             target = katpoint.Target('Name, azel, %s, %s' % (taz, tel))
 
@@ -203,6 +213,12 @@ def exercise_antenna(ant, taz, tel, exercise_indexer, total=1, dry_run=False):
             if not dry_run:
                 for pos in ridx_sequence:
 
+                    # If windstow is active, break here before next ridx position and wait for
+                    # wind to subside in the az/el loop. Proxy should be able to interrupt motion
+                    # if there is an active indexer movement underway.
+                    if ant.sensor.windstow_active.get_value()
+                        break
+
                     ridx_movement_start_time = time.time()
                     user_logger.info("--- Moving RI to position: '%s' ---", pos.upper())
                     ant.req.ap_set_indexer_position(pos)
@@ -306,6 +322,7 @@ with verify_and_connect(opts) as kat:
 
     # Set sensor strategies"
     kat.ants.set_sampling_strategy("lock", "event")
+    kat.ants.set_sampling_strategy("windstow-active", "event")
     kat.ants.set_sampling_strategy("ap.indexer-position", "period 0.1")
     kat.ants.set_sampling_strategy("ap.on-target", "event")
     kat.ants.set_sampling_strategy("ap.ridx-brakes-released", "period 0.1")
