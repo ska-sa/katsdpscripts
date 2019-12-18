@@ -216,7 +216,7 @@ def exercise_antenna(ant, taz, tel, exercise_indexer, total=1, dry_run=False):
                     # If windstow is active, break here before next ridx position and wait for
                     # wind to subside in the az/el loop. Proxy should be able to interrupt motion
                     # if there is an active indexer movement underway.
-                    if ant.sensor.windstow_active.get_value()
+                    if ant.sensor.windstow_active.get_value():
                         break
 
                     ridx_movement_start_time = time.time()
