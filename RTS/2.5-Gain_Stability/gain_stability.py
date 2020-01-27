@@ -182,7 +182,7 @@ for ant_obj in h5.ants :
     gain_vv = np.array(())
     timestamps = np.array(())
     filename = args[0]
-    nice_filename =  filename.split('/')[-1]+ '_' +ant+'_gain_stability'
+    nice_filename =  filename.split('/')[-1].split('?')[0]+ '_' +ant+'_gain_stability'
     pp = PdfPages(nice_filename+'.pdf')
 
     filename = args[0]
