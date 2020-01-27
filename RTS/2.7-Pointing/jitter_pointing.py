@@ -104,7 +104,7 @@ else:
     ant_list = [opts.ant]
 
 for ant in ant_list :
-    nice_filename =  args[0].split('/')[-1]+ '_' +ant+'_jitter_test'
+    nice_filename =  args[0].split('/')[-1].split('?')[0]+ '_' +ant+'_jitter_test'
     pp = PdfPages(nice_filename+'.pdf')
 
     h5.select(scans='track',ants=ant,channels= ~rfi_static_flags)

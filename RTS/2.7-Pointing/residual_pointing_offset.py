@@ -471,7 +471,7 @@ textString.append("")
 textString.append(git_info() )
 #for line in textString: print line
 if not opts.no_plot :
-    nice_filename =  args[0].split('/')[-1]+ '_residual_pointing_offset'
+    nice_filename =  args[0].split('/')[-1].split('?')[0]+ '_residual_pointing_offset'
     if len(args) > 1 : nice_filename =  args[0].split('/')[-1]+'_Multiple_files' + '_residual_pointing_offset'
     pp = PdfPages(nice_filename+'.pdf')
 

@@ -351,7 +351,7 @@ for line in text: print(line)
 ###################################
 # Plot pointing model comparison.
 ##################################
-nice_filename =  args[0].split('/')[-1]+ '_pointing_stats'
+nice_filename =  args[0].split('/')[-1].split('?')[0]+ '_pointing_stats'
 pp = PdfPages(nice_filename+'.pdf')
 
 if opts.compare:
