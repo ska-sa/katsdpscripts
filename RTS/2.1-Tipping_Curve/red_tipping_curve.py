@@ -630,7 +630,7 @@ freq_chans = opts.freq_chans
 for ant in h5.ants:
     #Load the data file
     rec = h5.receivers[ant.name]
-    nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
+    nice_filename =  args[0].split('/')[-1].split('?')[0]  + '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
     nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
 
