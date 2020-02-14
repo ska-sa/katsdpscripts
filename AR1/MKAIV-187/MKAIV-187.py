@@ -397,7 +397,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     returntext.append("The Max  detrended variation over %s seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
     pltobj = plt.figure(figsize=[11,20])
 
-    plt.suptitle(h5.name)
+    plt.suptitle(h5.nicename)
     plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
     plt.subplot(311)
     plt.title('phases for '+pol)
@@ -424,7 +424,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     plt.xlabel('Date/Time')
 
     pltobj2 = plt.figure(figsize=[11,11])
-    plt.suptitle(h5.name)
+    plt.suptitle(h5.nicename)
     plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
     plt.subplot(111)
     plt.title('Raw phases for '+pol)
@@ -487,6 +487,7 @@ else:
 static_flags = np.logical_or(edge,rfi_static_flags)
 fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1].split('?')[0])[0])
 nice_filename =  fileprefix+ '_antenna_phase_stability_refant_'+ref_ant
+h5.nicename = args[0].split('/')[-1].split('?')[0]
 pp = PdfPages(nice_filename+'.pdf')
 
 for pol in ('h','v'):
@@ -508,7 +509,7 @@ for pol in ('h','v'):
         i += h5.shape[0]
 
     fig = plt.figure()
-    plt.suptitle(h5.name)
+    plt.suptitle(h5.nicename)
     plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
     plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
     plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')
