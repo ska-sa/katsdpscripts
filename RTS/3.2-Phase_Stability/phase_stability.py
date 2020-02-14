@@ -548,7 +548,7 @@ else:
 static_flags = np.logical_or(edge,rfi_static_flags)
 
 
-fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1])[0])
+fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1].split('?')[0])[0])
 nice_filename =  fileprefix+ '_phase_stability'
 pp = PdfPages(nice_filename+'.pdf')
 for pol in ('h','v'):
