@@ -611,7 +611,7 @@ if __name__=="__main__":
                         expected_duration=None
                         if target is None:#find high elevation target if available
                             for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override)
+                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override,max_elevation=90.)
                                 if suitable:
                                     target=overridetarget
                                     break
@@ -623,7 +623,7 @@ if __name__=="__main__":
                                     break
                         if target is None:#no override found, normal condition
                             for testtarget in targets:
-                                suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon)
+                                suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
                                 if suitable:
                                     target=testtarget
                                     break
