@@ -230,8 +230,9 @@ for ant_obj in h5.ants :
             #amp_vv = np.hstack(amp_vv.data)
 
             if True :
-                obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
-                returntext,fig = calc_stats(timestamps,gain_hh,'HH',pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int),antname=ant)
+                #obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
+                obs_details = h5.start_time.to_string() + ', ' +args[0].split('/')[-1].split('?')[0]
+		returntext,fig = calc_stats(timestamps,gain_hh,'HH',pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int),antname=ant)
                 fig.suptitle(obs_details)
                 plt.subplots_adjust(bottom=0.3)
                 plt.figtext(0.89, 0.1, git_info(), horizontalalignment='right',fontsize=10)
