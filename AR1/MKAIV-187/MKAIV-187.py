@@ -496,17 +496,18 @@ for pol in ('h','v'):
     h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
     i = 0
-    for scan in h5.scans():
-        vis = h5.vis[:]#read_and_select_file(h5, flags_file=rfi_flagging)
-        print("Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0]))
+    size = h5.shape[0]
+    while (i < size ):
+        vis = h5.vis[slice(i,i+600)]#read_and_select_file(h5, flags_file=rfi_flagging)
+        print("Read data: %i samples , frequency: %i channels , %i baselines "%(vis.shape[0],vis.shape[1],vis.shape[2]))
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
         cal_baselines = vis.mean(axis=1)
                          #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
-        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
+        data[i:i+vis.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
         print("Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],ref_ant))
-        i += h5.shape[0]
+        i += vis.shape[0]
 
     fig = plt.figure()
     plt.suptitle(h5.nicename)
