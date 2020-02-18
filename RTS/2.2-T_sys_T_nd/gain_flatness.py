@@ -32,7 +32,7 @@ else:
 h5data.select(targets=target, scans='track')
 start_time = Time(h5data.timestamps[0], format='unix')
 end_time = Time(h5data.timestamps[-1], format='unix')
-h5name = h5data.name.split('/')[-1]
+h5name = h5data.name.split('/')[-1].split('?')[0]
 output_filename = 'Gain_flatness_'+baseline+'_'+h5name
 pdf = PdfPages(output_filename+'.pdf')
 fig = plt.figure(figsize=[10,10])
