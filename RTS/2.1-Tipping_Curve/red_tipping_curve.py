@@ -632,7 +632,7 @@ for ant in h5.ants:
     rec = h5.receivers[ant.name]
     nice_filename =  args[0].split('/')[-1].split('?')[0]  + '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-    nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
+    nice_title = " %s  Ant=%s"%(args[0].split('/')[-1].split('?')[0], ant.name)
 
     # if defined us file specs, otherwise set L-band params
     if ( rec.split('.')[0] != 'undefined' ):
