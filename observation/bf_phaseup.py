@@ -114,6 +114,8 @@ parser.add_option('--reconfigure-sdp', action="store_true", default=False,
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Phase-up observation that sets F-engine gains')
+parser.add_option('--max_gap_MHz', type='float', default=64.0,
+                  help='Override max_gap_MHz (default=%default)')
 # Parse the command line
 opts, args = parser.parse_args()
 
@@ -162,7 +164,7 @@ with verify_and_connect(opts) as kat:
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
         cal_channel_freqs = session.get_cal_channel_freqs()
-        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=256e6)
+        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=opts.max_gap_MHz)
 
         if opts.random_phase:
             user_logger.warning("Setting F-engine gains with random phases "
