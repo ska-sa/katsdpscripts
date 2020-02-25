@@ -4,7 +4,7 @@
 
 import time
 
-import numpy as np
+#import numpy as np
 from katcorelib import (standard_script_options, verify_and_connect,
                         start_session, user_logger)
 
