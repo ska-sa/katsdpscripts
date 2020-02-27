@@ -24,8 +24,8 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                        'as soon as the current track finishes (no limit by default)')
 parser.add_option('--max-offset', type='float', default=1.0,
                   help='Maximum radial offset from target in degrees, the script will scan ')
-parser.add_option('--number-of-steps', type='int', default=10,
-                  help='Number of pointings to do while scanning (should be even) ')
+parser.add_option('--number-of-steps', type='int', default=6,
+                  help='Number of pointings to measure at, one on bore sight, the rest off ')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Inferometric Pointing offset track', nd_params='off')
 # Parse the command line
@@ -36,6 +36,11 @@ if len(args) == 0:
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 # Ensure that the lowest offset pointing will also be up if target is up
 opts.horizon += opts.max_extent
+
+# Set up the pointing pattern excluding bore sight
+num_off = opts.number_of_steps - 1
+offset_angles = [(opts.max_offset*np.cos(2*np.pi*N/num_off), opts.max_offset*np.sin(2*np.pi*N/num_off)) \
+                 for N in range(num_off)]
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -65,7 +70,7 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     # Check if all offset pointings in compound scan will be up
-                    compound_steps = 1 + 2 * (opts.number_of_steps // 2)
+                    compound_steps = opts.number_of_steps
                     # Add some extra time for slews between pointings
                     step_duration = opts.track_duration + 4.
                     compound_duration = compound_steps * step_duration
@@ -73,22 +78,16 @@ with verify_and_connect(opts) as kat:
                         continue
                     session.label('interferometric_pointing')
                     session.track(target, duration=opts.track_duration, announce=False)
-                    for direction in {'x', 'y'}:
-                        for offset in np.linspace(-opts.max_extent, opts.max_extent,
-                                                  opts.number_of_steps // 2):
-                            if direction == 'x':
-                                offset_target = [offset, 0.0]
-                            else:
-                                offset_target = [0.0, offset]
-                            user_logger.info("Initiating %g-second track on target '%s'",
-                                             opts.track_duration, target.name)
-                            user_logger.info("Offset of (%f, %f) degrees", *offset_target)
-                            if not kat.dry_run:
-                                session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
-                            nd_params = session.nd_params
-                            #session.fire_noise_diode(announce=True, **nd_params)
-                            target.tags = target.tags[:1]  # this is to avoid overloading the cal pipeline
-                            session.track(target, duration=opts.track_duration, announce=False)
+                    for offset_target in offset_angles:
+                        user_logger.info("Initiating %g-second track on target '%s'",
+                                         opts.track_duration, target.name)
+                        user_logger.info("Offset of (%f, %f) degrees", *offset_target)
+                        if not kat.dry_run:
+                            session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
+                        nd_params = session.nd_params
+                        #session.fire_noise_diode(announce=True, **nd_params)
+                        target.tags = target.tags[:1]  # this is to avoid overloading the cal pipeline
+                        session.track(target, duration=opts.track_duration, announce=False)
                     targets_observed.append(target.name)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                         user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
