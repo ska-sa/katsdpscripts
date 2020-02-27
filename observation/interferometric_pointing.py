@@ -64,7 +64,6 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
-                    target.tags = target.tags[:1]  # this is to avoid overloading the cal pipeline
                     # Check if all offset pointings in compound scan will be up
                     compound_steps = 1 + 2 * (opts.number_of_steps // 2)
                     # Add some extra time for slews between pointings
@@ -88,6 +87,7 @@ with verify_and_connect(opts) as kat:
                                 session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
                             nd_params = session.nd_params
                             #session.fire_noise_diode(announce=True, **nd_params)
+                            target.tags = target.tags[:1]  # this is to avoid overloading the cal pipeline
                             session.track(target, duration=opts.track_duration, announce=False)
                     targets_observed.append(target.name)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
