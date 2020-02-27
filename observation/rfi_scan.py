@@ -18,8 +18,8 @@ parser = standard_script_options(usage="%prog [options]",
 # Add experiment-specific options
 parser.add_option('-m', '--min-duration', type="float", default=None,
                   help="The The minimum time to repeat the rfi scan over (default=%default)")
-parser.add_option('--long', type="float", default=None,
-                  help="Run the long version of the scan with length (default=%default) seconds")
+parser.add_option('--scan-duration', type="float", default=180,
+                  help="The length of each of the raster scan (default=%default) seconds")
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Basic RFI Scan', no_delays=True,horizon=15.)
@@ -33,9 +33,7 @@ el_start = 15.1  # 3.1
 el_end = 27.1  # 15.1
 scan_spacing = 5.0 # 6.0
 num_scans = 3
-scan_duration = 180.
-if opts.long is not None:
-    scan_duration = float(opts.long)
+scan_duration = float(opts.scan-duration)
 scan_extent = 180.
 opts.dump_rate = 1.
 
