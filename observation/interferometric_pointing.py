@@ -22,10 +22,10 @@ parser.add_option('-t', '--track-duration', type='float', default=20.0,
 parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
-parser.add_option('--max-extent', type='float', default=1.0,
+parser.add_option('--max-offset', type='float', default=1.0,
                   help='Maximum radial offset from target in degrees, the script will scan ')
 parser.add_option('--number-of-steps', type='int', default=10,
-                  help='Number of pointings to do while scanning, the script will scan (should be even) ')
+                  help='Number of pointings to do while scanning (should be even) ')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Inferometric Pointing offset track', nd_params='off')
 # Parse the command line
