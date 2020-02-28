@@ -450,6 +450,8 @@ parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rf
 parser.add_option("-r", "--rfi-flagging", default='',
                   help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
 parser.add_option( '--ref', dest='ref_ant',  default='',help="Reference antenna, default is first antenna in the python dictionary")
+parser.add_option( "-r","--antennas",default='',
+                  help="Name of Antennas to reduce default=all")
 
 (opts, args) = parser.parse_args()
 
@@ -491,7 +493,10 @@ h5.nicename = args[0].split('/')[-1].split('?')[0]
 pp = PdfPages(nice_filename+'.pdf')
 
 for pol in ('h','v'):
-    h5.select(channels=~static_flags,pol=pol,scans='track')
+    if not opts.antennas == '' :
+        h5.select(channels=~static_flags,pol=pol,scans='track',ants=opts.antennas)
+    else: 
+        h5.select(channels=~static_flags,pol=pol,scans='track')
     h5.antlist = [a.name for a in h5.ants]
     h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
