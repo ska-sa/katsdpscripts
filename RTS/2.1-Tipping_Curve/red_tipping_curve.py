@@ -136,8 +136,8 @@ class Spill_Temp:
             #print self.spill['HH']((90.-elevation_list,freq_list))
 
         except IOError:
-            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
-            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,2000.,2000.]])
+            spillover_H = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,20000.,20000.]])
+            spillover_V = np.array([[0.,90.,0.,90.],[0.,0.,0.,0.],[1.,1.,20000.,20000.]])
             spillover_H[0]= 90-spillover_H[0]
             spillover_V[0]= 90-spillover_V[0]
             T_H = fit.Delaunay2DScatterFit()
@@ -184,8 +184,8 @@ class aperture_efficiency_models:
             a800[-1,:] = [aperture_eff_v[-1,0]+100,aperture_eff_v[-1,1]]# Extend the model by 100 MHz
             aperture_eff_v = a800
         except IOError:
-            aperture_eff_h = np.array([[1.,75.],[2000.,75.]])
-            aperture_eff_v = np.array([[1.,75.],[2000.,75.]])
+            aperture_eff_h = np.array([[1.,75.],[20000.,75.]])
+            aperture_eff_v = np.array([[1.,75.],[20000.,75.]])
             warnings.warn('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
             print('Warning: Failed to load aperture_efficiency models, setting models to 0.75 ')
         #Assume  Provided models are a function of zenith angle & frequency
@@ -225,8 +225,8 @@ class Rec_Temp:
             a800[:,1:] = receiver_v
             receiver_v = a800
         except IOError:
-            receiver_h = np.array([[1.,20.],[2000.,20.]])
-            receiver_v = np.array([[1.,20.],[2000.,20.]])
+            receiver_h = np.array([[1.,20000.],[20.,20.]])
+            receiver_v = np.array([[1.,20000.],[20.,20.]])
             warnings.warn('Warning: Failed to load Receiver models, setting models to 20 K ')
             print('Warning: Failed to load Receiver models, setting models to 20 K ')
         #Assume  Provided models are a function of zenith angle & frequency
@@ -308,7 +308,7 @@ def load_cal(filename, baseline, nd_models, freq_channel=None,channel_bw=10.0,ch
     try:
         d = scape.DataSet(filename, baseline=baseline, nd_models=nd_models,band=band_input)
     except IOError:
-        nd = scape.gaincal.NoiseDiodeModel(freq=[1,2000],temp=[20,20])
+        nd = scape.gaincal.NoiseDiodeModel(freq=[1,20000],temp=[20,20])
         warnings.warn('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         print('Warning: Failed to load/find Noise Diode Models, setting models to 20K ')
         d = scape.DataSet(filename, baseline=baseline,  nd_h_model = nd, nd_v_model=nd ,band=band_input)
@@ -487,11 +487,13 @@ def plot_data_el(Tsys,Tant,title='',units='K',line=42,aperture_efficiency=None,f
     plt.ylabel('$T_{sys}/\eta_{ap}$  (K)')
     return fig
 
-def r_lim(dataf,func=np.min):
+def r_lim(dataf,func=np.nanmin):
     """ Returns the func of the data , not used on nans"""
     dataf = np.array(dataf)
-    index = ~np.isnan(dataf)
-    return func(dataf[index,...])
+    valid = ~np.isnan(dataf)
+    if not valid.any() :
+        return np.nan
+    return func(dataf[valid,...])
 
 
 def receptor_band_limit(frequency,elevation):
@@ -575,7 +577,7 @@ parser = optparse.OptionParser(usage='%prog [options] <data file>',
                                description='This script reduces a data file to produce a tipping curve plot in a pdf file.')
 parser.add_option("-f", "--freq-chans", default=None,
                   help="Range of frequency channels to keep (zero-based, specified as 'start,end', default= %default)")
-parser.add_option("-r", "--select-freq", default='600,700,800,900,1440,1670,1840',
+parser.add_option("-r", "--select-freq", default='600,700,800,900,1440,1670,1840,2300,2500,2700,2900',
                   help="Range of averaged frequency channels to plot (comma delimated specified in MHz , default= %default)")
 parser.add_option("-e", "--select-el", default='90,15,45',
                   help="Range of elevation scans to plot (comma delimated specified in Degrees abouve the Horizon , default= %default)")
@@ -628,9 +630,9 @@ freq_chans = opts.freq_chans
 for ant in h5.ants:
     #Load the data file
     rec = h5.receivers[ant.name]
-    nice_filename =  args[0].split('/')[-1]+ '_' +ant.name+'_tipping_curve'
+    nice_filename =  args[0].split('/')[-1].split('?')[0]  + '_' +ant.name+'_tipping_curve'
     pp =PdfPages(nice_filename+'.pdf')
-    nice_title = " %s  Ant=%s"%(args[0].split('/')[-1], ant.name)
+    nice_title = " %s  Ant=%s"%(args[0].split('/')[-1].split('?')[0], ant.name)
 
     # if defined us file specs, otherwise set L-band params
     if ( rec.split('.')[0] != 'undefined' ):

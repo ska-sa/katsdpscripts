@@ -28,34 +28,29 @@ parser.add_option('--gain', default='10,5000,500',
                   help='Values of the correlator F-engine gain '
                        'in the form "start,stop,number of steps" '
                        '(default=%default)')
-
-parser.add_option('--fft-shift', type='int',
-                  help='Set correlator F-engine FFT shift (default=leave as is)')
-
+parser.add_option('--fft-shift', type='int_or_default',
+                  help='Override correlator F-engine FFT shift')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track', nd_params='coupler,30,0,-1')
 # Parse the command line
 opts, args = parser.parse_args()
 
 if len(args) == 0:
-    args.append('SCP, radec, 0, -90') 
+    args.append('SCP, radec, 0, -90')
 
-g_start,g_end,g_step =np.array(opts.gain.split(',') ).astype(float)
+g_start, g_end, g_step = np.array(opts.gain.split(',')).astype(float)
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
-    # Start capture session, which creates HDF5 file
+    # Start capture session
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe
         if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        if not kat.dry_run and not session.cbf.fengine.inputs:
-            raise RuntimeError("Failed to get correlator input labels, "
-                               "cannot set the F-engine gains")
         session.standard_setup(**vars(opts))
         if opts.fft_shift is not None:
-            session.cbf.fengine.req.fft_shift(opts.fft_shift)
+            session.set_fengine_fft_shift(opts.fft_shift)
         session.capture_start()
 
         start_time = time.time()
@@ -66,7 +61,7 @@ with verify_and_connect(opts) as kat:
             keep_going = opts.max_duration is not None
             targets_before_loop = len(targets_observed)
             # Iterate through source list, picking the next one that is up
-            for gain in np.logspace(np.log10(g_start),np.log10(g_end),g_step):
+            for gain in np.logspace(np.log10(g_start), np.log10(g_end), g_step):
                 for target in targets.iterfilter(el_limit_deg=opts.horizon):
                     # Cut the track short if time ran out
                     duration = opts.track_duration
@@ -80,11 +75,8 @@ with verify_and_connect(opts) as kat:
                             break
                         duration = min(duration, time_left)
                     # Set the gain to a single non complex number if needed
-                    session.label('track_gain,%g,%gi'%(gain.real,gain.imag))
-                    for inp in session.cbf.fengine.inputs:
-                        session.cbf.fengine.req.gain(inp, gain)
-                        user_logger.info("F-engine %s gain set to %g +%gi",
-                                         inp, gain.real,gain.imag)
+                    session.label('track_gain,%g,%gi' % (gain.real, gain.imag))
+                    session.set_fengine_gains(gain)
                     if session.track(target, duration=duration):
                         targets_observed.append(target.description)
                 if keep_going and len(targets_observed) == targets_before_loop:

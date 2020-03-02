@@ -397,7 +397,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     returntext.append("The Max  detrended variation over %s seconds of %s is: %.5f    (req < 2.3 )"%(windowtime,pol,np.degrees(dtrend_std.max())))
     pltobj = plt.figure(figsize=[11,20])
 
-    plt.suptitle(h5.name)
+    plt.suptitle(h5.nicename)
     plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
     plt.subplot(311)
     plt.title('phases for '+pol)
@@ -424,7 +424,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     plt.xlabel('Date/Time')
 
     pltobj2 = plt.figure(figsize=[11,11])
-    plt.suptitle(h5.name)
+    plt.suptitle(h5.nicename)
     plt.subplots_adjust(bottom=0.15, hspace=0.35, top=0.95)
     plt.subplot(111)
     plt.title('Raw phases for '+pol)
@@ -485,8 +485,9 @@ if len(channel_mask)>0:
 else:
     rfi_static_flags = np.tile(False, n_chan)
 static_flags = np.logical_or(edge,rfi_static_flags)
-fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1])[0])
+fileprefix = os.path.join(opts.output_dir,os.path.splitext(args[0].split('/')[-1].split('?')[0])[0])
 nice_filename =  fileprefix+ '_antenna_phase_stability_refant_'+ref_ant
+h5.nicename = args[0].split('/')[-1].split('?')[0]
 pp = PdfPages(nice_filename+'.pdf')
 
 for pol in ('h','v'):
@@ -495,20 +496,21 @@ for pol in ('h','v'):
     h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     data = np.ma.zeros((h5.shape[0],len(h5.ants)),dtype=np.complex)
     i = 0
-    for scan in h5.scans():
-        vis = h5.vis[:]#read_and_select_file(h5, flags_file=rfi_flagging)
-        print("Read data: %s:%i target:%s   (%i samples)"%(scan[1],scan[0],scan[2].name,vis.shape[0]))
+    size = h5.shape[0]
+    while (i < size ):
+        vis = h5.vis[slice(i,i+600)]#read_and_select_file(h5, flags_file=rfi_flagging)
+        print("Read data: %i samples , frequency: %i channels , %i baselines "%(vis.shape[0],vis.shape[1],vis.shape[2]))
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
         cal_baselines = vis.mean(axis=1)
                          #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
-        data[i:i+h5.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
+        data[i:i+vis.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
         print("Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],ref_ant))
-        i += h5.shape[0]
+        i += vis.shape[0]
 
     fig = plt.figure()
-    plt.suptitle(h5.name)
+    plt.suptitle(h5.nicename)
     plt.title('Phase angle in Antenna vs. Time for %s pol  '%(pol))
     plt.xticks( np.arange(len(h5.antlist)), h5.antlist ,rotation='vertical')
     plt.imshow(np.degrees(np.angle(data)),aspect='auto',interpolation='none')

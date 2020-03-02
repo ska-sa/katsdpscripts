@@ -28,8 +28,6 @@ parser.add_option('--bgain', default=[0.01, 1, 5], type='float', nargs=3,
                   help='Values of the B-engine gains. Takes 3 arguments '
                        'in the form start_value stop_value number_of_values_in_this_range '
                        '(default=%default)')
-parser.add_option('--fft-shift', type='int',
-                  help='Set correlator F-engine FFT shift (default=leave as is)')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Target track', nd_params='coupler,30,0,-1')
@@ -45,22 +43,17 @@ b_start, b_end, b_step = opts.bgain[0], opts.bgain[1], int(opts.bgain[2])
 with verify_and_connect(opts) as kat:
     cbf = SessionCBF(kat)
     targets = collect_targets(kat, args)
-    # Start capture session, which creates HDF5 file
+    # Start capture session
     with start_session(kat, **vars(opts)) as session:
         # Quit early if there are no sources to observe
         if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
                                    "please re-run the script later")
-        if not kat.dry_run and not session.cbf.fengine.inputs:
-            raise RuntimeError("Failed to get correlator input labels, "
-                               "cannot set the F-engine gains")
         # Quit early if the B-Engine quants are not setable
         for stream in cbf.beamformers:
             if not stream.req.quant_gains:
                 raise RuntimeError("Failed to set B-Engine quantisation. Quitting.")
         session.standard_setup(**vars(opts))
-        if opts.fft_shift is not None:
-            session.cbf.fengine.req.fft_shift(opts.fft_shift)
         session.capture_start()
 
         start_time = time.time()

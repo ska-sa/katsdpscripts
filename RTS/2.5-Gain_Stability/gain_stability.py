@@ -182,7 +182,7 @@ for ant_obj in h5.ants :
     gain_vv = np.array(())
     timestamps = np.array(())
     filename = args[0]
-    nice_filename =  filename.split('/')[-1]+ '_' +ant+'_gain_stability'
+    nice_filename =  filename.split('/')[-1].split('?')[0]+ '_' +ant+'_gain_stability'
     pp = PdfPages(nice_filename+'.pdf')
 
     filename = args[0]
@@ -230,7 +230,8 @@ for ant_obj in h5.ants :
             #amp_vv = np.hstack(amp_vv.data)
 
             if True :
-                obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
+                #obs_details = h5.start_time.to_string() + ', ' +h5.name.split('/')[-1]
+                obs_details = h5.start_time.to_string() + ', ' +args[0].split('/')[-1].split('?')[0]
                 returntext,fig = calc_stats(timestamps,gain_hh,'HH',pandas.offsets.Second(1200),minsamples=np.floor(1200/h5.dump_period*0.9).astype(int),antname=ant)
                 fig.suptitle(obs_details)
                 plt.subplots_adjust(bottom=0.3)

@@ -373,7 +373,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
 #note due to the azimuth branch cut moved to -135 degrees, it gives 45 degrees (center to extreme) azimuth range before hitting limits either side
 #for a given 10 degree (5 degree center to extreme) scan, this limits maximum elevation of a target to np.arccos(5./45)*180./np.pi=83.62 degrees before experiencing unachievable azimuth values within a scan arm in the worst case scenario
 #note scan arms are unwrapped based on current target azimuth position, so may choose new branch cut for next scan arm, possibly corrupting current cycle.
-def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0,clip_safety_margin=1.0,min_elevation=15.):
+def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0,clip_safety_margin=1.0,min_elevation=15.,max_elevation=90.):
     num_points = np.shape(az_arm)[0]
     az_arm = az_arm*np.pi/180.0
     el_arm = el_arm*np.pi/180.0
@@ -397,7 +397,7 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
     eldata=scanel*180.0/np.pi
     scan_data[:,0] = attime
     scan_data[:,1] = np.clip(np.nan_to_num(azdata),-180.0+clip_safety_margin,270.0-clip_safety_margin)
-    scan_data[:,2] = np.clip(np.nan_to_num(eldata),min_elevation+clip_safety_margin,90.0-clip_safety_margin)
+    scan_data[:,2] = np.clip(np.nan_to_num(eldata),min_elevation+clip_safety_margin,max_elevation-clip_safety_margin)
     clipping_occurred=(np.sum(azdata==scan_data[:,1])+np.sum(eldata==scan_data[:,2])!=len(eldata)*2)
     return scan_data,clipping_occurred
 
@@ -410,7 +410,7 @@ def gen_track(attime,target):
     track_data[:,2] = targetel_rad*180.0/np.pi
     return track_data
 
-def test_target_azel_limits(target,clip_safety_margin,min_elevation):
+def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevation):
     now=time.time()
     targetazel=gen_track([now],target)[0][1:]
     slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentel-targetazel[1])])+1.0#antenna can slew at 2 degrees per sec in azimuth and 1 degree per sec in elev
@@ -424,7 +424,7 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation):
         cx=ncompositex
         cy=ncompositey
     for iarm in range(len(cx)):#spiral arm index
-        scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation)
+        scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
         starttime=scan_data[-1,0]
         if clipping_occurred:
             return False, rising, starttime-now
@@ -470,15 +470,13 @@ if __name__=="__main__":
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
     parser.add_option('--target-elevation-override', type='float', default=90.0,
-                      help='Honour preferred target order except if lower ranking target exceeds this elevation limit (default=%default)')
+                      help='Honour preferred target order except if lower ranking target exceeds this elevation limit (default=%default). Use this feature to capture high elevation targets when available.')
+    parser.add_option('--target-low-elevation-override', type='float', default=0.0,
+                      help='Honour preferred target order except if lower ranking target below this elevation limit (default=%default). Use this feature to capture low elevation targets when available.')
     parser.add_option('--prepopulatetime', type='float', default=10.0,
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--mirrorx', action="store_true", default=False,
                       help='Mirrors x coordinates of pattern (default=%default)')
-    parser.add_option('--fft-shift', type='int', default=None,
-                      help='Set CBF fft shift (default=%default)')
-    parser.add_option('--default-gain', type='float', default=None,
-                      help='Set CBF gain (default=%default)')
     parser.add_option('--auto-delay', type='string', default=None,
                       help='Set CBF auto-delay on or off (default=%default)')
     parser.add_option('--debugtrack', action="store_true", default=False,
@@ -535,18 +533,10 @@ if __name__=="__main__":
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
                                  "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
-            # Initialise a capturing session (which typically opens an HDF5 file)
+            # Initialise a capturing session
             with start_session(kat, **vars(opts)) as session:
                 # Use the command-line options to set up the system
                 session.standard_setup(**vars(opts))
-                #set up CBF if necessary
-                if opts.fft_shift is not None:
-                    user_logger.info("Setting CBF fft-shift to %d", opts.fft_shift)
-                    session.cbf.fengine.req.fft_shift(opts.fft_shift)
-                if opts.default_gain is not None:
-                    user_logger.info("Setting CBF gains to %f", opts.default_gain)
-                    for inp in session.cbf.fengine.inputs:
-                        session.cbf.fengine.req.gain(inp, opts.default_gain)
                 #determine scan antennas
                 all_ants = session.ants
                 session.obs_params['num_scans'] = len(compositex)
@@ -619,14 +609,21 @@ if __name__=="__main__":
                         target=None
                         rising=False
                         expected_duration=None
-                        for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                            suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override)
-                            if suitable:
-                                target=overridetarget
-                                break
-                        if target is None:#no override found
+                        if target is None:#find high elevation target if available
+                            for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
+                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override,max_elevation=90.)
+                                if suitable:
+                                    target=overridetarget
+                                    break
+                        if target is None:#find low elevation target if available
+                            for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
+                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=opts.target_low_elevation_override)
+                                if suitable:
+                                    target=overridetarget
+                                    break
+                        if target is None:#no override found, normal condition
                             for testtarget in targets:
-                                suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon)
+                                suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
                                 if suitable:
                                     target=testtarget
                                     break
