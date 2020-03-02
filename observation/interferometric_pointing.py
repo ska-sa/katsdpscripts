@@ -23,9 +23,9 @@ parser.add_option('-m', '--max-duration', type='float', default=None,
                   help='Maximum duration of the script in seconds, after which script will end '
                        'as soon as the current track finishes (no limit by default)')
 parser.add_option('--max-offset', type='float', default=1.0,
-                  help='Maximum radial offset from target in degrees, the script will scan ')
-parser.add_option('--number-of-steps', type='int', default=6,
-                  help='Number of pointings to measure at, one on bore sight, the rest off ')
+                  help='Maximum radial offset of pointings from target in degrees (default=%default)')
+parser.add_option('--number-of-steps', type='int', default=5,
+                  help='Number of pointings to measure at, one on bore sight, the rest off (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Inferometric Pointing offset track', nd_params='off')
 # Parse the command line
@@ -39,8 +39,8 @@ opts.horizon += opts.max_extent
 
 # Set up the pointing pattern excluding bore sight
 num_off = opts.number_of_steps - 1
-offset_angles = [(opts.max_offset*np.cos(2*np.pi*N/num_off), opts.max_offset*np.sin(2*np.pi*N/num_off)) \
-                 for N in range(num_off)]
+angles = 2 * np.pi * np.arange(num_off) / num_off
+offsets = opts.max_offset * np.c_[np.cos(angles), np.sin(angles)]
 
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
@@ -70,15 +70,14 @@ with verify_and_connect(opts) as kat:
                 # Iterate through source list, picking the next one that is up
                 for target in observation_sources.iterfilter(el_limit_deg=opts.horizon):
                     # Check if all offset pointings in compound scan will be up
-                    compound_steps = opts.number_of_steps
                     # Add some extra time for slews between pointings
                     step_duration = opts.track_duration + 4.
-                    compound_duration = compound_steps * step_duration
+                    compound_duration = opts.number_of_steps * step_duration
                     if not session.target_visible(target, duration=compound_duration):
                         continue
                     session.label('interferometric_pointing')
                     session.track(target, duration=opts.track_duration, announce=False)
-                    for offset_target in offset_angles:
+                    for offset_target in offsets:
                         user_logger.info("Initiating %g-second track on target '%s'",
                                          opts.track_duration, target.name)
                         user_logger.info("Offset of (%f, %f) degrees", *offset_target)
