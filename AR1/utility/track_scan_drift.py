@@ -70,6 +70,7 @@ with verify_and_connect(opts) as kat:
             start_time = time.time()
             target =observation_sources.filter(el_limit_deg=[opts.horizon, opts.max_elevation]).targets[0]
 
+            session.track(target, duration=0) # Start tracking the target, so that it's stable during ND cycle
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)
 
@@ -112,5 +113,6 @@ with verify_and_connect(opts) as kat:
                 session.track(target, duration=opts.track_duration)
             time.sleep(10)
 
+            session.track(target, duration=0) # Start tracking the target, so that it's stable during ND cycle
             session.label('noise diode')
             session.fire_noise_diode('coupler', on=10, off=10)
