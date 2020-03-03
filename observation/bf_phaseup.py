@@ -7,7 +7,7 @@ import numpy as np
 import scipy.ndimage
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
-                                SessionSDP)
+                                SessionSDP, CalSolutionsUnavailable)
 
 
 class NoTargetsUpError(Exception):
@@ -159,22 +159,29 @@ with verify_and_connect(opts) as kat:
         # Attempt to jiggle cal pipeline to drop its gain solutions
         session.stop_antennas()
         user_logger.info("Waiting for gains to materialise in cal pipeline")
+        hv_gains = {}
+        hv_delays = {}
         # Wait for the last relevant bfcal product from the pipeline
-        hv_gains = session.get_cal_solutions('BCROSS_DIODE',
-                                             timeout=60 + opts.track_duration)
-        hv_delays = session.get_cal_solutions('KCROSS_DIODE')
+        try:
+            hv_gains = session.get_cal_solutions('BCROSS_DIODE_SKY',
+                                                 timeout=60 + opts.track_duration)
+        except CalSolutionsUnavailable as err:
+            user_logger.warning("No BCROSS_DIODE_SKY solutions found - "
+                                "not correcting HV phase: %s", err)
+        else:
+            hv_delays = session.get_cal_solutions('KCROSS_DIODE')
         gains = session.get_cal_solutions('G')
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
         # Add HV delay to the usual delay
         for inp in sorted(delays):
-            delays[inp] += hv_delays[inp]
+            delays[inp] += hv_delays.get(inp, 0.0)
             if np.isnan(delays[inp]):
                 user_logger.warning("Delay fit failed on input %s (all its "
                                     "data probably flagged)", inp)
         # Add HV phase to bandpass phase
         for inp in bp_gains:
-            bp_gains[inp] *= hv_gains[inp]
+            bp_gains[inp] *= hv_gains.get(inp, 1.0)
         cal_channel_freqs = session.get_cal_channel_freqs()
         bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
 
