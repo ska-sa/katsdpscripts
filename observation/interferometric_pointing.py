@@ -35,7 +35,7 @@ if len(args) == 0:
     raise ValueError("Please specify at least one target argument via name ('Cygnus A'), "
                      "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
 # Ensure that the lowest offset pointing will also be up if target is up
-opts.horizon += opts.max_extent
+opts.horizon += opts.max_offset
 
 # Set up the pointing pattern excluding bore sight
 num_off = opts.number_of_steps - 1
