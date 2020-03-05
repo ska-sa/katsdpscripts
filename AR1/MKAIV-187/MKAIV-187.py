@@ -450,7 +450,7 @@ parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rf
 parser.add_option("-r", "--rfi-flagging", default='',
                   help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
 parser.add_option( '--ref', dest='ref_ant',  default='',help="Reference antenna, default is first antenna in the python dictionary")
-parser.add_option( "-r","--antennas",default='',
+parser.add_option( "-a","--antennas",default='',
                   help="Name of Antennas to reduce default=all")
 
 (opts, args) = parser.parse_args()
@@ -462,6 +462,8 @@ if len(args) ==0:
 output_dir = '.'
 
 h5 = katdal.open(args[0])
+if not opts.antennas == '' :
+    h5.select(ants=opts.antennas)
 if opts.ref_ant == '':
     ref_ant = h5.ants[0].name
 else :
