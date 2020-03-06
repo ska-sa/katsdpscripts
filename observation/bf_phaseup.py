@@ -164,7 +164,7 @@ with verify_and_connect(opts) as kat:
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
         cal_channel_freqs = session.get_cal_channel_freqs()
-        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=opts.max_gap_MHz)
+        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=opts.max_gap_MHz*1e6)
 
         if opts.random_phase:
             user_logger.warning("Setting F-engine gains with random phases "
