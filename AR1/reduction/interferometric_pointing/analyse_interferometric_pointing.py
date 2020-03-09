@@ -39,12 +39,15 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
     stdv = {}
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
-    a = []
-    if len(h5.target_indices ) > 1 :
-        print("Warning multiple targets in the compscan")
-    for scan in h5.scans() :
-        a.append(h5.target_indices[0])
-    target = h5.catalogue.targets[np.median(a).astype(np.int)] # Majority Track
+    # Combine target indices if they refer to the same target for the purpose of this analysis
+    TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
+    def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
+        tgt = tgt.description.split(",")
+        return (tgt[0] == TGT[0]) and (tgt[2] == TGT[2]) and (tgt[3] == TGT[3])
+    target_indices = [TI for TI in h5.target_indices if _eq_TGT_(h5.catalogue.targets[TI])]
+    if len(h5.target_indices) > len(target_indices):
+        print("Warning multiple targets in the compscan, using %s instead of %s"%(target_indices,h5.target_indices))
+    target = h5.catalogue.targets[h5.target_indices[0]]
     compscan_index = h5.compscan_indices[0]
     #h5.select(targets=target,compscans=h5.compscan_indices[0]) # Majority Track in compscan
     if not return_raw:     # Calculate average target flux over entire band
@@ -95,7 +98,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=target,compscans=compscan_index)
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=[h5.catalogue.targets[TI] for TI in target_indices],compscans=compscan_index)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
@@ -310,7 +313,7 @@ for compscan_index  in h5.compscan_indices :
         for antname in offset_data:
             f[antname].write(output_fields % offset_data[antname])
             f[antname].flush() # Because I like to see stuff in the file
-      
+    
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
     f[name].close()
