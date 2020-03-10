@@ -44,8 +44,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     if len(h5.target_indices) > len(target_indices):
         print("Warning multiple targets in the compscan, using %s instead of %s"%(target_indices,h5.target_indices))
     target = h5.catalogue.targets[h5.target_indices[0]]
-    compscan_index = h5.compscan_indices[0]
-    #h5.select(targets=target,compscans=h5.compscan_indices[0]) # Majority Track in compscan
+    
     if not return_raw:     # Calculate average target flux over entire band
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
@@ -150,8 +149,8 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         for ant in range(len(h5.ants)):
-            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['HH'],:,ant])
-            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['VV'],:,ant])
+            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(gaussian_centre_std[pol_ind['HH'],:,ant])
+            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(gaussian_centre_std[pol_ind['VV'],:,ant])
             valid_solutions = np.count_nonzero(h_pol & v_pol) # Note this is twice the number of solutions because of the Az & El parts
             print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
             if debug :#debug_text
@@ -213,16 +212,16 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                 ant_pointing[name]["delta_azimuth_std"] =0.0#calc
                 for pol in pol_ind:
                     ant_pointing[name]["beam_height_%s"%(pol)]     = w_average(gaussian_height[pol_ind[pol],ant],axis=0,weights=1./gaussian_height_std[pol_ind[pol],ant]**2)
-                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(1./gaussian_height_std[pol_ind[pol],ant]**2) )
+                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(gaussian_height_std[pol_ind[pol],ant]**2) )
                     ant_pointing[name]["beam_width_%s"%(pol)]      = w_average(gaussian_width[pol_ind[pol],:,ant],axis=0,weights=1./gaussian_width_std[pol_ind[pol],:,ant]**2).mean() 
-                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(1./gaussian_width_std[pol_ind[pol],:,ant]**2) )
+                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(gaussian_width_std[pol_ind[pol],:,ant]**2) )
                     ant_pointing[name]["baseline_height_%s"%(pol)] = 0.0
                     ant_pointing[name]["baseline_height_%s_std"%(pol)] = 0.0
                     ant_pointing[name]["refined_%s"%(pol)] =  5.0  # I don't know what this means 
                     ant_pointing[name]["azimuth_%s"%(pol)]       =w_average(gaussian_centre[pol_ind[pol],0,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],0,ant]**2)
                     ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian_centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],1,ant]**2)
-                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],0,ant]**2) )
-                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],1,ant]**2) )
+                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],0,ant]**2) )
+                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],1,ant]**2) )
             else:
                 print("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
         if debug :#debug_text
