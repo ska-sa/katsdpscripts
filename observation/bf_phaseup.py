@@ -111,11 +111,12 @@ parser.add_option('--random-phase', action='store_true', default=False,
                   help='Apply random phases in F-engine (incoherent beamformer)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
+parser.add_option('--max-gap-MHz', type='float', default=64.0,
+                  help='The maximum gap in the bandpass gain that will still be interpolated across, in MHz'
+                  '(default = %default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Phase-up observation that sets F-engine gains')
-parser.add_option('--max_gap_MHz', type='float', default=64.0,
-                  help='Override max_gap_MHz (default=%default)')
 # Parse the command line
 opts, args = parser.parse_args()
 
