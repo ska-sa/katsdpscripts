@@ -67,16 +67,17 @@ with verify_and_connect(opts) as kat:
         target = sources_above_horizon.targets[0]
         target.add_tags('bfcal single_accumulation')
         session.capture_start()
+        session.label('un_corrected')
         user_logger.info("Initiating %g-second track on target %r",
                          opts.track_duration, target.description)
-        session.label('un_corrected')
         # Get onto the source
-        session.track(target, duration=0)
+        session.track(target, duration=0, announce=False)
         # Fire noise diode during track
         session.fire_noise_diode(on=opts.track_duration, off=0)
         # Attempt to jiggle cal pipeline to drop its delay solutions
         session.stop_antennas()
         user_logger.info("Waiting for delays to materialise in cal pipeline")
+        # Wait for the last relevant bfcal product from the pipeline
         hv_delays = session.get_cal_solutions('KCROSS_DIODE', timeout=300.)
         delays = session.get_cal_solutions('K')
         # Add HV delay to total delay
@@ -85,11 +86,11 @@ with verify_and_connect(opts) as kat:
         # The main course
         session.adjust_fengine_delays(delays)
         if opts.verify_duration > 0:
+            session.label('corrected')
             user_logger.info("Revisiting target %r for %g seconds "
                              "to see if delays are fixed",
                              target.name, opts.verify_duration)
-            session.label('corrected')
-            session.track(target, duration=0)
+            session.track(target, duration=0, announce=False)
             session.fire_noise_diode(on=opts.verify_duration, off=0)
         if opts.reset_delays:
             session.adjust_fengine_delays(0)
