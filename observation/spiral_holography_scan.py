@@ -177,7 +177,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         armx=narmrad*np.cos(narmtheta)
         army=narmrad*np.sin(narmtheta)
     elif (kind=='raster' or kind=='rasterx' or kind=='rastery'):
-        if (slewtime<radextent*4.):
+        if (slewtime<radextent):
             user_logger.info("Warning: adjusting slewtime from %g to %g because value unrealistic for this scan pattern", slewtime, radextent)
             slewtime=radextent#antenna can slew at 1 degrees per second in elevation
         narms=num_scans
