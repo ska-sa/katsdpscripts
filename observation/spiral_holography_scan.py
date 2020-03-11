@@ -266,8 +266,11 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         return compositex,compositey,compositex,compositey,0
     elif (kind=='radial'):
         c=180.0/(16.0*np.pi)
-        narms=2*int(1.5*(np.sqrt(tottime/c+((tracktime+slewtime)/c)**2)-(tracktime+slewtime)/c))#ensures even number of arms - then scan pattern ends on target (if odd it will not)
-        print 'narms',narms
+        if num_scans is not None:
+            narms=num_scans
+        else:
+            narms=2*int(1.5*(np.sqrt(tottime/c+((tracktime+slewtime)/c)**2)-(tracktime+slewtime)/c))#ensures even number of arms - then scan pattern ends on target (if odd it will not)
+            print 'narms',narms
         ntime=int((tottime-(tracktime+slewtime)*narms)/(sampletime*narms))
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
