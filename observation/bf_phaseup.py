@@ -109,6 +109,8 @@ parser.add_option('--flatten-bandpass', action='store_true', default=False,
                   help='Apply bandpass magnitude correction on top of phase correction')
 parser.add_option('--random-phase', action='store_true', default=False,
                   help='Apply random phases in F-engine (incoherent beamformer)')
+parser.add_option('--disable-hv-correction', action='store_true', default=False,
+                  help='Do not correct HV phase (but still fire the noise diode)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
@@ -161,16 +163,20 @@ with verify_and_connect(opts) as kat:
         user_logger.info("Waiting for gains to materialise in cal pipeline")
         hv_gains = {}
         hv_delays = {}
+        timeout = 60 + opts.track_duration
         # Wait for the last relevant bfcal product from the pipeline
-        try:
-            hv_gains = session.get_cal_solutions('BCROSS_DIODE_SKY',
-                                                 timeout=60 + opts.track_duration)
-        except CalSolutionsUnavailable as err:
-            user_logger.warning("No BCROSS_DIODE_SKY solutions found - "
-                                "not correcting HV phase: %s", err)
+        if opts.disable_hv_correction:
+            user_logger.warning('HV phase correction disabled by script option')
         else:
+            try:
+                hv_gains = session.get_cal_solutions('BCROSS_DIODE_SKY', timeout)
+            except CalSolutionsUnavailable as err:
+                user_logger.warning("No BCROSS_DIODE_SKY solutions found - "
+                                    "falling back to BCROSS_DIODE only: %s", err)
+                hv_gains = session.get_cal_solutions('BCROSS_DIODE')
             hv_delays = session.get_cal_solutions('KCROSS_DIODE')
-        gains = session.get_cal_solutions('G')
+            timeout = 0.0
+        gains = session.get_cal_solutions('G', timeout)
         bp_gains = session.get_cal_solutions('B')
         delays = session.get_cal_solutions('K')
         # Add HV delay to the usual delay
