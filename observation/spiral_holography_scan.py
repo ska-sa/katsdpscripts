@@ -204,10 +204,12 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         nextraslew=len(slew)
         fullscanx=np.r_[np.zeros(int(tracktime/sampletime)),-slew,scan,slew[::-1],np.zeros(int(tracktime/sampletime))]
         fullscany=np.r_[np.zeros(int(tracktime/sampletime)),slew/radextent,np.ones(len(scan)),slew[::-1]/radextent,np.zeros(int(tracktime/sampletime))]
+        fullisslew=np.r_[np.repeat(0,int(tracktime/sampletime)),np.repeat(1,len(slew)),np.repeat(0,len(scan)),np.repeat(1,len(slew)),np.repeat(0,int(tracktime/sampletime))]
         compositex=[[] for ia in range(narms)]
         compositey=[[] for ia in range(narms)]
         ncompositex=[[] for ia in range(narms)]
         ncompositey=[[] for ia in range(narms)]
+        isslew=[fullisslew for ia in range(narms)]
         if (kind=='rastery'):
             for ia,y in enumerate(np.linspace(-radextent,radextent,num_scans)):
                 compositey[ia]=fullscanx
@@ -220,7 +222,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
                 compositey[ia]=-fullscany*y#when target is rising do top first, doing rasterx pattern. For rastery pattern it has no advantage
                 ncompositex[ia]=fullscanx
                 ncompositey[ia]=fullscany*y
-        return compositex,compositey,ncompositex,ncompositey,nextraslew
+        return compositex,compositey,ncompositex,ncompositey,isslew,nextraslew
     elif (kind=='polish'):
         nextraslew=0
         nleaves=int(tottime/(40.*np.sqrt(spacetime)+2*tracktime))
@@ -234,6 +236,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         compositey=[]
         ncompositex=[]
         ncompositey=[]
+        isslew=[]
         for theta in np.linspace(-np.pi/2,-np.pi/2+2.*np.pi,nleaves,endpoint=False):
             for i,itheta in enumerate(np.linspace(0,2.*np.pi/nleaves,len(t))):
                 ix[i]=x[i]*np.cos(itheta)+(y[i])*np.sin(itheta)
@@ -244,12 +247,14 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             compositey.append(np.r_[np.repeat(0.0,nextrazeros),yy,np.repeat(0.0,nextrazeros)])
             ncompositex.append(np.r_[np.repeat(0.0,nextrazeros),xx,np.repeat(0.0,nextrazeros)])
             ncompositey.append(np.r_[np.repeat(0.0,nextrazeros),-yy,np.repeat(0.0,nextrazeros)])
-        return compositex,compositey,ncompositex,ncompositey,nextraslew
+            isslew.append(np.r_[np.repeat(0,nextrazeros),np.repeat(0,len(yy)),np.repeat(0,nextrazeros)])
+        return compositex,compositey,ncompositex,ncompositey,isslew,nextraslew
     elif (kind=='circle'):
         ncircles=int(tottime/(40.*np.sqrt(spacetime)+tracktime))
         ntime=(tottime/np.float(ncircles)-tracktime)/sampletime #time per circle
         compositex=[]
         compositey=[]
+        isslew=[]
         r0=np.linspace(0,2,int(ntime/2))#for 1/r
         #r0=(r0**2)/4.#for 1/r2
         #r0=np.sqrt(r0)*np.sqrt(2.-1e-9)#for uniform
@@ -263,7 +268,8 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             ny=x*np.sin(th*np.pi/180.)+y*np.cos(th*np.pi/180.)
             compositex.append(nx*totextent)
             compositey.append(ny*totextent)
-        return compositex,compositey,compositex,compositey,0
+            isslew.append(np.r_[np.repeat(0,nextrazeros),np.repeat(0,len(yy)),np.repeat(0,nextrazeros)])
+        return compositex,compositey,compositex,compositey,isslew,0
     elif (kind=='radial'):
         c=180.0/(16.0*np.pi)
         if num_scans is not None:
@@ -324,6 +330,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
     compositey=[[] for ia in range(narms)]
     ncompositex=[[] for ia in range(narms)]
     ncompositey=[[] for ia in range(narms)]
+    isslew=[[] for ia in range(narms)]
     reverse=False
     for ia in range(narms):
         rot=-ia*np.pi*2.0/narms
@@ -365,12 +372,16 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             nintery=ncompositey[ia][-1]+(ncompositey[ia+1][0]-ncompositey[ia][-1])*inter
             ncompositey[ia]=np.r_[ncompositey[ia],nintery[1:1+nextraslew]]
             ncompositey[ia+1]=np.r_[nintery[1+nextraslew:-1],ncompositey[ia+1]]
+            isslew[ia]=np.r_[np.repeat(0,len(nx)),np.repeat(1,len(nintery[1:1+nextraslew]))]
+            isslew[ia+1]=np.r_[np.repeat(1,len(nintery[1:1+nextraslew])),np.repeat(0,len(nx))]
+    else:
+        isslew=[[np.repeat(0,len(nx))] for ia in range(narms)]
     if (mirrorx):
         for ia in range(narms):
             compositex[ia]=-compositex[ia]
             ncompositex[ia]=-ncompositex[ia]
 
-    return compositex,compositey,ncompositex,ncompositey,nextraslew
+    return compositex,compositey,ncompositex,ncompositey,isslew,nextraslew
 
 #high_elevation_slowdown_factor: normal speed up to 60degrees elevation slowed down linearly by said factor at 90 degrees elevation
 #note due to the azimuth branch cut moved to -135 degrees, it gives 45 degrees (center to extreme) azimuth range before hitting limits either side
@@ -490,7 +501,7 @@ if __name__=="__main__":
     # Parse the command line
     opts, args = parser.parse_args()
 
-    compositex,compositey,ncompositex,ncompositey,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration,polish_factor=opts.polish_factor)
+    compositex,compositey,ncompositex,ncompositey,isslew,nextraslew=generatespiral(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slewtime=opts.slewtime,slowtime=opts.slowtime,sampletime=opts.sampletime,spacetime=opts.spacetime,kind=opts.kind,mirrorx=opts.mirrorx,num_scans=opts.num_scans,scan_duration=opts.scan_duration,polish_factor=opts.polish_factor)
     if testmode:
         plt.figure()
         x=[]
