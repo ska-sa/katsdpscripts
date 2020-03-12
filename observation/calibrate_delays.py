@@ -34,7 +34,8 @@ parser.add_option('--fft-shift', type='int_or_default', default='default',
 parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards (i.e. check only)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
-                  help='Reconfigure SDP subsystem at the start to clear crashed containers')
+                  help='Reconfigure SDP subsystem at the start to clear '
+                       'crashed containers or to load a new version of SDP')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Delay calibration observation that adjusts delays')
@@ -51,7 +52,7 @@ with verify_and_connect(opts) as kat:
     if opts.reconfigure_sdp:
         user_logger.info("Reconfiguring SDP subsystem")
         sdp = SessionSDP(kat)
-        sdp.req.product_reconfigure()
+        sdp.req.product_reconfigure(timeout=300)  # Same timeout as in SDP proxy
     observation_sources = collect_targets(kat, args)
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
