@@ -8,7 +8,7 @@
 #
 
 from katcorelib.observe import (standard_script_options, verify_and_connect,
-                                collect_targets, start_session, user_logger)
+                                collect_targets, start_session, user_logger, SessionSDP)
 
 
 class NoTargetsUpError(Exception):
@@ -33,6 +33,8 @@ parser.add_option('--fft-shift', type='int_or_default', default='default',
                   help='Set correlator F-engine FFT shift')
 parser.add_option('--reset-delays', action='store_true', default=False,
                   help='Zero the delay adjustments afterwards (i.e. check only)')
+parser.add_option('--reconfigure-sdp', action="store_true", default=False,
+                  help='Reconfigure SDP subsystem at the start to clear crashed containers')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Delay calibration observation that adjusts delays')
@@ -46,6 +48,10 @@ if len(args) == 0:
 
 # Check options and build KAT configuration, connecting to proxies and clients
 with verify_and_connect(opts) as kat:
+    if opts.reconfigure_sdp:
+        user_logger.info("Reconfiguring SDP subsystem")
+        sdp = SessionSDP(kat)
+        sdp.req.product_reconfigure()
     observation_sources = collect_targets(kat, args)
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
