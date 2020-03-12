@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Track target(s) for a specified time.
+# Observe target(s) for a specified time at a sequence of offsets that are suitable for deriving antenna pointing offsets.
 
 import time
 
@@ -14,7 +14,8 @@ class NoTargetsUpError(Exception):
 
 # Set up standard script options
 parser = standard_script_options(usage="%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]",
-                                 description='Track one or more sources for a specified time. At least one '
+                                 description='Observe one or more targets for a specified time at a sequence of offsets '
+                                             'that are suitable for deriving antenna pointing offsets. At least one '
                                              'target must be specified. Note also some **required** options below.')
 # Add experiment-specific options
 parser.add_option('-t', '--track-duration', type='float', default=20.0,
@@ -76,17 +77,15 @@ with verify_and_connect(opts) as kat:
                     if not session.target_visible(target, duration=compound_duration):
                         continue
                     session.label('interferometric_pointing')
+                    session.ants.req.offset_fixed(0, 0, opts.projection) # In case it's the same target as previous cycle
                     session.track(target, duration=opts.track_duration, announce=False)
+                    target.tags = target.tags[:1] # this is to avoid overloading the cal pipeline
+                    session.track(target, duration=0, announce=False) # Offsets are relative to THIS target (altered in previous line)
                     for offset_target in offsets:
-                        user_logger.info("Initiating %g-second track on target '%s'",
-                                         opts.track_duration, target.name)
                         user_logger.info("Offset of (%f, %f) degrees", *offset_target)
                         if not kat.dry_run:
                             session.ants.req.offset_fixed(offset_target[0], offset_target[1], opts.projection)
-                        nd_params = session.nd_params
-                        #session.fire_noise_diode(announce=True, **nd_params)
-                        target.tags = target.tags[:1]  # this is to avoid overloading the cal pipeline
-                        session.track(target, duration=opts.track_duration, announce=False)
+                        session.track(target, duration=opts.track_duration, announce=True)
                     targets_observed.append(target.name)
                     if opts.max_duration is not None and (time.time() - start_time >= opts.max_duration):
                         user_logger.warning("Maximum duration of %g seconds has elapsed - stopping script",
