@@ -113,6 +113,9 @@ parser.add_option('--disable-hv-correction', action='store_true', default=False,
                   help='Do not correct HV phase (but still fire the noise diode)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
+parser.add_option('--max-gap-MHz', type='float', default=64.0,
+                  help='The maximum gap in the bandpass gain that will still be interpolated across, in MHz'
+                  '(default = %default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Phase-up observation that sets F-engine gains')
@@ -189,7 +192,7 @@ with verify_and_connect(opts) as kat:
         for inp in bp_gains:
             bp_gains[inp] *= hv_gains.get(inp, 1.0)
         cal_channel_freqs = session.get_cal_channel_freqs()
-        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=64e6)
+        bp_gains = clean_bandpass(bp_gains, cal_channel_freqs, max_gap_Hz=opts.max_gap_MHz*1e6)
 
         if opts.random_phase:
             user_logger.warning("Setting F-engine gains with random phases "
