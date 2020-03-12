@@ -373,7 +373,7 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             ncompositey[ia]=np.r_[ncompositey[ia],nintery[1:1+nextraslew]]
             ncompositey[ia+1]=np.r_[nintery[1+nextraslew:-1],ncompositey[ia+1]]
             isslew[ia]=np.r_[np.repeat(0,len(nx)),np.repeat(1,len(nintery[1:1+nextraslew]))]
-            isslew[ia+1]=np.r_[np.repeat(1,len(nintery[1:1+nextraslew])),np.repeat(0,len(nx))]
+            isslew[ia+1]=np.r_[np.repeat(1,len(nintery[1+nextraslew:-1])),np.repeat(0,len(nx))]
     else:
         isslew=[[np.repeat(0,len(nx))] for ia in range(narms)]
     if (mirrorx):
