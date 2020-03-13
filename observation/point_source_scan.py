@@ -91,36 +91,35 @@ with verify_and_connect(opts) as kat:
                 targets_before_loop = len(targets_observed)
                 # Iterate through source list, picking the next one that is up
                 for target in pointing_sources.iterfilter(el_limit_deg=opts.horizon):
-                    session.label('raster')
-                    user_logger.info("Doing scan of '%s' with current azel (%s, %s)",
-                                     target.description, *target.azel())
                     # Do different raster scan on strong and weak targets
                     if not opts.quick and not opts.fine:
                         if opts.source_strength == 'strong' or \
-                           (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
-                            session.raster_scan(target, num_scans=5, scan_duration=30, scan_extent=6.0,
-                                                scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
+                                (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
+                            raster_params = dict(num_scans=5, scan_duration=30, scan_extent=6.0, scan_spacing=0.25)
                         else:
-                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=4.0,
-                                                scan_spacing=0.25, scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
+                            raster_params = dict(num_scans=5, scan_duration=60, scan_extent=4.0, scan_spacing=0.25)
                     else:  # The branch for Quick and Fine scans
                         if opts.quick:
-                            session.raster_scan(target, num_scans=3, scan_duration=15, scan_extent=5.0,
-                                                scan_spacing=0.5, scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
+                            raster_params = dict(num_scans=3, scan_duration=15, scan_extent=5.0, scan_spacing=0.5)
                         elif opts.fine:
-                            session.raster_scan(target, num_scans=5, scan_duration=60, scan_extent=1.0,
-                                                scan_spacing=4. / 60., scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
+                            raster_params = dict(num_scans=5, scan_duration=60, scan_extent=1.0, scan_spacing=4/60.)
                         else:  # if opts.search_fine:
-                            session.raster_scan(target, num_scans=9, scan_duration=60, scan_extent=2.0,
-                                                scan_spacing=5. / 60., scan_in_azimuth=not opts.scan_in_elevation,
-                                                projection=opts.projection)
-
+                            raster_params = dict(num_scans=9, scan_duration=60, scan_extent=2.0, scan_spacing=5/60.)
+                    
+                    # Confirm that the target will be "up" for the entire duration.
+                    raster_duration = raster_params["num_scans"] * (raster_params["scan_duration"] + 2) # Extra for slew
+                    if not session.target_visible(target, duration=raster_duration):
+                        continue
+                    
+                    # Perform raster scan on this target
+                    session.label('raster')
+                    user_logger.info("Doing scan of '%s' with current azel (%s, %s)",
+                                     target.description, *target.azel())
+                    session.raster_scan(target, projection=opts.projection, scan_in_azimuth=not opts.scan_in_elevation,
+                                        **raster_params)
                     targets_observed.append(target.name)
                     skip_file.write(target.description + "\n")
+                    
                     # The default is to do only one iteration through source list
                     if opts.min_time <= 0.0:
                         keep_going = False
@@ -128,6 +127,7 @@ with verify_and_connect(opts) as kat:
                     elif time.time() - start_time >= opts.min_time:
                         keep_going = False
                         break
+                
                 if keep_going and len(targets_observed) == targets_before_loop:
                     user_logger.warning("No targets are currently visible - "
                                         "stopping script instead of hanging around")
