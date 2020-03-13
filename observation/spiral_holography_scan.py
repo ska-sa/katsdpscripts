@@ -66,6 +66,32 @@ def spiral(params,indep):
     y=r*np.sin(2.0*np.pi*r*twistfactor)
     return np.sqrt((x-x0)**2+(y-y0)**2)
 
+#velocity vector changes smoothly from vstart to vend from start to end in length and orientation as fn of time
+#note also need to be able to do z shape when necessary
+#can add extra acceleration with zero extra velocity at start and end
+# v=v0*(t-t0)/(t1-t0)+v1*(1.-(t-t0)/(t1-t0))+K*((t-t0)/(t1-t0))*((t-t0)/(t1-t0)-1.)
+# then find best K and dt while integrating to reach end from start
+#x0,y0 is first start point
+#x1,y1 is second start point (and approxequals nx[0],ny[0] too)
+#inbetween is interpolated points
+#x2,y2 is first end point (and approx equals nx[-2],ny[-2])
+#x3,y3 is second end point (and approx equals nx[-1],ny[-1])
+def bezierpath(params,indep):
+    Kx,Ky=params
+    x0,y0,x1,y1,x2,y2,x3,y3=indep
+    n=6+2+2*np.sqrt((x1-x2)**2+(y1-y2)**2)/(np.sqrt((x1-x0)**2+(y1-y0)**2)+np.sqrt((x3-x2)**2+(y3-y2)**2))
+    t=np.linspace(0,1,int(abs(n)))
+    vx=(x1-x0)*(1.-t)+(x3-x2)*(t)+Kx*t*(t-1.)
+    vy=(y1-y0)*(1.-t)+(y3-y2)*(t)+Ky*t*(t-1.)
+    nx=np.cumsum(vx)+x0
+    ny=np.cumsum(vy)+y0
+    return nx,ny
+
+def bezierpathcost(params,indep):
+    x0,y0,x1,y1,x2,y2,x3,y3=indep
+    nx,ny=bezierpath(params,indep)
+    return [(nx[0]-x1),(ny[0]-y1),(nx[-2]-x2),(ny[-2]-y2),(nx[-1]-x3),(ny[-1]-y3)]
+
 def SplitArray(x,y,doplot=False):
     #groups antennas into two groups that ensures that shortest possible baselines are used for long baseline antennas
     dist=np.zeros(len(x))
