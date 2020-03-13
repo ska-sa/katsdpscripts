@@ -60,9 +60,10 @@ def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
 def spiral(params,indep):
     x0=indep[0]
     y0=indep[1]
+    twistfactor=indep[2]
     r=params[0]
-    x=r*np.cos(2.0*np.pi*r)
-    y=r*np.sin(2.0*np.pi*r)
+    x=r*np.cos(2.0*np.pi*r*twistfactor)
+    y=r*np.sin(2.0*np.pi*r*twistfactor)
     return np.sqrt((x-x0)**2+(y-y0)**2)
 
 def SplitArray(x,y,doplot=False):
@@ -310,19 +311,21 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         else:
             dt=1.0/ntime*np.ones(ntime)
         lastr=0.0
+        twistfactor=1.
         for it in range(1,ntime):
             data=np.array([dt[it-1]])
-            indep=np.array([armx[it-1],army[it-1]])#last calculated coordinate in arm, is x0,y0
+            indep=np.array([armx[it-1],army[it-1],twistfactor])#last calculated coordinate in arm, is x0,y0
             initialparams=np.array([lastr+dt[it-1]]);
             fitter=NonLinearLeastSquaresFit(spiral,initialparams)
             fitter.fit(indep,data)
             lastr=fitter.params[0];
-            armx[it]=lastr*np.cos(2.0*np.pi*lastr)
-            army[it]=lastr*np.sin(2.0*np.pi*lastr)
+            armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactor)
+            army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactor)
 
         maxrad=np.sqrt(armx[it]**2+army[it]**2)
         armx=armx*radextent/maxrad
         army=army*radextent/maxrad
+
     # ndist=sqrt((armx[:-1]-armx[1:])**2+(army[:-1]-army[1:])**2)
     # print ndist
 
