@@ -223,7 +223,10 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             sdt=sdt/np.sum(sdt)
         else:
             dt=1.0/ntime*np.ones(ntime)
-            sdt=1.0/(slewtime/sampletime)*np.ones(int(slewtime/sampletime))
+            if slewtime>0:
+                sdt=1.0/(slewtime/sampletime)*np.ones(int(slewtime/sampletime))
+            else:
+                sdt=np.zeros(int(slewtime/sampletime))
         scan=np.cumsum(dt)
         scan=((scan-scan[0])/(scan[-1]-scan[0])-0.5)*radextent*2
         slew=np.cumsum(sdt)
