@@ -229,9 +229,12 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
                 sdt=np.zeros(int(slewtime/sampletime))
         scan=np.cumsum(dt)
         scan=((scan-scan[0])/(scan[-1]-scan[0])-0.5)*radextent*2
-        slew=np.cumsum(sdt)
-        slew=((slew-slew[0])/(slew[-1]-slew[0]))*radextent
-        nextraslew=len(slew)
+        if slewtime>0:
+            slew=np.cumsum(sdt)
+            slew=((slew-slew[0])/(slew[-1]-slew[0]))*radextent
+            nextraslew=len(slew)
+        else:
+            slew=np.array([])
         fullscanx=np.r_[np.zeros(int(tracktime/sampletime)),-slew,scan,slew[::-1],np.zeros(int(tracktime/sampletime))]
         fullscany=np.r_[np.zeros(int(tracktime/sampletime)),slew/radextent,np.ones(len(scan)),slew[::-1]/radextent,np.zeros(int(tracktime/sampletime))]
         fullisslew=np.r_[np.repeat(0,int(tracktime/sampletime)),np.repeat(1,len(slew)),np.repeat(0,len(scan)),np.repeat(1,len(slew)),np.repeat(0,int(tracktime/sampletime))]
