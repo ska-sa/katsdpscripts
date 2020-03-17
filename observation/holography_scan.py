@@ -1,34 +1,12 @@
 #!/usr/bin/env python
-# Perform spiral/radial/raster holography scan on specified target(s). Used for beam pattern measurement. Uses bezier path interpolation to moderate slew behavior.
-# This supercedes spiral_holography_scan.py, which is kept in case old style patterns needs to be generated.
+# holography_scan.py supercedes spiral_holography_scan.py, which is kept in case old style patterns needs to be generated.
+# Perform spiral/radial/raster holography scan on specified target(s). Used for beam pattern measurements. 
+# Uses bezier path interpolation to moderate slew behavior.
 # email: mattieu@ska.ac.za
-#
-# to run on simulator:
-# ssh kat@monctl.comm
-# kat-start.sh (may need to call kat-stop.sh, or better kat-kill.py, and possibly kill all screen sessions on kat@monctl.comm, and possibly kat@proxy.monctl.comm)
-# ipython
-# import katuilib
-# configure()
-# %run ~/scripts/observation/spiral_holography_scan.py -f 1722 -a ant1,ant2,ant3,ant4,ant5,ant6,ant7 -b ant2,ant3 --num-cycles 1 --cycle-duration 120 -l 12 'AFRISTAR' -o mattieu --sb-id-code='20121030-0003'
-# look on http://kat-flap.control.kat.ac.za/kat/KatGUI.swf and connect to 'comm'
-#
-#using schedule blocks
-#help on schedule blocks: https://sites.google.com/a/ska.ac.za/intranet/teams/operators/kat-7-nominal-procedures/frequent-tasks/control-tasks/observation
-#to view progress: http://192.168.193.8:8081/tailtask/<sb_id_code>/progress
-#to view signal displays remotely safari goto "vnc://kat@right-paw.control.kat.ac.za"
-#
-#ssh kat@kat-ops.karoo
-#ipython
-#import katuilib
-#configure_obs()
-#obs.sb.new_clone('20121203-0013')
-#obs.sb.instruction_set="run-obs-script ~/scripts/observation/spiral_holography_scan.py -f 1722 -b ant5 --scan-extent 6 --cycle-duration 6000 --num-cycles 1 --kind 'uniform' '3C 286' --stow-when-done"
-#look on http://kat-flap.control.kat.ac.za/kat/KatGUI.swf and connect to 'karoo from site'
 
 import time
 
 import katpoint
-# Import script helper functions from observe.py
 try:
     from katcorelib import (standard_script_options, verify_and_connect,collect_targets, start_session, user_logger, ant_array)
     testmode=False
