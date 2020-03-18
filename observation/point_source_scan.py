@@ -81,6 +81,9 @@ with verify_and_connect(opts) as kat:
             session.standard_setup(**vars(opts))
             session.capture_start()
 
+            nd_duration = session.nd_params['on'] + session.nd_params['off']
+            nd_duration = nd_duration if session.nd_params['period'] >= 0 else 0.
+
             start_time = time.time()
             targets_observed = []
             # Keep going until the time is up
@@ -107,7 +110,9 @@ with verify_and_connect(opts) as kat:
                             raster_params = dict(num_scans=9, scan_duration=60, scan_extent=2.0, scan_spacing=5/60.)
                     
                     # Confirm that the target will be "up" for the entire duration.
-                    raster_duration = raster_params["num_scans"] * (raster_params["scan_duration"] + 2) # Extra for slew
+                    nd_time = nd_duration * raster_params["scan_duration"] / max(session.nd_params['period'],
+                                                                                 raster_params["scan_duration"])
+                    raster_duration = raster_params["num_scans"] * (raster_params["scan_duration"]+nd_time+2) # Extra for slew
                     if not session.target_visible(target, duration=raster_duration):
                         continue
                     
