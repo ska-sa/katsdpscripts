@@ -406,8 +406,8 @@ if __name__=="__main__":
                       help='spiral twist factor (0 for straight radial, 1 standard spiral) (default=%default)')
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
-    parser.add_option('--target-elevation-preference', type='string', default='',
-                      help='Choose target that has the closest elevation to a value in this list (default=%default). Use string of comma separated elevation values. The target that has an average elevation closest to one of these values will be selected.')
+    parser.add_option('--elevation-histogram', type='string', default='',
+                      help='A string of 15 comma separated count values representing a histogram in 5 degree intervals from 15 to 90 degrees elevation of known measurements (default=%default). A preferred target making the biggest impact to flatten the histogram will be selected.')
     parser.add_option('--prepopulatetime', type='float', default=10.0,
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--auto-delay', type='string', default=None,
@@ -539,7 +539,7 @@ if __name__=="__main__":
 
                 lasttime = time.time()
                 cycle=0
-                target_elevation_preferences=[float(val) for val in opts.target_elevation_preference.split(',') if val.replace('.','',1).isdigit()]#empty list means it will not check
+                elevation_histogram=[int(val) for val in opts.elevation_histogram.split(',') if val.replace('.','',1).isdigit()]# could be length 0, default
                 while cycle<opts.num_cycles or opts.num_cycles<0:
                     if opts.num_cycles<0:
                         user_logger.info("Performing scan cycle %d of unlimited", cycle + 1)
@@ -556,19 +556,21 @@ if __name__=="__main__":
                             currentel[iant]=ant.sensor.pos_actual_scan_elev.get_value()
                         #choose target
                         target=None
-                        target_meanelev=0
                         rising=False
                         expected_duration=None
-                        target_elevation_closeness=1e10
+                        target_elevation_cost=1e10
+                        target_meanelev=0
+                        target_histindex=0
                         for testtarget in targets:
                             suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
                             if suitable:
-                                if len(target_elevation_preferences):
-                                    for testelev in target_elevation_preferences:
-                                        if target_elevation_closeness>np.abs(meanelev-testelev):#find target that is closest to one of the preferred elevation options
-                                            target=testtarget
-                                            target_meanelev=meanelev
-                                            target_elevation_closeness=np.abs(meanelev-testelev)
+                                if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
+                                    histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
+                                    if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
+                                        target=testtarget
+                                        target_meanelev=meanelev
+                                        target_histindex=histindex
+                                        target_elevation_cost=elevation_histogram[histindex]
                                 else:
                                     target=testtarget
                                     target_meanelev=meanelev
@@ -579,7 +581,6 @@ if __name__=="__main__":
                         else:
                             user_logger.info("Using target '%s' (mean elevation %.1f degrees)",target.name,target_meanelev)
                             user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+expected_duration+time.timezone),expected_duration/60.)
-                
                         session.set_target(target)
                         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
                         targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
@@ -635,6 +636,8 @@ if __name__=="__main__":
                         time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                         session.ants = all_ants
+                        if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
+                            elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
                         if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
                             user_logger.info("Testing only one group for dry-run")

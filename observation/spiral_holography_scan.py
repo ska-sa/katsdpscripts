@@ -492,10 +492,8 @@ if __name__=="__main__":
                       help='factor by which to slow down nominal scanning close to boresight for polish scan pattern (default=%default)')
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
-    parser.add_option('--target-elevation-override', type='float', default=90.0,
-                      help='Honour preferred target order except if lower ranking target exceeds this elevation limit (default=%default). Use this feature to capture high elevation targets when available.')
-    parser.add_option('--target-low-elevation-override', type='float', default=0.0,
-                      help='Honour preferred target order except if lower ranking target below this elevation limit (default=%default). Use this feature to capture low elevation targets when available.')
+    parser.add_option('--elevation-histogram', type='string', default='',
+                      help='A string of 15 comma separated count values representing a histogram in 5 degree intervals from 15 to 90 degrees elevation of known measurements (default=%default). A preferred target making the biggest impact to flatten the histogram will be selected.')
     parser.add_option('--prepopulatetime', type='float', default=10.0,
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--mirrorx', action="store_true", default=False,
@@ -614,6 +612,7 @@ if __name__=="__main__":
 
                 lasttime = time.time()
                 cycle=0
+                elevation_histogram=[int(val) for val in opts.elevation_histogram.split(',') if val.replace('.','',1).isdigit()]# could be length 0, default
                 while cycle<opts.num_cycles or opts.num_cycles<0:
                     if opts.num_cycles<0:
                         user_logger.info("Performing scan cycle %d of unlimited", cycle + 1)
@@ -632,29 +631,28 @@ if __name__=="__main__":
                         target=None
                         rising=False
                         expected_duration=None
-                        if target is None:#find high elevation target if available
-                            for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override,max_elevation=90.)
-                                if suitable:
-                                    target=overridetarget
-                                    break
-                        if target is None:#find low elevation target if available
-                            for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=opts.target_low_elevation_override)
-                                if suitable:
-                                    target=overridetarget
-                                    break
-                        if target is None:#no override found, normal condition
-                            for testtarget in targets:
-                                suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
-                                if suitable:
+                        target_elevation_cost=1e10
+                        target_meanelev=0
+                        target_histindex=0
+                        for testtarget in targets:
+                            suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
+                            if suitable:
+                                if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
+                                    histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
+                                    if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
+                                        target=testtarget
+                                        target_meanelev=meanelev
+                                        target_histindex=histindex
+                                        target_elevation_cost=elevation_histogram[histindex]
+                                else:
                                     target=testtarget
+                                    target_meanelev=meanelev
                                     break
                         if target is None:
                             user_logger.info("Quitting because none of the preferred targets are up")
                             break
                         else:
-                            user_logger.info("Using target '%s'",target.name)
+                            user_logger.info("Using target '%s' (mean elevation %.1f degrees)",target.name,target_meanelev)
                             user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+expected_duration+time.timezone),expected_duration/60.)
                 
                         session.set_target(target)
@@ -734,6 +732,8 @@ if __name__=="__main__":
                         time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                         session.ants = all_ants
+                        if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
+                            elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
                         if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
                             user_logger.info("Testing only one group for dry-run")
