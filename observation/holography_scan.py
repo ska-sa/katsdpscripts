@@ -301,9 +301,86 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             compositey.append(tmpx if kind=='rastery' else tmpy)
             compositeslew.append(tmpslew)
             flatx.extend(tmpy if kind=='rastery' else tmpx)
-            flaty.extend(tmpx if kind=='rastery' else tmpy)        
+            flaty.extend(tmpx if kind=='rastery' else tmpy)
             flatslew.extend(tmpslew)
-                    
+    elif kind=='rasterdisc':#disc footprint
+        inarmx=np.arange(-radextent,radextent+1e-10,scanspeed*sampletime)
+        outarmx=inarmx[::-1]
+        meancycletime=(np.pi/2.)/2.*len(outarmx)*sampletime#mean horizontal scan length when clipped to disc 'interruptable' per scan, not scan pair
+        perimetertime=np.pi*radextent/(scanspeed)#time to scan around perimeter (is done during slew in sections)
+        avgslewtime=2*radextent/scanspeed#double time for in and out required
+        narms=int((tottime-perimetertime*(trackinterval-1)/trackinterval-tracktime)/(meancycletime+tracktime/trackinterval+avgslewtime/trackinterval))
+        if narms%2==0:#only allows odd number of scans for raster
+            narms-=1
+        
+        compositex=[]
+        compositey=[]
+        compositeslew=[]
+        flatx=[]
+        flaty=[]
+        flatslew=[]
+        for arm in range(narms):
+            y = ((narms-1.)/2.-arm)/float(narms)*totextent#note dividing here by narms instead of narms-1 so that half spacing away from maximum at top and bottom
+            thisarmx=outarmx[:]
+            thisarmy=np.ones(len(thisarmx))*y
+            valid=np.nonzero(np.sqrt(thisarmx**2+thisarmy**2)<=radextent)[0]
+            thisarmx=thisarmx[valid]
+            thisarmy=thisarmy[valid]
+            if (arm%2):#alternates direction with every scan
+                thisarmx=thisarmx[::-1]
+            if (arm%trackinterval==0):
+                lastarmx=np.zeros(2)
+                lastarmy=np.zeros(2)
+            else:
+                lasty = ((narms-1.)/2.-(arm-1))/float(narms)*totextent
+                lastarmx=outarmx[:]
+                lastarmy=np.ones(len(outarmx))*lasty
+                valid=np.nonzero(np.sqrt(lastarmx**2+lastarmy**2)<=radextent)[0]
+                lastarmx=lastarmx[valid]
+                lastarmy=lastarmy[valid]
+                if (arm-1)%2:
+                    lastarmx=lastarmx[::-1]
+            
+            if ((arm+1)%trackinterval==0) or arm==narms-1:
+                nextarmx=np.zeros(2)
+                nextarmy=np.zeros(2)
+            else:
+                nexty = ((narms-1.)/2.-(arm+1))/float(narms)*totextent
+                nextarmx=outarmx[:]
+                nextarmy=np.ones(len(outarmx))*nexty
+                valid=np.nonzero(np.sqrt(nextarmx**2+nextarmy**2)<=radextent)[0]
+                nextarmx=nextarmx[valid]
+                nextarmy=nextarmy[valid]
+                if (arm+1)%2:
+                    nextarmx=nextarmx[::-1]
+            nslew=np.sqrt((lastarmx[-1]-thisarmx[0])**2+(lastarmy[-1]-thisarmy[0])**2)/(slewspeed*sampletime)
+            indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            outslewx,outslewy=nx[1:-2],ny[1:-2]
+
+            nslew=np.sqrt((thisarmx[-1]-nextarmx[0])**2+(thisarmy[-1]-nextarmy[0])**2)/(slewspeed*sampletime)
+            indep=[thisarmx[-2],thisarmy[-2],thisarmx[-1],thisarmy[-1],nextarmx[0],nextarmy[0],nextarmx[1],nextarmy[1],nslew+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            inslewx,inslewy=nx[1:-2],ny[1:-2]
+
+            tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            
+
+            compositex.append(tmpy if kind=='rastery' else tmpx)
+            compositey.append(tmpx if kind=='rastery' else tmpy)
+            compositeslew.append(tmpslew)
+            flatx.extend(tmpy if kind=='rastery' else tmpx)
+            flaty.extend(tmpx if kind=='rastery' else tmpy)
+            flatslew.extend(tmpslew)
+
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
 #high_elevation_slowdown_factor: normal speed up to 60degrees elevation slowed down linearly by said factor at 90 degrees elevation
@@ -388,7 +465,7 @@ if __name__=="__main__":
                       help='Diameter of beam pattern to measure, in degrees (default=%default)')
     parser.add_option('--kind', type='string', default='spiral',
                       help='Kind could be "spiral", "radial", "raster", "rastery" (default=%default)')
-    parser.add_option('--tracktime', type='float', default=5,
+    parser.add_option('--tracktime', type='float', default=10,
                       help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
     parser.add_option('--trackinterval', type='int', default=1,
                       help='track target for tracktime every this many scans (default=%default)')
@@ -437,6 +514,7 @@ if __name__=="__main__":
             plt.plot(compositex[iarm][slewindex],compositey[iarm][slewindex],'.k',ms=1)
         plt.ylim([-opts.scan_extent/2,opts.scan_extent/2])
         plt.axis('equal')
+        plt.title('%s scans: %d total time: %.1fs slew: %.1fs'%(opts.kind,len(compositex),len(sl)*opts.sampletime,np.sum(sl)*opts.sampletime))
         slewindex=np.nonzero(sl)[0]
         plt.figure()
         plt.subplot(3,1,1)
