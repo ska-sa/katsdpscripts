@@ -561,8 +561,8 @@ if __name__=="__main__":
                         #choose target
                         target=None
                         rising=False
-                        expected_duration=None
                         target_elevation_cost=1e10
+                        target_expected_duration=0
                         target_meanelev=0
                         target_histindex=0
                         targetinfotext=[]
@@ -574,11 +574,13 @@ if __name__=="__main__":
                                     histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
                                     if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
                                         target=testtarget
+                                        target_expected_duration=expected_duration
                                         target_meanelev=meanelev
                                         target_histindex=histindex
                                         target_elevation_cost=elevation_histogram[histindex]
                                 else:
                                     target=testtarget
+                                    target_expected_duration=expected_duration
                                     target_meanelev=meanelev
                                     break
                         user_logger.info("Targets considered: %s"%(', '.join(targetinfotext)))
@@ -587,7 +589,7 @@ if __name__=="__main__":
                             break
                         else:
                             user_logger.info("Using target '%s' (mean elevation %.1f degrees)",target.name,target_meanelev)
-                            user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+expected_duration+time.timezone),expected_duration/60.)
+                            user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+target_expected_duration+time.timezone),target_expected_duration/60.)
                         session.set_target(target)
                         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
                         targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
