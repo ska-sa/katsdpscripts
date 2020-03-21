@@ -539,7 +539,7 @@ if __name__=="__main__":
 
                 lasttime = time.time()
                 cycle=0
-                elevation_histogram=[int(val) for val in opts.elevation_histogram.split(',') if val.replace('.','',1).isdigit()]# could be length 0, default
+                elevation_histogram=[int(val) for val in opts.elevation_histogram.split(',')] if len(opts.elevation_histogram) else []# could be length 0, default
                 if len(elevation_histogram)==15:
                     user_logger.info("Using elevation_histogram: %s",opts.elevation_histogram)
                 elif len(elevation_histogram)>0:
