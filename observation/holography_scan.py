@@ -561,8 +561,10 @@ if __name__=="__main__":
                         target_elevation_cost=1e10
                         target_meanelev=0
                         target_histindex=0
+                        targetinfotext=[]
                         for testtarget in targets:
                             suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
+                            targetinfotext.append('%s (elev %.1f)'%(testtarget.name,meanelev))
                             if suitable:
                                 if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                                     histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
@@ -575,6 +577,7 @@ if __name__=="__main__":
                                     target=testtarget
                                     target_meanelev=meanelev
                                     break
+                        user_logger.info("Targets considered: %s"%(', '.join(targetinfotext)))
                         if target is None:
                             user_logger.info("Quitting because none of the preferred targets are up")
                             break
