@@ -568,7 +568,7 @@ if __name__=="__main__":
                         targetinfotext=[]
                         for testtarget in targets:
                             suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
-                            targetinfotext.append('%s (elev %.1f)'%(testtarget.name,meanelev))
+                            targetinfotext.append('%s (elev %.1f%s)'%(testtarget.name,meanelev,'' if suitable else ', unsuitable'))
                             if suitable:
                                 if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                                     histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
