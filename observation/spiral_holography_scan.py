@@ -615,6 +615,8 @@ if __name__=="__main__":
                 lasttime = time.time()
                 cycle=0
                 elevation_histogram=[int(val) for val in opts.elevation_histogram.split(',') if val.replace('.','',1).isdigit()]# could be length 0, default
+                if len(elevation_histogram)>0 and len(elevation_histogram)!=15:
+                    user_logger.warning("Supplied elevation_histogram length is %d but must be either 0 (i.e. ignore) or 15")                    
                 while cycle<opts.num_cycles or opts.num_cycles<0:
                     if opts.num_cycles<0:
                         user_logger.info("Performing scan cycle %d of unlimited", cycle + 1)
