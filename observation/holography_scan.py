@@ -241,7 +241,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         mincycletime=len(outarmx)*sampletime#'interruptable' per scan, not scan pair
         perimetertime=2*totextent/scanspeed
         avgslewtime=2*np.sqrt(radextent**2+(radextent/2)**2)/scanspeed#double time for in and out required
-        narms=int((tottime-perimetertime-tracktime)/(mincycletime+tracktime/trackinterval+avgslewtime/trackinterval))
+        narms=int((tottime-perimetertime*(trackinterval-1)/trackinterval-tracktime)/(mincycletime+tracktime/trackinterval+avgslewtime/trackinterval))
         if narms%2==0:#only allows odd number of scans for raster
             narms-=1
         
