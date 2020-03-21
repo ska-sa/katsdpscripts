@@ -446,12 +446,14 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
     else:  #target is setting - scan bottom half of pattern first
         cx=ncompositex
         cy=ncompositey
+    meanelev=np.zeros(len(cx))
     for iarm in range(len(cx)):#spiral arm index
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
+        meanelev[iarm]=np.mean(scan_data[:,2])
         starttime=scan_data[-1,0]
         if clipping_occurred:
-            return False, rising, starttime-now
-    return True, rising, starttime-now
+            return False, rising, starttime-now, meanelev[iarm]
+    return True, rising, starttime-now, np.mean(meanelev)
 
 if __name__=="__main__":
     # Set up standard script options
