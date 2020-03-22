@@ -198,12 +198,12 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         outarmx=armx[:it]*np.cos(theta)+army[:it]*np.sin(theta)
         outarmy=army[:it]*np.cos(theta)-armx[:it]*np.sin(theta)
 
-        mincycletime=len(outarmx)*sampletime*2#'interruptable' per scanpair, not per scan
-        #maxnarms=int((tottime)/(mincycletime))#if no time spent on slews nor tracktime
+        minscantime=len(outarmx)*sampletime*2#'interruptable' per scanpair, not per scan
+        #maxnarms=int((tottime)/(minscantime))#if no time spent on slews nor tracktime
         #solve for maxnarms if no time spent on slews; tracktime every trackinterval arm including after last one
-        #maxnarms=int((float(tottime)-float(tracktime)*(float(maxnarms)/float(trackinterval)+1.))/float(mincycletime))
+        #maxnarms=int((float(tottime)-float(tracktime)*(float(maxnarms)/float(trackinterval)+1.))/float(minscantime))
         perimetertime=2*np.pi*radextent/(scanspeed)#time to scan around perimeter (is done during slew in sections)
-        narms=int((tottime-perimetertime-tracktime)/(mincycletime+tracktime/(trackinterval)))#if no time spent on slews
+        narms=int((tottime-perimetertime-tracktime)/(minscantime+tracktime/(trackinterval)))#if no time spent on slews
         nslew=int(perimetertime/(narms*sampletime))
 
         theta=np.pi/narms
@@ -238,10 +238,10 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
     elif kind=='raster' or kind=='rasterx' or kind=='rastery':
         inarmx=np.arange(-radextent,radextent+1e-10,scanspeed*sampletime)
         outarmx=inarmx[::-1]
-        mincycletime=len(outarmx)*sampletime#'interruptable' per scan, not scan pair
+        meanscantime=len(outarmx)*sampletime#'interruptable' per scan, not scan pair
         perimetertime=2*totextent/scanspeed
         avgslewtime=2*np.sqrt(radextent**2+(radextent/2)**2)/scanspeed#double time for in and out required
-        narms=int((tottime-perimetertime*(trackinterval-1)/trackinterval-tracktime)/(mincycletime+tracktime/trackinterval+avgslewtime/trackinterval))
+        narms=int((tottime-perimetertime*(trackinterval-1)/trackinterval-tracktime)/(meanscantime+tracktime/trackinterval+avgslewtime/trackinterval))
         if narms%2==0:#only allows odd number of scans for raster
             narms-=1
         
@@ -306,10 +306,11 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
     elif kind=='rasterdisc':#disc footprint
         inarmx=np.arange(-radextent,radextent+1e-10,scanspeed*sampletime)
         outarmx=inarmx[::-1]
-        meancycletime=(np.pi/2.)/2.*len(outarmx)*sampletime#mean horizontal scan length when clipped to disc 'interruptable' per scan, not scan pair
+        meanscanlen=(np.pi/2.)/2.*len(outarmx)#mean horizontal scan length when clipped to disc 'interruptable' per scan, not scan pair
+        meanscantime=meanscanlen*sampletime
         perimetertime=np.pi*radextent/(scanspeed)#time to scan around perimeter (is done during slew in sections)
         avgslewtime=2*radextent/scanspeed#double time for in and out required
-        narms=int((tottime-perimetertime*(trackinterval-1)/trackinterval-tracktime)/(meancycletime+tracktime/trackinterval+avgslewtime/trackinterval))
+        narms=int((tottime-perimetertime*(trackinterval-1)/trackinterval-tracktime)/(meanscantime+tracktime/trackinterval+avgslewtime/trackinterval))
         if narms%2==0:#only allows odd number of scans for raster
             narms-=1
         
