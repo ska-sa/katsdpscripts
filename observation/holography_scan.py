@@ -547,15 +547,34 @@ if __name__=="__main__":
         plt.title('Acceleration profile')
         plt.show()
     else:
-        if len(args) == 0:
-            args=['3C 273','PKS 1934-63','3C 279','PKS 0408-65','PKS 0023-26','J0825-5010','PKS J1924-2914','Hyd A']
-
-        if 'J0825-5010' in args:#not in catalogue
-            args[args.index('J0825-5010')]='J0825-5010,radec, 08:25:26.869, -50:10:38.4877'
+        if len(args)==0 or args[0]=='lbandtargets':#lband targets, in order of brightness
+            args=['3C 273','PKS 0408-65','PKS 1934-63','Hyd A','3C 279','PKS 0023-26','J0825-5010','PKS J1924-2914']
+        elif args[0]=='sbandtargets':#sband targets, in order of brightness
+            args=['3C 454.3','PKS 0723-008','3C 279','PKS 2134+004','PKS 1421-490']
+        #useful targets might not exist in catalogue
+        ensure_cat={'3C 273':'J1229+0203 | *3C 273 | PKS 1226+02,radec, 12:29:06.70,  +02:03:08.6',
+        'PKS 1934-63':'J1939-6342 | *PKS 1934-63,radec, 19:39:25.03,  -63:42:45.7',
+        '3C 279':'J1256-0547 | *3C 279 | PKS 1253-05,radec, 12:56:11.17,  -05:47:21.5',
+        'PKS 0408-65':'J0408-6545 | *PKS 0408-65,radec, 04:08:20.38,  -65:45:09.1',
+        'PKS 0023-26':'J0025-2602 | *PKS 0023-26 | OB-238,radec, 00:25:49.16,  -26:02:12.6',
+        'J0825-5010':'J0825-5010,radec, 08:25:26.869, -50:10:38.4877',
+        'PKS J1924-2914':'J1924-2914 | *PKS J1924-2914,radec, 19:24:51.06,  -29:14:30.1',
+        'Hyd A':'J0918-1205 | *Hyd A | Hydra A | 3C 218 | PKS 0915-11, radec, 09:18:05.28,  -12:05:48.9',
+        '3C 454.3':'J2253+1608 | 3C 454.3 | PKS 2251+158, radec, 22:53:57.75, 16:08:53.6',
+        'PKS 0723-008':'J0725-0055 | PKS 0723-008, radec, 07:25:50.64, -00:54:56.5',
+        'PKS 2134+004':'J2136+0041 | PKS 2134+004, radec, 21:36:38.59, 00:41:54.2',
+        'PKS 1421-490':'J1424-4913 | PKS 1421-490, radec, 14:24:32.24, -49:13:49.7'}
 
         # Check basic command-line options and obtain a kat object connected to the appropriate system
         with verify_and_connect(opts) as kat:
             catalogue = collect_targets(kat, args)
+            targetnames_added=[]
+            for tar in ensure_cat.keys():
+                if tar not in catalogue:
+                    catalogue.add(ensure_cat[tar])
+                    targetnames_added.append(tar)
+            if len(targetnames_added):
+                user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
             targets=catalogue.targets
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
