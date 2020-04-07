@@ -658,7 +658,7 @@ if __name__=="__main__":
                             currentel[iant]=ant.sensor.pos_actual_scan_elev.get_value()
                         #choose target
                         target=None
-                        rising=False
+                        target_rising=False
                         target_elevation_cost=1e10
                         target_expected_duration=0
                         target_meanelev=0
@@ -672,12 +672,14 @@ if __name__=="__main__":
                                     histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
                                     if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
                                         target=testtarget
+                                        target_rising=rising
                                         target_expected_duration=expected_duration
                                         target_meanelev=meanelev
                                         target_histindex=histindex
                                         target_elevation_cost=elevation_histogram[histindex]
                                 else:
                                     target=testtarget
+                                    target_rising=rising
                                     target_expected_duration=expected_duration
                                     target_meanelev=meanelev
                                     break
@@ -703,7 +705,7 @@ if __name__=="__main__":
                             user_logger.info("Performing follow up track")
                             session.telstate.add('obs_label','delay set track')
                             session.track(target, duration=opts.cycle_tracktime, announce=False)
-                        if (rising):#target is rising - scan top half of pattern first
+                        if (target_rising):#target is rising - scan top half of pattern first
                             cx=compositex
                             cy=compositey
                             cs=compositeslew
