@@ -561,19 +561,17 @@ if __name__=="__main__":
         'PKS 2134+004':'J2136+0041 | PKS 2134+004, radec, 21:36:38.59, 00:41:54.2',
         'PKS 1421-490':'J1424-4913 | PKS 1421-490, radec, 14:24:32.24, -49:13:49.7'}
 
-        if 'J0825-5010' in args:#not in catalogue
-            args[args.index('J0825-5010')]='J0825-5010,radec, 08:25:26.869, -50:10:38.4877'
+        targetnames_added=[]
+        for tar in ensure_cat.keys():
+            if tar not in kat.sources:
+                kat.sources.add(ensure_cat[tar])
+                targetnames_added.append(tar)
+        if len(targetnames_added):
+            user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
 
         # Check basic command-line options and obtain a kat object connected to the appropriate system
         with verify_and_connect(opts) as kat:
             catalogue = collect_targets(kat, args)
-            targetnames_added=[]
-            for tar in ensure_cat.keys():
-                if tar not in catalogue:
-                    catalogue.add(ensure_cat[tar])
-                    targetnames_added.append(tar)
-            if len(targetnames_added):
-                user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
             targets=catalogue.targets
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
