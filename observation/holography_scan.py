@@ -572,6 +572,7 @@ if __name__=="__main__":
                 targetnames_added.append(tar)
         if len(targetnames_added):
             user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
+
         # Check basic command-line options and obtain a kat object connected to the appropriate system
         with verify_and_connect(opts) as kat:
             catalogue = collect_targets(kat, args)
