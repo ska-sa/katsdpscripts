@@ -234,7 +234,10 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         nextraslew=0
         nleaves=int(tottime/(40.*np.sqrt(spacetime)+2*tracktime))
         nptsperarm=(tottime/np.float(nleaves)-2*tracktime)/sampletime #time per circle
-        t=np.pi*np.tanh(polish_factor*np.linspace(-1,1,nptsperarm))/np.tanh(polish_factor)
+        if (polish_factor):
+            t=np.pi*np.tanh(polish_factor*np.linspace(-1,1,nptsperarm))/np.tanh(polish_factor)
+        else:
+            t=np.pi*np.linspace(-1,1,nptsperarm)
         ix=np.zeros(len(t))
         iy=np.zeros(len(t))
         x=np.sin(t)
