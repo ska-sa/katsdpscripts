@@ -113,7 +113,7 @@ parser.add_option('--disable-hv-correction', action='store_true', default=False,
                   help='Do not correct HV phase (but still fire the noise diode)')
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear crashed containers')
-parser.add_option('--max-gap-MHz', type='float', default=64.0,
+parser.add_option('--max-gap-MHz', type='float', default=128.0,
                   help='The maximum gap in the bandpass gain that will still be interpolated across, in MHz'
                   '(default = %default)')
 # Set default value for any option (both standard and experiment-specific options)
