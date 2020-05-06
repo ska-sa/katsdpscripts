@@ -146,7 +146,7 @@ with verify_and_connect(opts) as kat:
                     if session.raster_scan(target, scan_in_azimuth=not opts.scan_in_elevation,
                                            projection=opts.projection, **kwargs):
                         targets_observed.append(target.name)
-                    skip_file.write(target.description + "\n")
+                        skip_file.write(target.description + "\n")
                     # The default is to do only one iteration through source list
                     if opts.min_time <= 0.0:
                         keep_going = False
