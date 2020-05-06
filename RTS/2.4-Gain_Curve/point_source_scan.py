@@ -143,9 +143,9 @@ with verify_and_connect(opts) as kat:
                     kwargs = styles[style]
                     # Get rid of keyword arguments that are not meant for session.raster_scan
                     kwargs.pop('dump_rate', None)
-                    session.raster_scan(target, scan_in_azimuth=not opts.scan_in_elevation,
-                                        projection=opts.projection, **kwargs)
-                    targets_observed.append(target.name)
+                    if session.raster_scan(target, scan_in_azimuth=not opts.scan_in_elevation,
+                                           projection=opts.projection, **kwargs):
+                        targets_observed.append(target.name)
                     skip_file.write(target.description + "\n")
                     # The default is to do only one iteration through source list
                     if opts.min_time <= 0.0:
