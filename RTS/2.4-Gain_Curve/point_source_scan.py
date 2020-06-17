@@ -137,7 +137,7 @@ with verify_and_connect(opts) as kat:
                     az, el = target.azel()
                     user_logger.info("Scanning target %r with current azel (%s, %s)" % (target.description, az, el))
                     if opts.style == 'auto':
-                        style = 'strong' if target.flux_density(opts.centre_freq) > 10.0 else 'weak'
+                        style = 'strong' if target.flux_density(session.get_centre_freq()) > 10.0 else 'weak'
                     else:
                         style = opts.style
                     kwargs = styles[style]
