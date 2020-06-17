@@ -28,6 +28,14 @@ styles = {
     'fine': dict(dump_rate=1.0, num_scans=5, scan_duration=60, scan_extent=1.0, scan_spacing=4./60.),
     # Sources at Ku-band, wider search area
     'search-fine': dict(dump_rate=1.0, num_scans=16, scan_duration=16, scan_extent=32./60., scan_spacing=2./60.),
+    # Standard for MeerKAT single dish pointing, covering null-to-null at centre frequency (+-1.3*HPBW), resolution ~HPBW/3
+    'uhf': dict(dump_rate=1.0, num_scans=8, scan_duration=60, scan_extent=5.5, scan_spacing=5.5/7),
+    'l': dict(dump_rate=1.0, num_scans=8, scan_duration=40, scan_extent=3.5, scan_spacing=3.5/7),
+    's': dict(dump_rate=1.0, num_scans=8, scan_duration=30, scan_extent=2.0, scan_spacing=2.0/7),
+    'ku': dict(dump_rate=1.0, num_scans=8, scan_duration=20, scan_extent=0.5, scan_spacing=0.5/7),
+    # Standard for SKA Dish
+    'skab1': dict(dump_rate=1.0, num_scans=8, scan_duration=60, scan_extent=6.0, scan_spacing=6.0/7),
+    'skaku': dict(dump_rate=1.0, num_scans=8, scan_duration=20, scan_extent=0.3, scan_spacing=0.3/7),
 }
 
 # Set up standard script options
@@ -135,10 +143,10 @@ with verify_and_connect(opts) as kat:
                     kwargs = styles[style]
                     # Get rid of keyword arguments that are not meant for session.raster_scan
                     kwargs.pop('dump_rate', None)
-                    session.raster_scan(target, scan_in_azimuth=not opts.scan_in_elevation,
-                                        projection=opts.projection, **kwargs)
-                    targets_observed.append(target.name)
-                    skip_file.write(target.description + "\n")
+                    if session.raster_scan(target, scan_in_azimuth=not opts.scan_in_elevation,
+                                           projection=opts.projection, **kwargs):
+                        targets_observed.append(target.name)
+                        skip_file.write(target.description + "\n")
                     # The default is to do only one iteration through source list
                     if opts.min_time <= 0.0:
                         keep_going = False

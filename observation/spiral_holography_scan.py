@@ -60,9 +60,10 @@ def sphere_to_plane_holography(targetaz,targetel,scanaz,scanel):
 def spiral(params,indep):
     x0=indep[0]
     y0=indep[1]
+    twistfactor=indep[2]
     r=params[0]
-    x=r*np.cos(2.0*np.pi*r)
-    y=r*np.sin(2.0*np.pi*r)
+    x=r*np.cos(2.0*np.pi*r*twistfactor)
+    y=r*np.sin(2.0*np.pi*r*twistfactor)
     return np.sqrt((x-x0)**2+(y-y0)**2)
 
 def SplitArray(x,y,doplot=False):
@@ -140,7 +141,7 @@ def SplitArray(x,y,doplot=False):
         plt.plot(x[GroupB],y[GroupB],'.g')
         plt.axis('equal')
     return GroupA,GroupB
-
+    
 #note that we want spiral to only extend to above horizon for first few scans in case source is rising
 #should test if source is rising or setting before each composite scan, and use -compositey if setting
 #slowtime redistributes samples on each arm so that start and stop of scan occurs slower within this timerange in seconds
@@ -196,12 +197,18 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
             sdt=sdt/np.sum(sdt)
         else:
             dt=1.0/ntime*np.ones(ntime)
-            sdt=1.0/(slewtime/sampletime)*np.ones(int(slewtime/sampletime))
+            if slewtime>0:
+                sdt=1.0/(slewtime/sampletime)*np.ones(int(slewtime/sampletime))
+            else:
+                sdt=np.zeros(int(slewtime/sampletime))
         scan=np.cumsum(dt)
         scan=((scan-scan[0])/(scan[-1]-scan[0])-0.5)*radextent*2
-        slew=np.cumsum(sdt)
-        slew=((slew-slew[0])/(slew[-1]-slew[0]))*radextent
-        nextraslew=len(slew)
+        if slewtime>0:
+            slew=np.cumsum(sdt)
+            slew=((slew-slew[0])/(slew[-1]-slew[0]))*radextent
+            nextraslew=len(slew)
+        else:
+            slew=np.array([])
         fullscanx=np.r_[np.zeros(int(tracktime/sampletime)),-slew,scan,slew[::-1],np.zeros(int(tracktime/sampletime))]
         fullscany=np.r_[np.zeros(int(tracktime/sampletime)),slew/radextent,np.ones(len(scan)),slew[::-1]/radextent,np.zeros(int(tracktime/sampletime))]
         fullisslew=np.r_[np.repeat(0,int(tracktime/sampletime)),np.repeat(1,len(slew)),np.repeat(0,len(scan)),np.repeat(1,len(slew)),np.repeat(0,int(tracktime/sampletime))]
@@ -227,7 +234,10 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         nextraslew=0
         nleaves=int(tottime/(40.*np.sqrt(spacetime)+2*tracktime))
         nptsperarm=(tottime/np.float(nleaves)-2*tracktime)/sampletime #time per circle
-        t=np.pi*np.tanh(polish_factor*np.linspace(-1,1,nptsperarm))/np.tanh(polish_factor)
+        if (polish_factor):
+            t=np.pi*np.tanh(polish_factor*np.linspace(-1,1,nptsperarm))/np.tanh(polish_factor)
+        else:
+            t=np.pi*np.linspace(-1,1,nptsperarm)
         ix=np.zeros(len(t))
         iy=np.zeros(len(t))
         x=np.sin(t)
@@ -310,19 +320,21 @@ def generatespiral(totextent,tottime,tracktime=1,slewtime=1,slowtime=1,sampletim
         else:
             dt=1.0/ntime*np.ones(ntime)
         lastr=0.0
+        twistfactor=1.
         for it in range(1,ntime):
             data=np.array([dt[it-1]])
-            indep=np.array([armx[it-1],army[it-1]])#last calculated coordinate in arm, is x0,y0
+            indep=np.array([armx[it-1],army[it-1],twistfactor])#last calculated coordinate in arm, is x0,y0
             initialparams=np.array([lastr+dt[it-1]]);
             fitter=NonLinearLeastSquaresFit(spiral,initialparams)
             fitter.fit(indep,data)
             lastr=fitter.params[0];
-            armx[it]=lastr*np.cos(2.0*np.pi*lastr)
-            army[it]=lastr*np.sin(2.0*np.pi*lastr)
+            armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactor)
+            army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactor)
 
         maxrad=np.sqrt(armx[it]**2+army[it]**2)
         armx=armx*radextent/maxrad
         army=army*radextent/maxrad
+
     # ndist=sqrt((armx[:-1]-armx[1:])**2+(army[:-1]-army[1:])**2)
     # print ndist
 
@@ -437,12 +449,14 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
     else:  #target is setting - scan bottom half of pattern first
         cx=ncompositex
         cy=ncompositey
+    meanelev=np.zeros(len(cx))
     for iarm in range(len(cx)):#spiral arm index
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
+        meanelev[iarm]=np.mean(scan_data[:,2])
         starttime=scan_data[-1,0]
         if clipping_occurred:
-            return False, rising, starttime-now
-    return True, rising, starttime-now
+            return False, rising, starttime-now, meanelev[iarm]
+    return True, rising, starttime-now, np.mean(meanelev)
 
 if __name__=="__main__":
     # Set up standard script options
@@ -483,10 +497,8 @@ if __name__=="__main__":
                       help='factor by which to slow down nominal scanning close to boresight for polish scan pattern (default=%default)')
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
-    parser.add_option('--target-elevation-override', type='float', default=90.0,
-                      help='Honour preferred target order except if lower ranking target exceeds this elevation limit (default=%default). Use this feature to capture high elevation targets when available.')
-    parser.add_option('--target-low-elevation-override', type='float', default=0.0,
-                      help='Honour preferred target order except if lower ranking target below this elevation limit (default=%default). Use this feature to capture low elevation targets when available.')
+    parser.add_option('--elevation-histogram', type='string', default='',
+                      help='A string of 15 comma separated count values representing a histogram in 5 degree intervals from 15 to 90 degrees elevation of known measurements (default=%default). A preferred target making the biggest impact to flatten the histogram will be selected.')
     parser.add_option('--prepopulatetime', type='float', default=10.0,
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--mirrorx', action="store_true", default=False,
@@ -534,14 +546,34 @@ if __name__=="__main__":
         plt.title('Acceleration profile')
         plt.show()
     else:
-        if len(args) == 0:
-            args=['3C 273','PKS 1934-63','3C 279','PKS 0408-65','PKS 0023-26','J0825-5010','PKS J1924-2914','Hyd A']
-
-        if 'J0825-5010' in args:#not in catalogue
-            args[args.index('J0825-5010')]='J0825-5010,radec, 08:25:26.869, -50:10:38.4877'
+        if len(args)==0 or args[0]=='lbandtargets':#lband targets, in order of brightness
+            args=['3C 273','PKS 0408-65','PKS 1934-63','Hyd A','3C 279','PKS 0023-26','J0825-5010','PKS J1924-2914']
+        elif args[0]=='sbandtargets':#sband targets, in order of brightness
+            args=['3C 454.3','PKS 0723-008','3C 279','PKS 2134+004','PKS 1421-490']
+        #useful targets might not exist in catalogue
+        ensure_cat={'3C 273':'J1229+0203 | *3C 273 | PKS 1226+02,radec, 12:29:06.70,  +02:03:08.6',
+        'PKS 1934-63':'J1939-6342 | *PKS 1934-63,radec, 19:39:25.03,  -63:42:45.7',
+        '3C 279':'J1256-0547 | *3C 279 | PKS 1253-05,radec, 12:56:11.17,  -05:47:21.5',
+        'PKS 0408-65':'J0408-6545 | *PKS 0408-65,radec, 04:08:20.38,  -65:45:09.1',
+        'PKS 0023-26':'J0025-2602 | *PKS 0023-26 | OB-238,radec, 00:25:49.16,  -26:02:12.6',
+        'J0825-5010':'J0825-5010,radec, 08:25:26.869, -50:10:38.4877',
+        'PKS J1924-2914':'J1924-2914 | *PKS J1924-2914,radec, 19:24:51.06,  -29:14:30.1',
+        'Hyd A':'J0918-1205 | *Hyd A | Hydra A | 3C 218 | PKS 0915-11, radec, 09:18:05.28,  -12:05:48.9',
+        '3C 454.3':'J2253+1608 | 3C 454.3 | PKS 2251+158, radec, 22:53:57.75, 16:08:53.6',
+        'PKS 0723-008':'J0725-0055 | PKS 0723-008, radec, 07:25:50.64, -00:54:56.5',
+        'PKS 2134+004':'J2136+0041 | PKS 2134+004, radec, 21:36:38.59, 00:41:54.2',
+        'PKS 1421-490':'J1424-4913 | PKS 1421-490, radec, 14:24:32.24, -49:13:49.7'}
 
         # Check basic command-line options and obtain a kat object connected to the appropriate system
         with verify_and_connect(opts) as kat:
+            targetnames_added=[]
+            for tar in ensure_cat.keys():
+                if tar not in kat.sources:
+                    kat.sources.add(ensure_cat[tar])
+                    targetnames_added.append(tar)
+            if len(targetnames_added):
+                user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
+
             catalogue = collect_targets(kat, args)
             targets=catalogue.targets
             if len(targets) == 0:
@@ -605,6 +637,11 @@ if __name__=="__main__":
 
                 lasttime = time.time()
                 cycle=0
+                elevation_histogram=[int(val) for val in opts.elevation_histogram.split(',')] if len(opts.elevation_histogram) else []# could be length 0, default
+                if len(elevation_histogram)==15:
+                    user_logger.info("Using elevation_histogram: %s",opts.elevation_histogram)
+                elif len(elevation_histogram)>0:
+                    user_logger.warning("Supplied elevation_histogram (%s) length is %d but must be either 0 (to ignore) or 15", opts.elevation_histogram, len(elevation_histogram))
                 while cycle<opts.num_cycles or opts.num_cycles<0:
                     if opts.num_cycles<0:
                         user_logger.info("Performing scan cycle %d of unlimited", cycle + 1)
@@ -621,32 +658,38 @@ if __name__=="__main__":
                             currentel[iant]=ant.sensor.pos_actual_scan_elev.get_value()
                         #choose target
                         target=None
-                        rising=False
-                        expected_duration=None
-                        if target is None:#find high elevation target if available
-                            for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.target_elevation_override,max_elevation=90.)
-                                if suitable:
-                                    target=overridetarget
-                                    break
-                        if target is None:#find low elevation target if available
-                            for overridetarget in targets:#choose override lower priority target if its minimum elevation is higher than opts.target_elevation_override
-                                suitable, rising, expected_duration = test_target_azel_limits(overridetarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=opts.target_low_elevation_override)
-                                if suitable:
-                                    target=overridetarget
-                                    break
-                        if target is None:#no override found, normal condition
-                            for testtarget in targets:
-                                suitable, rising, expected_duration = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
-                                if suitable:
+                        target_rising=False
+                        target_elevation_cost=1e10
+                        target_expected_duration=0
+                        target_meanelev=0
+                        target_histindex=0
+                        targetinfotext=[]
+                        for testtarget in targets:
+                            suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
+                            targetinfotext.append('%s (elev %.1f%s)'%(testtarget.name,meanelev,'' if suitable else ', unsuitable'))
+                            if suitable:
+                                if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
+                                    histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
+                                    if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
+                                        target=testtarget
+                                        target_rising=rising
+                                        target_expected_duration=expected_duration
+                                        target_meanelev=meanelev
+                                        target_histindex=histindex
+                                        target_elevation_cost=elevation_histogram[histindex]
+                                else:
                                     target=testtarget
+                                    target_rising=rising
+                                    target_expected_duration=expected_duration
+                                    target_meanelev=meanelev
                                     break
+                        user_logger.info("Targets considered: %s"%(', '.join(targetinfotext)))
                         if target is None:
                             user_logger.info("Quitting because none of the preferred targets are up")
                             break
                         else:
-                            user_logger.info("Using target '%s'",target.name)
-                            user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+expected_duration+time.timezone),expected_duration/60.)
+                            user_logger.info("Using target '%s' (mean elevation %.1f degrees)",target.name,target_meanelev)
+                            user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+target_expected_duration+time.timezone),target_expected_duration/60.)
                 
                         session.set_target(target)
                         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
@@ -663,7 +706,7 @@ if __name__=="__main__":
                             user_logger.info("Performing follow up track")
                             session.telstate.add('obs_label','delay set track')
                             session.track(target, duration=opts.cycle_tracktime, announce=False)
-                        if (rising):#target is rising - scan top half of pattern first
+                        if (target_rising):#target is rising - scan top half of pattern first
                             cx=compositex
                             cy=compositey
                         else:  #target is setting - scan bottom half of pattern first
@@ -725,6 +768,8 @@ if __name__=="__main__":
                         time.sleep(lasttime-time.time())#wait until last coordinate's time value elapsed
                         #set session antennas to all so that stow-when-done option will stow all used antennas and not just the scanning antennas
                         session.ants = all_ants
+                        if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
+                            elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
                         if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
                             user_logger.info("Testing only one group for dry-run")

@@ -97,7 +97,7 @@ with verify_and_connect(opts) as kat:
                     # Do different raster scan on strong and weak targets
                     if not opts.quick and not opts.fine:
                         if opts.source_strength == 'strong' or \
-                                (opts.source_strength == 'auto' and target.flux_density(opts.centre_freq) > 10.0):
+                                (opts.source_strength == 'auto' and target.flux_density(session.get_centre_freq()) > 10.0):
                             raster_params = dict(num_scans=5, scan_duration=30, scan_extent=6.0, scan_spacing=0.25)
                         else:
                             raster_params = dict(num_scans=5, scan_duration=60, scan_extent=4.0, scan_spacing=0.25)
