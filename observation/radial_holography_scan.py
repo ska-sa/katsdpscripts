@@ -101,7 +101,7 @@ with verify_and_connect(opts) as kat:
                     session.fire_noise_diode(announce=False, **nd_params)
                 session.ants = all_ants
                 # Spend extra 3 seconds at end
-                session.track(target, duration=3, announce=False)
+                session.track(target, duration=3+opts.tracktime, announce=False)
                 targets_observed.append(target.name)
         user_logger.info("Targets observed : %d (%d unique)",
                          len(targets_observed), len(set(targets_observed)))
