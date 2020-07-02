@@ -22,6 +22,8 @@ parser.add_option('-k', '--num-scans', type='int', default=3,
                   help='Number of scans across target (default=%default)')
 parser.add_option('-t', '--scan-duration', type='float', default=20.0,
                   help='Minimum duration of each scan across target, in seconds (default=%default)')
+parser.add_option('--extra-end-tracktime', type='float', default=20.0,
+                  help='Extra track time at end of scan. (default=%default)')
 parser.add_option('--tracktime', type='float', default=0.0,
                   help='Scanning antenna tracks target this long when passing '
                        'over target, in seconds. (default=%default)')
@@ -101,7 +103,7 @@ with verify_and_connect(opts) as kat:
                     session.fire_noise_diode(announce=False, **nd_params)
                 session.ants = all_ants
                 # Spend extra 3 seconds at end
-                session.track(target, duration=3+opts.tracktime, announce=False)
+                session.track(target, duration=3+opts.extra_end_tracktime, announce=False)
                 targets_observed.append(target.name)
         user_logger.info("Targets observed : %d (%d unique)",
                          len(targets_observed), len(set(targets_observed)))
