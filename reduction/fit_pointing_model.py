@@ -433,7 +433,7 @@ def setup_param_button(p):
 param_buttons = [setup_param_button(p) for p in range(len(display_params))]
 
 # Add old pointing model and labels
-list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )
+list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset'][0]).tolist() )
 fig.text(0.405, 0.98,git_info(), horizontalalignment='right',fontsize=10)
 fig.text(0.905, 0.98,list_o_names, horizontalalignment='right',fontsize=10)
 fig.text(0.053, 0.95, 'OLD', ha='center', va='bottom', size='large')
