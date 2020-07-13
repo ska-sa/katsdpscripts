@@ -1,8 +1,6 @@
 #!/usr/bin/python
 # script to check the health of an antenna returning from maintenance
-# Quick check: run check_ant.py -o ruby --ant m0xx
-# Tiyani Todo: receiver band selection to query the selected receiver and dititiser band
-
+# Quick check: run check_ant.py --observer operator --ant m0xx
 
 import time, string
 from katcorelib import (standard_script_options, verify_and_connect, user_logger)
@@ -65,7 +63,9 @@ parser.add_option("--ant", type=str, default=None,
                   help="Antenna to check in the format m0xx. (default='%default')")
 
 # assume basic options passed from instruction_set
-parser.set_defaults(description = "AR1 AP Quick Check")
+parser.set_defaults(description = "AP Quick Check",
+                    observer = "operator",
+                    proposal_id = "20190205-OPS001")
 (opts, args) = parser.parse_args()
 if opts.ant is None:
     raise SystemExit("antenna name required %s" % parser.print_usage())
