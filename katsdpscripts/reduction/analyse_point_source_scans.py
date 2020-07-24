@@ -305,7 +305,13 @@ def reduce_and_plot(dataset, current_compscan, reduced_data, opts, fig=None, **k
                                                  opts.batch, opts.keep_all, len(reduced_data), **kwargs)
 
 
-def analyse_point_source_scans(filename, opts):
+def analyse_point_source_scans(dataset, opts):
+    """ 'dataset' may be either a string file name or any data object accepted by scape.DataSet(). """
+    if isinstance(dataset, str):
+        filename = dataset
+    else: # Get filename from dataset. This code should work for katdal datasets including v4
+        filename = dataset.name.split("|")[0]
+
     # Produce canonical version of baseline string (remove duplicate antennas)
     baseline_ants = opts.baseline.split(',')
     if len(baseline_ants) == 2 and baseline_ants[0] == baseline_ants[1]:
@@ -366,7 +372,7 @@ def analyse_point_source_scans(filename, opts):
 
     # Load data set
     logger.info("Loading dataset '%s'" % (filename,))
-    dataset = scape.DataSet(filename, baseline=opts.baseline, nd_models=opts.nd_models,
+    dataset = scape.DataSet(dataset, baseline=opts.baseline, nd_models=opts.nd_models,
                             time_offset=opts.time_offset, katfile=not opts.old_loader, **kwargs)
 
     # Select frequency channels and setup defaults if not specified
