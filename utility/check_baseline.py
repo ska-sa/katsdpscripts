@@ -126,14 +126,6 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
             output_str = "# %4d - %4d m:   %0.3f %% available  >=   %0.3f %% needed -- %s"%(bins[i],bins[i+1],(actual/total)[i],minfrac[i],passfail)
             verbosef(output_str,verbose)  
     return observation_good
-
-class project_constraints(): # I suspect that this is a horrible misuse of a class
-    minfrac = None
-    bins = None
-    mintotal = None # Minimum number of antennas
-    
-    
-    
     
 # Set up standard script options
 parser = argparse.ArgumentParser(description="Checks to see if  the baseline criteria for observations is met",
