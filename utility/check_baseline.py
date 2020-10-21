@@ -166,9 +166,9 @@ projects['MALS'] = ProjectConstraints(
 for key in projects:
     verbosef('\n%s'%(key),args.verbose)
     result = test_array(ants,reduced_ants,mintotal=projects[key].mintotal,minfrac=projects[key].minfrac,bins=projects[key].baseline_bins,verbose=args.verbose)
-    passfail = " Can not be observed"
+    passfail = "Cannot be observed!. Scheduling constraints for observation are NOT met."
     if result:
-        passfail = " Meets contraints and may be observed"
+        passfail = "Can be Scheduled. Scheduling constraints for observation are met."
     print('%20s  %s'%(key,passfail))
     
  
