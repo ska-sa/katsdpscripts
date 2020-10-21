@@ -123,7 +123,7 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
             passfail = "---FAIL---"
             if (actual/total)[i] >= minfrac[i] :
                 passfail = "    ok     "
-            output_str = "# %4d - %4d m:   %2.1f %% available  >=   %2.1f %% needed -- %s"%(bins[i],bins[i+1],(actual/total)[i]*100,minfrac[i]*100,passfail)
+            output_str = "# %4d - %4d m:   %2.1f %% available out of %2.1f %% needed -- %s"%(bins[i],bins[i+1],(actual/total)[i]*100,minfrac[i]*100,passfail)
             verbosef(output_str,verbose)  
     return observation_good
     
