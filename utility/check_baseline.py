@@ -118,7 +118,7 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
         actual= np.histogram((np.sqrt(x1**2+y1**2)),bins=bins)[0] # this ignors the up difference
         if not np.all(actual/total >= minfrac):
             observation_good = False
-        verbosef('# Fraction of available baselines as a function of baseline length:',verbose) 
+        verbosef('# Percentage of available baselines as a function of baseline length:',verbose) 
         for i in range(len(bins)-1):
             passfail = "---FAIL---"
             if (actual/total)[i] >= minfrac[i] :
