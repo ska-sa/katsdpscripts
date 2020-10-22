@@ -102,8 +102,8 @@ def verbosef(string,verbosebool):
         
 def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =None ):
     observation_good = True
-    x,y,z = get_enu_baselines(ants) # enu offsets
-    x1,y1,z1 = get_enu_baselines(reduced_ants)# enu offsets
+    east,north,up = get_enu_baselines(ants) # enu offsets
+    east1,north1,up1 = get_enu_baselines(reduced_ants)# enu offsets
     verbosef("There are %i antennas."%(len(reduced_ants)),verbose)
     if mintotal is not None:
         if len(reduced_ants) < mintotal:
@@ -114,8 +114,8 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
         verbosef("NO constraints on the number of antennas",verbose)
 
     if bins is not None:
-        total = np.histogram((np.sqrt(x**2+y**2)),bins=bins)[0]  # this ignors the up difference
-        actual= np.histogram((np.sqrt(x1**2+y1**2)),bins=bins)[0] # this ignors the up difference
+        total = np.histogram((np.sqrt(east**2+north**2)),bins=bins)[0]  # this ignors the up difference
+        actual= np.histogram((np.sqrt(east1**2+north1**2)),bins=bins)[0] # this ignors the up difference
         if not np.all(actual/total >= minfrac):
             observation_good = False
         verbosef('# Percentage of available baselines as a function of baseline length:',verbose) 
@@ -128,9 +128,11 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
     return observation_good
     
 # Set up standard script options
-parser = argparse.ArgumentParser(description="Checks to see if  the baseline criteria for observations is met",
+parser = argparse.ArgumentParser(description="This script checks to see if the baseline criteria for observations is "
+                                "met if a user-defined set of antennas are excluded.\n "
+                                "Example usage:\n\t  ./%(prog)s m001 m003 m005 -v  ",
                                  formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument("missing_ants", type=str, help="list of missing antennas seperated by spaces", nargs='*')
+parser.add_argument("missing_ants",  help="list of missing antennas separated by spaces", nargs='*')
 parser.add_argument("--verbose","-v",action="store_true", default=False,help="Produce verbose output")
 args = parser.parse_args()
 
