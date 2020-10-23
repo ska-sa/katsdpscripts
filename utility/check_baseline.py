@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import division  # Because obs & CAM uses python2
 # This script checks to see if the baseline criteria for observations is met
 
 import numpy as np
