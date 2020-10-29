@@ -33,7 +33,7 @@ el_start = 15.1  # 3.1
 el_end = 27.1  # 15.1
 scan_spacing = 5.0 # 6.0
 num_scans = 3
-scan_duration = float(opts.scan-duration)
+scan_duration = opts.scan_duration
 scan_extent = 180.
 opts.dump_rate = 1.
 
