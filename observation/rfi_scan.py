@@ -4,7 +4,6 @@
 
 import time
 
-import numpy as np
 from katcorelib import (standard_script_options, verify_and_connect,
                         start_session, user_logger)
 
@@ -19,8 +18,9 @@ parser = standard_script_options(usage="%prog [options]",
 # Add experiment-specific options
 parser.add_option('-m', '--min-duration', type="float", default=None,
                   help="The The minimum time to repeat the rfi scan over (default=%default)")
-parser.remove_option('-f')
-parser.remove_option('-p')
+parser.add_option('--scan-duration', type="float", default=180,
+                  help="The length of each of the raster scan (default=%default) seconds")
+
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Basic RFI Scan', no_delays=True,horizon=15.)
 # Parse the command line
@@ -31,9 +31,9 @@ opts.description = "Basic RFI Scan: %s" % (opts.description,) \
 
 el_start = 15.1  # 3.1
 el_end = 27.1  # 15.1
-scan_spacing = 6.0
+scan_spacing = 5.0 # 6.0
 num_scans = 3
-scan_duration = 180.
+scan_duration = opts.scan_duration
 scan_extent = 180.
 opts.dump_rate = 1.
 
