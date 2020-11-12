@@ -86,24 +86,43 @@ def get_ant_array():
     katpoint.Antenna('m063, -30:42:39.8, 21:26:38.0, 1086.6, 13.5,  -3419.585 -1840.480 16.383')]
     return ants
 
-def get_enu_baselines(ants):
-    # Set up empty xyz then loop through the half the antennas (n,m)   
+
+def get_enu_baselines(ants,names=False):
+    # Set up empty xyz then loop through the half the antennas (n,m)
     baselineno = (np.shape(ants)[0]* (np.shape(ants)[0]-1))//2
     x,y,z=np.zeros((baselineno)),np.zeros((baselineno)),np.zeros((baselineno))
+    name1,name2 = np.zeros((baselineno)).astype(np.str),np.zeros((baselineno)).astype(np.str)
     i=0
     for n in range(np.shape(ants)[0]-1):
         for m in range(n+1,np.shape(ants)[0]):
             x[i],y[i],z[i]= np.array(ants[n].position_enu)-np.array(ants[m].position_enu)
+            name1[i],name2[i]  =ants[n].name,ants[m].name
             i = i+ 1
-    return x,y,z # enu offsets
+    if names :
+        return x,y,z,name1,name2 # enu offsets
+    else:
+        return x,y,z # enu offsets
 
 def verbosef(string,verbosebool):
     if verbosebool :
         print(string)
         
-def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =None ):
+def test_array(ants,reduced_ants,project,verbose=False,debug=False):
+    mintotal=project.mintotal
+    minfrac=project.minfrac
+    bins=project.baseline_bins
     observation_good = True
-    east,north,up = get_enu_baselines(ants) # enu offsets
+    required_ants = project.required_ants
+    required_ants_number = project.required_ants_number
+    if required_ants is not None :
+        required_ants_present = np.shape(np.intersect1d([ant.name for ant in reduced_ants], required_ants))[0]
+        if required_ants_number > required_ants_present:
+            observation_good = False
+            verbosef("Not enough required antennas are available. Only %i out %i needed "%(required_ants_present,required_ants_number),verbose)
+            verbosef("The required antennas are %s"%(', '.join(list(required_ants))),verbose)
+        else:
+            verbosef("Required antennas Constraint met",verbose)
+    east,north,up,name1,name2 = get_enu_baselines(ants,names=True)
     east1,north1,up1 = get_enu_baselines(reduced_ants)# enu offsets
     verbosef("There are %i antennas."%(len(reduced_ants)),verbose)
     if mintotal is not None:
@@ -113,7 +132,6 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
             verbosef("No fewer than %i antennas."%(mintotal),verbose)
     else:
         verbosef("NO constraints on the number of antennas",verbose)
-
     if bins is not None:
         total = np.histogram((np.sqrt(east**2+north**2)),bins=bins)[0]  # this ignors the up difference
         actual= np.histogram((np.sqrt(east1**2+north1**2)),bins=bins)[0] # this ignors the up difference
@@ -124,7 +142,15 @@ def test_array(ants,reduced_ants,minfrac=None,mintotal=None,verbose=False,bins =
             passfail = "---FAIL---"
             if (actual/total)[i] >= minfrac[i] :
                 passfail = "    ok     "
-            output_str = "# %4d - %4d m:   %2.1f %% available out of %2.1f %% needed -- %s"%(bins[i],bins[i+1],(actual/total)[i]*100,minfrac[i]*100,passfail)
+            if debug:
+                antlist = []
+                for jval , aval in enumerate(np.logical_and(np.sqrt(east**2+north**2) > bins[i] , np.sqrt(east**2+north**2) < bins[i+1])):
+                    if aval :
+                        antlist.append(name1[jval])
+                        antlist.append(name2[jval])
+                output_str = "# %4d - %4d m: %s  "%(bins[i],bins[i+1],',  '.join(list(np.unique(antlist))) )
+                verbosef(output_str,verbose)
+            output_str = "# %4d - %4d m:   %2.1f %% available out of %2.1f %% needed -- %s "%(bins[i],bins[i+1],(actual/total)[i]*100,minfrac[i]*100,passfail)
             verbosef(output_str,verbose)  
     return observation_good
     
@@ -134,41 +160,64 @@ parser = argparse.ArgumentParser(description="This script checks to see if the b
                                 "Example usage:\n\t  ./%(prog)s m001 m003 m005 -v  ",
                                  formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument("missing_ants",  help="list of missing antennas separated by spaces", nargs='*')
-parser.add_argument("--verbose","-v",action="store_true", default=False,help="Produce verbose output")
+parser.add_argument("-v","--verbose",action="store_true", default=False,help="Produce verbose output")
+parser.add_argument("--debug",action="store_true", default=False,help="Produce debugging output")
 args = parser.parse_args()
 
-
-missing_ants = args.missing_ants # ['m001','m002','m003']
+missing_ants = [ant.lower() for ant in args.missing_ants]
 projects = {}
 ants  = get_ant_array()
 reduced_ants  =remove_ants(ants,missing_ants,args.verbose) 
 
 
 # Minimum fraction of available baselines in the baseline_bins intervals
-ProjectConstraints = namedtuple('ProjectConstraints', 'minfrac baseline_bins mintotal')
+ProjectConstraints = namedtuple('ProjectConstraints', 'minfrac baseline_bins mintotal,required_ants,required_ants_number')
 # Different projects will have different contraints
 projects['MHONGOOSE'] = ProjectConstraints(
     baseline_bins=np.array([0, 50, 100, 200, 400, 1000, 3000, 6000, 9000]),
     minfrac=np.array([0.80, 0.66, 0.66, 0.66, 0.66, 0.66, 0.50, 0.00]),
-    mintotal = 58# Minimum number of antennas
+    mintotal = 58,# Minimum number of antennas
+    required_ants = None,
+    required_ants_number = None
 )
 
 projects['Fornax'] = ProjectConstraints(
     baseline_bins=np.array([0, 50, 100, 200, 400, 1000, 3000, 6000, 9000]),
     minfrac=np.array([0.80, 0.75, 0.75, 0.75, 0.75, 0.75, 0.50, 0.00]),
-    mintotal = None # Minimum number of antennas
+    mintotal = None, # Minimum number of antennas
+    required_ants = None,
+    required_ants_number = None
 )
+
+projects['LADUMA'] = ProjectConstraints(
+    baseline_bins=None,
+    minfrac=None,
+    mintotal = 58, # Minimum number of antennas
+    required_ants = ["m048","m049","m057","m058","m059","m060","m061","m062","m063"],
+    required_ants_number = 8
+)
+
+projects['MIGHTEE'] = ProjectConstraints(
+    baseline_bins=None,
+    minfrac=None,
+    mintotal = 58, # Minimum number of antennas
+    required_ants = ["m048","m049","m057","m058","m059","m060","m061","m062","m063"],
+    required_ants_number = 8
+)
+
 
 projects['MALS'] = ProjectConstraints(
     baseline_bins=None,
     minfrac=None,
-    mintotal = 56 # Minimum number of antennas
+    mintotal = 56, # Minimum number of antennas
+    required_ants = None,
+    required_ants_number = None
 )
 
         
 for key in projects:
-    verbosef('\n%s'%(key),args.verbose)
-    result = test_array(ants,reduced_ants,mintotal=projects[key].mintotal,minfrac=projects[key].minfrac,bins=projects[key].baseline_bins,verbose=args.verbose)
+    verbosef('\n%s'%(key),args.verbose | args.debug)
+    result = test_array(ants,reduced_ants,project=projects[key],verbose=args.verbose | args.debug,debug=args.debug)
     passfail = "Cannot be observed!. Scheduling constraints for observation are NOT met."
     if result:
         passfail = "Can be Scheduled. Scheduling constraints for observation are met."
