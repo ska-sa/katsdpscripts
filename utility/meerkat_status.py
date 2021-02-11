@@ -27,7 +27,6 @@ def subarray_activity(kat):
     # current running observation
     if not kat.subarray_1.sensor.state.get_value() == 'active':
         return None
-
     else:
         if kat.subarray_1.sensor.script_status.get_value() == 'busy':
             obs_start_time  =  kat.subarray_1.sensor.observation_script_starttime.get_value()
@@ -78,7 +77,7 @@ def get_ap_sensors(ant):
         'ap_indexer_position',
     ]
     ap_values  = get_sensors(ant, ap_sensors)
-
+    
     hatch_door = ap_values.pop('ap_hatch_door_open')
     yoke_door  = ap_values.pop('ap_yoke_door_open')
     ped_door_  = ap_values.pop('ap_ped_door_open')
@@ -261,7 +260,7 @@ def format_sensors(ant_sensors, band, full_report):
             hatch          != 'closed'  or \
             azim_lim       == True      or \
             elev_lim       == True      or \
-            float(rx_temp) >  100        or \
+            float(rx_temp) >  100       or \
             lnas           != 'ON'      or \
             selected_band not in bands  or \
             dig_synced != True:
@@ -309,9 +308,8 @@ def print_table(data, band):
 
 def check_schedule(exclude):
     """Returns which observations can be scheduled by passing non-ready antennas to check_baseline script"""
-
     filename = '/home/kat/katsdpscripts/utility/check_baseline.py'
-
+    
     if exclude:
         exclude  = ' '.join(exclude).strip()
     else:
