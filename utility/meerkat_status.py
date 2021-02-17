@@ -16,7 +16,7 @@ def sync_hrs_remaining(ants, band):
             time_left = ant.sensor[sensor].get_value()
             if time_left:
                 break
-        except:
+        except Exception:
             time_left = None
     return time_left
 
@@ -66,7 +66,7 @@ def get_sensors(proxy, sensors):
     for sensor in sensors:
         try:
             sensor_values[sensor] = proxy.sensor[sensor].get_value()
-        except:
+        except Exception:
             sensor_values[sensor] = None
     return sensor_values
 
