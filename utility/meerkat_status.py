@@ -346,7 +346,7 @@ def check_schedule(exclude):
 
 # Parse command-line options that allow the defaults to be overridden
 parser = standard_script_options(
-    usage="usage: %prog --receiver-band rx<band> --full-report=False --check-schedule=False",
+    usage="usage: %prog --receiver-band <band> --full-report=False --check-schedule=False",
     description="meerkat sensor summary",
 )
 parser.add_option(
