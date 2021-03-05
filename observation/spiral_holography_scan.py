@@ -586,7 +586,7 @@ if __name__=="__main__":
                 #determine scan antennas
                 all_ants = session.ants
                 session.obs_params['num_scans'] = len(compositex)
-                scan_ants_lower_list=opts.scan_ants.lower().split(',')
+                scan_ants_lower_list=opts.scan_ants.lower().replace(' ','').split(',')
                 grouprange = [0]
                 always_scan_ants=[]
                 always_scan_ants_names=[]
