@@ -467,7 +467,7 @@ if __name__=="__main__":
                                                  'option) perform a scan on the target. Note also some '
                                                  '**required** options below. Targets ordered by preference.')
     # Add experiment-specific options
-    parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically. GroupAB to alternate between GroupA and GroupB. An integer specifies number of scanning antennas, chosen automatically.',default='GroupAB')
+    parser.add_option('-b', '--scan-ants', help='Subset of all antennas that will do raster scan (default=first antenna). Could also be GroupA or GroupB to select half of available antennas automatically. GroupAB to alternate between GroupA and GroupB. Can specify scan antennas of particular interest to be always scanning in all cycles like: GroupAB,m013,m060. An integer specifies number of scanning antennas, chosen automatically.',default='GroupAB')
     parser.add_option('--track-ants', help='Subset of all antennas that will track source. An integer specifies number of tracking antennas, chosen automatically. (default=all non-scanning antennas)')
     parser.add_option('--num-cycles', type='int', default=-1,
                       help='Number of beam measurement cycles to complete (default=%default) use -1 for indefinite')
@@ -586,7 +586,10 @@ if __name__=="__main__":
                 #determine scan antennas
                 all_ants = session.ants
                 session.obs_params['num_scans'] = len(compositex)
+                scan_ants_lower_list=opts.scan_ants.lower().split(',')
                 grouprange = [0]
+                always_scan_ants=[]
+                always_scan_ants_names=[]
                 if (opts.track_ants and opts.track_ants.isdigit()):
                     GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
                     GroupA.extend(GroupB[::-1])
@@ -601,10 +604,13 @@ if __name__=="__main__":
                     GroupA.extend(GroupB[::-1])
                     GroupA=GroupA[:int(opts.scan_ants)]
                     scan_ants = ant_array(kat, [session.ants[ant] for ant in GroupA], 'scan_ants')
-                elif (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupab' or opts.scan_ants.lower()=='groupb'):
+                elif (scan_ants_lower_list[0]=='groupa' or scan_ants_lower_list[0]=='groupab' or scan_ants_lower_list[0]=='groupb'):
                     GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
-                    scan_ants = ant_array(kat, [session.ants[ant] for ant in (GroupA if (opts.scan_ants.lower()=='groupa' or opts.scan_ants.lower()=='groupab') else GroupB)], 'scan_ants')
-                    if (opts.scan_ants.lower()=='groupab'):
+                    scan_ants = ant_array(kat, [session.ants[ant] for ant in (GroupA if (scan_ants_lower_list[0]=='groupa' or scan_ants_lower_list[0]=='groupab') else GroupB)], 'scan_ants')
+                    if len(scan_ants_lower_list)>1:#eg. GroupAB,m000,m010
+                        always_scan_ants=[ant for ant in all_ants if ant.name in scan_ants_lower_list[1:]]
+                        always_scan_ants_names=[ant.name for ant in always_scan_ants]
+                    if (scan_ants_lower_list[0]=='groupab'):
                         grouprange = range(2)
                 else:
                     # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
@@ -618,6 +624,7 @@ if __name__=="__main__":
 
                 # Add metadata
                 #note obs_params is immutable and can only be changed before capture_start is called
+                session.obs_params['scan_ants_always']=','.join(np.sort(always_scan_ants_names))
                 session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
                 session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
                 # Get observers
@@ -712,7 +719,7 @@ if __name__=="__main__":
                         else:  #target is setting - scan bottom half of pattern first
                             cx=ncompositex
                             cy=ncompositey
-                        user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants]))
+                        user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants if ant.name not in always_scan_ants_names]))
                         lasttime = time.time()
                         for iarm in range(len(cx)):#spiral arm index
                             user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
@@ -732,11 +739,21 @@ if __name__=="__main__":
                                 if not kat.dry_run:
                                     session.load_scan(scan_track[:,0],scan_track[:,1],scan_track[:,2])
                             else:#fix individual target.antenna issue
-                                user_logger.info("Using Scan antennas: %s",
-                                                 ' '.join([ant.name for ant in scan_ants]))
+                                user_logger.info("Using Scan antennas: %s %s",
+                                                 ' '.join(always_scan_ants_names),' '.join([ant.name for ant in scan_ants if ant.name not in always_scan_ants_names]))
                                 for iant,scan_ant in enumerate(scan_ants):
                                     session.ants = scan_ants_array[iant]
                                     target.antenna = scan_observers[iant]
+                                    scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                    if not kat.dry_run:
+                                        if clipping_occurred:
+                                            user_logger.info("Warning unexpected clipping occurred in scan pattern")
+                                        session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                                for iant,track_ant in enumerate(track_ants):#also include always_scan_ants in track_ant list                                
+                                    if track_ant.name not in always_scan_ants_names:
+                                        continue
+                                    session.ants = track_ants_array[iant]
+                                    target.antenna = track_observers[iant]
                                     scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                     if not kat.dry_run:
                                         if clipping_occurred:
