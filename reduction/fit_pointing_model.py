@@ -49,9 +49,9 @@ if len(args) != 1 or not args[0].endswith('.csv'):
     raise RuntimeError('Please specify a single CSV data file as argument to the script')
 filename = args[0]
 
-# Set up logging: logging everything (DEBUG & above)
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format="%(levelname)s: %(message)s")
-logger = logging.root
+# Set up logging
+logging.basicConfig(level=logging.WARNING, stream=sys.stdout, format="%(levelname)s: %(message)s")
+logger = logging.getLogger('fit_pointing_model')
 logger.setLevel(logging.DEBUG)
 
 # Load old pointing model, if given
@@ -64,11 +64,11 @@ if opts.pmfilename:
         logger.warning("Could not load old pointing model from '%s'" % (opts.pmfilename,))
 
 # Load data file in one shot as an array of strings
-data = np.loadtxt(filename, dtype=np.str, comments='#', delimiter=', ')
+data = np.loadtxt(filename, dtype=str, comments='#', delimiter=', ')
 # Interpret first non-comment line as header
 fields = data[0].tolist()
 # By default, all fields are assumed to contain floats
-formats = np.tile(np.float, len(fields))
+formats = np.tile(float, len(fields))
 # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
 formats[[fields.index(name) for name in string_fields if name in fields]] = data.dtype
 # Convert to heterogeneous record array
@@ -166,8 +166,10 @@ def update(fig):
     fig.canvas.draw()
 
     # Fit new pointing model and update results
+    new_model.set()
     params, sigma_params = new_model.fit(az[keep], el[keep], measured_delta_az[keep], measured_delta_el[keep],
-                                         std_delta_az[keep], std_delta_el[keep], enabled_params)
+                                         std_delta_az[keep], std_delta_el[keep], enabled_params,
+                                         keep_disabled_params=True)
     new.update(new_model)
 
     # Update rest of figure
