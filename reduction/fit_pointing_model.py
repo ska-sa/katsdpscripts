@@ -59,9 +59,9 @@ old_model = None
 if opts.pmfilename:
     try:
         old_model = katpoint.PointingModel(open(opts.pmfilename).readline())
-        logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename))
+        logger.debug("Loaded %d-parameter pointing model from '%s'", len(old_model), opts.pmfilename)
     except IOError:
-        logger.warning("Could not load old pointing model from '%s'" % (opts.pmfilename,))
+        logger.warning("Could not load old pointing model from '%s'", opts.pmfilename)
 
 # Load data file in one shot as an array of strings
 data = np.loadtxt(filename, dtype=str, comments='#', delimiter=', ')
@@ -106,6 +106,7 @@ display_params = list(range(num_params))
 display_params.pop(9)
 display_params.pop(1)
 
+
 class PointingResults(object):
     """Calculate and store results related to given pointing model."""
     def __init__(self, model):
@@ -121,7 +122,7 @@ class PointingResults(object):
         self.metrics(keep)
 
     def metrics(self, keep):
-        ###### On the calculation of all-sky RMS #####
+        # ##### On the calculation of all-sky RMS #####
         # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
         # They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
         # standard deviation of sigma
@@ -134,8 +135,11 @@ class PointingResults(object):
         self.robust_sky_rms = np.median(self.abs_sky_error[keep]) * np.sqrt(2. / np.log(4.))
         # The chi^2 value is what is actually optimised by the least-squares fitter (evaluated on the training set)
         self.chi2 = np.sum(((self.residual_xel / std_delta_az) ** 2 + (self.residual_el / std_delta_el) ** 2)[keep])
+
+
 old = PointingResults(old_model)
 new = PointingResults(new_model)
+
 
 def quiver_segments(delta_az, delta_el, scale):
     """Produce line segments that indicate size and direction of residuals."""
@@ -148,11 +152,13 @@ def quiver_segments(delta_az, delta_el, scale):
     theta2, r2 = np.arctan2(y2, x2), np.sqrt(x2 ** 2 + y2 ** 2)
     return np.c_[np.c_[theta1, r1], np.c_[theta2, r2]].reshape(-1, 2, 2)
 
+
 def param_to_str(model, p):
     """Represent value of *p*'th parameter of *model* as a string."""
     parameter = [param for param in model][p]
     # Represent P9 and P12 (scale parameters) in shorter form
     return parameter.value_str if p not in [8, 11] else ("%.3e" % parameter.value)
+
 
 def update(fig):
     """Fit new pointing model and update plots."""
@@ -160,7 +166,7 @@ def update(fig):
     # Target state: 0 = flagged, 1 = unflagged, 2 = highlighted
     target_state = keep * ((target_index == fig.highlighted_target) + 1)
     # Specify colours of flagged, unflagged and highlighted dots, respectively, as RGBA tuples
-    dot_colors = np.choose(target_state, np.atleast_3d(np.vstack([(1,1,1,1), (0,0,1,1), (1,0,0,1)]))).T
+    dot_colors = np.choose(target_state, np.atleast_3d(np.vstack([(1, 1, 1, 1), (0, 0, 1, 1), (1, 0, 0, 1)]))).T
     for ax in fig.axes[:7]:
         ax.dots.set_facecolors(dot_colors)
     fig.canvas.draw()
@@ -173,7 +179,7 @@ def update(fig):
     new.update(new_model)
 
     # Update rest of figure
-    fig.texts[3].set_text("$\chi^2$ = %.1f" % new.chi2)
+    fig.texts[3].set_text(r"$\chi^2$ = %.1f" % new.chi2)
     fig.texts[4].set_text("all sky rms = %.3f' (robust %.3f')" % (new.sky_rms, new.robust_sky_rms))
     new.metrics(target_index == fig.highlighted_target)
     fig.texts[5].set_text("target sky rms = %.3f' (robust %.3f')" % (new.sky_rms, new.robust_sky_rms))
@@ -198,7 +204,7 @@ def update(fig):
     # Update quiver plot
     quiver_scale = 0.1 * fig.quiver_scale_slider.val * np.pi / 6 / deg2rad(old.robust_sky_rms / 60.)
     quiver.quiv.set_segments(quiver_segments(new.residual_az, new.residual_el, quiver_scale))
-    quiver.quiv.set_color(np.choose(keep, np.atleast_3d(np.vstack([(0.3,0.3,0.3,0.2), (0.3,0.3,0.3,1)]))).T)
+    quiver.quiv.set_color(np.choose(keep, np.atleast_3d(np.vstack([(0.3, 0.3, 0.3, 0.2), (0.3, 0.3, 0.3, 1)]))).T)
     # Update residual plots
     daz_az.dots.set_offsets(np.c_[rad2deg(az), rad2deg(new.residual_xel) * 60.])
     del_az.dots.set_offsets(np.c_[rad2deg(az), rad2deg(new.residual_el) * 60.])
@@ -215,11 +221,17 @@ def update(fig):
     # Redraw the figure
     fig.canvas.draw()
 
+
 theta_formatter = PolarAxes.ThetaFormatter()
+
+
 def angle_formatter(x, pos=None):
     return theta_formatter(wrap_angle(np.pi / 2.0 - x), pos)
+
+
 def arcmin_formatter(x, pos=None):
     return "%g'" % x
+
 
 # List of unique targets in data set and target index for each data point
 unique_targets = np.unique(targets).tolist()
@@ -237,6 +249,8 @@ north_to_south = np.flipud(np.argsort(pseudo_dec))
 target_colors = target_colors[north_to_south][target_index]
 # Axis limit to be applied to all residual plots
 resid_lim = 1.2 * old.abs_sky_error.max()
+
+
 def plot_data_and_tooltip(ax, xdata, ydata):
     """Plot data markers and add tooltip to axes (single place to configure them)."""
     ax.dots = ax.scatter(xdata, ydata, 30, 'b', edgecolors='0.3')
@@ -245,6 +259,7 @@ def plot_data_and_tooltip(ax, xdata, ydata):
                          va='bottom', ha='center', bbox=dict(boxstyle='round4', fc='w'), visible=False, zorder=5,
                          arrowprops=dict(arrowstyle='-|>', shrinkB=10, connectionstyle='arc3,rad=-0.2',
                                          fc='w', zorder=4))
+
 
 # Set up figure with buttons
 plt.ion()
@@ -310,12 +325,12 @@ ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(arcmin_formatter))
 plot_data_and_tooltip(ax, np.arctan2(old.residual_el, old.residual_xel), old.abs_sky_error)
 ax.set_xticklabels([])
 ax.set_title('OLD')
-fig.text(0.625, 0.09, "$\chi^2$ = %.1f" % (old.chi2,), ha='center', va='baseline')
+fig.text(0.625, 0.09, r"$\chi^2$ = %.1f" % (old.chi2,), ha='center', va='baseline')
 fig.text(0.625, 0.06, "all sky rms = %.3f' (robust %.3f')" % (old.sky_rms, old.robust_sky_rms),
          ha='center', va='baseline')
 old.metrics(target_index == fig.highlighted_target)
 fig.text(0.625, 0.03, "target sky rms = %.3f' (robust %.3f')" % (old.sky_rms, old.robust_sky_rms),
-         ha='center', va='baseline', fontdict=dict(color=(0.25,0,0,1)))
+         ha='center', va='baseline', fontdict=dict(color=(0.25, 0, 0, 1)))
 old.metrics(keep)
 
 ax = fig.add_axes([0.75, 0.135, 0.25, 0.25], projection='polar')
@@ -323,13 +338,14 @@ ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(arcmin_formatter))
 plot_data_and_tooltip(ax, np.arctan2(old.residual_el, old.residual_xel), old.abs_sky_error)
 ax.set_xticklabels([])
 ax.set_title('NEW')
-fig.text(0.875, 0.09, "$\chi^2$ = %.1f" % (old.chi2,), ha='center', va='baseline')
+fig.text(0.875, 0.09, r"$\chi^2$ = %.1f" % (old.chi2,), ha='center', va='baseline')
 fig.text(0.875, 0.06, "all sky rms = %.3f' (robust %.3f')" % (old.sky_rms, old.robust_sky_rms),
          ha='center', va='baseline')
 old.metrics(target_index == fig.highlighted_target)
 fig.text(0.875, 0.03, "target sky rms = %.3f' (robust %.3f')" % (old.sky_rms, old.robust_sky_rms),
-         ha='center', va='baseline', fontdict=dict(color=(0.25,0,0,1)))
+         ha='center', va='baseline', fontdict=dict(color=(0.25, 0, 0, 1)))
 old.metrics(keep)
+
 
 # Add tooltip that relates points in each plot to each other and displays target name
 def on_motion(event):
@@ -350,6 +366,7 @@ def on_motion(event):
             ax.ann.set_visible(False)
     event.canvas.draw()
 fig.canvas.mpl_connect('motion_notify_event', on_motion)
+
 
 # Add flagging tool that toggles status of each data point
 def on_click(event):
@@ -372,13 +389,15 @@ fig.canvas.mpl_connect('button_release_event', on_click)
 # Create save button
 save_button = mpl.widgets.Button(fig.add_axes([0.51, 0.81, 0.05, 0.04]), 'SAVE',
                                  color=(0.85, 0, 0), hovercolor=(0.95, 0, 0))
+
+
 def save_callback(event):
     # Save pointing model to file
     outfile = open(opts.outfilebase + '.csv', 'w')
     # The original pointing model description string was comma-separated
     outfile.write(new_model.description.replace(" ", ", "))
     outfile.close()
-    logger.debug("Saved %d-parameter pointing model to '%s'" % (len(new_model), opts.outfilebase + '.csv'))
+    logger.debug("Saved %d-parameter pointing model to '%s'", len(new_model), opts.outfilebase + '.csv')
     # Turn data recarray into list of dicts and add residuals to the mix
     extended_data = []
     for n in range(len(data)):
@@ -412,6 +431,8 @@ save_button.on_clicked(save_callback)
 # Create buttons to toggle parameter selection
 param_button_color = ['0.65', '0.0']
 param_button_weight = ['normal', 'bold']
+
+
 def setup_param_button(p):
     """Set up individual parameter toggle button."""
     param = display_params[p]
@@ -422,6 +443,7 @@ def setup_param_button(p):
     state = enabled_params[param]
     param_button.label.set_color(param_button_color[state])
     param_button.label.set_weight(param_button_weight[state])
+
     def toggle_param_callback(event):
         state = not enabled_params[param]
         enabled_params[param] = state
@@ -431,13 +453,13 @@ def setup_param_button(p):
         save_button.hovercolor = (0.95, 0, 0)
         update(fig)
     param_button.on_clicked(toggle_param_callback)
-    return param_button # This is to stop the gc from deleting the data
+    return param_button  # This is to stop the gc from deleting the data
 param_buttons = [setup_param_button(p) for p in range(len(display_params))]
 
 # Add old pointing model and labels
-list_o_names = 'Ant:%s , Datasets:'%(antenna.name) + ' ,'.join(np.unique(data['dataset']).tolist() )
-fig.text(0.405, 0.98,git_info(), horizontalalignment='right',fontsize=10)
-fig.text(0.905, 0.98,list_o_names, horizontalalignment='right',fontsize=10)
+list_o_names = 'Ant: %s Datasets: %s' % (antenna.name, ' ,'.join(np.unique(data['dataset']).tolist()))
+fig.text(0.405, 0.98, git_info(), horizontalalignment='right', fontsize=10)
+fig.text(0.905, 0.98, list_o_names, horizontalalignment='right', fontsize=10)
 fig.text(0.053, 0.95, 'OLD', ha='center', va='bottom', size='large')
 fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
@@ -458,7 +480,8 @@ def next_target_callback(event):
     fig.highlighted_target = fig.highlighted_target + 1 if fig.highlighted_target < len(unique_targets) - 1 else 0
     update(fig)
 next_target_button.on_clicked(next_target_callback)
-fig.text(0.565, 0.89, unique_targets[fig.highlighted_target], ha='center', va='top', fontdict=dict(color=(0.25,0,0,1)))
+fig.text(0.565, 0.89, unique_targets[fig.highlighted_target],
+         ha='center', va='top', fontdict=dict(color=(0.25, 0, 0, 1)))
 
 # Create quiver scale slider
 fig.quiver_scale_slider = mpl.widgets.Slider(fig.add_axes([0.9, 0.92, 0.07, 0.02]), 'Arrow scale', 0, 90, 10, '%.0f')
