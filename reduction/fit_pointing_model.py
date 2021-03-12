@@ -94,7 +94,7 @@ keep = data['keep'].astype(np.bool) if 'keep' in data.dtype.fields else np.tile(
 # Initialise new pointing model and set default enabled parameters
 new_model = katpoint.PointingModel()
 num_params = len(new_model)
-default_enabled = np.nonzero(list(old_model.values()))[0]
+default_enabled = np.nonzero(old_model.values())[0]
 # If the old model is empty / null, select the most basic set of parameters for starters
 if len(default_enabled) == 0:
     default_enabled = np.array([1, 3, 4, 5, 6, 7]) - 1
@@ -194,7 +194,7 @@ def update(fig):
         std_param_str = ("%.2f'" % std_param) if param not in [8, 11] else ("%.0e" % std_param)
         fig.texts[2*p + 7].set_text(std_param_str if enabled_params[param] and opts.use_stats else '')
         # Turn parameter string bold if it changed significantly from old value
-        if np.abs(params[param] - list(old_model.values())[param]) > 3.0 * sigma_params[param]:
+        if np.abs(params[param] - old_model.values()[param]) > 3.0 * sigma_params[param]:
             fig.texts[2*p + 6].set_weight('bold')
             fig.texts[2*p + 7].set_weight('bold')
         else:
@@ -401,7 +401,7 @@ def save_callback(event):
     # Turn data recarray into list of dicts and add residuals to the mix
     extended_data = []
     for n in range(len(data)):
-        rec_dict = dict(list(zip(data.dtype.names, data[n])))
+        rec_dict = dict(zip(data.dtype.names, data[n]))
         rec_dict['keep'] = int(keep[n])
         rec_dict['old_residual_xel'] = rad2deg(old.residual_xel[n])
         rec_dict['old_residual_el'] = rad2deg(old.residual_el[n])
@@ -470,7 +470,7 @@ fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
 fig.text(0.225, 0.95, 'STD', ha='center', va='bottom', size='large')
 for p, param in enumerate(display_params):
-    param_str = param_to_str(old_model, param) if list(old_model.values())[param] else ''
+    param_str = param_to_str(old_model, param) if old_model.values()[param] else ''
     fig.text(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), param_str, ha='right', va='center')
 
 # Create target selector buttons and related text (title + target string)
