@@ -357,7 +357,7 @@ ax.set_xticklabels([])
 ax.set_title('NEW')
 fig.text(0.875, 0.09, r"$\chi^2$ = %.1f" % (old.chi2,), ha='center', va='baseline')
 fig.text(0.875, 0.06, "all sky rms = %.3f' (robust %.3f')" % (old.sky_rms, old.robust_sky_rms),
-         ha='center', va='baseline')
+         ha='center', va='baseline', weight='bold')
 old.metrics(target_index == fig.highlighted_target)
 fig.text(0.875, 0.03, "target sky rms = %.3f' (robust %.3f')" % (old.sky_rms, old.robust_sky_rms),
          ha='center', va='baseline', fontdict=dict(color=(0.25, 0, 0, 1)))
@@ -406,6 +406,8 @@ fig.canvas.mpl_connect('button_release_event', on_click)
 # Create save button
 save_button = mpl.widgets.Button(fig.add_axes([0.51, 0.81, 0.05, 0.04]), 'SAVE',
                                  color=(0.85, 0, 0), hovercolor=(0.95, 0, 0))
+save_button.label.set_color('w')
+save_button.label.set_weight('bold')
 
 
 def save_callback(event):
