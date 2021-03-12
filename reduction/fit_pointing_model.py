@@ -457,9 +457,14 @@ def setup_param_button(p):
 param_buttons = [setup_param_button(p) for p in range(len(display_params))]
 
 # Add old pointing model and labels
-list_o_names = 'Ant: %s Datasets: %s' % (antenna.name, ' ,'.join(np.unique(data['dataset']).tolist()))
-fig.text(0.405, 0.98, git_info(), horizontalalignment='right', fontsize=10)
-fig.text(0.905, 0.98, list_o_names, horizontalalignment='right', fontsize=10)
+datasets = np.unique(data['dataset']).tolist()
+if len(datasets) > 4:
+    datasets[2] = '...%d more...' % (len(datasets) - 3,)
+    datasets[3] = datasets[-1]
+    datasets = datasets[:4]
+info_line = '{}            Antenna: {}            Datasets: {}'.format(
+    git_info(), antenna.name, ', '.join(datasets))
+fig.text(0.5, 0.98, info_line, ha='center', size='medium')
 fig.text(0.053, 0.95, 'OLD', ha='center', va='bottom', size='large')
 fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
