@@ -98,9 +98,13 @@ default_enabled = np.nonzero(old_model.values())[0]
 # If the old model is empty / null, select the most basic set of parameters for starters
 if len(default_enabled) == 0:
     default_enabled = np.array([1, 3, 4, 5, 6, 7]) - 1
-enabled_params = np.tile(False, num_params)
-enabled_params[default_enabled] = True
-enabled_params = enabled_params.tolist()
+# Parameter button states
+# XXX Use Enum eventually, once the params are also string-based instead of ints
+ZEROED = 0  # disabled and zeroed
+ENABLED = 1  # enabled (i.e. will be fitted)
+FIXED = 2  # disabled and fixed to the old model value
+parameter_state = np.full(num_params, ZEROED)
+parameter_state[default_enabled] = ENABLED
 # For display purposes, throw out unused parameters P2 and P10
 display_params = list(range(num_params))
 display_params.pop(9)
@@ -156,8 +160,14 @@ def quiver_segments(delta_az, delta_el, scale):
 def param_to_str(model, p):
     """Represent value of *p*'th parameter of *model* as a string."""
     parameter = [param for param in model][p]
+    # Zeros are not displayed, which declutters the user interface
+    if parameter.value == 0.0:
+        return ''
     # Represent P9 and P12 (scale parameters) in shorter form
-    return parameter.value_str if p not in [8, 11] else ("%.3e" % parameter.value)
+    elif p in [8, 11]:
+        return "%.3e" % (parameter.value,)
+    else:
+        return parameter.value_str
 
 
 def update(fig):
@@ -172,9 +182,12 @@ def update(fig):
     fig.canvas.draw()
 
     # Fit new pointing model and update results
-    new_model.set()
+    old_params = np.array(old_model.values())
+    # Zero the parameters marked as ZEROED but not the ones that are FIXED (or ENABLED)
+    old_params[parameter_state == ZEROED] = 0.0
+    new_model.set(old_params)
     params, sigma_params = new_model.fit(az[keep], el[keep], measured_delta_az[keep], measured_delta_el[keep],
-                                         std_delta_az[keep], std_delta_el[keep], enabled_params,
+                                         std_delta_az[keep], std_delta_el[keep], parameter_state == ENABLED,
                                          keep_disabled_params=True)
     new.update(new_model)
 
@@ -187,12 +200,16 @@ def update(fig):
     fig.texts[-1].set_text(unique_targets[fig.highlighted_target])
     # Update model parameter strings
     for p, param in enumerate(display_params):
-        fig.texts[2*p + 6].set_text(param_to_str(new_model, param) if enabled_params[param] else '')
+        fig.texts[2*p + 6].set_text(param_to_str(new_model, param))
         # HACK to convert sigmas to arcminutes, but not for P9 and P12 (which are scale factors)
         # This functionality should really reside inside the PointingModel class
-        std_param = rad2deg(sigma_params[param]) * 60. if param not in [8, 11] else sigma_params[param]
-        std_param_str = ("%.2f'" % std_param) if param not in [8, 11] else ("%.0e" % std_param)
-        fig.texts[2*p + 7].set_text(std_param_str if enabled_params[param] and opts.use_stats else '')
+        if parameter_state[param] == ZEROED or not opts.use_stats:
+            std_param_str = ''
+        elif param in [8, 11]:
+            std_param_str = "%.0e" % (sigma_params[param],)
+        else:
+            std_param_str = "%.2f'" % (rad2deg(sigma_params[param]) * 60.,)
+        fig.texts[2*p + 7].set_text(std_param_str)
         # Turn parameter string bold if it changed significantly from old value
         if np.abs(params[param] - old_model.values()[param]) > 3.0 * sigma_params[param]:
             fig.texts[2*p + 6].set_weight('bold')
@@ -429,8 +446,9 @@ def save_callback(event):
 save_button.on_clicked(save_callback)
 
 # Create buttons to toggle parameter selection
-param_button_color = ['0.65', '0.0']
-param_button_weight = ['normal', 'bold']
+param_button_color = {ZEROED: '0.65', ENABLED: '0.0', FIXED: '0.0'}
+param_button_weight = {ZEROED: 'normal', ENABLED: 'bold', FIXED: 'normal'}
+param_button_framewidth = {ZEROED: 0.0, ENABLED: 0.0, FIXED: 0.8}
 
 
 def setup_param_button(p):
@@ -440,15 +458,23 @@ def setup_param_button(p):
                                                    0.03, 0.85 / len(display_params)]), 'P%d' % (param + 1,))
     fig.text(0.19, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), '', ha='right', va='center')
     fig.text(0.24, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), '', ha='right', va='center')
-    state = enabled_params[param]
+    state = parameter_state[param]
     param_button.label.set_color(param_button_color[state])
     param_button.label.set_weight(param_button_weight[state])
+    for spine in param_button.ax.spines.values():
+        spine.set_linewidth(param_button_framewidth[state])
 
     def toggle_param_callback(event):
-        state = not enabled_params[param]
-        enabled_params[param] = state
+        state = parameter_state[param] + 1
+        if state > FIXED:
+            state = ZEROED
+        if state == FIXED and not old_model.values()[param]:
+            state = ZEROED
+        parameter_state[param] = state
         param_button.label.set_color(param_button_color[state])
         param_button.label.set_weight(param_button_weight[state])
+        for spine in param_button.ax.spines.values():
+            spine.set_linewidth(param_button_framewidth[state])
         save_button.color = (0.85, 0, 0)
         save_button.hovercolor = (0.95, 0, 0)
         update(fig)
@@ -470,8 +496,8 @@ fig.text(0.105, 0.95, 'MODEL', ha='center', va='bottom', size='large')
 fig.text(0.16, 0.95, 'NEW', ha='center', va='bottom', size='large')
 fig.text(0.225, 0.95, 'STD', ha='center', va='bottom', size='large')
 for p, param in enumerate(display_params):
-    param_str = param_to_str(old_model, param) if old_model.values()[param] else ''
-    fig.text(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params), param_str, ha='right', va='center')
+    fig.text(0.085, 0.94 - (0.5 * 0.85 + p * 0.9) / len(display_params),
+             param_to_str(old_model, param), ha='right', va='center')
 
 # Create target selector buttons and related text (title + target string)
 fig.text(0.565, 0.95, 'TARGET', ha='center', va='bottom', size='large')
