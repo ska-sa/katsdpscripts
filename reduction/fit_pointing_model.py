@@ -63,8 +63,9 @@ if opts.pmfilename:
     except IOError:
         logger.warning("Could not load old pointing model from '%s'", opts.pmfilename)
 
-# Load data file in one shot as an array of strings
-data = np.loadtxt(filename, dtype=str, comments='#', delimiter=', ')
+# Load data file in one shot as an array of strings (CSV, with extra whitespace stripped)
+data = np.loadtxt(filename, dtype=str, comments='#', delimiter=',')
+data = np.char.strip(data)
 # Interpret first non-comment line as header
 fields = data[0].tolist()
 # By default, all fields are assumed to contain floats
