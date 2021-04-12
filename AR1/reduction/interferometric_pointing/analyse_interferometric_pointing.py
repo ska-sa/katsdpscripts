@@ -98,6 +98,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
+        h5.select()
         h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=[h5.catalogue.targets[TI] for TI in target_indices],compscans=compscan_index)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() :
@@ -126,7 +127,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                     gaussian = fitobj.fit(x.T,y,y_err ) 
                     #Fitted beam center is in (x, y) coordinates, in projection centred on target
                     snr = np.abs(np.r_[gaussian.std/gaussian.std_std])
-                    valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
+                    valid_fit = np.all(np.append(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]),gaussian.height > 0.01))
                     theta =  np.sqrt((gaussian.mean**2).sum())  # this is to see if the co-ord is out of range
                     #The valid fit is needed because I have no way of working out if the gain solution was ok.
                     if  not valid_fit or np.any(theta > np.pi) : # the checks to see if the fit is ok
@@ -161,8 +162,10 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         for ant in range(len(h5.ants)):
-            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['HH'],:,ant])
-            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['VV'],:,ant])
+            h_height = np.concatenate((gaussian_height[pol_ind['HH'],ant,np.newaxis] > 0.01, gaussian_height[pol_ind['HH'],ant,np.newaxis] > 0.01), axis=-1) 
+            v_height = np.concatenate((gaussian_height[pol_ind['VV'],ant,np.newaxis] > 0.01, gaussian_height[pol_ind['VV'],ant,np.newaxis] > 0.01), axis=-1)
+            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['HH'],:,ant]) & h_height
+            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['VV'],:,ant]) & v_height
             valid_solutions = np.count_nonzero(h_pol & v_pol) # Note this is twice the number of solutions because of the Az & El parts
             print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
             if debug :#debug_text
@@ -239,7 +242,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         if debug :#debug_text
             debug_text.append('')
             base = "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing_DEBUG")
-            g = file('%s:Scan%i:%s'%(base,compscan_index,target.name),'w')
+            g = open('%s:Scan%i:%s'%(base,compscan_index,target.name),'w')
             g.write("\n".join(debug_text))
             g.close()
         return ant_pointing
