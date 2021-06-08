@@ -92,11 +92,11 @@ def move_band(kat, band):
 def process_band(band):
     global ap_band
     global ap_move_band
-    if ap_band != band:
-        ap_band = band
-        ap_move_band = True
-    else:
-        user_logger.info('Indexer is already in: %s band', ap_band)
+
+    # We always want to move the indexer, even if it is already in 
+    # the correct location for testing purposes
+    ap_band = band
+    ap_move_band = True
 
 
 def process_az(az):
@@ -215,8 +215,8 @@ def execute_instructions(kat, steps, dry_run=False):
         move_band(kat, ap_band)
 
         for step in range(len(steps)):
-            instruction = 'Az: ' + str(steps[step][1]) + ' El: ' + str(steps[step][2])
-            + ' Band: ' + str(steps[step][0]) + ' Delay: ' + str(steps[step][3])
+            instruction = ('Az: ' + str(steps[step][1]) + ' El: ' + str(steps[step][2]) +
+                ' Band: ' + str(steps[step][0]) + ' Delay: ' + str(steps[step][3]))
             user_logger.info('**** Executing instruction %d out of %d: %s ****',
                              step+1, len(steps), instruction)
             # skipping the repeat value in the steps list
@@ -233,6 +233,8 @@ def execute_instructions(kat, steps, dry_run=False):
             if ap_delay:
                 user_logger.info('Sleeping for %d seconds', ap_delay)
                 time.sleep(ap_delay)
+                # Reset delay to 0 when we are done
+                ap_delay = 0
 
         user_logger.info("Elevation pattern complete")
 
