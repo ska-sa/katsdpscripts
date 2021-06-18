@@ -162,32 +162,41 @@ def parse_csv(csv_file):
     global ap_repeat_stop
     global repeat_list
     global instruction_list
+
     for step in range(1, len(steps)):
-        # repeat is index 4
-        if steps[step][4]:
-            process_repeat(steps[step][4])
-            if not ap_skip:
-                if ap_repeat_start:
-                    repeat_list.append(steps[step])
-                elif not ap_repeat_stop:
-                    instruction_list.append(steps[step])
-
-                if ap_repeat_stop:
-                    ap_repeat_stop = False
-                    # copy the repeat list into the instruction list
-                    for i in range(int(repeat_list[0][4])):
-                        instruction_list.extend(repeat_list)
-                    repeat_list = []
-
-                    if ap_repeat != 1:
+#        print ("Step: %s" % steps[step])
+        if steps[step]:
+            # check if their is a hash comment in the line
+#            print ("--Step: %s" % steps[step][0])
+            if len(steps[step][0]) > 0:
+                if steps[step][0][0] == '#':
+#                    print ("Skipping line %s" % steps[step])
+                    continue
+            # repeat is index 4
+            if steps[step][4]:
+                process_repeat(steps[step][4])
+                if not ap_skip:
+                    if ap_repeat_start:
                         repeat_list.append(steps[step])
-                        ap_repeat_start = True
-                    else:
-                        # new
+                    elif not ap_repeat_stop:
                         instruction_list.append(steps[step])
 
-            else:
-                ap_skip = False
+                    if ap_repeat_stop:
+                        ap_repeat_stop = False
+                        # copy the repeat list into the instruction list
+                        for i in range(int(repeat_list[0][4])):
+                            instruction_list.extend(repeat_list)
+                        repeat_list = []
+
+                        if ap_repeat != 1:
+                            repeat_list.append(steps[step])
+                            ap_repeat_start = True
+                        else:
+                            # new
+                            instruction_list.append(steps[step])
+
+                else:
+                    ap_skip = False
 
     if ap_repeat_start:
         # copy the repeat list into the instruction list
@@ -196,8 +205,8 @@ def parse_csv(csv_file):
         repeat_list = []
         ap_repeat_start = False
 
-    print('Instruction list:')
-    print(instruction_list)
+#    print('Instruction list:')
+#    print(instruction_list)
 
 
 def execute_instructions(kat, steps, dry_run=False):
