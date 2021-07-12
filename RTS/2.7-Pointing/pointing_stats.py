@@ -19,7 +19,7 @@ def angle_wrap(angle, period=2.0 * np.pi):
 
 def save_pointingmodel(filebase,model):
     # Save pointing model to file
-    outfile = file(filebase + '.csv', 'w')
+    outfile = open(filebase + '.csv', 'w')
     outfile.write(model.description)
     outfile.close()
     #logger.debug("Saved %d-parameter pointing model to '%s'" % (len(model.params), filebase + '.csv'))
@@ -27,7 +27,7 @@ def save_pointingmodel(filebase,model):
 def read_offsetfile(filename):
     """Load data file in one shot as an array of strings."""
     string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
-    data = np.loadtxt(filename, dtype='string', comments='#', delimiter=', ')
+    data = np.loadtxt(filename, dtype=np.str, comments='#', delimiter=', ')
     # Interpret first non-comment line as header
     fields = data[0].tolist()
     # By default, all fields are assumed to contain floats
@@ -37,7 +37,7 @@ def read_offsetfile(filename):
     # Convert to heterogeneous record array
     data = np.rec.fromarrays(data[1:].transpose(), dtype=list(zip(fields, formats)))
     # Load antenna description string from first line of file and construct antenna object from it
-    antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
+    antenna = katpoint.Antenna(open(filename,'r').readline().strip().partition('=')[2])
     # Use the pointing model contained in antenna object as the old model (if not overridden by file)
     # If the antenna has no model specified, a default null model will be used
     return data
@@ -276,13 +276,13 @@ text.append(tmpstr)
 old_model = None
 if opts.pmfilename:
     try:
-        old_model = katpoint.PointingModel(file(opts.pmfilename).readline())
+        old_model = katpoint.PointingModel(open(opts.pmfilename).readline())
         logger.debug("Loaded %d-parameter pointing model from '%s'" % (len(old_model), opts.pmfilename))
     except IOError:
         logger.warning("Could not load old pointing model from '%s'" % (opts.pmfilename,))
 
 # If the antenna has no model specified, a default null model will be used
-antenna = katpoint.Antenna(file(filename).readline().strip().partition('=')[2])
+antenna = katpoint.Antenna(open(filename).readline().strip().partition('=')[2])
 if old_model is None:
     old_model = antenna.pointing_model
 targets = data['target']
