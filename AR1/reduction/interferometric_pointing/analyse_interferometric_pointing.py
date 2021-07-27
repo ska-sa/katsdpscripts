@@ -30,7 +30,7 @@ def w_average(arr,axis=None, weights=None):
 def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_weights=False,compscan_index=None,debug=False):
     """Break the band up into chunks"""
     chunk_size = chunks
-    rfi_static_flags = np.tile(False, h5.shape[1]) if (rfi_static_flags is None) else rfi_static_flags
+    rfi_static_flags = np.full(h5.shape[1], False) if (rfi_static_flags is None) else rfi_static_flags
     gains_p = {}
     stdv = {}
     calibrated = False # placeholder for calibration
