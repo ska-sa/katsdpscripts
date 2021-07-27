@@ -232,24 +232,33 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
             g.close()
         return ant_pointing
 
-def load_rfi_static_mask(filename, freqs, chunks):
-    with open(filename, "rb") as pickle_file:
-        channel_flags = pickle.load(pickle_file)
+def load_rfi_static_mask(filename, freqs, debug=True, chunks=1):
+    # Construct a mask either from a pickle file, or a text file with frequency ranges
     nchans = len(freqs)
-    nflags = len(channel_flags)
-    if (nchans != nflags):
-        print("Warning channel mask (%d) is stretched to fit dataset (%d)!"%(nflags,nchans))
-        N = nchans/float(nflags)
-        channel_flags = np.repeat(channel_flags, int(N+0.5)) if (N > 1) else channel_flags[::int(1/N)]
-    rfi_static_flags = channel_flags[:nchans] # Clip, just in case
-    for chunk in range(chunks):
-        freq = slice(chunk*(nchans//chunks),(chunk+1)*(nchans//chunks))
-        masked_f = freqs[freq][rfi_static_flags[freq]]
-        if (len(masked_f) > 0):
-            print("\tFreq. chunk %d: mask omits (%.1f - %.1f)MHz"%(chunk,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
-        else:
-            print("\tFreq. chunk %d: mask omits nothing"%chunk)
-    return rfi_static_flags
+    try:
+        with open(filename, "rb") as pickle_file:
+            channel_flags = pickle.load(pickle_file)
+        nflags = len(channel_flags)
+        if (nchans != nflags):
+            print("Warning channel mask (%d) is stretched to fit dataset (%d)!"%(nflags,nchans))
+            N = nchans/float(nflags)
+            channel_flags = np.repeat(channel_flags, int(N+0.5)) if (N > 1) else channel_flags[::int(1/N)]
+        channel_flags = channel_flags[:nchans] # Clip, just in case
+    except pickle.UnpicklingError: # Not a pickle file, perhaps a plain text file with frequency ranges in MHz?
+        mask_ranges = np.loadtxt(filename, comments='#', delimiter=',')
+        channel_flags = np.full((nchans,), False)
+        for r in mask_ranges:
+            idx = np.where((freqs < r[1]*1e6) & (freqs >= r[0]*1e6))[0]
+            channel_flags[idx] = True
+    if debug:
+        for chunk in range(chunks):
+            freq = slice(chunk*(nchans//chunks),(chunk+1)*(nchans//chunks))
+            masked_f = freqs[freq][channel_flags[freq]]
+            if (len(masked_f) > 0):
+                print("\tFreq. chunk %d: mask omits (%.1f - %.1f)MHz"%(chunk,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
+            else:
+                print("\tFreq. chunk %d: mask omits nothing"%chunk)
+    return channel_flags
 
 
 # Parse command-line opts and arguments
@@ -300,7 +309,7 @@ print("Using %s as the reference antenna "%(ant_list[0]))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 if len(opts.channel_mask)>0:
-    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, chunks)
+    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, debug=True, chunks=chunks)
 else:
     rfi_static_flags = None
 
