@@ -124,7 +124,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                     valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
                     theta =  np.sqrt((gaussian.mean**2).sum())  # this is to see if the co-ord is out of range
                     #The valid fit is needed because I have no way of working out if the gain solution was ok.
-                    if valid_fit and np.any(theta < np.pi) : # Invalid fits remain nan (initialised defaults)
+                    if valid_fit and np.any(theta <= np.pi) : # Invalid fits remain nan (initialised defaults)
                         # Convert this offset back to spherical (az, el) coordinates
                         beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time)
                         # Now correct the measured (az, el) for refraction and then apply the old pointing model
