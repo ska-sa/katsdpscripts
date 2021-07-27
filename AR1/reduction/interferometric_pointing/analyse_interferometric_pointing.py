@@ -232,9 +232,10 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
             g.close()
         return ant_pointing
 
-def load_rfi_static_mask(filename, nchans, chunks):
+def load_rfi_static_mask(filename, freqs, chunks):
     with open(filename, "rb") as pickle_file:
         channel_flags = pickle.load(pickle_file)
+    nchans = len(freqs)
     nflags = len(channel_flags)
     if (nchans != nflags):
         print("Warning channel mask (%d) is stretched to fit dataset (%d)!"%(nflags,nchans))
@@ -243,7 +244,7 @@ def load_rfi_static_mask(filename, nchans, chunks):
     rfi_static_flags = channel_flags[:nchans] # Clip, just in case
     for chunk in range(chunks):
         freq = slice(chunk*(nchans//chunks),(chunk+1)*(nchans//chunks))
-        masked_f = h5.freqs[freq][rfi_static_flags[freq]]
+        masked_f = freqs[freq][rfi_static_flags[freq]]
         if (len(masked_f) > 0):
             print("\tFreq. chunk %d: mask omits (%.1f - %.1f)MHz"%(chunk,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
         else:
@@ -299,9 +300,9 @@ print("Using %s as the reference antenna "%(ant_list[0]))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 if len(opts.channel_mask)>0:
-    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, len(h5.channels), chunks)
+    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, chunks)
 else:
-    rfi_static_flags = np.tile(False, np.shape[1])
+    rfi_static_flags = None
 
 h5.antlist = [a.name for a in h5.ants]
 h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
