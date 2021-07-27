@@ -65,12 +65,12 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         requested_azel = katpoint.rad2deg(np.array(requested_azel))
 
    
-    gaussian_centre     = np.zeros((chunk_size* 2,2,len(h5.ants))) +np.nan
-    gaussian_centre_std = np.zeros((chunk_size* 2,2,len(h5.ants))) +np.nan
-    gaussian_width      = np.zeros((chunk_size* 2,2,len(h5.ants))) +np.nan
-    gaussian_width_std  = np.zeros((chunk_size* 2,2,len(h5.ants))) +np.nan
-    gaussian_height     = np.zeros((chunk_size* 2,len(h5.ants))) +np.nan
-    gaussian_height_std = np.zeros((chunk_size* 2,len(h5.ants))) +np.nan
+    gaussian_centre     = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_centre_std = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_width      = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_width_std  = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_height     = np.full((chunk_size * 2, len(h5.ants)), np.nan)
+    gaussian_height_std = np.full((chunk_size * 2, len(h5.ants)), np.nan)
     if debug :#debug_text
         debug_text = []
         line = []
