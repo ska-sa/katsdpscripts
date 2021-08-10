@@ -7,7 +7,7 @@ import numpy as np
 import scipy.ndimage
 from katcorelib.observe import (standard_script_options, verify_and_connect,
                                 collect_targets, start_session, user_logger,
-                                SessionSDP, CalSolutionsUnavailable)
+                                CalSolutionsUnavailable)
 
 
 class NoTargetsUpError(Exception):
@@ -111,11 +111,9 @@ parser.add_option('--random-phase', action='store_true', default=False,
                   help='Apply random phases in F-engine (incoherent beamformer)')
 parser.add_option('--disable-hv-correction', action='store_true', default=False,
                   help='Do not correct HV phase (but still fire the noise diode)')
-parser.add_option('--reconfigure-sdp', action="store_true", default=False,
-                  help='Reconfigure SDP subsystem at the start to clear crashed containers')
 parser.add_option('--max-gap-MHz', type='float', default=128.0,
-                  help='The maximum gap in the bandpass gain that will still be interpolated across, in MHz'
-                  '(default = %default)')
+                  help='The maximum gap in the bandpass gain that will still be '
+                       'interpolated across, in MHz (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Phase-up observation that sets F-engine gains')
@@ -130,10 +128,6 @@ if len(args) == 0:
 # Check options and build KAT configuration, connecting to proxies and devices
 with verify_and_connect(opts) as kat:
     observation_sources = collect_targets(kat, args)
-    if opts.reconfigure_sdp:
-        user_logger.info("Reconfiguring SDP subsystem")
-        sdp = SessionSDP(kat)
-        sdp.req.product_reconfigure()
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
         session.standard_setup(**vars(opts))
