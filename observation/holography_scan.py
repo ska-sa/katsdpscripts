@@ -445,7 +445,7 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
         meanelev[iarm]=np.mean(scan_data[:,2])
         #if sun elevation below 0, horizon, then rather regard sunangle as 180 degrees; note katpoint functions returns radians
-        minsunangle[iarm]=np.min([target.separation(target_sun,katpoint.Timestamp(timestamp),antenna=session.ants[0]) if target_sun.azel(timestamp=katpoint.Timestamp(timestamp),antenna=session.ants[0])[1]>0 else np.pi for timestamp in scan_data[:,0]])*180/np.pi
+        minsunangle[iarm]=np.min([target.separation(target_sun,katpoint.Timestamp(timestamp),antenna=arraycenter_antenna) if target_sun.azel(timestamp=katpoint.Timestamp(timestamp),antenna=arraycenter_antenna)[1]>0 else np.pi for timestamp in scan_data[:,0]])*180/np.pi
         starttime=scan_data[-1,0]
         if clipping_occurred:
             return False, rising, starttime-now, meanelev[iarm], minsunangle[iarm]
@@ -607,6 +607,7 @@ if __name__=="__main__":
             if len(targetnames_added):
                 user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
 
+            arraycenter_antenna=katpoint.Antenna('kat,-30:43:17.3,21:24:38.5,1038,12.0')#note this is kat antenna for now
             catalogue = collect_targets(kat, args)
             target_sun=katpoint.Target("Sun, special")
             targets=catalogue.targets
