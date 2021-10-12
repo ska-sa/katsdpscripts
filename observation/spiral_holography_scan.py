@@ -450,13 +450,16 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
         cx=ncompositex
         cy=ncompositey
     meanelev=np.zeros(len(cx))
+    minsunangle=np.zeros(len(cx))
     for iarm in range(len(cx)):#spiral arm index
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
         meanelev[iarm]=np.mean(scan_data[:,2])
+        #if sun elevation below 0, horizon, then rather regard sunangle as 180 degrees; note katpoint functions returns radians
+        minsunangle[iarm]=np.min([target.separation(target_sun,katpoint.Timestamp(timestamp),antenna=arraycenter_antenna) if target_sun.azel(timestamp=katpoint.Timestamp(timestamp),antenna=arraycenter_antenna)[1]>0 else np.pi for timestamp in scan_data[:,0]])*180/np.pi
         starttime=scan_data[-1,0]
         if clipping_occurred:
-            return False, rising, starttime-now, meanelev[iarm]
-    return True, rising, starttime-now, np.mean(meanelev)
+            return False, rising, starttime-now, meanelev[iarm], minsunangle[iarm]
+    return True, rising, starttime-now, np.mean(meanelev), np.mean(minsunangle)
 
 if __name__=="__main__":
     # Set up standard script options
@@ -574,8 +577,10 @@ if __name__=="__main__":
             if len(targetnames_added):
                 user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
 
+            arraycenter_antenna=katpoint.Antenna('meerkat,-30:42:44.68,21:26:37.0,1038,13.5')
             catalogue = collect_targets(kat, args)
             targets=catalogue.targets
+            target_sun=katpoint.Target("Sun, special")
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
                                  "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
@@ -669,26 +674,31 @@ if __name__=="__main__":
                         target_elevation_cost=1e10
                         target_expected_duration=0
                         target_meanelev=0
+                        target_minsunangle=0
                         target_histindex=0
                         targetinfotext=[]
                         for testtarget in targets:
-                            suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
-                            targetinfotext.append('%s (elev %.1f%s)'%(testtarget.name,meanelev,'' if suitable else ', unsuitable'))
+                            suitable, rising, expected_duration, meanelev, minsunangle = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
+                            targetinfotext.append('%s (elev %.1f%s%s)'%(testtarget.name,meanelev,', sun %.1f'%minsunangle if (minsunangle<180) else '','' if suitable else ', unsuitable'))
                             if suitable:
                                 if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                                     histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
-                                    if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
+                                    #ignore histogram ordering by up to 10 points maximum for sun angle ordering: 0sunangle_deg=>+10points 90sunangle_deg=>0 points
+                                    suncost=10*np.clip((90-minsunangle)/90,0,1)
+                                    if target_elevation_cost>elevation_histogram[histindex]+suncost:#find target with lowest histogram reading
                                         target=testtarget
                                         target_rising=rising
                                         target_expected_duration=expected_duration
                                         target_meanelev=meanelev
+                                        target_minsunangle=minsunangle
                                         target_histindex=histindex
-                                        target_elevation_cost=elevation_histogram[histindex]
+                                        target_elevation_cost=elevation_histogram[histindex]+suncost
                                 else:
                                     target=testtarget
                                     target_rising=rising
                                     target_expected_duration=expected_duration
                                     target_meanelev=meanelev
+                                    target_minsunangle=minsunangle
                                     break
                         user_logger.info("Targets considered: %s"%(', '.join(targetinfotext)))
                         if target is None:

@@ -438,7 +438,6 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
     else:  #target is setting - scan bottom half of pattern first
         cx=[com[::-1] for com in compositex[::-1]]
         cy=[com[::-1] for com in compositey[::-1]]
-    checktime=np.linspace(starttime,starttime+len(compositex)*opts.sampletime,10)
     meanelev=np.zeros(len(cx))
     minsunangle=np.zeros(len(cx))
     for iarm in range(len(cx)):#spiral arm index
@@ -607,10 +606,10 @@ if __name__=="__main__":
             if len(targetnames_added):
                 user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
 
-            arraycenter_antenna=katpoint.Antenna('kat,-30:43:17.3,21:24:38.5,1038,12.0')#note this is kat antenna for now
+            arraycenter_antenna=katpoint.Antenna('meerkat,-30:42:44.68,21:26:37.0,1038,13.5')
             catalogue = collect_targets(kat, args)
-            target_sun=katpoint.Target("Sun, special")
             targets=catalogue.targets
+            target_sun=katpoint.Target("Sun, special")
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
                                  "description ('azel, 20, 30') or catalogue file name ('sources.csv')")
@@ -728,6 +727,7 @@ if __name__=="__main__":
                                     target_rising=rising
                                     target_expected_duration=expected_duration
                                     target_meanelev=meanelev
+                                    target_minsunangle=minsunangle
                                     break
                         user_logger.info("Targets considered: %s"%(', '.join(targetinfotext)))
                         if target is None:
