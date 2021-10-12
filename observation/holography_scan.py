@@ -441,7 +441,6 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
     checktime=np.linspace(starttime,starttime+len(compositex)*opts.sampletime,10)
     meanelev=np.zeros(len(cx))
     minsunangle=np.zeros(len(cx))
-    target_sun.azel(timestamp=timestamp)[1]*180./np.pi
     for iarm in range(len(cx)):#spiral arm index
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
         meanelev[iarm]=np.mean(scan_data[:,2])
