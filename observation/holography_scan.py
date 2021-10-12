@@ -445,7 +445,7 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
         meanelev[iarm]=np.mean(scan_data[:,2])
         #if sun elevation below 0, horizon, then rather regard sunangle as 180 degrees; note katpoint functions returns radians
-        minsunangle[iarm]=np.min([target.separation(target_sun,katpoint.Timestamp(timestamp)) if target_sun.azel(timestamp=katpoint.Timestamp(timestamp))[1]>0 else np.pi for timestamp in scan_data[:,0]])*180/np.pi
+        minsunangle[iarm]=np.min([target.separation(target_sun,katpoint.Timestamp(timestamp),antenna=session.ants[0]) if target_sun.azel(timestamp=katpoint.Timestamp(timestamp),antenna=session.ants[0])[1]>0 else np.pi for timestamp in scan_data[:,0]])*180/np.pi
         starttime=scan_data[-1,0]
         if clipping_occurred:
             return False, rising, starttime-now, meanelev[iarm], minsunangle[iarm]
