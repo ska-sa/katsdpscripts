@@ -175,7 +175,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
         dt=np.repeat(scanspeed*sampletime,ntime)#note dt is the distance in degrees between samples
         if (slowtime>0.0):
-            repl=np.linspace(0.0,scanspeed*sampletime,2+int(slowtime/sampletime))
+            repl=np.linspace(0.0,scanspeed*sampletime,2+(slowtime)/sampletime)
             dt[:len(repl)-1]=repl[1:]
         lastr=0.0
         twistfactore=np.float(twistfactor)/(totextent)
@@ -438,14 +438,19 @@ def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevatio
     else:  #target is setting - scan bottom half of pattern first
         cx=[com[::-1] for com in compositex[::-1]]
         cy=[com[::-1] for com in compositey[::-1]]
+    checktime=np.linspace(starttime,starttime+len(compositex)*opts.sampletime,10)
     meanelev=np.zeros(len(cx))
+    minsunangle=np.zeros(len(cx))
+    target_sun.azel(timestamp=timestamp)[1]*180./np.pi
     for iarm in range(len(cx)):#spiral arm index
         scan_data,clipping_occurred = gen_scan(starttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=clip_safety_margin,min_elevation=min_elevation,max_elevation=max_elevation)
         meanelev[iarm]=np.mean(scan_data[:,2])
+        #if sun elevation below 0, horizon, then rather regard sunangle as 180 degrees; note katpoint functions returns radians
+        minsunangle[iarm]=np.min([target.separation(target_sun,katpoint.Timestamp(timestamp)) if target_sun.azel(timestamp=timestamp)[1]>0 else np.pi for timestamp in scan_data[:,0]])*180/np.pi
         starttime=scan_data[-1,0]
         if clipping_occurred:
-            return False, rising, starttime-now, meanelev[iarm]
-    return True, rising, starttime-now, np.mean(meanelev)
+            return False, rising, starttime-now, meanelev[iarm], minsunangle[iarm]
+    return True, rising, starttime-now, np.mean(meanelev), np.mean(minsunangle)
 
 if __name__=="__main__":
     # Set up standard script options
@@ -604,6 +609,7 @@ if __name__=="__main__":
                 user_logger.info("Added targets not in catalogue: %s",', '.join(targetnames_added))
 
             catalogue = collect_targets(kat, args)
+            target_sun=katpoint.Target("Sun, special")
             targets=catalogue.targets
             if len(targets) == 0:
                 raise ValueError("Please specify a target argument via name ('Ori A'), "
@@ -698,21 +704,25 @@ if __name__=="__main__":
                         target_elevation_cost=1e10
                         target_expected_duration=0
                         target_meanelev=0
+                        target_minsunangle=0
                         target_histindex=0
                         targetinfotext=[]
                         for testtarget in targets:
-                            suitable, rising, expected_duration, meanelev = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
-                            targetinfotext.append('%s (elev %.1f%s)'%(testtarget.name,meanelev,'' if suitable else ', unsuitable'))
+                            suitable, rising, expected_duration, meanelev, minsunangle = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
+                            targetinfotext.append('%s (elev %.1f%s%s)'%(testtarget.name,meanelev,', sun %.1f'%minsunangle if (minsunangle<180) else '','' if suitable else ', unsuitable'))
                             if suitable:
                                 if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                                     histindex=int(np.clip((meanelev-15.0)/(90.-15.)*15,0,14))
-                                    if target_elevation_cost>elevation_histogram[histindex]:#find target with lowest histogram reading
+                                    #ignore histogram ordering by up to 10 points maximum for sun angle ordering: 0sunangle_deg=>+10points 90sunangle_deg=>0 points
+                                    suncost=10*np.clip((90-minsunangle)/90,0,1)
+                                    if target_elevation_cost>elevation_histogram[histindex]+suncost:#find target with lowest histogram reading
                                         target=testtarget
                                         target_rising=rising
                                         target_expected_duration=expected_duration
                                         target_meanelev=meanelev
+                                        target_minsunangle=minsunangle
                                         target_histindex=histindex
-                                        target_elevation_cost=elevation_histogram[histindex]
+                                        target_elevation_cost=elevation_histogram[histindex]+suncost
                                 else:
                                     target=testtarget
                                     target_rising=rising
