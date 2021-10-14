@@ -232,9 +232,10 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
             g.close()
         return ant_pointing
 
-def load_rfi_static_mask(filename, freqs, debug=True, chunks=1):
+def load_rfi_static_mask(filename, freqs, debug_chunks=0):
     # Construct a mask either from a pickle file, or a text file with frequency ranges
     nchans = len(freqs)
+    channel_width = abs(freqs[1]-freqs[0])
     try:
         with open(filename, "rb") as pickle_file:
             channel_flags = pickle.load(pickle_file)
@@ -247,12 +248,15 @@ def load_rfi_static_mask(filename, freqs, debug=True, chunks=1):
     except pickle.UnpicklingError: # Not a pickle file, perhaps a plain text file with frequency ranges in MHz?
         mask_ranges = np.loadtxt(filename, comments='#', delimiter=',')
         channel_flags = np.full((nchans,), False)
+        low = freqs - 0.5 * channel_width
+        high = freqs + 0.5 * channel_width
         for r in mask_ranges:
-            idx = np.where((freqs < r[1]*1e6) & (freqs >= r[0]*1e6))[0]
+            in_range = (low <= r[1]*1e6) & (r[0]*1e6 <= high)
+            idx = np.where(in_range)[0]
             channel_flags[idx] = True
-    if debug:
-        for chunk in range(chunks):
-            freq = slice(chunk*(nchans//chunks),(chunk+1)*(nchans//chunks))
+    if debug_chunks > 0:
+        for chunk in range(debug_chunks):
+            freq = slice(chunk*(nchans//debug_chunks),(chunk+1)*(nchans//debug_chunks))
             masked_f = freqs[freq][channel_flags[freq]]
             if (len(masked_f) > 0):
                 print("\tFreq. chunk %d: mask omits (%.1f - %.1f)MHz"%(chunk,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
@@ -309,7 +313,7 @@ print("Using %s as the reference antenna "%(ant_list[0]))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 if len(opts.channel_mask)>0:
-    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, debug=True, chunks=chunks)
+    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, debug_chunks=chunks)
 else:
     rfi_static_flags = None
 
