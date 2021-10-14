@@ -27,14 +27,10 @@ def activity(h5,state = 'track'):
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
-def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_weights=False,compscan_index=None,debug=False):
+def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_weights=False,compscan_index=None,debug=False):
     """Break the band up into chunks"""
     chunk_size = chunks
-    rfi_static_flags = np.tile(False, h5.shape[0])
-    if len(channel_mask)>0:
-        pickle_file = open(channel_mask , "rb" )
-        rfi_static_flags = pickle.load(pickle_file)
-        pickle_file.close()
+    rfi_static_flags = np.full(h5.shape[1], False) if (rfi_static_flags is None) else rfi_static_flags
     gains_p = {}
     stdv = {}
     calibrated = False # placeholder for calibration
@@ -48,8 +44,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
     if len(h5.target_indices) > len(target_indices):
         print("Warning multiple targets in the compscan, using %s instead of %s"%(target_indices,h5.target_indices))
     target = h5.catalogue.targets[h5.target_indices[0]]
-    compscan_index = h5.compscan_indices[0]
-    #h5.select(targets=target,compscans=h5.compscan_indices[0]) # Majority Track in compscan
+    
     if not return_raw:     # Calculate average target flux over entire band
         flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
@@ -70,12 +65,12 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         requested_azel = katpoint.rad2deg(np.array(requested_azel))
 
    
-    gaussian_centre     = np.zeros((chunk_size* 2,2,len(h5.ants)) )
-    gaussian_centre_std = np.zeros((chunk_size* 2,2,len(h5.ants)) )
-    gaussian_width      = np.zeros((chunk_size* 2,2,len(h5.ants)) )
-    gaussian_width_std  = np.zeros((chunk_size* 2,2,len(h5.ants)) )
-    gaussian_height     = np.zeros((chunk_size* 2,len(h5.ants)) )
-    gaussian_height_std = np.zeros((chunk_size* 2,len(h5.ants)) )
+    gaussian_centre     = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_centre_std = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_width      = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_width_std  = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
+    gaussian_height     = np.full((chunk_size * 2, len(h5.ants)), np.nan)
+    gaussian_height_std = np.full((chunk_size * 2, len(h5.ants)), np.nan)
     if debug :#debug_text
         debug_text = []
         line = []
@@ -116,9 +111,9 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                 pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
         for ant in range(len(h5.ants)):
             for chunk in range(chunks):
-                if np.array(pos).shape[0] > 4 : # Make sure there is enough data for a fit
-                    freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
-                    rfi = ~rfi_static_flags[freq]   
+                freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
+                rfi = ~rfi_static_flags[freq]
+                if (np.array(pos).shape[0] > 4) and np.any(rfi): # Make sure there is enough data for a fit
                     fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1.,1.],1)
                     x = np.column_stack((np.array(pos)[:,0,ant],np.array(pos)[:,1,ant]))
                     y = np.abs(np.array(gains_p[pol])[:,freq,:][:,rfi,ant]).mean(axis=1)
@@ -129,14 +124,7 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                     valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
                     theta =  np.sqrt((gaussian.mean**2).sum())  # this is to see if the co-ord is out of range
                     #The valid fit is needed because I have no way of working out if the gain solution was ok.
-                    if  not valid_fit or np.any(theta > np.pi) : # the checks to see if the fit is ok
-                        gaussian_centre[chunk+i*chunk_size,:,ant]     =  np.nan
-                        gaussian_centre_std[chunk+i*chunk_size,:,ant] =  np.nan
-                        gaussian_width[chunk+i*chunk_size,:,ant]      =  np.nan
-                        gaussian_width_std[chunk+i*chunk_size,:,ant]  =  np.nan
-                        gaussian_height[chunk+i*chunk_size,ant]       =  np.nan
-                        gaussian_height_std[chunk+i*chunk_size,ant]   =  np.nan
-                    else:
+                    if valid_fit and np.any(theta <= np.pi) : # Invalid fits remain nan (initialised defaults)
                         # Convert this offset back to spherical (az, el) coordinates
                         beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time)
                         # Now correct the measured (az, el) for refraction and then apply the old pointing model
@@ -161,8 +149,8 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
         pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
         pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
         for ant in range(len(h5.ants)):
-            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['HH'],:,ant])
-            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(1./gaussian_centre_std[pol_ind['VV'],:,ant])
+            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(gaussian_centre_std[pol_ind['HH'],:,ant])
+            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(gaussian_centre_std[pol_ind['VV'],:,ant])
             valid_solutions = np.count_nonzero(h_pol & v_pol) # Note this is twice the number of solutions because of the Az & El parts
             print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
             if debug :#debug_text
@@ -224,16 +212,16 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
                 ant_pointing[name]["delta_azimuth_std"] =0.0#calc
                 for pol in pol_ind:
                     ant_pointing[name]["beam_height_%s"%(pol)]     = w_average(gaussian_height[pol_ind[pol],ant],axis=0,weights=1./gaussian_height_std[pol_ind[pol],ant]**2)
-                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(1./gaussian_height_std[pol_ind[pol],ant]**2) )
+                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(gaussian_height_std[pol_ind[pol],ant]**2) )
                     ant_pointing[name]["beam_width_%s"%(pol)]      = w_average(gaussian_width[pol_ind[pol],:,ant],axis=0,weights=1./gaussian_width_std[pol_ind[pol],:,ant]**2).mean() 
-                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(1./gaussian_width_std[pol_ind[pol],:,ant]**2) )
+                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(gaussian_width_std[pol_ind[pol],:,ant]**2) )
                     ant_pointing[name]["baseline_height_%s"%(pol)] = 0.0
                     ant_pointing[name]["baseline_height_%s_std"%(pol)] = 0.0
                     ant_pointing[name]["refined_%s"%(pol)] =  5.0  # I don't know what this means 
                     ant_pointing[name]["azimuth_%s"%(pol)]       =w_average(gaussian_centre[pol_ind[pol],0,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],0,ant]**2)
                     ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian_centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],1,ant]**2)
-                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],0,ant]**2) )
-                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(1./gaussian_centre_std[pol_ind[pol],1,ant]**2) )
+                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],0,ant]**2) )
+                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],1,ant]**2) )
             else:
                 print("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
         if debug :#debug_text
@@ -244,6 +232,37 @@ def reduce_compscan_inf(h5 ,channel_mask = None,chunks=16,return_raw=False,use_w
             g.close()
         return ant_pointing
 
+def load_rfi_static_mask(filename, freqs, debug_chunks=0):
+    # Construct a mask either from a pickle file, or a text file with frequency ranges
+    nchans = len(freqs)
+    channel_width = abs(freqs[1]-freqs[0])
+    try:
+        with open(filename, "rb") as pickle_file:
+            channel_flags = pickle.load(pickle_file)
+        nflags = len(channel_flags)
+        if (nchans != nflags):
+            print("Warning channel mask (%d) is stretched to fit dataset (%d)!"%(nflags,nchans))
+            N = nchans/float(nflags)
+            channel_flags = np.repeat(channel_flags, int(N+0.5)) if (N > 1) else channel_flags[::int(1/N)]
+        channel_flags = channel_flags[:nchans] # Clip, just in case
+    except pickle.UnpicklingError: # Not a pickle file, perhaps a plain text file with frequency ranges in MHz?
+        mask_ranges = np.loadtxt(filename, comments='#', delimiter=',')
+        channel_flags = np.full((nchans,), False)
+        low = freqs - 0.5 * channel_width
+        high = freqs + 0.5 * channel_width
+        for r in mask_ranges:
+            in_range = (low <= r[1]*1e6) & (r[0]*1e6 <= high)
+            idx = np.where(in_range)[0]
+            channel_flags[idx] = True
+    if debug_chunks > 0:
+        for chunk in range(debug_chunks):
+            freq = slice(chunk*(nchans//debug_chunks),(chunk+1)*(nchans//debug_chunks))
+            masked_f = freqs[freq][channel_flags[freq]]
+            if (len(masked_f) > 0):
+                print("\tFreq. chunk %d: mask omits (%.1f - %.1f)MHz"%(chunk,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
+            else:
+                print("\tFreq. chunk %d: mask omits nothing"%chunk)
+    return channel_flags
 
 
 # Parse command-line opts and arguments
@@ -268,7 +287,7 @@ parser.add_option("-o", "--output", dest="outfilebase",default=None,
 
 (opts, args) = parser.parse_args()
 
-channel_mask = opts.channel_mask #
+chunks = 16 # Default
 
 output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
                 '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
@@ -293,6 +312,11 @@ h5 = katdal.open(args[0],ref_ant=ant_list[0])
 print("Using %s as the reference antenna "%(ant_list[0]))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
+if len(opts.channel_mask)>0:
+    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, debug_chunks=chunks)
+else:
+    rfi_static_flags = None
+
 h5.antlist = [a.name for a in h5.ants]
 h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
 if opts.outfilebase is None :
@@ -307,7 +331,7 @@ for ant in range(len(h5.ants)):
     f[name].write(', '.join(output_field_names) + '\n')
 for compscan_index  in h5.compscan_indices :
     print("Compound scan %i  "%(compscan_index) )
-    offset_data = reduce_compscan_inf(h5,channel_mask,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
+    offset_data = reduce_compscan_inf(h5,rfi_static_flags,chunks,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
         for antname in offset_data:
