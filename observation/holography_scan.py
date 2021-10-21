@@ -804,10 +804,10 @@ if __name__=="__main__":
                         if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                             elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
-                        if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
-                            user_logger.info("Testing only one group for dry-run")
-                            break
-                    if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
-                        user_logger.info("Testing only cycle for dry-run")
-                        break
+                    #     if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
+                    #         user_logger.info("Testing only one group for dry-run")
+                    #         break
+                    # if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
+                    #     user_logger.info("Testing only cycle for dry-run")
+                    #     break
                     cycle+=1
