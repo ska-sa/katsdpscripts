@@ -644,7 +644,7 @@ if __name__=="__main__":
                     if len(scan_ants_lower_list)>1:#eg. GroupAB,m000,m010
                         always_scan_ants=[ant for ant in all_ants if ant.name in scan_ants_lower_list[1:]]
                         always_scan_ants_names=[ant.name for ant in always_scan_ants]
-                    if (opts.scan_ants.lower()=='groupab'):
+                    if (scan_ants_lower_list[0]=='groupab'):
                         grouprange = range(2)
                 else:
                     # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
@@ -804,10 +804,10 @@ if __name__=="__main__":
                         if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                             elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
-                    #     if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
-                    #         user_logger.info("Testing only one group for dry-run")
-                    #         break
-                    # if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
-                    #     user_logger.info("Testing only cycle for dry-run")
-                    #     break
+                        if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
+                            user_logger.info("Testing only one group for dry-run")
+                            break
+                    if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
+                        user_logger.info("Testing only cycle for dry-run")
+                        break
                     cycle+=1
