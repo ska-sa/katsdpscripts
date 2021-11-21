@@ -38,8 +38,6 @@ parser.add_option('--scan-az-offset', type='float', default=0.0,
                   help='Azimuthal offset from target to scanning area center, in degrees (default=%default)')
 parser.add_option('--num-cycles', type='int', default=1,
                   help='Number of beam measurement cycles to complete (default=%default)')
-parser.add_option('--no-delays', action="store_true", default=False,
-                  help='Do not use delay tracking, and zero delays')
 parser.add_option('--elevation-scan', action="store_true", default=False,
                   help='Perform elevation rather than azimuthal scan')
 # Set default value for any option (both standard and experiment-specific options)
