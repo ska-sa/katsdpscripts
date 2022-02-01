@@ -37,7 +37,7 @@ parser.add_option(
     '(default=%default)')
 parser.add_option(
     '--email_to', type='str',
-    default='blunsky@ska.ac.za,bjordaan@ska.ac.za,operators@ska.ac.za,jvanstaden@emss.co.za',
+    default='bjordaan@ska.ac.za,operators@ska.ac.za,jvanstaden@emss.co.za',
     help='Comma separated email list of people to send report to '
     '(default=%default)')
 
