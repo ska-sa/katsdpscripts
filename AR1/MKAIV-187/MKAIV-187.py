@@ -17,34 +17,19 @@ from katsdpcal import calprocs
 
 
 
-def read_and_select_file(data, flags_file=None, value=np.inf):
+def read_and_select_file(data, value=np.inf, step=slice(None, None, None)):
     """
     Read in the input h5 file and make a selection based on kwargs.
     data : katdal object
-    flags_file:  {string} filename of h5 flagfile to open
 
     Returns:
         A array with the visibility data and bad data changed to {value}.
     """
-
-     #Check there is some data left over
+    # Check there is some data left over
     if data.shape[0] == 0:
         raise ValueError('No data to process.')
-
-    if flags_file is None or flags_file == '':
-        print('No flag data to process. Using the file flags')
-        file_flags = data.flags[:]
-    else:
-        #Open the flags file
-        ff = h5py.File(flags_file)
-        #Select file flages based on h5 file selection
-        file_flags = ff['flags'].value
-        file_flags = file_flags[data.dumps]
-        file_flags = file_flags[:, data._freq_keep]
-        file_flags = file_flags[:, :, data._corrprod_keep]
-        #Extend flags
-        #flags = np.sum(file_flags,axis=-1)
-    return np.ma.masked_array(data.vis[:], mask=file_flags, fill_value=value)
+    flags = data.flags[step]
+    return np.ma.masked_array(data.vis[step], mask=flags, fill_value=value)
 
 
 def polyfitstd(x, y, deg, rcond=None, full=False, w=None, cov=False):
@@ -365,7 +350,7 @@ def calc_stats(timestamps, gain, pol='no polarizarion', windowtime=1200, minsamp
     returntext = []
     #note gain is in radians
     #change_el = pandas.rolling_apply(offset_el_ts,window=4*60/6.,min_periods=0,func=calc_change,freq='360s')*3600
-
+    
     gain_ts = pandas.Series(np.angle(gain), pandas.to_datetime(timestamps, unit='s'))
 
     #window_occ = pandas.rolling_count(gain_ts,windowtime)/float(windowtime)
@@ -447,8 +432,8 @@ parser.add_option("-f", "--frequency_channels", dest="freq_keep", type="string",
 parser.add_option("-o","--output_dir", default='.', help="Output directory for pdfs. Default is cwd")
 parser.add_option("-c", "--channel-mask", default='/var/kat/katsdpscripts/RTS/rfi_mask.pickle',
                   help="Optional pickle file with boolean array specifying channels to mask (Default = %default)")
-parser.add_option("-r", "--rfi-flagging", default='',
-                  help="Optional file of RFI flags in for of [time,freq,corrprod] produced by the workflow maneger (Default = %default)")
+parser.add_option("-r", "--no-rfi-flagging",dest='rfi_flagging', default=True,action='store_false',
+                  help="Don't use RFI flags in katdal  (Default = %default)")
 parser.add_option( '--ref', dest='ref_ant',  default='',help="Reference antenna, default is first antenna in the python dictionary")
 parser.add_option( "-a","--antennas",default='',
                   help="Name of Antennas to reduce default=all")
@@ -505,12 +490,17 @@ for pol in ('h','v'):
     i = 0
     size = h5.shape[0]
     while (i < size ):
-        vis = h5.vis[slice(i,i+600)]#read_and_select_file(h5, flags_file=rfi_flagging)
+        if rfi_flagging :
+            vis = read_and_select_file(h5,step=slice(i,i+600),value=None)
+        else:
+            vis = h5.vis[slice(i,i+600)]
         print("Read data: %i samples , frequency: %i channels , %i baselines "%(vis.shape[0],vis.shape[1],vis.shape[2]))
         bl_ant_pairs = calprocs.get_bl_ant_pairs(h5.bls_lookup)
         antA, antB = bl_ant_pairs
-        cal_baselines = vis.mean(axis=1)
-                         #/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1)
+        if i == 0 :
+            #cal_baselines = np.array(vis.mean(axis=1))
+            bandpass = calprocs.g_fit(np.array(vis.mean(axis=0))[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
+        cal_baselines = np.array((vis/(bandpass[np.newaxis,:,antA[:len(antA)//2]]*np.conj(bandpass[np.newaxis,:,antB[:len(antB)//2]]))[:,:,:]).mean(axis=1))
         data[i:i+vis.shape[0],:] = calprocs.g_fit(cal_baselines[:,:],False,h5.bls_lookup,refant=ref_ant_ind)
         #data.mask[i:i+h5.shape[0],:] =  # this is for when g_fit handels masked arrays
         print("Calculated antenna gain solutions for %i antennas with ref. antenna = %s "%(data.shape[1],ref_ant))
