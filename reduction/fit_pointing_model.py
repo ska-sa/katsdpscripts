@@ -229,7 +229,13 @@ def update(fig):
     daz_el.dots.set_offsets(np.c_[rad2deg(el), rad2deg(new.residual_xel) * 60.])
     del_el.dots.set_offsets(np.c_[rad2deg(el), rad2deg(new.residual_el) * 60.])
     after.dots.set_offsets(np.c_[np.arctan2(new.residual_el, new.residual_xel), new.abs_sky_error])
-    resid_lim = 1.2 * max(new.abs_sky_error.max(), old.abs_sky_error.max())
+    update_yscale(fig)
+
+def update_yscale(fig):
+    resid_lim = 1.2 * new.abs_sky_error.max()
+    if ("old" in fig.yscale_strategy):
+        resid_lim = max(resid_lim, 1.2 * old.abs_sky_error.max())
+    daz_az, del_az, daz_el, del_el, quiver, before, after = fig.axes[:7]
     daz_az.set_ylim(-resid_lim, resid_lim)
     del_az.set_ylim(-resid_lim, resid_lim)
     daz_el.set_ylim(-resid_lim, resid_lim)
@@ -364,6 +370,19 @@ fig.text(0.875, 0.03, "target sky rms = %.3f' (robust %.3f')" % (old.sky_rms, ol
          ha='center', va='baseline', fontdict=dict(color=(0.25, 0, 0, 1)))
 old.metrics(keep)
 
+# Strategy for scaling y axis {"old & new" | "new"}
+fig.yscale_strategy = "new"
+# Double-click in OLD or NEW polar plots to select yscale strategy
+ax_OLD_NEW = fig.axes[5:7]
+def on_dblclick(event):
+    # Only respond when buttons are clicked in one of the specific axes
+    if event.dblclick and event.inaxes in ax_OLD_NEW:
+        if (event.inaxes == ax_OLD_NEW[0]):
+            fig.yscale_strategy = "old & new"
+        else:
+            fig.yscale_strategy = "new"
+        update_yscale(fig)
+fig.canvas.mpl_connect('button_press_event', on_dblclick)
 
 # Add tooltip that relates points in each plot to each other and displays target name
 def on_motion(event):
