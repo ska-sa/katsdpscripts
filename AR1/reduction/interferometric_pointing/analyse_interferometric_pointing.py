@@ -10,10 +10,26 @@ import scikits.fitting as fit
 import katpoint
 import optparse
 
+def active_ants(ds, state, pct=10, rel_pct=80):
+    """ Find antennas  for which at least `pct` of dumps have activity=`state` and the worst has no less
+        than `rel_pct` the counts of the best.
+        @param ds: a katdal dataset.
+        @return: list of antenna names that can be considered as being in activity=`state`"""
+    ants = []
+    activity = []
+    for ant in ds.ants:
+        ants.append(ant.name)
+        activity.append(np.count_nonzero(ds.sensor["%s_activity"%ant.name] == state))
+    fracs = np.asarray(activity)/float(ds.shape[0])
+    rel_fracs = np.asarray(activity)/np.max(activity)
+    ants = np.asarray(ants)[(fracs >= pct/100.) & (rel_fracs >= rel_pct/100.)]
+    return ants
+
 #TODO Remove this function once katdal has this functionality 
 def activity(h5,state = 'track'):
-    """Activity Sensor because some of antennas have a mind of their own, 
-    others appear to have lost theirs entirely """
+    """Strict Array Activity Sensor: because some of antennas have a mind of their own, 
+    others appear to have lost theirs entirely.
+        @return: boolean flags per dump, True when ALL antennas match `state` and nd_coupler=False """
     antlist = [a.name for a in h5.ants]
     activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
     for i,ant in enumerate(antlist) :
@@ -222,8 +238,6 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                     ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian_centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],1,ant]**2)
                     ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],0,ant]**2) )
                     ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],1,ant]**2) )
-            else:
-                print("No (%i) solutions for %s on %s at %s "%(valid_solutions,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
         if debug :#debug_text
             debug_text.append('')
             base = "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing_DEBUG")
@@ -301,7 +315,7 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
 h5 = katdal.open(args[0])  
-ant_list = [ant.name for ant in h5.ants] # Temp list for input options
+ant_list = active_ants(h5, 'track') # Default list only includes those that 'track'ed some of the time
 if opts.ants is not None  :
     ant_list = opts.ants.split(',')
 if opts.ex_ants is not None :
