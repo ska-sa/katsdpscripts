@@ -98,7 +98,7 @@ num_params = len(new_model)
 default_enabled = np.nonzero(old_model.values())[0]
 # If the old model is empty / null, select the most basic set of parameters for starters
 if len(default_enabled) == 0:
-    default_enabled = np.array([1, 3, 4, 5, 6, 7]) - 1
+    default_enabled = np.array([1, 3, 4, 5, 6, 7, 11]) - 1
 # Parameter button states
 # XXX Use Enum eventually, once the params are also string-based instead of ints
 ZEROED = 0  # disabled and zeroed
@@ -463,6 +463,8 @@ def save_callback(event):
     outfile2.write(', '.join(field_names) + '\n')
     outfile2.writelines([fields % rec for rec in extended_data])
     outfile2.close()
+    fig.savefig('%s.png'%(opts.outfilebase) )
+    logger.debug("Saved image to  '%s.png' ", opts.outfilebase)
     save_button.color = '0.85'
     save_button.hovercolor = '0.95'
 save_button.on_clicked(save_callback)
