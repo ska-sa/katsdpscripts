@@ -175,7 +175,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
         dt=np.repeat(scanspeed*sampletime,ntime)#note dt is the distance in degrees between samples
         if (slowtime>0.0):
-            repl=np.linspace(0.0,scanspeed*sampletime,2+(slowtime)//sampletime)
+            repl=np.linspace(0.0,scanspeed*sampletime,2+int(slowtime/sampletime))
             dt[:len(repl)-1]=repl[1:]
         lastr=0.0
         twistfactore=np.float(twistfactor)/(totextent)
