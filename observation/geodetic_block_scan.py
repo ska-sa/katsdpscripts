@@ -261,7 +261,7 @@ parser = standard_script_options(usage=usage, description=description)
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track each source, in seconds '
                        '(default=%default)')
-parser.add_option('-m', '--max-duration', type='float', default=None,
+parser.add_option('-m', '--max-duration', type='float', default=2000.0,
                   help='Maximum duration of the script in seconds, after which '
                        'script will end as soon as the current track finishes '
                        '(no limit by default)')
@@ -290,12 +290,7 @@ with verify_and_connect(opts) as kat:
 
         # Optimise the target schedule
         start_time = time.time()
-        if opts.max_duration is None:
-            # A reasonable worst case visits each target with 50% efficiency
-            max_duration = 2 * len(targets) * opts.track_duration
-        else:
-            max_duration = opts.max_duration
-        timestamps = start_time + np.arange(0, max_duration, 2.0)
+        timestamps = start_time + np.arange(0, opts.max_duration, 2.0)
         az, el, target_labels = target_coordinates(
             targets, timestamps, opts.horizon
         )
