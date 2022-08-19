@@ -135,7 +135,7 @@ def optimal_target_order(az, el, az_deg_per_sec=2.0, el_deg_per_sec=1.0):
 
 
 def simulator(schedule, timestamps, target_labels, target_az, target_el,
-              track_duration, min_az=-185, max_az=275):
+              track_duration, initial_az, initial_el, min_az=-185, max_az=275):
     """Very basic antenna simulator that tracks a list of targets."""
     slots_left = list(schedule)
     targets_done = []
@@ -144,9 +144,9 @@ def simulator(schedule, timestamps, target_labels, target_az, target_el,
     tracking = np.zeros_like(timestamps, dtype=bool)
     time_steps = np.diff(timestamps)
     current_slot = slots_left.pop(0)
-    array_az[0] = target_az[current_slot, 0]
-    array_el[0] = target_el[current_slot, 0]
-    tracking[0] = True
+    array_az[0] = initial_az
+    array_el[0] = initial_el
+    tracking[0] = False
     track_accum = 0.0
 
     def next_slot():
@@ -195,14 +195,16 @@ def simulator(schedule, timestamps, target_labels, target_az, target_el,
     return array_az, array_el, tracking, targets_done
 
 
-def evaluate_tour_start(tour, timestamps, target_labels, az, el, track_duration):
+def evaluate_tour_start(tour, timestamps, target_labels, az, el,
+                        track_duration, initial_az, initial_el):
     target_lists = []
     num_targets = np.zeros_like(tour)
     lowness = np.full_like(tour, 90.0, dtype=float)
     for starting_slot in range(len(tour)):
         schedule = np.roll(tour, -starting_slot)
         array_az, array_el, tracking, targets_done = simulator(
-            schedule, timestamps, target_labels, az, el, track_duration
+            schedule, timestamps, target_labels, az, el,
+            track_duration, initial_az, initial_el
         )
         target_lists.append(targets_done)
         num_targets[starting_slot] = len(targets_done)
@@ -214,15 +216,18 @@ def evaluate_tour_start(tour, timestamps, target_labels, az, el, track_duration)
     return np.roll(tour, -best), target_lists[best], lowness[best]
 
 
-def optimal_target_sequence(timestamps, target_labels, az, el, track_duration):
+def optimal_target_sequence(timestamps, target_labels, az, el,
+                            track_duration, initial_az, initial_el):
     # First get the most efficient target order as a bitonic tour
     tour = optimal_target_order(az, el)
     # Pick the best starting point and direction to go around the tour
     tour1, targets1, lowness1 = evaluate_tour_start(
-        tour, timestamps, target_labels, az, el, track_duration
+        tour, timestamps, target_labels, az, el,
+        track_duration, initial_az, initial_el
     )
     tour2, targets2, lowness2 = evaluate_tour_start(
-        tour[::-1], timestamps, target_labels, az, el, track_duration
+        tour[::-1], timestamps, target_labels, az, el,
+        track_duration, initial_az, initial_el
     )
     if len(targets2) > len(targets1):
         schedule = tour2
@@ -232,7 +237,8 @@ def optimal_target_sequence(timestamps, target_labels, az, el, track_duration):
         schedule = tour1
     # Re-evaluate the best target sequence
     array_az, array_el, tracking, targets_done = simulator(
-        schedule, timestamps, target_labels, az, el, track_duration
+        schedule, timestamps, target_labels, az, el,
+        track_duration, initial_az, initial_el
     )
     obs_steps = len(np.isfinite(array_el))
     track_steps = tracking.sum()
@@ -288,6 +294,13 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))
         session.capture_start()
 
+        # Figure out where most of the antennas are pointing at the start
+        initial_az = np.median([ant.sensor.pos_actual_scan_azim.get_value()
+                                for ant in session.ants])
+        initial_el = np.median([ant.sensor.pos_actual_scan_elev.get_value()
+                                for ant in session.ants])
+        user_logger.info('Initial az: %.1f el: %.1f', initial_az, initial_el)
+
         # Optimise the target schedule
         start_time = time.time()
         timestamps = start_time + np.arange(0, opts.max_duration, 2.0)
@@ -295,7 +308,8 @@ with verify_and_connect(opts) as kat:
             targets, timestamps, opts.horizon
         )
         schedule = optimal_target_sequence(
-            timestamps, target_labels, az, el, opts.track_duration
+            timestamps, target_labels, az, el,
+            opts.track_duration, initial_az, initial_el
         )
 
         for target_index in schedule:
