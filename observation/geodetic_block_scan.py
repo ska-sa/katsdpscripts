@@ -302,8 +302,8 @@ with verify_and_connect(opts) as kat:
         schedule = optimal_target_sequence(
             timestamps, target_labels, az, el, opts.track_duration
         )
-        target_sequence = targets.targets[schedule]
 
-        for target in target_sequence:
+        for target_index in schedule:
+            target = targets.targets[target_index]
             session.label('track')
             session.track(target, duration=opts.track_duration)
