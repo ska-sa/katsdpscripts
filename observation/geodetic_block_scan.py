@@ -245,16 +245,16 @@ def optimal_target_sequence(timestamps, target_labels, az, el,
     slew_steps = obs_steps - track_steps
     scan_time_step = timestamps[1] - timestamps[0]
     user_logger.info('Bitonic scheduler results:')
-    user_logger.info('Visit %d of %d visible targets',
+    user_logger.info(' - Visit %d of %d visible targets',
                      len(targets_done), len(set(target_labels)))
-    user_logger.info('Lowest elevation: %.1f degrees', np.nanmin(array_el))
-    user_logger.info('Track for %.1f minutes',
+    user_logger.info(' - Lowest elevation: %.1f degrees', np.nanmin(array_el))
+    user_logger.info(' - Track for %.1f minutes',
                      track_steps * scan_time_step / 60.0)
-    user_logger.info('Slew for %.1f minutes',
+    user_logger.info(' - Slew for %.1f minutes',
                      slew_steps * scan_time_step / 60.0)
-    user_logger.info('Total observation time: %.1f minutes',
+    user_logger.info(' - Total observation time: %.1f minutes',
                      obs_steps * scan_time_step / 60.0)
-    user_logger.info('Efficiency: %.1f%%', 100.0 * track_steps / obs_steps)
+    user_logger.info(' - Efficiency: %.1f%%', 100.0 * track_steps / obs_steps)
     return targets_done
 
 
@@ -299,7 +299,8 @@ with verify_and_connect(opts) as kat:
                                 for ant in session.ants])
         initial_el = np.median([ant.sensor.pos_actual_scan_elev.get_value()
                                 for ant in session.ants])
-        user_logger.info('Initial az: %.1f el: %.1f', initial_az, initial_el)
+        user_logger.info('Initial (az, el) = (%.1f, %.1f) degrees',
+                         initial_az, initial_el)
 
         # Optimise the target schedule
         start_time = time.time()
@@ -312,7 +313,19 @@ with verify_and_connect(opts) as kat:
             opts.track_duration, initial_az, initial_el
         )
 
+        num_targets_done = 0
         for target_index in schedule:
             target = targets.targets[target_index]
             session.label('track')
-            session.track(target, duration=opts.track_duration)
+            if session.track(target, duration=opts.track_duration):
+                num_targets_done += 1
+
+        # Report back to compare notes with scheduler
+        obs_time = time.time() - start_time
+        track_time = num_targets_done * opts.track_duration
+        user_logger.info('Final scheduling stats:')
+        user_logger.info(' - Visited %d targets', num_targets_done)
+        user_logger.info(' - Tracked for %.1f minutes', track_time / 60.0)
+        user_logger.info(' - Slewed for %.1f minutes', (obs_time - track_time) / 60.0)
+        user_logger.info(' - Total observation time: %.1f minutes', obs_time / 60.0)
+        user_logger.info(' - Efficiency: %.1f%%', 100.0 * track_time / obs_time)
