@@ -46,7 +46,7 @@ def metrics(model,az,el,measured_delta_az, measured_delta_el ,std_delta_az ,std_
     residual_az = measured_delta_az - model_delta_az
     residual_el = measured_delta_el - model_delta_el
     residual_xel  = residual_az * np.cos(el)
-    abs_sky_error = rad2deg(np.sqrt(residual_xel ** 2 + residual_el ** 2)) * 69. 
+    abs_sky_error = rad2deg(np.sqrt(residual_xel ** 2 + residual_el ** 2)) * 60. 
     ###### On the calculation of all-sky RMS #####
     # Assume the el and cross-el errors have zero mean, are distributed normally, and are uncorrelated
     # They are therefore described by a 2-dimensional circular Gaussian pdf with zero mean and *per-component*
