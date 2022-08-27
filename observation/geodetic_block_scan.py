@@ -267,10 +267,12 @@ parser = standard_script_options(usage=usage, description=description)
 parser.add_option('-t', '--track-duration', type='float', default=32.0,
                   help='Length of time to track each source, in seconds '
                        '(default=%default)')
-parser.add_option('-m', '--max-duration', type='float', default=2000.0,
-                  help='Maximum duration of the script in seconds, after which '
-                       'script will end as soon as the current track finishes '
-                       '(no limit by default)')
+parser.add_option('-b', '--bpcal-duration', type='float', default=64.0,
+                  help='Minimum duration to track bandpass calibrator, in seconds '
+                       '(default=%default, 0.0 disables it)')
+parser.add_option('-m', '--max-duration', type='float', default=2100.0,
+                  help='Expected duration of the script in seconds, used '
+                       'to guide the scheduler')
 
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Geodetic block scan', nd_params='off')
@@ -293,6 +295,14 @@ with verify_and_connect(opts) as kat:
                                    "please re-run the script later")
         session.standard_setup(**vars(opts))
         session.capture_start()
+
+        bpcals = targets.filter(tags='bpcal').sort('el', ascending=False)
+        if bpcals and opts.bpcal_duration > 0.0:
+            bpcal = bpcals.targets[0]
+            user_logger.info('Performing bandpass calibration on %r', bpcal.name)
+            session.label('track')
+            if session.track(bpcal, duration=opts.bpcal_duration):
+                targets.remove(bpcal.name)
 
         # Figure out where most of the antennas are pointing at the start
         initial_az = np.median([ant.sensor.pos_actual_scan_azim.get_value()
