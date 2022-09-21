@@ -142,7 +142,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                     #The valid fit is needed because I have no way of working out if the gain solution was ok.
                     if valid_fit and np.any(theta <= np.pi) : # Invalid fits remain nan (initialised defaults)
                         # Convert this offset back to spherical (az, el) coordinates
-                        beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time)
+                        beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time, antenna=h5.ants[ant])
                         # Now correct the measured (az, el) for refraction and then apply the old pointing model
                         # to get a "raw" measured (az, el) at the output of the pointing model
                         beam_center_azel = [beam_center_azel[0], rc.apply(beam_center_azel[1], temperature, pressure, humidity)]
