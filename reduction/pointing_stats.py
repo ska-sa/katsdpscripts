@@ -161,9 +161,9 @@ if __name__ == "__main__":
         band = 'S'
     
     if not opts.reduced:
-        print("Band , ", band)
+        print("Band , *", band)
     else:
-        print(band)   
+        print("*"+band)   
         
     for ant in sorted(result):
         if not opts.reduced:
