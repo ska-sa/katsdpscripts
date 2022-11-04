@@ -35,19 +35,17 @@ def target_coordinates(targets, timestamps, horizon, min_az=-185, max_az=275):
         el.append(e)
     az = rad2deg(np.array(az))
     el = rad2deg(np.array(el))
-
-    # Identify sources above horizon
-    az[el < horizon] = np.nan
-    el[el < horizon] = np.nan
+    # Identify sources above the horizon at any time
     visible_targets = np.nonzero((el >= horizon).any(axis=-1))[0]
     az = az[visible_targets]
     el = el[visible_targets]
-
-    az[az > max_az] -= 360  # az range now -85 -> 275
-    # Duplicate sources in azimuth wrap region (175 -> 275)
-    # to have both azimuth versions
-    wrap_region = az >= min_az + 360
-    targets_in_wrap = wrap_region.sum(axis=-1) > 0
+    # Shift azimuth range to be valid, now (-85 -> 275)
+    az[az > max_az] -= 360
+    # Identify azimuth wrap region for visible sources (175 -> 275)
+    wrap_region = (el >= horizon) & (az >= min_az + 360)
+    # Duplicate sources in wrap region to have both azimuth versions.
+    # This copies azimuths in (175 -> 275) to (-185 -> -85).
+    targets_in_wrap = wrap_region.any(axis=-1)
     wrapped_az = az[targets_in_wrap]
     wrapped_az[wrap_region[targets_in_wrap]] -= 360
     add_wrap = np.r_[
@@ -57,6 +55,9 @@ def target_coordinates(targets, timestamps, horizon, min_az=-185, max_az=275):
     az = np.r_[az, wrapped_az]
     el = el[add_wrap]
     target_labels = visible_targets[add_wrap]
+    # The horizon gets its final say by disabling unreachable coordinates
+    az[el < horizon] = np.nan
+    el[el < horizon] = np.nan
     return az, el, target_labels
 
 
