@@ -326,6 +326,8 @@ with verify_and_connect(opts) as kat:
         num_targets_done = 0
         for target_index in schedule:
             target = targets.targets[target_index]
+            # Remove user tags that might trigger the cal pipeline
+            target.tags = target.tags[:1]
             session.label('track')
             if session.track(target, duration=opts.track_duration):
                 num_targets_done += 1
