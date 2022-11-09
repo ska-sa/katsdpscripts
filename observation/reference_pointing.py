@@ -1,4 +1,13 @@
-# TODO: @mamkhari
+#! /usr/bin/env python
+#
+# Perform a collection of offset pointings on the nearest pointing calibrator.
+# Obtain interferometric gain solutions from the pipeline.
+# Fit primary beams to the gains and calculate pointing offsets from them.
+# Store pointing offsets in telstate.
+#
+# Ludwig Schwardt
+# 2 May 2017
+#
 
 import time
 
