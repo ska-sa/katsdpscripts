@@ -63,6 +63,7 @@ with verify_and_connect(opts) as kat:
         # XXX Eventually pick closest source as our target, now take first one
         target = observation_sources.targets[0]
         target.add_tags("bfcal single_accumulation")
+        session.label('interferometric_pointing')
         session.track(target, duration=opts.track_duration)
         session.reference_pointing_scan(
             target,
