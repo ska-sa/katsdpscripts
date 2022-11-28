@@ -581,7 +581,7 @@ if __name__=="__main__":
         if len(args)==0 or args[0]=='lbandtargets':#lband targets, in order of brightness
             args=['3C 273','PKS 0408-65','PKS 1934-63','Hyd A','3C 279','PKS 0023-26','J0825-5010','PKS J1924-2914']
         elif args[0]=='sbandtargets':#sband targets, in order of brightness
-            args=['3C 454.3','PKS 0723-008','3C 279','PKS 2134+004','PKS 1421-490','PKS 1934-63','PKS 0408-65','PKS 0023-26','PKS J1924-2914','J0825-5010']
+            args=['3C 454.3','3C 279','PKS 0723-008','PKS 1934-63','PKS 0408-65','PKS J1924-2914','PKS 1421-490','PKS 2134+004','PKS 0023-26','J0825-5010']
         #useful targets might not exist in catalogue
         ensure_cat={'3C 273':'J1229+0203 | *3C 273 | PKS 1226+02,radec, 12:29:06.70,  +02:03:08.6',
         'PKS 1934-63':'J1939-6342 | *PKS 1934-63,radec, 19:39:25.03,  -63:42:45.7',
