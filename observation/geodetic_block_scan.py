@@ -18,7 +18,7 @@ import numpy as np
 
 from katcorelib import (standard_script_options, verify_and_connect,
                         collect_targets, start_session, user_logger)
-from katpoint import rad2deg, wrap_angle
+from katpoint import rad2deg, wrap_angle, Target
 
 
 class NoTargetsUpError(Exception):
@@ -290,6 +290,12 @@ with verify_and_connect(opts) as kat:
     targets = collect_targets(kat, args)
     # Start capture session
     with start_session(kat, **vars(opts)) as session:
+        # Stay away from Sun and Moon
+        targets = targets.filter(
+            dist_limit_deg=10,
+            proximity_targets=[Target('Sun, special'), Target('Moon, special')],
+            timestamp=time.time() + opts.max_duration / 2,
+        )
         # Quit early if there are no sources to observe
         if len(targets.filter(el_limit_deg=opts.horizon)) == 0:
             raise NoTargetsUpError("No targets are currently visible - "
