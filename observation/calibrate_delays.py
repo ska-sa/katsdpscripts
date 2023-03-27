@@ -36,6 +36,9 @@ parser.add_option('--reset-delays', action='store_true', default=False,
 parser.add_option('--reconfigure-sdp', action="store_true", default=False,
                   help='Reconfigure SDP subsystem at the start to clear '
                        'crashed containers or to load a new version of SDP')
+parser.add_option('--timeout', type='float', default=600.0,#default increased from 300s to 600s because 6 minutes was required for c544M4k 1s mode
+                  help='Maximum length of time to wait for delays (K-cross diode), '
+                       'solutions to be computed by pipeline (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
                     description='Delay calibration observation that adjusts delays')
@@ -85,7 +88,7 @@ with verify_and_connect(opts) as kat:
         session.stop_antennas()
         user_logger.info("Waiting for delays to materialise in cal pipeline")
         # Wait for the last relevant bfcal product from the pipeline
-        hv_delays = session.get_cal_solutions('KCROSS_DIODE', timeout=300.)
+        hv_delays = session.get_cal_solutions('KCROSS_DIODE', timeout=opts.timeout)
         delays = session.get_cal_solutions('K')
         # Add HV delay to total delay
         for inp in delays:
