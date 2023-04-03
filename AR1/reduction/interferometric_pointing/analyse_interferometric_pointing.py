@@ -315,15 +315,15 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
 h5 = katdal.open(args[0])  
-ant_list = active_ants(h5, 'track') # Default list only includes those that 'track'ed some of the time
+ant_list = list(active_ants(h5, 'track')) # Default list only includes those that 'track'ed some of the time
 if opts.ants is not None  :
     ant_list = opts.ants.split(',')
 if opts.ex_ants is not None :
     for ant in opts.ex_ants.split(','):
         if ant in ant_list:
             ant_list.remove(ant)
-h5 = katdal.open(args[0],ref_ant=ant_list[0])
-print("Using %s as the reference antenna "%(ant_list[0]))
+h5 = katdal.open(args[0])
+print("Using '%s' as the reference antenna "%(h5.ref_ant))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
 if len(opts.channel_mask)>0:
