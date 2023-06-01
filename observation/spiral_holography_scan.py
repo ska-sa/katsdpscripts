@@ -708,6 +708,7 @@ if __name__=="__main__":
                             user_logger.info("Using target '%s' (mean elevation %.1f degrees)",target.name,target_meanelev)
                             user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+target_expected_duration+time.timezone),target_expected_duration/60.)
                 
+                        target.tags = target.tags[:1] # this is to avoid overloading the cal pipeline
                         session.set_target(target)
                         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
                         targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
