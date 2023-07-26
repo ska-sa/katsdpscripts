@@ -117,17 +117,41 @@ def get_ap_sensors(ant):
 
 def get_rsc_sensors(ant, band):
     """Returns receiver sensor values for a given antenna and band"""
-    # to do: add s-band logic
     rsc_sensors = [
         "rsc_rx{}_rfe1_temperature".format(band),
         "rsc_rx{}_lna_h_power_enabled".format(band),
         "rsc_rx{}_lna_v_power_enabled".format(band),
+
+#Add SBAND sensor logic, temp and LNA.
+        "rsc_rx{}_tempvac_temp15k".format(band),
+        "rsc_rx{}_mmic_enable.mmic1".format(band),
+        "rsc_rx{}_mmic_enable.mmic2".format(band),
+
+#Add second stage amplifier sensors.
+        "rsc_rx{}_amp2_h_power_enabled".format(band),
+        "rsc_rx{}_amp2_v_power_enabled".format(band),
     ]
     rsc_values = get_sensors(ant, rsc_sensors)
 
-    lna_h = rsc_values.pop("rsc_rx{}_lna_h_power_enabled".format(band))
-    lna_v = rsc_values.pop("rsc_rx{}_lna_v_power_enabled".format(band))
-    rsc_values["lnas"] = "ON" if lna_h and lna_v else "OFF"
+    if band == "s":
+        lna_h = rsc_values.pop("rsc_rx{}_mmic_enable.mmic1".format(band))
+        lna_v = rsc_values.pop("rsc_rx{}_mmic_enable.mmic2".format(band))
+        rsc_values["lnas"] = "ON" if lna_h and lna_v else "ON"
+
+    else:
+        lna_h = rsc_values.pop("rsc_rx{}_lna_h_power_enabled".format(band))
+        lna_v = rsc_values.pop("rsc_rx{}_lna_v_power_enabled".format(band))
+        rsc_values["lnas"] = "ON" if lna_h and lna_v else "OFF"
+
+    if band == "s":
+        amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
+        amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
+        rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "ON"
+
+    else:
+        amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
+        amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
+        rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "OFF"
 
     return rsc_values
 
@@ -233,17 +257,31 @@ def format_sensors(ant_sensors, band, full_report):
         else:
             row.append(elev)
 
-        rx_temp = "{:.2f}".format(sensor["rsc_rx{}_rfe1_temperature".format(band)])
-        if float(rx_temp) < 17 or float(rx_temp) > 30:
-            row.append(Fore.RED + rx_temp + Fore.RESET)
+        if band == "s":
+            rx_temp = "{:.2f}".format(sensor["rsc_rx{}_tempvac_temp15k".format(band)])
+            if float(rx_temp) < 0 or float(rx_temp) > 30:
+                row.append(Fore.RED + rx_temp + Fore.RESET)
+            else:
+                row.append(rx_temp)
+
         else:
-            row.append(rx_temp)
+            rx_temp = "{:.2f}".format(sensor["rsc_rx{}_rfe1_temperature".format(band)])
+            if float(rx_temp) < 0 or float(rx_temp) > 30:
+                row.append(Fore.RED + rx_temp + Fore.RESET)
+            else:
+                row.append(rx_temp)
 
         lnas = sensor["lnas"]
         if lnas == "ON":
             row.append(lnas)
         else:
             row.append(Fore.RED + lnas + Fore.RESET)
+
+        amp2 = sensor["amp2"]
+        if amp2 == "ON":
+            row.append(amp2)
+        else:
+            row.append(Fore.RED + amp2 + Fore.RESET)
 
         ridx_pos = sensor["ap_indexer_position"]
         if ridx_pos == "undefined":
@@ -252,7 +290,7 @@ def format_sensors(ant_sensors, band, full_report):
             row.append(ridx_pos)
 
         selected_band = sensor["dig_selected_band"]
-        bands = ["u", "l"]
+        bands = ["u", "l","s"]
         if selected_band not in bands:
             row.append(Fore.RED + selected_band + Fore.RESET)
         else:
@@ -280,6 +318,7 @@ def format_sensors(ant_sensors, band, full_report):
             or elev_lim == True
             or float(rx_temp) > 100
             or lnas != "ON"
+            or amp2 != "ON"
             or selected_band not in bands
             or dig_synced != True
         ):
@@ -314,6 +353,7 @@ def print_table(data, band):
         "elev deg",
         "rx{} temp".format(band),
         "LNAs",
+        "Amp2",
         "ridx pos",
         "dig band",
         "{}-dig state".format(band),
@@ -375,8 +415,8 @@ parser.set_defaults(
 
 (opts, args) = parser.parse_args()
 
-if opts.receiver_band not in ["u", "l"]:
-    raise ValueError("Invalid receiver band. Valid bands are ['u', 'l']")
+if opts.receiver_band not in ["u", "l", "s"]:
+    raise ValueError("Invalid receiver band. Valid bands are ['u', 'l', 's']")
 
 with verify_and_connect(opts) as kat:
     # separate antennas by readiness
@@ -385,6 +425,7 @@ with verify_and_connect(opts) as kat:
         for ant in kat.ants
         if ant.name in kat.katpool.sensor.resources_in_maintenance.get_value()
         or ant.name in kat.subarray_7.sensor.pool_resources.get_value()
+        or ant.name in kat.katpool.sensor.resources_faulty.get_value()
     ]
     exclude = set([ant.name for ant in ant_inactive])
 
