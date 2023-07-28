@@ -134,9 +134,12 @@ def get_rsc_sensors(ant, band):
     rsc_values = get_sensors(ant, rsc_sensors)
 
     if band == "s":
+        #Set S-band LNA sensors to ON, as the LNA functionality on s-band packetizer is different, to be refined later
         lna_h = rsc_values.pop("rsc_rx{}_mmic_enable.mmic1".format(band))
         lna_v = rsc_values.pop("rsc_rx{}_mmic_enable.mmic2".format(band))
         rsc_values["lnas"] = "ON" if lna_h and lna_v else "ON"
+
+        #creating s-band second-stage amplifier(amp2) sensors and setting it to ON, as there is no amp2 sensors on the s-band packetizers. To be refined later  
         amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
         amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
         rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "ON"
