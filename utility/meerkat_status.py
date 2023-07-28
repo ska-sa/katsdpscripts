@@ -39,7 +39,7 @@ def subarray_activity(kat):
             obs_description = (
                 kat.subarray_1.sensor.observation_script_description.get_value()
             )
-            sub_details = " current obs:\t {}{}".format(
+            sub_details = " Current obs:\t {}{}".format(
                 " " * 20,
                 obs_description,
             )
@@ -122,12 +122,12 @@ def get_rsc_sensors(ant, band):
         "rsc_rx{}_lna_h_power_enabled".format(band),
         "rsc_rx{}_lna_v_power_enabled".format(band),
 
-#Add SBAND sensor logic, temp and LNA.
+        #Add SBAND sensor logic, temp and LNA.
         "rsc_rx{}_tempvac_temp15k".format(band),
         "rsc_rx{}_mmic_enable.mmic1".format(band),
         "rsc_rx{}_mmic_enable.mmic2".format(band),
 
-#Add second stage amplifier sensors.
+        #Add second stage amplifier sensors.
         "rsc_rx{}_amp2_h_power_enabled".format(band),
         "rsc_rx{}_amp2_v_power_enabled".format(band),
     ]
@@ -137,18 +137,14 @@ def get_rsc_sensors(ant, band):
         lna_h = rsc_values.pop("rsc_rx{}_mmic_enable.mmic1".format(band))
         lna_v = rsc_values.pop("rsc_rx{}_mmic_enable.mmic2".format(band))
         rsc_values["lnas"] = "ON" if lna_h and lna_v else "ON"
-
-    else:
-        lna_h = rsc_values.pop("rsc_rx{}_lna_h_power_enabled".format(band))
-        lna_v = rsc_values.pop("rsc_rx{}_lna_v_power_enabled".format(band))
-        rsc_values["lnas"] = "ON" if lna_h and lna_v else "OFF"
-
-    if band == "s":
         amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
         amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
         rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "ON"
 
     else:
+        lna_h = rsc_values.pop("rsc_rx{}_lna_h_power_enabled".format(band))
+        lna_v = rsc_values.pop("rsc_rx{}_lna_v_power_enabled".format(band))
+        rsc_values["lnas"] = "ON" if lna_h and lna_v else "OFF"
         amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
         amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
         rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "OFF"
@@ -259,17 +255,13 @@ def format_sensors(ant_sensors, band, full_report):
 
         if band == "s":
             rx_temp = "{:.2f}".format(sensor["rsc_rx{}_tempvac_temp15k".format(band)])
-            if float(rx_temp) < 0 or float(rx_temp) > 30:
-                row.append(Fore.RED + rx_temp + Fore.RESET)
-            else:
-                row.append(rx_temp)
-
         else:
             rx_temp = "{:.2f}".format(sensor["rsc_rx{}_rfe1_temperature".format(band)])
-            if float(rx_temp) < 0 or float(rx_temp) > 30:
-                row.append(Fore.RED + rx_temp + Fore.RESET)
-            else:
-                row.append(rx_temp)
+
+        if float(rx_temp) < 0 or float(rx_temp) > 30:
+            row.append(Fore.RED + rx_temp + Fore.RESET)
+        else:
+            row.append(rx_temp)
 
         lnas = sensor["lnas"]
         if lnas == "ON":
@@ -344,7 +336,7 @@ def print_table(data, band):
         "failure",
         "control",
         "mode",
-        "e-Stop",
+        "e-stop",
         "acu sync",
         "hatch",
         "ped open",
@@ -353,7 +345,7 @@ def print_table(data, band):
         "elev deg",
         "rx{} temp".format(band),
         "LNAs",
-        "Amp2",
+        "amp2",
         "ridx pos",
         "dig band",
         "{}-dig state".format(band),
@@ -443,8 +435,8 @@ with verify_and_connect(opts) as kat:
             opts.receiver_band.upper(), now
         )
     )
-    print(" last global sync:                   {}".format(epoch_time))
-    print(" time left until next sync:          {} hours\n".format(hours_left))
+    print(" Last global sync:                   {}".format(epoch_time))
+    print(" Time left until next sync:          {} hours\n".format(hours_left))
 
     if obs_details:
         print(obs_details)
@@ -455,7 +447,7 @@ with verify_and_connect(opts) as kat:
         ants = ", ".join(sorted([ant.name for ant in ant_active]))
         data, excluded = format_sensors(active_, opts.receiver_band, opts.full_report)
         exclude = exclude.union(excluded)
-        print(" available antennas:                 {}\n".format(len(active_)))
+        print(" Available antennas:                 {}\n".format(len(active_)))
         print(" {}\n".format(ants))
         print(print_table(data, opts.receiver_band))
 
