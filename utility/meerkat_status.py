@@ -5,7 +5,10 @@ import os
 from prettytable import PrettyTable
 from colorama import Fore
 import operator
-from katcorelib import standard_script_options, verify_and_connect
+from katcorelib import (
+    standard_script_options,
+    verify_and_connect,
+)
 
 
 def sync_hrs_remaining(ants, band):
@@ -39,9 +42,8 @@ def subarray_activity(kat):
             obs_description = (
                 kat.subarray_1.sensor.observation_script_description.get_value()
             )
-            sub_details = " current obs:\t {}{}".format(
-                " " * 20,
-                obs_description,
+            sub_details = " Current obs:\t {}{}".format(
+                " " * 20, obs_description,
             )
 
             if obs_duration:
@@ -50,9 +52,12 @@ def subarray_activity(kat):
                 sub_details += "\n duration: \t {}{} - {}\n".format(
                     " " * 20,
                     time.strftime(
-                        "%Y-%m-%d %H:%M:%S", time.gmtime(float(obs_start_time))
+                        "%Y-%m-%d %H:%M:%S",
+                        time.gmtime(float(obs_start_time)),
                     ),
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(obs_end_time)),
+                    time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.gmtime(obs_end_time),
+                    ),
                 )
             else:
                 sub_details += "\n"
@@ -117,17 +122,40 @@ def get_ap_sensors(ant):
 
 def get_rsc_sensors(ant, band):
     """Returns receiver sensor values for a given antenna and band"""
-    # to do: add s-band logic
     rsc_sensors = [
         "rsc_rx{}_rfe1_temperature".format(band),
         "rsc_rx{}_lna_h_power_enabled".format(band),
         "rsc_rx{}_lna_v_power_enabled".format(band),
+        # Add SBAND sensor logic, temp and LNA.
+        "rsc_rx{}_tempvac_temp15k".format(band),
+        "rsc_rx{}_mmic_enable.mmic1".format(band),
+        "rsc_rx{}_mmic_enable.mmic2".format(band),
+        # Add second stage amplifier sensors.
+        "rsc_rx{}_amp2_h_power_enabled".format(band),
+        "rsc_rx{}_amp2_v_power_enabled".format(band),
     ]
     rsc_values = get_sensors(ant, rsc_sensors)
 
-    lna_h = rsc_values.pop("rsc_rx{}_lna_h_power_enabled".format(band))
-    lna_v = rsc_values.pop("rsc_rx{}_lna_v_power_enabled".format(band))
-    rsc_values["lnas"] = "ON" if lna_h and lna_v else "OFF"
+    if band == "s":
+        #set s-band LNA to always ON
+        # LNA functionality on s-band packetizer is different, to be refined later
+        lna_h = rsc_values.pop("rsc_rx{}_mmic_enable.mmic1".format(band))
+        lna_v = rsc_values.pop("rsc_rx{}_mmic_enable.mmic2".format(band))
+        rsc_values["lnas"] = "ON" if lna_h and lna_v else "ON"
+
+        # Creating amp2 sensors for s-band, no amp2 sensors found for s-band packetizers.
+        #To be refined later
+        amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
+        amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
+        rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "ON" #s-band amp2 set to ON
+
+    else:
+        lna_h = rsc_values.pop("rsc_rx{}_lna_h_power_enabled".format(band))
+        lna_v = rsc_values.pop("rsc_rx{}_lna_v_power_enabled".format(band))
+        rsc_values["lnas"] = "ON" if lna_h and lna_v else "OFF"
+        amp2_h = rsc_values.pop("rsc_rx{}_amp2_h_power_enabled".format(band))
+        amp2_v = rsc_values.pop("rsc_rx{}_amp2_v_power_enabled".format(band))
+        rsc_values["amp2"] = "ON" if amp2_h and amp2_v else "OFF"
 
     return rsc_values
 
@@ -142,9 +170,15 @@ def get_dig_sensors(ant, band, dmc_epoch):
     ]
     dig_values = get_sensors(ant, dig_sensors)
 
-    sync_epoch = dig_values.pop("dig_{}_band_time_synchronisation_epoch".format(band))
-    sync_offset = dig_values.pop("dig_{}_band_time_synchronisation_offset".format(band))
-    dig_synced = True if sync_epoch == dmc_epoch and sync_offset != 0 else False
+    sync_epoch = dig_values.pop(
+        "dig_{}_band_time_synchronisation_epoch".format(band)
+    )
+    sync_offset = dig_values.pop(
+        "dig_{}_band_time_synchronisation_offset".format(band)
+    )
+    dig_synced = (
+        True if sync_epoch == dmc_epoch and sync_offset != 0 else False
+    )
 
     dig_values["dig_synced"] = dig_synced
 
@@ -233,8 +267,16 @@ def format_sensors(ant_sensors, band, full_report):
         else:
             row.append(elev)
 
-        rx_temp = "{:.2f}".format(sensor["rsc_rx{}_rfe1_temperature".format(band)])
-        if float(rx_temp) < 17 or float(rx_temp) > 30:
+        if band == "s":
+            rx_temp = "{:.2f}".format(
+                sensor["rsc_rx{}_tempvac_temp15k".format(band)]
+            )
+        else:
+            rx_temp = "{:.2f}".format(
+                sensor["rsc_rx{}_rfe1_temperature".format(band)]
+            )
+
+        if float(rx_temp) < 0 or float(rx_temp) > 30:
             row.append(Fore.RED + rx_temp + Fore.RESET)
         else:
             row.append(rx_temp)
@@ -245,6 +287,12 @@ def format_sensors(ant_sensors, band, full_report):
         else:
             row.append(Fore.RED + lnas + Fore.RESET)
 
+        amp2 = sensor["amp2"]
+        if amp2 == "ON":
+            row.append(amp2)
+        else:
+            row.append(Fore.RED + amp2 + Fore.RESET)
+
         ridx_pos = sensor["ap_indexer_position"]
         if ridx_pos == "undefined":
             row.append(Fore.RED + ridx_pos + Fore.RESET)
@@ -252,7 +300,7 @@ def format_sensors(ant_sensors, band, full_report):
             row.append(ridx_pos)
 
         selected_band = sensor["dig_selected_band"]
-        bands = ["u", "l"]
+        bands = ["u", "l", "s"]
         if selected_band not in bands:
             row.append(Fore.RED + selected_band + Fore.RESET)
         else:
@@ -280,6 +328,7 @@ def format_sensors(ant_sensors, band, full_report):
             or elev_lim == True
             or float(rx_temp) > 100
             or lnas != "ON"
+            or amp2 != "ON"
             or selected_band not in bands
             or dig_synced != True
         ):
@@ -305,7 +354,7 @@ def print_table(data, band):
         "failure",
         "control",
         "mode",
-        "e-Stop",
+        "e-stop",
         "acu sync",
         "hatch",
         "ped open",
@@ -314,6 +363,7 @@ def print_table(data, band):
         "elev deg",
         "rx{} temp".format(band),
         "LNAs",
+        "amp2",
         "ridx pos",
         "dig band",
         "{}-dig state".format(band),
@@ -370,13 +420,15 @@ parser.add_option(
 
 # assume basic options passed from instruction_set
 parser.set_defaults(
-    description="Meerkat Status", proposal_id="20190205-OPS1A", observer="operator"
+    description="Meerkat Status",
+    proposal_id="20190205-OPS1A",
+    observer="operator",
 )
 
 (opts, args) = parser.parse_args()
 
-if opts.receiver_band not in ["u", "l"]:
-    raise ValueError("Invalid receiver band. Valid bands are ['u', 'l']")
+if opts.receiver_band not in ["u", "l", "s"]:
+    raise ValueError("Invalid receiver band. Valid bands are ['u', 'l', 's']")
 
 with verify_and_connect(opts) as kat:
     # separate antennas by readiness
@@ -385,6 +437,7 @@ with verify_and_connect(opts) as kat:
         for ant in kat.ants
         if ant.name in kat.katpool.sensor.resources_in_maintenance.get_value()
         or ant.name in kat.subarray_7.sensor.pool_resources.get_value()
+        or ant.name in kat.katpool.sensor.resources_faulty.get_value()
     ]
     exclude = set([ant.name for ant in ant_inactive])
 
@@ -395,35 +448,45 @@ with verify_and_connect(opts) as kat:
     hours_left = sync_hrs_remaining(ant_active, opts.receiver_band)
     epoch = time.gmtime(dmc_epoch)
     epoch_time = time.strftime("%Y-%m-%d %H:%M:%S", epoch)
-    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()),)
 
     print(
         "\n {}-band MeerKAT status at:           {}".format(
             opts.receiver_band.upper(), now
         )
     )
-    print(" last global sync:                   {}".format(epoch_time))
-    print(" time left until next sync:          {} hours\n".format(hours_left))
+    print(" Last global sync:                   {}".format(epoch_time))
+    print(" Time left until next sync:          {} hours\n".format(hours_left))
 
     if obs_details:
         print(obs_details)
 
     # available antennas
     if ant_active:
-        active_ = [get_ant_data(ant, opts.receiver_band, dmc_epoch) for ant in ant_active]
+        active_ = [
+            get_ant_data(ant, opts.receiver_band, dmc_epoch)
+            for ant in ant_active
+        ]
         ants = ", ".join(sorted([ant.name for ant in ant_active]))
-        data, excluded = format_sensors(active_, opts.receiver_band, opts.full_report)
+        data, excluded = format_sensors(
+            active_, opts.receiver_band, opts.full_report,
+        )
         exclude = exclude.union(excluded)
-        print(" available antennas:                 {}\n".format(len(active_)))
+        print(" Available antennas:                 {}\n".format(len(active_)))
         print(" {}\n".format(ants))
         print(print_table(data, opts.receiver_band))
 
     if ant_inactive:
         inactive_ = [
-            get_ant_data(ant, opts.receiver_band, dmc_epoch) for ant in ant_inactive
+            get_ant_data(ant, opts.receiver_band, dmc_epoch)
+            for ant in ant_inactive
         ]
         data, excluded = format_sensors(inactive_, opts.receiver_band, True)
-        print("\n unavailable antennas:               {}\n".format(len(inactive_)))
+        print(
+            "\n unavailable antennas:               {}\n".format(
+                len(inactive_)
+            )
+        )
         print(print_table(data, opts.receiver_band))
         print("\n")
 
