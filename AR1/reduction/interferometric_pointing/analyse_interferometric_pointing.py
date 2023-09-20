@@ -31,7 +31,7 @@ def activity(h5,state = 'track'):
     others appear to have lost theirs entirely.
         @return: boolean flags per dump, True when ALL antennas match `state` and nd_coupler=False """
     antlist = [a.name for a in h5.ants]
-    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
+    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=bool)
     for i,ant in enumerate(antlist) :
         sensor = h5.sensor['%s_activity'%(ant)] ==state
         if ~np.any(sensor):
@@ -43,208 +43,199 @@ def activity(h5,state = 'track'):
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
 
-def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_weights=False,compscan_index=None,debug=False):
+class inputvalue:
+    pass
+
+def fit_beam(pos,gains_p,stdv,rfi_static_flags,target, temperature, pressure, humidity,middle_time,chunks=16,valid_offset=np.pi/8):
+    for pol in gains_p.keys():
+        pass
+    gaussian_centre     = np.full((chunks * 2, 2, gains_p[pol].shape[-1]), np.nan)
+    gaussian_centre_std = np.full((chunks * 2, 2, gains_p[pol].shape[-1]), np.nan)
+    gaussian_width      = np.full((chunks * 2, 2, gains_p[pol].shape[-1]), np.nan)
+    gaussian_width_std  = np.full((chunks * 2, 2, gains_p[pol].shape[-1]), np.nan)
+    gaussian_height     = np.full((chunks * 2, gains_p[pol].shape[-1]), np.nan)
+    gaussian_height_std = np.full((chunks * 2, gains_p[pol].shape[-1]), np.nan)
+    freq = np.zeros((1024),bool)
+    for i,pol in enumerate(gains_p.keys()) :
+        for ant in range(gains_p[pol].shape[-1]):
+            for chunk in range(chunks):
+                freq[:] = False
+                freq[chunk*(h5.shape[1]//chunks):(chunk+1)*(h5.shape[1]//chunks)] = True
+                rfi = ~rfi_static_flags & freq
+                if (pos[pol].shape[0] > 4) and np.any(rfi): # Make sure there is enough data for a fit
+                    fitobj  = fit.GaussianFit(pos[pol][:,:,ant].mean(axis=0),[1.,1.],1)
+                    x = np.column_stack((pos[pol][:,0,ant],pos[pol][:,1,ant]))
+                    y = np.abs(gains_p[pol][:,rfi,ant]).mean(axis=1)
+                    y_err = 1./np.sqrt(stdv[pol][:,rfi,ant].sum(axis=1))
+                    gaussian = fitobj.fit(x.T,y,y_err )
+                    # Fitted beam center is in (x, y) coordinates, in projection
+                    # centred on beam using Swaped Sin projection , have to do
+                    # this a second time to cancel out the swap
+                    snr = np.abs(np.r_[gaussian.std/gaussian.std_std])
+                    valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
+                    theta =  np.sqrt((gaussian.mean**2).sum())  # Cart. distance calc
+                    # This is to see if the co-ord is out of range
+                    # The valid fit is needed because I have no way of working out if the gain solution was ok.
+                    if valid_fit and np.any(theta <= valid_offset) : # Invalid fits remain nan (initialised defaults)
+                        # Convert this offset back to spherical (az, el) coordinates
+                        beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time, antenna=h5.ants[ant],projection_type="SSN")
+                        # Now correct the measured (az, el) for refraction and then apply the old pointing model
+                        # to get a "raw" measured (az, el) at the output of the pointing model
+                        rc = katpoint.RefractionCorrection()
+                        beam_center_azel = [beam_center_azel[0], rc.apply(beam_center_azel[1], temperature, pressure, humidity)]
+                        beam_center_azel = h5.ants[ant].pointing_model.apply(*beam_center_azel)
+                        beam_center_azel = np.degrees(np.array(beam_center_azel))
+                        gaussian_centre[chunk+i*chunks,:,ant]     = beam_center_azel
+                        gaussian_centre_std[chunk+i*chunks,:,ant] = gaussian.std_mean
+                        gaussian_width[chunk+i*chunks,:,ant]      = gaussian.std
+                        gaussian_width_std[chunk+i*chunks,:,ant]  = gaussian.std_std
+                        gaussian_height[chunk+i*chunks,ant]       = gaussian.height
+                        gaussian_height_std[chunk+i*chunks,ant]   = gaussian.std_height
+    returnval = inputvalue()
+    returnval.centre = gaussian_centre
+    returnval.centre_std = gaussian_centre_std
+    returnval.width = gaussian_width
+    returnval.width_std = gaussian_width_std
+    returnval.height = gaussian_height
+    returnval.height_std = gaussian_height_std
+    return returnval
+
+def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,use_weights=False,compscan_index=None):
     """Break the band up into chunks"""
     chunk_size = chunks
     rfi_static_flags = np.full(h5.shape[1], False) if (rfi_static_flags is None) else rfi_static_flags
     gains_p = {}
+    pos = {}
     stdv = {}
     calibrated = False # placeholder for calibration
+    katpoint.projection.set_out_of_range_treatment('nan')
+    h5.target_projection='SSN'
+
     h5.select(compscans=compscan_index)
     # Combine target indices if they refer to the same target for the purpose of this analysis
     TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
     def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
         tgt = tgt.description.split(",")
         return (tgt[0] == TGT[0]) and (tgt[2] == TGT[2]) and (tgt[3] == TGT[3])
+
     target_indices = [TI for TI in h5.target_indices if _eq_TGT_(h5.catalogue.targets[TI])]
+    target_list = [h5.catalogue.targets[TI] for TI in target_indices]
     if len(h5.target_indices) > len(target_indices):
         print("Warning multiple targets in the compscan, using %s instead of %s"%(target_indices,h5.target_indices))
     target = h5.catalogue.targets[h5.target_indices[0]]
     
-    if not return_raw:     # Calculate average target flux over entire band
-        flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
-        average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
-        temperature = np.mean(h5.temperature)
-        pressure = np.mean(h5.pressure)
-        humidity = np.mean(h5.humidity)
-        wind_speed = np.mean(h5.wind_speed)
-        wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(h5.wind_direction)))) )# Vector Mean
-        sun = katpoint.Target('Sun, special')
-        # Calculate pointing offset
-        # Obtain middle timestamp of compound scan, where all pointing calculations are done
-        middle_time = np.median(h5.timestamps[:], axis=None)
-        # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
-        requested_azel = target.azel(middle_time)
-        # Correct for refraction, which becomes the requested value at input of pointing model
-        rc = katpoint.RefractionCorrection()
-        requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
-        requested_azel = katpoint.rad2deg(np.array(requested_azel))
+    # Calculate average target flux over entire band
+    flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
+    average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
+    temperature = np.mean(h5.temperature)
+    pressure = np.mean(h5.pressure)
+    humidity = np.mean(h5.humidity)
+    wind_speed = np.mean(h5.wind_speed)
+    wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(h5.wind_direction)))) )# Vector Mean
+    sun = katpoint.Target('Sun, special')
+    # Obtain middle timestamp of compound scan, where all pointing calculations are done
+    middle_time = np.median(h5.timestamps[:], axis=None)
+    # Calculate pointing offset
+    # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
+    #requested_azel = target.azel(middle_time)
+    # Correct for refraction, which becomes the requested value at input of pointing model
+    #rc = katpoint.RefractionCorrection()
+    #requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
+    #requested_azel = katpoint.rad2deg(np.array(requested_azel))
 
    
-    gaussian_centre     = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
-    gaussian_centre_std = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
-    gaussian_width      = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
-    gaussian_width_std  = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
-    gaussian_height     = np.full((chunk_size * 2, len(h5.ants)), np.nan)
-    gaussian_height_std = np.full((chunk_size * 2, len(h5.ants)), np.nan)
-    if debug :#debug_text
-        debug_text = []
-        line = []
-        line.append("#AntennaPol")
-        line.append("Target")
-        line.append("Freq(MHz)") #MHz
-        line.append("Centre Az")
-        line.append("Centre El")
-        line.append("Centre Az Std")
-        line.append("Centre El Std")
-        line.append("Centre Az Width")
-        line.append("Centre El Width")
-        line.append("Centre Az Width Std")
-        line.append("Centre El Width Std")
-        line.append("Height")
-        line.append("Height Std")
-        debug_text.append(','.join(line) )
     pols = ["H","V"] # Put in logic for Intensity
     for i,pol in enumerate(pols) :
         gains_p[pol] = []
-        pos = []
+        pos[pol] = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=[h5.catalogue.targets[TI] for TI in target_indices],compscans=compscan_index)
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=target_list,compscans=compscan_index)
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
             data = h5.vis[valid_index]
             if data.shape[0] > 0 : # need at least one data point
-                #g0 = np.ones(len(h5.ants),np.complex)
                 if use_weights :
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
-                    weights = np.ones(data.shape[1:]).astype(np.float)
+                    weights = np.ones(data.shape[1:]).astype(float)
+
                 gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
-                pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
-        for ant in range(len(h5.ants)):
-            for chunk in range(chunks):
-                freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
-                rfi = ~rfi_static_flags[freq]
-                if (np.array(pos).shape[0] > 4) and np.any(rfi): # Make sure there is enough data for a fit
-                    fitobj  = fit.GaussianFit(np.array(pos)[:,:,ant].mean(axis=0),[1.,1.],1)
-                    x = np.column_stack((np.array(pos)[:,0,ant],np.array(pos)[:,1,ant]))
-                    y = np.abs(np.array(gains_p[pol])[:,freq,:][:,rfi,ant]).mean(axis=1)
-                    y_err = 1./np.sqrt(np.array(stdv[pol])[:,freq,:][:,rfi,ant].sum(axis=1))
-                    gaussian = fitobj.fit(x.T,y,y_err ) 
-                    #Fitted beam center is in (x, y) coordinates, in projection centred on target
-                    snr = np.abs(np.r_[gaussian.std/gaussian.std_std])
-                    valid_fit = np.all(np.isfinite(np.r_[gaussian.mean,gaussian.std_mean,gaussian.std,gaussian.std_std,gaussian.height,gaussian.std_height,snr]))
-                    theta =  np.sqrt((gaussian.mean**2).sum())  # this is to see if the co-ord is out of range
-                    #The valid fit is needed because I have no way of working out if the gain solution was ok.
-                    if valid_fit and np.any(theta <= np.pi) : # Invalid fits remain nan (initialised defaults)
-                        # Convert this offset back to spherical (az, el) coordinates
-                        beam_center_azel = target.plane_to_sphere(np.radians(gaussian.mean[0]), np.radians(gaussian.mean[1]), middle_time, antenna=h5.ants[ant])
-                        # Now correct the measured (az, el) for refraction and then apply the old pointing model
-                        # to get a "raw" measured (az, el) at the output of the pointing model
-                        beam_center_azel = [beam_center_azel[0], rc.apply(beam_center_azel[1], temperature, pressure, humidity)]
-                        beam_center_azel = h5.ants[ant].pointing_model.apply(*beam_center_azel)
-                        beam_center_azel = np.degrees(np.array(beam_center_azel))
-                        gaussian_centre[chunk+i*chunk_size,:,ant]     = beam_center_azel
-                        gaussian_centre_std[chunk+i*chunk_size,:,ant] = gaussian.std_mean
-                        gaussian_width[chunk+i*chunk_size,:,ant]      = gaussian.std
-                        gaussian_width_std[chunk+i*chunk_size,:,ant]  = gaussian.std_std
-                        gaussian_height[chunk+i*chunk_size,ant]       = gaussian.height
-                        gaussian_height_std[chunk+i*chunk_size,ant]   = gaussian.std_height
+                pos[pol].append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] )
+        gains_p[pol] = np.array(gains_p[pol])
+        stdv[pol] = np.array(stdv[pol])
+        pos[pol] = np.array(pos[pol]) # Maybe one day there could be a correction for the squint
 
-    if return_raw :
-        return np.r_[gaussian_centre , gaussian_centre_std , gaussian_width , gaussian_width_std , gaussian_height , gaussian_height_std]
-    else:
-        ant_pointing = {}
-        pols = ["HH","VV",'I']
-        pol_ind = {}
-        pol_ind['HH'] = np.arange(0.0*chunk_size,1.0*chunk_size,dtype=int)
-        pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) 
-        pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) 
-        for ant in range(len(h5.ants)):
-            h_pol = ~np.isnan(gaussian_centre[pol_ind['HH'],:,ant]) & ~np.isnan(gaussian_centre_std[pol_ind['HH'],:,ant])
-            v_pol = ~np.isnan(gaussian_centre[pol_ind['VV'],:,ant]) & ~np.isnan(gaussian_centre_std[pol_ind['VV'],:,ant])
-            valid_solutions = np.count_nonzero(h_pol & v_pol) # Note this is twice the number of solutions because of the Az & El parts
-            print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
-            if debug :#debug_text
-                for pol_i,pol in enumerate( ["H","V"]):
-                    for chunk in range(chunks*pol_i,chunks*(pol_i+1)):
-                        line = []
-                        freq = h5.channel_freqs[slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))].mean()
-                        line.append(h5.ants[ant].name+pol)
-                        line.append(target.name)
-                        line.append(str(freq/1e6)) #MHz
-                        line.append(str(gaussian_centre[chunk,0,ant]))
-                        line.append(str(gaussian_centre[chunk,1,ant]))
-                        line.append(str(gaussian_centre_std[chunk,0,ant]))
-                        line.append(str(gaussian_centre_std[chunk,1,ant]))
-                        line.append(str(gaussian_width[chunk,0,ant]))
-                        line.append(str(gaussian_width[chunk,1,ant]))
-                        line.append(str(gaussian_width_std[chunk,0,ant]))
-                        line.append(str(gaussian_width_std[chunk,1,ant]))
-                        line.append(str(gaussian_height[chunk,ant]))
-                        line.append(str(gaussian_height_std[chunk,ant]))
-                        debug_text.append(','.join(line) )
-            if valid_solutions//2 > 0 : # a bit overboard
-                name = h5.ants[ant].name
-                ant_pointing[name] = {}
-                ant_pointing[name]["antenna"] = h5.ants[ant].name
-                ant_pointing[name]["valid_solutions"] = valid_solutions
-                ant_pointing[name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
-                ant_pointing[name]["target"] = target.name
-                ant_pointing[name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
-                ant_pointing[name]["data_unit"] = 'Jy' if calibrated else 'counts'
-                ant_pointing[name]["frequency"] = h5.freqs.mean()
-                ant_pointing[name]["flux"] = average_flux
-                ant_pointing[name]["temperature"] =temperature
-                ant_pointing[name]["pressure"] =pressure
-                ant_pointing[name]["humidity"] =humidity
-                ant_pointing[name]["wind_speed"] =wind_speed
-                ant_pointing[name]["wind_direction"] =wind_direction
-                # work out the sun's angle
-                sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time,antenna=h5.ants[ant])))  
-                ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
-                ant_pointing[name]["sun_el"] = sun_azel.tolist()[1]
-                ant_pointing[name]["timestamp"] =middle_time.astype(int)
-                #Work out the Target position and the requested position
-                # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
-                requested_azel = target.azel(middle_time,antenna=h5.ants[ant])
-                # Correct for refraction, which becomes the requested value at input of pointing model
-                rc = katpoint.RefractionCorrection()
-                requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
-                requested_azel = katpoint.rad2deg(np.array(requested_azel))
-                target_azel = katpoint.rad2deg(np.array(target.azel(middle_time,antenna=h5.ants[ant])))  
-                ant_pointing[name]["azimuth"] =target_azel.tolist()[0]
-                ant_pointing[name]["elevation"] =target_azel.tolist()[1]
-                azel_beam = w_average(gaussian_centre[pol_ind["I"],:,ant],axis=0,weights=1./gaussian_centre_std[pol_ind["I"],:,ant]**2)
-                # Make sure the offset is a small angle around 0 degrees
-                offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
-                ant_pointing[name]["delta_azimuth"] =offset_azel.tolist()[0]
-                ant_pointing[name]["delta_elevation"] =offset_azel.tolist()[1]
-                ant_pointing[name]["delta_elevation_std"] =0.0#calc
-                ant_pointing[name]["delta_azimuth_std"] =0.0#calc
-                for pol in pol_ind:
-                    ant_pointing[name]["beam_height_%s"%(pol)]     = w_average(gaussian_height[pol_ind[pol],ant],axis=0,weights=1./gaussian_height_std[pol_ind[pol],ant]**2)
-                    ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(gaussian_height_std[pol_ind[pol],ant]**2) )
-                    ant_pointing[name]["beam_width_%s"%(pol)]      = w_average(gaussian_width[pol_ind[pol],:,ant],axis=0,weights=1./gaussian_width_std[pol_ind[pol],:,ant]**2).mean() 
-                    ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(gaussian_width_std[pol_ind[pol],:,ant]**2) )
-                    ant_pointing[name]["baseline_height_%s"%(pol)] = 0.0
-                    ant_pointing[name]["baseline_height_%s_std"%(pol)] = 0.0
-                    ant_pointing[name]["refined_%s"%(pol)] =  5.0  # I don't know what this means 
-                    ant_pointing[name]["azimuth_%s"%(pol)]       =w_average(gaussian_centre[pol_ind[pol],0,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],0,ant]**2)
-                    ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian_centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian_centre_std[pol_ind[pol],1,ant]**2)
-                    ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],0,ant]**2) )
-                    ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(gaussian_centre_std[pol_ind[pol],1,ant]**2) )
-        if debug :#debug_text
-            debug_text.append('')
-            base = "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing_DEBUG")
-            g = file('%s:Scan%i:%s'%(base,compscan_index,target.name),'w')
-            g.write("\n".join(debug_text))
-            g.close()
-        return ant_pointing
+    gaussian = fit_beam(pos,gains_p,stdv,rfi_static_flags,target, temperature, pressure, humidity,middle_time) # fit beam
+
+    ant_pointing = {}
+    pols = ["HH","VV",'I']
+    pol_ind = {}
+    pol_ind['HH'] = np.arange(0.0*chunk_size,1.0*chunk_size,dtype=int) # H is the first half
+    pol_ind['VV'] = np.arange(1.0*chunk_size,2.0*chunk_size,dtype=int) # V is the second half
+    pol_ind['I']  = np.arange(0.0*chunk_size,2.0*chunk_size,dtype=int) # I is all the samples.
+    for ant in range(len(h5.ants)):
+        valid_solutions = 0
+        if gaussian.centre.shape[2] > 0 : # If there are no gains then no 3rd axis returend from beam fit
+            I_sol = ~np.isnan(gaussian.centre[pol_ind['I'],:,ant]) & ~np.isnan(gaussian.centre_std[pol_ind['I'],:,ant])
+            valid_solutions = np.count_nonzero(I_sol)//2 # Note this is four the number of solutions because of the Az & El parts and the H & V
+        print("%i valid solutions out of %s for %s on %s at %s "%(valid_solutions//2,chunks,h5.ants[ant].name,target.name,str(katpoint.Timestamp(middle_time))))
+        if valid_solutions//2 > 0 : # a bit overboard
+            name = h5.ants[ant].name
+            ant_pointing[name] = {}
+            ant_pointing[name]["antenna"] = h5.ants[ant].name
+            ant_pointing[name]["valid_solutions"] = valid_solutions
+            ant_pointing[name]["dataset"] = h5.name.split('/')[-1].split('.')[0]
+            ant_pointing[name]["target"] = target.name
+            ant_pointing[name]["timestamp_ut"] =str(katpoint.Timestamp(middle_time))
+            ant_pointing[name]["data_unit"] = 'Jy' if calibrated else 'counts'
+            ant_pointing[name]["frequency"] = h5.freqs.mean()
+            ant_pointing[name]["flux"] = average_flux
+            ant_pointing[name]["temperature"] =temperature
+            ant_pointing[name]["pressure"] =pressure
+            ant_pointing[name]["humidity"] =humidity
+            ant_pointing[name]["wind_speed"] =wind_speed
+            ant_pointing[name]["wind_direction"] =wind_direction
+            # work out the sun's angle
+            sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time,antenna=h5.ants[ant])))
+            ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
+            ant_pointing[name]["sun_el"] = sun_azel.tolist()[1]
+            ant_pointing[name]["timestamp"] =middle_time.astype(int)
+            #Work out the Target position and the requested position
+            # Start with requested (az, el) coordinates, as they apply at the middle time for a moving target
+            requested_azel = target.azel(middle_time,antenna=h5.ants[ant])
+            # Correct for refraction, which becomes the requested value at input of pointing model
+            rc = katpoint.RefractionCorrection()
+            requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
+            requested_azel = katpoint.rad2deg(np.array(requested_azel))
+            target_azel = katpoint.rad2deg(np.array(target.azel(middle_time,antenna=h5.ants[ant])))
+            ant_pointing[name]["azimuth"] =target_azel.tolist()[0]
+            ant_pointing[name]["elevation"] =target_azel.tolist()[1]
+            azel_beam = w_average(gaussian.centre[pol_ind["I"],:,ant],axis=0,weights=1./gaussian.centre_std[pol_ind["I"],:,ant]**2)
+            # Make sure the offset is a small angle around 0 degrees
+            offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
+            ant_pointing[name]["delta_azimuth"] =offset_azel.tolist()[0]
+            ant_pointing[name]["delta_elevation"] =offset_azel.tolist()[1]
+            ant_pointing[name]["delta_elevation_std"] =0.0#calc
+            ant_pointing[name]["delta_azimuth_std"] =0.0#calc
+            for pol in pol_ind:
+                ant_pointing[name]["beam_height_%s"%(pol)]     = w_average(gaussian.height[pol_ind[pol],ant],axis=0,weights=1./gaussian.height_std[pol_ind[pol],ant]**2)
+                ant_pointing[name]["beam_height_%s_std"%(pol)] = np.sqrt(np.nansum(gaussian.height_std[pol_ind[pol],ant]**2) )
+                ant_pointing[name]["beam_width_%s"%(pol)]      = w_average(gaussian.width[pol_ind[pol],:,ant],axis=0,weights=1./gaussian.width_std[pol_ind[pol],:,ant]**2).mean() 
+                ant_pointing[name]["beam_width_%s_std"%(pol)]  = np.sqrt(np.nansum(gaussian.width_std[pol_ind[pol],:,ant]**2) )
+                ant_pointing[name]["baseline_height_%s"%(pol)] = 0.0
+                ant_pointing[name]["baseline_height_%s_std"%(pol)] = 0.0
+                ant_pointing[name]["refined_%s"%(pol)] =  5.0  # I don't know what this means
+                ant_pointing[name]["azimuth_%s"%(pol)]       =w_average(gaussian.centre[pol_ind[pol],0,ant],axis=0,weights=1./gaussian.centre_std[pol_ind[pol],0,ant]**2)
+                ant_pointing[name]["elevation_%s"%(pol)]     =w_average(gaussian.centre[pol_ind[pol],1,ant],axis=0,weights=1./gaussian.centre_std[pol_ind[pol],1,ant]**2)
+                ant_pointing[name]["azimuth_%s_std"%(pol)]   =np.sqrt(np.nansum(gaussian.centre_std[pol_ind[pol],0,ant]**2) )
+                ant_pointing[name]["elevation_%s_std"%(pol)] =np.sqrt(np.nansum(gaussian.centre_std[pol_ind[pol],1,ant]**2) )
+    return ant_pointing
+
+
 
 def load_rfi_static_mask(filename, freqs, debug_chunks=0):
     # Construct a mask either from a pickle file, or a text file with frequency ranges
@@ -291,8 +282,6 @@ parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
                        "default is None of the antennas in the data set")
 parser.add_option( "--use-weights",action="store_true",
                   default=False, help="Use SDP visability weights ")
-parser.add_option( "--debug",action="store_true",
-                  default=False, help="Produce a debug file with fitting infomation for each frequency ")
 
 parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
 parser.add_option("-o", "--output", dest="outfilebase",default=None,
@@ -345,7 +334,7 @@ for ant in range(len(h5.ants)):
     f[name].write(', '.join(output_field_names) + '\n')
 for compscan_index  in h5.compscan_indices :
     print("Compound scan %i  "%(compscan_index) )
-    offset_data = reduce_compscan_inf(h5,rfi_static_flags,chunks,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
+    offset_data = reduce_compscan_inf(h5,rfi_static_flags,chunks,use_weights=opts.use_weights,compscan_index=compscan_index)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
         for antname in offset_data:
