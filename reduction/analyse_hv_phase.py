@@ -6,6 +6,7 @@
 # in other bands.
 
 import optparse
+import katpoint
 import katdal
 import pysolr
 import glob
@@ -19,6 +20,24 @@ except:
     plot_hv_phase_spline=None
     pass
 
+def get_info(f):
+    target_sun=katpoint.Target("Sun, special")
+    mean_timestamp=np.mean(f.timestamps)
+    info={'cbid':f.source.capture_block_id,'band':f.spectral_windows[f.spw].band,'targetname':f.catalogue.targets[0].aliases[0],
+            'mean_timestamp':np.mean(f.timestamps),'nchannels':len(f.channels),'ndumps':len(f.timestamps),'dump_period':f.dump_period,
+            'elevation':np.nanmean(f.el),'temperature':np.nanmean(f.temperature),'wind_speed':np.nanmean(f.wind_speed),
+            'parang':np.nanmean(f.parangle),
+            'sun_el':target_sun.azel(timestamp=mean_timestamp,antenna=f.ants[0])[1]*180./np.pi,
+            'sun_angle':f.catalogue.targets[0].separation(target_sun,katpoint.Timestamp(mean_timestamp))*180./np.pi,
+            'ref_ant':f.source.metadata.attrs['cal_refant'],'antennas':[a.name for a in f.ants]}
+    return info
+    
+def print_info(cbid):
+    fid2fn = lambda fid: "http://archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
+    f=katdal.open(fid2fn(cbid))
+    info=get_info(f)
+    print(info)    
+
 #the channelisation might be 1K,4K,32K 
 def ensure_1k(freqMHz,xyphase):
     if len(freqMHz)==1024:
@@ -29,23 +48,25 @@ def ensure_1k(freqMHz,xyphase):
         return freqMHz[::32],np.nanmedian(xyphase.reshape([1024,32]),axis=1)        
     raise RuntimeError('Unexpected number of channels: %d'%len(freqMHz))
     
-# filename='1693662868_sdp_l0.full.rdb'#lband
-# filename='1693661748_sdp_l0.full.rdb'#uhf
-# filename='./s0/1693657602_sdp_l0.full.rdb'#s0
-# filename='./s2/1693660786_sdp_l0.full.rdb'#s2
-# filename='./s4/1693658891_sdp_l0.full.rdb'#s4
-# filename='1694437059_sdp_l0.full.rdb'#l-band pks1934
+# filename='1693662868_sdp_l0.full.rdb'#lband 1k 8s 3C286
+# filename='1693661748_sdp_l0.full.rdb'#uhf 1k 8s 3C286
+# filename='./s0/1693657602_sdp_l0.full.rdb'#s0 1k 8s 3C286
+# filename='./s2/1693660786_sdp_l0.full.rdb'#s2 1k 8s 3C286
+# filename='./s4/1693658891_sdp_l0.full.rdb'#s4 1k 8s 3C286
+# filename=1693496913 #s4 4k 8s 3C286
+# filename='1694437059_sdp_l0.full.rdb'#l-band 1k 8s pks1934
 #do_median_diode_antennas=True#take median over antenna for noise diode corrections (default required behaviour)
 #do_median_time=False#take median over time of uncorrected visibilities before processing
 #do_compute_parallelhands=True #for displaying parallel hand histograms (slower)
-def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=True,do_plot=True,basename=None):
+def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=True,do_fold=True,do_plot=True,basename=None):
     f=katdal.open(filename)
     if basename is None:
         basename=f.source.capture_block_id
-    if do_compute_parallelhands:    
-        f.select(corrprods='cross', scans = 1) #select un_corrected track data, but not slew, not stop (antenna is not tracking anymore while cal is doing calculations)
+    if do_compute_parallelhands:
+        #select un_corrected track data, but not slew, not stop (antenna is not tracking anymore while cal is doing calculations)
+        f.select(corrprods='cross', compscans='un_corrected',dumps=(f.sensor['obs_activity']=='track'))
     else:
-        f.select(corrprods='cross', pol='hv,vh', scans = 1)
+        f.select(corrprods='cross', pol='hv,vh',compscans='un_corrected',dumps=(f.sensor['obs_activity']=='track'))
     corr_prod_list=f.corr_products.tolist()
     cal_pol_ordering=f.source.metadata.attrs['cal_pol_ordering']#['v', 'h']
     freqMHz=f.freqs/1e6
@@ -57,8 +78,7 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         idump_G=f.sensor.get('cal_product_G').events[1]
         print('Detected idump_G=%d'%idump_G)
     else:
-        print('Unexpected: cal_product_G event 0 is expected to be nan, event 1 is expected to be valid')
-        return
+        raise Exception('Unexpected: cal_product_G event 0 is expected to be nan, event 1 is expected to be valid')
     #get appropriate B solution index - in this case it is first event, which also actually equals dump 0
     idump_B=f.sensor.get('cal_product_B0').events[0]
     idump_K=f.sensor.get('cal_product_K').events[0]
@@ -103,7 +123,9 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
                     calvis[iorder,:,iant,jant,:]=np.exp(-1j*np.angle(correctedvis))
                 else:
                     calvis[iorder,:,iant,jant,:]=np.exp(1j*np.angle(correctedvis))                        
-    
+
+    #classical kim solution
+    medianphase=np.angle(np.nanmedian(calvis.real[1:3],axis=(0,1,2,3))+1j*np.nanmedian(calvis.imag[1:3],axis=(0,1,2,3)))*180/pi
     #determine average HVphase estimate as center starting point for wrapping
     #only works properly if target is polarised
     if f.catalogue.targets[0].aliases[0] =='3C286': 
@@ -118,7 +140,7 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         ipeak_hvphase_offset=np.argmax(np.max(hist_counts,axis=0))
         HV_centering_phase=bin_edge[ipeak_hvphase_offset]
         if HV_centering_phase>90:#in S-band, this might be near -180 or 180; lets force to -180
-            HV_centering_phase-=-360# for consistency across datasets and subbands
+            HV_centering_phase-=360# for consistency across datasets and subbands
     else:#unpolarised target - cannot distinguish 180 degree ambiguity, use prior knowledge starting poing
         if freqMHz[0]<800:#UHF
             HV_centering_phase=-14
@@ -131,16 +153,24 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
     anglecalvis=np.angle(calvis[1:3,:,:,:,:])*180/pi
     convergence=[HV_centering_phase]
     for it in range(30):
-        wrapped_anglecalvis=(anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]+90)%180-90+HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]
+        if do_fold:
+            wrapped_anglecalvis=(anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]+90)%180-90+HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]
+        else:
+            wrapped_anglecalvis=(anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]+180)%360-180+HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]
+            wrapped_anglecalvis[np.nonzero(wrapped_anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]>90)]=np.nan
+            wrapped_anglecalvis[np.nonzero(wrapped_anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]<-90)]=np.nan
         HV_centering_phase_per_chan=np.nanmedian(wrapped_anglecalvis,axis=(0,1,2,3))
         new_HV_centering_phase=np.nanmedian(HV_centering_phase_per_chan)
-        if new_HV_centering_phase in convergence:
-            print('Converged')
-        else:
+        if new_HV_centering_phase not in convergence:
             HV_centering_phase=new_HV_centering_phase
+            convergence.append(HV_centering_phase)
             print(HV_centering_phase)
-    if do_plot:
-        medianphase=np.angle(np.nanmedian(calvis.real[1:3],axis=(0,1,2,3))+1j*np.nanmedian(calvis.imag[1:3],axis=(0,1,2,3)))*180/pi
+        else:
+            print('Converged')
+            break
+    HV_centering_hv=np.nanmedian(wrapped_anglecalvis[0,:],axis=(0,1,2))
+    HV_centering_vh=np.nanmedian(wrapped_anglecalvis[1,:],axis=(0,1,2))
+    if do_plot:        
         fig1=plt.figure(1,figsize=(14,5))
         plt.clf()
         plt.subplot(1,3,1)
@@ -187,7 +217,9 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         if plot_hv_phase_spline is not None:
             plot_hv_phase_spline(freqMHz)
         plt.plot(freqMHz,medianphase,'.',ms=2,label='median')
-        plt.plot(freqMHz,np.nanmedian(wrapped_anglecalvis,axis=(0,1,2,3)),'.',ms=2,label='wrap 180')
+        plt.plot(freqMHz,HV_centering_phase_per_chan,'.',ms=2,label='wrap 180')
+        plt.plot(freqMHz,HV_centering_hv,'.',ms=2,label='HV* wrap 180')
+        plt.plot(freqMHz,HV_centering_vh,'.',ms=2,label='VH wrap 180')
         plt.xlabel('Frequency [MHz]')
         plt.ylabel('HV phase [deg]')
         plt.legend()
@@ -201,7 +233,7 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
             ylim([-190,-170])
         fig2.savefig('hv_phase.pdf')
     
-        if False:
+        if True:
             fig3=plt.figure(3,figsize=(10,4))
             plt.plot(freqMHz,HV_centering_phase_per_chan,'.',ms=2,label=filename)
             plt.xlabel('Frequency [MHz]')
@@ -210,9 +242,82 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
             plt.grid('both')
             fig3.savefig('add_hv_phase.pdf')
     
+    freqMHz1k,medianphase_1k=ensure_1k(freqMHz,medianphase)
+    freqMHz1k,HV_centering_hv_1k=ensure_1k(freqMHz,HV_centering_hv)
+    freqMHz1k,HV_centering_vh_1k=ensure_1k(freqMHz,HV_centering_vh)
     freqMHz1k,HV_centering_phase_per_chan_1k=ensure_1k(freqMHz,HV_centering_phase_per_chan)
-    np.savez('%s_hv_phase.npz'%basename,**{'hv_phase':HV_centering_phase_per_chan_1k,'freqMHz':freqMHz1k,'elevation':np.mean(f.el),'targetname':f.catalogue.targets[0].aliases[0]})
+    savedata={'cross_phase':HV_centering_phase_per_chan_1k,'cross_phase_hv':HV_centering_hv_1k,'cross_phase_vh':HV_centering_vh_1k,'cross_phase_median':medianphase_1k,'freqMHz':freqMHz1k}
+    savedata.update(get_info(f))
+    np.savez('%s_cross_phase.npz'%basename,**savedata)
+        
+# itemname='cross_phase','cross_phase_hv','cross_phase_vh'
+def plot_hv_phase_results(band='S',minantennas=33,itemname='cross_phase'):
+    filenames=glob.glob('*_cross_phase.npz')
     
+    fig1=plt.figure(figsize=(10,4))
+    if band=='U':
+        plot_hv_phase_spline(np.linspace(544,544*2,1024))
+    elif band=='L':
+        plot_hv_phase_spline(np.linspace(856,856*2,1024))
+    hvphaselist=[]
+    freqMHzlist=[]
+    cbidlist=[]
+    for filename in filenames:
+        if not filename[:10].isdigit():
+            continue
+        fp=np.load(filename)
+        freqMHz=fp['freqMHz']
+        cbid=int(filename[:10])
+        if band=='U':
+            if freqMHz[0]!=544:
+                continue
+            hvphase=(fp[itemname]+180)%360-180
+        elif band=='L':
+            if freqMHz[0]!=856:
+                continue
+            hvphase=(fp[itemname]+180)%360-180
+        else:
+            if freqMHz[0]<1000:
+                continue
+            hvphase=(fp[itemname]+180+180)%360-180-180
+        # freqMHz1k,hvphase=ensure_1k(np.linspace(freqMHz[0],freqMHz[-1]+(freqMHz[-1]-freqMHz[-2]),len(hvphase),endpoint=False),hvphase)
+        if fp['targetname']=='3C286':
+            print(cbid,fp['targetname'])
+        else:
+            continue
+        print(len(fp['antennas']))
+        print(cbid,fp['targetname'],fp['nchannels'])
+        if len(fp['antennas'])<minantennas:
+            continue
+        cbidlist.append(cbid)
+        hvphaselist.append(hvphase)
+        freqMHzlist.append(freqMHz)
+        plt.plot(freqMHz,hvphase,'.',ms=2,label='%s %s'%(time.ctime(cbid),fp['targetname']))
+    
+    fig2=plt.figure(figsize=(10,4))
+    fullfreqMHz=sorted(np.unique(freqMHzlist))
+    fullhvphase=np.tile(np.nan,[len(hvphaselist),len(fullfreqMHz)])
+    for i in range(len(hvphaselist)):
+        ind=fullfreqMHz.index(freqMHzlist[i][0])
+        fullhvphase[i,ind:ind+1024]=hvphaselist[i]
+        
+    medianhvphase=np.nanmedian(fullhvphase,axis=0)
+    stdhvphase=np.nanstd(fullhvphase,axis=0)
+    perchvphase=np.nanpercentile(fullhvphase,q=[25,75],axis=0)
+    fullfreqMHz=np.array(fullfreqMHz)
+        
+    # plt.plot(fullfreqMHz,fullhvphase.T)
+    # plt.fill_between(fullfreqMHz,perchvphase[0,:],perchvphase[1,:],color='lightgrey',label='10-90% percentile')
+    plt.fill_between(fullfreqMHz,medianhvphase-stdhvphase,medianhvphase+stdhvphase,color='lightgrey',label='+/- 1 stdev')
+    plt.plot(fullfreqMHz,medianhvphase,label='median')
+    legend()
+    xlabel('Frequency [MHz]')
+    ylabel('HV phase [deg]')
+    ylim([-190,-170])
+    xlim([fullfreqMHz[0],fullfreqMHz[-1]])
+    if False:
+        np.savez('sband_cross_phase.npz',**{'cross_phase':medianhvphase,'freqMHz':fullfreqMHz,'cross_phase_std':stdhvphase})
+        
     if False:#fitting spline
         from scipy.interpolate import BSpline, splrep, splev
         bcross_sky_k = 3
@@ -230,42 +335,63 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
             spline_interp = splev(freqMHz, bcross_sky_coefs)
             plt.plot(freqMHz,HV_centering_phase_per_chan)
             plt.plot(freqMHz,spline_interp)
+    # valid=np.nonzero(np.isfinite(medianhvphase))
+    # weight=1/(perchvphase[1,:]-perchvphase[0,:])
+    # weight=1/np.nanstd(fullhvphase,axis=0)
+    # bcross_sky_coefs = splrep(fullfreqMHz[valid], medianhvphase[valid], w=weight[valid],xb=1750, xe=3500, k=bcross_sky_k,s=100,task=0)
+    # # bcross_sky_coefs = splrep(fullfreqMHz[valid], medianhvphase[valid], xb=1750, xe=3500, k=bcross_sky_k,s=10)
+    # spline_interp = splev(fullfreqMHz, bcross_sky_coefs)
+    # plt.plot(fullfreqMHz,spline_interp)
+    # ylim([-200,-170])
 
-
+        
+    
 parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]",
                                description="""This processes delay calibration files and uses katsdpcal pipeline
                                            solutions to determine the array average HV phase profile. By default 
                                            figures are produced for inspection when a single file is processed, 
                                            however when multiple files are processed, HV phase results are written
-                                           in a batch to disk only.""")
+                                           in a batch to disk only. If no files are specified, then the archive is
+                                           trawled for all available 1k and 4k delaycal files. """)
 parser.add_option("-o", "--output", dest="outfilebase", default=None,
                   help="Base name of output files (*.npz for output data and *.pdf for figures, "
-                       "default is '<dataset_name>_hv_phase.npz')")
+                       "default is '<dataset_name>_cross_phase.npz')")
 
 (opts, args) = parser.parse_args()
 
-if len(args) == 0:
+if len(args) == 0:#trawl archive for 1k and 4k delaycal files 
     #NOTE: CAS.ProductTransferStatus: SPOOLED means on tape; RECEIVED means in archive
     query="Description: Delaycal AND NumFreqChannels: (1024 OR 4096) AND CAS.ProductTypeName: MeerKATTelescopeProduct AND CAS.ProductTransferStatus: RECEIVED"
     archive = pysolr.Solr('http://kat-archive.kat.ac.za:8983/solr/kat_core')
-    result = archive.search(query, sort='CaptureBlockId desc',rows=1000)
-    # [r.keys() for r in result]
+    result = archive.search(query, sort='CaptureBlockId desc',rows=1000) #print([r.keys() for r in result][0])
     fid2fn = lambda fid: "http://archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
-    # fid2fn = lambda fid: "http://test-archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
     for r in result:
+        # if r['MinFreq']<=544e6:
+        #     band='U'
+        # elif r['MinFreq']<=856e6:
+        #     band='L'
+        # else:
+        #     band='S'
+        # if band!='S':
+        #     continue
         cbid=int(r['CaptureBlockId'])
-        if len(glob.glob('%d_hv_phase.npz'%cbid)):
+        if len(glob.glob('%d_cross_phase.npz'%cbid)):
             print('Skipping %d'%cbid)
             continue
         filename=fid2fn(cbid)
         print(filename)
         print('Target %s Duration %d NumFreqChannels %d'%(r['Targets'][1],r['Duration'],r['NumFreqChannels']))
         print('DumpPeriod %g MinFreq %g MaxFreq %g'%(r['DumpPeriod'],r['MinFreq'],r['MaxFreq']))
-        analyse_hv_phase(filename,do_compute_parallelhands=False,do_plot=False)
+        try:
+            analyse_hv_phase(filename,do_compute_parallelhands=False,do_plot=False)
+        except KeyboardInterrupt:
+            break
+        except Exception as e: 
+            print('An exception occurred processing %s'%filename)
+            print(e)
 elif len(args) == 1:
     analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=True,do_plot=True,basename=opts.outfilebase)
 else:
     for filename in args:
         analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=False,do_plot=False,basename=opts.outfilebase)
-
 
