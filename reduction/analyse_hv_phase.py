@@ -14,11 +14,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import BSpline, splrep, splev
 
+colorcycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
 try:
     from katholog.utilities import plot_hv_phase_spline
 except:
     plot_hv_phase_spline=None
     pass
+
+fid2fn = lambda fid: "http://archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
 
 def get_info(f):
     target_sun=katpoint.Target("Sun, special")
@@ -29,7 +32,7 @@ def get_info(f):
             'parang':np.nanmean(f.parangle),
             'sun_el':target_sun.azel(timestamp=mean_timestamp,antenna=f.ants[0])[1]*180./np.pi,
             'sun_angle':f.catalogue.targets[0].separation(target_sun,katpoint.Timestamp(mean_timestamp))*180./np.pi,
-            'ref_ant':f.source.metadata.attrs['cal_refant'],'antennas':[a.name for a in f.ants]}
+            'ref_ant':f.source.metadata.attrs['cal_refant'],'antennas':[a.name for a in f.ants],'receivers':[f.receivers[a.name] for a in f.ants]}
     return info
     
 def print_info(cbid):
@@ -39,34 +42,87 @@ def print_info(cbid):
     print(info)    
 
 #the channelisation might be 1K,4K,32K 
+#xyphase.shape may be [nant,nchans] or just [nchans]
 def ensure_1k(freqMHz,xyphase):
     if len(freqMHz)==1024:
         return freqMHz,xyphase
-    elif len(freqMHz)==1024*4:
-        return freqMHz[::4],np.nanmedian(xyphase.reshape([1024,4]),axis=1)
-    elif len(freqMHz)==1024*32:
-        return freqMHz[::32],np.nanmedian(xyphase.reshape([1024,32]),axis=1)        
-    raise RuntimeError('Unexpected number of channels: %d'%len(freqMHz))
+    oversample=len(freqMHz)//1024#e.g. 4 or 32
+    if oversample!=len(freqMHz)/1024 or not (oversample==4 or oversample==32):
+        raise RuntimeError('Unexpected number of channels: %d'%len(freqMHz))
+    if len(xyphase.shape)==2:
+        return freqMHz[::oversample],np.nanmedian(xyphase.reshape([xyphase.shape[0],1024,oversample]),axis=2)
+    return freqMHz[::oversample],np.nanmedian(xyphase.reshape([1024,oversample]),axis=1)
     
+
+    
+#only accepts the finite complex visibilities
+#optimises center, orientation and stretch but not shape!
+def ellipsecost(params,vis):
+    cx,cy,rot,ell=params
+    x=vis.real
+    y=vis.imag
+    sinrot=np.sin(rot)
+    cosrot=np.cos(rot)
+    nx=(cosrot*(x-cx)-sinrot*(y-cy))/ell
+    ny=(sinrot*(x-cx)+cosrot*(y-cy))
+    # pang=np.linspace(0,np.pi,32,endpoint=False)
+    pang=np.linspace(0,np.pi,8,endpoint=False)
+    projectedx=np.cos(pang[np.newaxis,:])*nx[:,np.newaxis]-np.sin(pang[np.newaxis,:])*ny[:,np.newaxis]
+    sortedprojectedx=np.sort(projectedx,axis=0)
+    #after offset, rotation, scaling, the distribution should be circularly symmetric around median point, ignoring 20% outliers
+    #now ideally these are all almost equal along axis 0
+    # plot(sortedprojectedx)
+    lenx=len(x)
+    mid=lenx//2
+    stacked=np.c_[sortedprojectedx[lenx-mid:lenx-lenx//10,:],-sortedprojectedx[mid-1:lenx//10-1:-1,:]]#eliminates median point if odd number of points
+    varstacked=np.var(stacked,axis=1)
+    if ell<1:
+        return np.sum(varstacked)*np.exp(1-ell)
+    return np.sum(varstacked)
+    # plot(stdstacked)
+    # print(np.sum(stdstacked[:-len(x)//10]**2))
+    
+def test_distribution_fit():
+    from scipy.optimize import minimize
+
+    cx=np.tile(np.nan,1024)
+    cy=np.tile(np.nan,1024)
+    xyphase=np.tile(np.nan,1024)
+    ell=np.tile(np.nan,1024)
+    for i in range(1024):
+        vis=crosscalvis[:,:,:,i].reshape(-1)+0
+        vis=vis[np.nonzero(np.isfinite(vis))]
+        if len(vis)>20:
+            x0=np.r_[median(vis.real),median(vis.imag),0,1]
+            x=minimize(ellipsecost,x0,args=tuple([vis]),method='Nelder-Mead')
+            cx[i],cy[i],xyphase[i],ell[i]=x.x[0],x.x[1],x.x[2]*180/pi,x.x[3]
+            print(i,xyphase[i])
+
+#filename='https://archive-gw-1.kat.ac.za/1693662868/1693662868_sdp_l0.full.rdb?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJpc3MiOiJrYXQtYXJjaGl2ZS5rYXQuYWMuemEiLCJhdWQiOiJhcmNoaXZlLWd3LTEua2F0LmFjLnphIiwiaWF0IjoxNjk1NzQ1NDY5LCJwcmVmaXgiOlsiMTY5MzY2Mjg2OCJdLCJleHAiOjE2OTYzNTAyNjksInN1YiI6Im1hdHRpZXVAc2FyYW8uYWMuemEiLCJzY29wZXMiOlsicmVhZCJdfQ.sKchekaim32JyEYO5nu4KQ0gOHxO-UNLH_C1Aya9j5_FSwIc_VTRSgTTvjkyMQbtSYozMzPlqilJAGFD-e2b7g'
 # filename='1693662868_sdp_l0.full.rdb'#lband 1k 8s 3C286
+# filename='1695817735_sdp_l0.full.rdb'#lband 4k 8s 3C286
 # filename='1693661748_sdp_l0.full.rdb'#uhf 1k 8s 3C286
 # filename='./s0/1693657602_sdp_l0.full.rdb'#s0 1k 8s 3C286
 # filename='./s2/1693660786_sdp_l0.full.rdb'#s2 1k 8s 3C286
 # filename='./s4/1693658891_sdp_l0.full.rdb'#s4 1k 8s 3C286
 # filename=1693496913 #s4 4k 8s 3C286
 # filename='1694437059_sdp_l0.full.rdb'#l-band 1k 8s pks1934
-#do_median_diode_antennas=True#take median over antenna for noise diode corrections (default required behaviour)
 #do_median_time=False#take median over time of uncorrected visibilities before processing
 #do_compute_parallelhands=True #for displaying parallel hand histograms (slower)
-def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=True,do_fold=True,do_plot=True,basename=None):
+def analyse_hv_phase(filename,do_median_time=False,do_compute_parallelhands=True,do_plot=True,basename=None):
+    # do_median_time=False
+    # do_compute_parallelhands=True
+    # do_plot=True
+    # basename=None
     f=katdal.open(filename)
+    band=f.spectral_windows[f.spw].band
     if basename is None:
         basename=f.source.capture_block_id
     if do_compute_parallelhands:
         #select un_corrected track data, but not slew, not stop (antenna is not tracking anymore while cal is doing calculations)
-        f.select(corrprods='cross', compscans='un_corrected',dumps=(f.sensor['obs_activity']=='track'))
+        f.select(corrprods='cross', compscans='un_corrected',scans='track')#scans='track' is equiv to dumps=(f.sensor['obs_activity']=='track')
     else:
-        f.select(corrprods='cross', pol='hv,vh',compscans='un_corrected',dumps=(f.sensor['obs_activity']=='track'))
+        f.select(corrprods='cross', pol='hv,vh',compscans='un_corrected',scans='track')
     corr_prod_list=f.corr_products.tolist()
     cal_pol_ordering=f.source.metadata.attrs['cal_pol_ordering']#['v', 'h']
     freqMHz=f.freqs/1e6
@@ -92,47 +148,65 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
     #nanmedian over time axis upfront - even uncalibrated these remain very constant
     if do_median_time:
         uncorrectedvis=(np.nanmedian(np.real(uncorrectedvis),axis=0)+1j*np.nanmedian(np.imag(uncorrectedvis),axis=0))[np.newaxis,:,:]
-        ndumps=1    
-    calvis=np.tile(np.nan+1j*np.nan,[4,ndumps,len(f.ants),len(f.ants),len(freqMHz)])
+        ndumps=1
+    #represent in matrix compactly
+    if do_compute_parallelhands:
+        ucocalvis=np.tile(np.nan+1j*np.nan,[ndumps,len(f.ants),len(f.ants),len(freqMHz)])
+        cocalvis=np.tile(np.nan+1j*np.nan,[ndumps,len(f.ants),len(f.ants),len(freqMHz)])
+        ucrosscalvis=np.tile(np.nan+1j*np.nan,[ndumps,len(f.ants),len(f.ants),len(freqMHz)])
+    crosscalvis=np.tile(np.nan+1j*np.nan,[ndumps,len(f.ants),len(f.ants),len(freqMHz)])
+    #cocalvis
+    #m000h-m000h, m000h-m001h, m000h-m002h,...,  m000h-m063h
+    #m001v-m000v, m001h-m001h, m001h-m002h,...,  m001h-m063h
+    #m002v-m000v, m002v-m001v, m002h-m002h,...,  m002h-m063h
+    #m003v-m000v, m003v-m001v, m003v-m002v,...,  m003h-m063h
+    #crosscalvis
+    #m000h-m000v, m000h-m001v, m000h-m002v,...,  m000h-m063v
+    #m001h-m000v, m001h-m001v, m001h-m002v,...,  m001h-m063v
+    #m002h-m000v, m002h-m001v, m002h-m002v,...,  m002h-m063v
+    #m003h-m000v, m003h-m001v, m003h-m002v,...,  m003h-m063v
     for iant in range(len(f.ants)):
         for jant in range(iant+1,len(f.ants)):
             for iorder,polorder in enumerate([[1,1],[1,0],[0,1],[0,0]]):#hh, hv, vh, vv
                 if not do_compute_parallelhands:
-                    if iorder in [0,3]:
+                    if polorder[0]==polorder[1]:
                         continue                    
                 ipol,jpol=polorder#0 is v, 1 is h
                 product=[f.ants[iant].name+cal_pol_ordering[ipol],f.ants[jant].name+cal_pol_ordering[jpol]]
                 K_delay_ns=(f.sensor.get('cal_product_K')[idump_K][ipol,iant]-f.sensor.get('cal_product_K')[idump_K][jpol,jant])*1e9
-                if do_median_diode_antennas:
-                    KCROSS_DIODE_delay_ns=(np.nanmedian(f.sensor.get('cal_product_KCROSS_DIODE')[idump_KX][ipol,:],axis=-1)-np.nanmedian(f.sensor.get('cal_product_KCROSS_DIODE')[idump_KX][jpol,:],axis=-1))*1e9
-                else:
-                    KCROSS_DIODE_delay_ns=(f.sensor.get('cal_product_KCROSS_DIODE')[idump_KX][ipol,iant]-f.sensor.get('cal_product_KCROSS_DIODE')[idump_KX][jpol,jant])*1e9
+                KCROSS_DIODE_delay_ns=(np.nanmedian(f.sensor.get('cal_product_KCROSS_DIODE')[idump_KX][ipol,:],axis=-1)-np.nanmedian(f.sensor.get('cal_product_KCROSS_DIODE')[idump_KX][jpol,:],axis=-1))*1e9
                 K_phase_rad=2*np.pi*freqMHz*1e6*K_delay_ns/1e9
                 K=np.exp(1j*K_phase_rad)
                 KCROSS_DIODE_phase_rad=2*np.pi*freqMHz*1e6*KCROSS_DIODE_delay_ns/1e9
                 KCROSS_DIODE=np.exp(1j*KCROSS_DIODE_phase_rad)
                 B=(f.sensor.get('cal_product_B0')[idump_B][:,ipol,iant])*np.conj(f.sensor.get('cal_product_B0')[idump_B][:,jpol,jant])
                 G=f.sensor.get('cal_product_G')[idump_G][ipol,iant]*np.conj(f.sensor.get('cal_product_G')[idump_G][jpol,jant])
-                if do_median_diode_antennas:
-                    BCROSS_DIODE=(np.nanmedian(f.sensor.get('cal_product_BCROSS_DIODE0')[idump_BX][:,ipol,:],axis=-1))*np.conj(np.nanmedian(f.sensor.get('cal_product_BCROSS_DIODE0')[idump_BX][:,jpol,:],axis=-1))
-                else:
-                    BCROSS_DIODE=(f.sensor.get('cal_product_BCROSS_DIODE0')[idump_BX][:,ipol,iant])*np.conj(f.sensor.get('cal_product_BCROSS_DIODE0')[idump_BX][:,jpol,jant])
+                BCROSS_DIODE=(np.nanmedian(f.sensor.get('cal_product_BCROSS_DIODE0')[idump_BX][:,ipol,:],axis=-1))*np.conj(np.nanmedian(f.sensor.get('cal_product_BCROSS_DIODE0')[idump_BX][:,jpol,:],axis=-1))
                 productindex=corr_prod_list.index(product)
                 correctedvis=uncorrectedvis[:,:,productindex]/(G*K*B*KCROSS_DIODE*BCROSS_DIODE)[np.newaxis,:]
-                if iorder==1:#conjugates the HV visibilities
-                    calvis[iorder,:,iant,jant,:]=np.exp(-1j*np.angle(correctedvis))
+                if iorder==0:
+                    cocalvis[:,iant,jant,:]=correctedvis
+                    if do_compute_parallelhands:
+                        ucocalvis[:,iant,jant,:]=uncorrectedvis[:,:,productindex]
+                elif iorder==1:#conjugates the HV visibilities instead of the VH ones
+                    crosscalvis[:,iant,jant,:]=np.conj(correctedvis)
+                    if do_compute_parallelhands:
+                        ucrosscalvis[:,iant,jant,:]=np.conj(uncorrectedvis[:,:,productindex])
+                elif iorder==2:
+                    crosscalvis[:,jant,iant,:]=correctedvis
+                    if do_compute_parallelhands:
+                        ucrosscalvis[:,jant,iant,:]=uncorrectedvis[:,:,productindex]
                 else:
-                    calvis[iorder,:,iant,jant,:]=np.exp(1j*np.angle(correctedvis))                        
-
-    #classical kim solution
-    medianphase=np.angle(np.nanmedian(calvis.real[1:3],axis=(0,1,2,3))+1j*np.nanmedian(calvis.imag[1:3],axis=(0,1,2,3)))*180/pi
+                    cocalvis[:,jant,iant,:]=np.conj(correctedvis)
+                    if do_compute_parallelhands:
+                        ucocalvis[:,jant,iant,:]=np.conj(uncorrectedvis[:,:,productindex])
     #determine average HVphase estimate as center starting point for wrapping
     #only works properly if target is polarised
     if f.catalogue.targets[0].aliases[0] =='3C286': 
         hist_counts=[]
         for i in range(8):
-            ch=slice(i*1024//8,(i+1)*1024//8)
-            vals=np.angle(calvis[1:3,:,:,:,ch].reshape(-1))*180/pi
+            ch=slice(i*len(f.channels)//8,(i+1)*len(f.channels)//8)
+            vals=np.angle(crosscalvis[:,:,:,ch].reshape(-1))*180/pi
             valid=np.nonzero(isfinite(vals))[0]
             hist_count,bin_edge=histogram(vals[valid],bins=100,density=True)
             hist_counts.append(hist_count)
@@ -142,24 +216,44 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         if HV_centering_phase>90:#in S-band, this might be near -180 or 180; lets force to -180
             HV_centering_phase-=360# for consistency across datasets and subbands
     else:#unpolarised target - cannot distinguish 180 degree ambiguity, use prior knowledge starting poing
-        if freqMHz[0]<800:#UHF
+        if band[0]=='U':#UHF
             HV_centering_phase=-14
-        elif freqMHz[0]<1000:#Lband
+        elif band[0]=='L':#Lband
             HV_centering_phase=-23.5
         else:#S-band
             HV_centering_phase=-180
-    HV_centering_phase_per_chan=np.tile(HV_centering_phase,[len(freqMHz)])
+            
+    #classical kim solution, but using appropriate scalar branch cut
+    complex_median=np.nanmedian(crosscalvis.real,axis=(0,1,2))+1j*np.nanmedian(crosscalvis.imag,axis=(0,1,2))
+    phasemedian=(np.angle(complex_median)*180/pi-HV_centering_phase+180)%360-180+HV_centering_phase
+    medianphase=np.nanmedian((np.angle(crosscalvis)*180/pi-HV_centering_phase+180)%360-180+HV_centering_phase,axis=(0,1,2))    
 
-    anglecalvis=np.angle(calvis[1:3,:,:,:,:])*180/pi
+    anglecalvis=np.angle(crosscalvis[:,:,:,:])*180/pi
+    if True:
+        nants=anglecalvis.shape[1]
+        nchans=len(freqMHz)
+        HV_phase_per_ant_chan=np.tile(HV_centering_phase,[nants,nchans])
+        VH_phase_per_ant_chan=np.tile(HV_centering_phase,[nants,nchans])
+        convergence=[HV_centering_phase]
+        for it in range(20):
+            HV_phase_per_ant_chan=np.nanmedian((anglecalvis[:,:,:,:]-HV_phase_per_ant_chan[np.newaxis,:,np.newaxis,:]+90)%180-90+HV_phase_per_ant_chan[np.newaxis,:,np.newaxis,:],axis=(0,1))
+            VH_phase_per_ant_chan=np.nanmedian((anglecalvis[:,:,:,:]-VH_phase_per_ant_chan[np.newaxis,np.newaxis,:,:]+90)%180-90+VH_phase_per_ant_chan[np.newaxis,np.newaxis,:,:],axis=(0,1))
+            new_HV_centering_phase=np.nanmedian(HV_phase_per_ant_chan)
+            if new_HV_centering_phase not in convergence:#check for convergence only on HV, assumes VH also converged at same time
+                HV_centering_phase=new_HV_centering_phase
+                convergence.append(HV_centering_phase)
+                print(HV_centering_phase)
+            else:
+                print('Converged')
+                break
+        HV_var_per_ant_chan=np.nanvar((anglecalvis[:,:,:,:]-HV_phase_per_ant_chan[np.newaxis,:,np.newaxis,:]+90)%180-90+HV_phase_per_ant_chan[np.newaxis,:,np.newaxis,:],axis=(0,1))
+        VH_var_per_ant_chan=np.nanvar((anglecalvis[:,:,:,:]-VH_phase_per_ant_chan[np.newaxis,np.newaxis,:,:]+90)%180-90+VH_phase_per_ant_chan[np.newaxis,np.newaxis,:,:],axis=(0,1))            
+
+    HV_centering_phase_per_chan=np.tile(HV_centering_phase,[len(freqMHz)])
     convergence=[HV_centering_phase]
     for it in range(30):
-        if do_fold:
-            wrapped_anglecalvis=(anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]+90)%180-90+HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]
-        else:
-            wrapped_anglecalvis=(anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]+180)%360-180+HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]
-            wrapped_anglecalvis[np.nonzero(wrapped_anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]>90)]=np.nan
-            wrapped_anglecalvis[np.nonzero(wrapped_anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,np.newaxis,:]<-90)]=np.nan
-        HV_centering_phase_per_chan=np.nanmedian(wrapped_anglecalvis,axis=(0,1,2,3))
+        wrapped_anglecalvis=(anglecalvis-HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,:]+90)%180-90+HV_centering_phase_per_chan[np.newaxis,np.newaxis,np.newaxis,:]
+        HV_centering_phase_per_chan=np.nanmedian(wrapped_anglecalvis,axis=(0,1,2))
         new_HV_centering_phase=np.nanmedian(HV_centering_phase_per_chan)
         if new_HV_centering_phase not in convergence:
             HV_centering_phase=new_HV_centering_phase
@@ -168,18 +262,19 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         else:
             print('Converged')
             break
-    HV_centering_hv=np.nanmedian(wrapped_anglecalvis[0,:],axis=(0,1,2))
-    HV_centering_vh=np.nanmedian(wrapped_anglecalvis[1,:],axis=(0,1,2))
+                    
     if do_plot:        
         fig1=plt.figure(1,figsize=(14,5))
         plt.clf()
         plt.subplot(1,3,1)
         ch=slice(0,1024)
-        polnames=['HH','HV*','VH','VV']
-        for ipol in range(4):
-            vals=np.angle(calvis[ipol,:,:,:,ch].reshape(-1))*180/pi
+        if do_compute_parallelhands:
+            vals=np.angle(cocalvis[:,:,:,ch].reshape(-1))*180/pi
             valid=np.nonzero(isfinite(vals))[0]
-            plt.hist(vals[valid],bins=100,label=polnames[ipol]+' products',histtype='step',density=True)
+            plt.hist(vals[valid],bins=100,label='co products',histtype='step',density=True)
+        vals=np.angle(crosscalvis[:,:,:,ch].reshape(-1))*180/pi
+        valid=np.nonzero(isfinite(vals))[0]
+        plt.hist(vals[valid],bins=100,label='cross products',histtype='step',density=True)
         plt.xlabel('Phase error [deg]')
         plt.ylabel('counts')
         plt.yscale('log')
@@ -188,7 +283,7 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         plt.subplot(1,3,2)
         for i in range(8):
             ch=slice(i*1024//8,(i+1)*1024//8)
-            vals=np.angle(calvis[1:3,:,:,:,ch].reshape(-1))*180/pi
+            vals=np.angle(crosscalvis[:,:,:,ch].reshape(-1))*180/pi
             valid=np.nonzero(isfinite(vals))[0]
             plt.hist(vals[valid],bins=100,label='channels %d-%d'%(ch.start,ch.stop-1),histtype='step',density=True)
         plt.xlabel('Phase error [deg]')
@@ -198,7 +293,7 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         plt.subplot(1,3,3)
         for i in range(8):
             ch=slice(i*1024//8,(i+1)*1024//8)
-            vals=np.angle(calvis[1:3,:,:,:,ch].reshape(-1))*180/pi
+            vals=np.angle(crosscalvis[:,:,:,ch].reshape(-1))*180/pi
             vals[np.nonzero(vals<-90)]+=180
             vals[np.nonzero(vals>90)]-=180
             valid=np.nonzero(isfinite(vals))[0]
@@ -216,10 +311,10 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
         plt.clf()
         if plot_hv_phase_spline is not None:
             plot_hv_phase_spline(freqMHz)
-        plt.plot(freqMHz,medianphase,'.',ms=2,label='median')
-        plt.plot(freqMHz,HV_centering_phase_per_chan,'.',ms=2,label='wrap 180')
-        plt.plot(freqMHz,HV_centering_hv,'.',ms=2,label='HV* wrap 180')
-        plt.plot(freqMHz,HV_centering_vh,'.',ms=2,label='VH wrap 180')
+        plt.plot(freqMHz,medianphase,label='median angle')
+        plt.plot(freqMHz,phasemedian,label='angle median')
+        plt.plot(freqMHz,HV_centering_phase_per_chan,label='wrap 180')
+        plt.plot(freqMHz,0.5*(np.nanmedian(HV_phase_per_ant_chan,axis=0)+np.nanmedian(VH_phase_per_ant_chan,axis=0)),label='wrap per ant')
         plt.xlabel('Frequency [MHz]')
         plt.ylabel('HV phase [deg]')
         plt.legend()
@@ -241,47 +336,80 @@ def analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False
             plt.legend()
             plt.grid('both')
             fig3.savefig('add_hv_phase.pdf')
+        if True:
+            fig4=plt.figure(4,figsize=(6,4))
+            plt.plot(ucocalvis[:,:,:,len(freqMHz)//4].real.reshape(-1),ucocalvis[:,:,:,len(freqMHz)//4].imag.reshape(-1),'.',ms=2,alpha=0.01,label='uncalibrated co-vis')
+            plt.plot(cocalvis[:,:,:,len(freqMHz)//4].real.reshape(-1),cocalvis[:,:,:,len(freqMHz)//4].imag.reshape(-1),'.',ms=2,alpha=0.01,label='calibrated co-vis')
+            plt.plot(ucrosscalvis[:,:,:,len(freqMHz)//4].real.reshape(-1),ucrosscalvis[:,:,:,len(freqMHz)//4].imag.reshape(-1),'.',ms=2,alpha=0.01,label='uncalibrated cross-vis')
+            plt.plot(crosscalvis[:,:,:,len(freqMHz)//4].real.reshape(-1),crosscalvis[:,:,:,len(freqMHz)//4].imag.reshape(-1),'.',ms=2,alpha=0.01,label='calibrated cross-vis')
+            plt.axis('equal')
+            plt.title(filename+' visibilities at %d MHz'%freqMHz[len(freqMHz)//4])
+            custom_lines = [Line2D([0], [0], color=colorcycle[0], lw=4),
+                        Line2D([0], [0], color=colorcycle[1], lw=4),
+                        Line2D([0], [0], color=colorcycle[2], lw=4),
+                        Line2D([0], [0], color=colorcycle[3], lw=4)]
+            plt.legend(custom_lines, ['uncalibrated co-vis', 'calibrated co-vis', 'uncalibrated cross-vis', 'calibrated cross-vis'])
+            fig4.savefig('visibilities.pdf')
     
     freqMHz1k,medianphase_1k=ensure_1k(freqMHz,medianphase)
-    freqMHz1k,HV_centering_hv_1k=ensure_1k(freqMHz,HV_centering_hv)
-    freqMHz1k,HV_centering_vh_1k=ensure_1k(freqMHz,HV_centering_vh)
+    freqMHz1k,phasemedian_1k=ensure_1k(freqMHz,phasemedian)
     freqMHz1k,HV_centering_phase_per_chan_1k=ensure_1k(freqMHz,HV_centering_phase_per_chan)
-    savedata={'cross_phase':HV_centering_phase_per_chan_1k,'cross_phase_hv':HV_centering_hv_1k,'cross_phase_vh':HV_centering_vh_1k,'cross_phase_median':medianphase_1k,'freqMHz':freqMHz1k}
+    freqMHz1k,HV_var_per_ant_chan_1k=ensure_1k(freqMHz,HV_var_per_ant_chan)
+    freqMHz1k,VH_var_per_ant_chan_1k=ensure_1k(freqMHz,VH_var_per_ant_chan)
+    freqMHz1k,HV_phase_per_ant_chan_1k=ensure_1k(freqMHz,HV_phase_per_ant_chan)
+    freqMHz1k,VH_phase_per_ant_chan_1k=ensure_1k(freqMHz,VH_phase_per_ant_chan)
+    savedata={'hv_phase_ant':HV_phase_per_ant_chan_1k,'vh_phase_ant':VH_phase_per_ant_chan_1k,'hv_var_ant':HV_var_per_ant_chan_1k,'vh_var_ant':VH_var_per_ant_chan_1k,'hv_phase_wrap':HV_centering_phase_per_chan_1k,'hv_median_phase':medianphase_1k,'hv_phase_median':phasemedian_1k,'freqMHz':freqMHz1k}
     savedata.update(get_info(f))
-    np.savez('%s_cross_phase.npz'%basename,**savedata)
+    np.savez('%s_hv_phase.npz'%basename,**savedata)
         
 # itemname='cross_phase','cross_phase_hv','cross_phase_vh'
-def plot_hv_phase_results(band='S',minantennas=33,itemname='cross_phase'):
-    filenames=glob.glob('*_cross_phase.npz')
+def plot_hv_phase_results(band='S',minantennas=33,itemname='hv_phase_wrap',receivername=None,targetname=None):
+    filenames=glob.glob('*_hv_phase.npz')
     
     fig1=plt.figure(figsize=(10,4))
-    if band=='U':
+    if band[0]=='U':
         plot_hv_phase_spline(np.linspace(544,544*2,1024))
-    elif band=='L':
+    elif band[0]=='L':
         plot_hv_phase_spline(np.linspace(856,856*2,1024))
     hvphaselist=[]
     freqMHzlist=[]
     cbidlist=[]
+    receivers={}
     for filename in filenames:
         if not filename[:10].isdigit():
             continue
         fp=np.load(filename)
+        for rec in fp['receivers']:
+            if rec not in receivers:
+                receivers[rec]=1
+            else:
+                receivers[rec]+=1
+        if receivername is not None and (receivername not in fp['receivers']):
+            continue
         freqMHz=fp['freqMHz']
         cbid=int(filename[:10])
-        if band=='U':
+        if itemname is None:
+            if receivername is None:
+                hvphase=np.nanmedian(0.5*(fp['hv_phase_ant']+fp['vh_phase_ant']),axis=0)
+            else:
+                ind=fp['receivers'].tolist().index(receivername)
+                print(ind,receivername)
+                hvphase=0.5*(fp['hv_phase_ant'][ind,:]+fp['vh_phase_ant'][ind,:])
+        else:
+            hvphase=fp[itemname]
+        if band[0]=='U':
             if freqMHz[0]!=544:
                 continue
-            hvphase=(fp[itemname]+180)%360-180
-        elif band=='L':
+            hvphase=(hvphase+180)%360-180
+        elif band[0]=='L':
             if freqMHz[0]!=856:
                 continue
-            hvphase=(fp[itemname]+180)%360-180
+            hvphase=(hvphase+180)%360-180
         else:
             if freqMHz[0]<1000:
                 continue
-            hvphase=(fp[itemname]+180+180)%360-180-180
-        # freqMHz1k,hvphase=ensure_1k(np.linspace(freqMHz[0],freqMHz[-1]+(freqMHz[-1]-freqMHz[-2]),len(hvphase),endpoint=False),hvphase)
-        if fp['targetname']=='3C286':
+            hvphase=(hvphase+180+180)%360-180-180
+        if targetname in [None,'%s'%fp['targetname']]:#e.g. '3C286'
             print(cbid,fp['targetname'])
         else:
             continue
@@ -303,18 +431,24 @@ def plot_hv_phase_results(band='S',minantennas=33,itemname='cross_phase'):
         
     medianhvphase=np.nanmedian(fullhvphase,axis=0)
     stdhvphase=np.nanstd(fullhvphase,axis=0)
-    perchvphase=np.nanpercentile(fullhvphase,q=[25,75],axis=0)
+    perchvphase10=np.nanpercentile(fullhvphase,q=[10,90],axis=0)
+    perchvphase25=np.nanpercentile(fullhvphase,q=[25,75],axis=0)
     fullfreqMHz=np.array(fullfreqMHz)
         
-    # plt.plot(fullfreqMHz,fullhvphase.T)
-    # plt.fill_between(fullfreqMHz,perchvphase[0,:],perchvphase[1,:],color='lightgrey',label='10-90% percentile')
-    plt.fill_between(fullfreqMHz,medianhvphase-stdhvphase,medianhvphase+stdhvphase,color='lightgrey',label='+/- 1 stdev')
+    plt.fill_between(fullfreqMHz,perchvphase10[0,:],perchvphase10[1,:],facecolor='lightgrey',edgecolor=None,alpha=0.5,label='10-90% percentile')
+    plt.fill_between(fullfreqMHz,perchvphase25[0,:],perchvphase25[1,:],facecolor='grey',edgecolor=None,alpha=0.5,label='25-75% percentile')
     plt.plot(fullfreqMHz,medianhvphase,label='median')
-    legend()
-    xlabel('Frequency [MHz]')
-    ylabel('HV phase [deg]')
-    ylim([-190,-170])
-    xlim([fullfreqMHz[0],fullfreqMHz[-1]])
+    plt.legend()
+    plt.xlabel('Frequency [MHz]')
+    plt.ylabel('HV phase [deg]')
+    if band[0]=='U':
+        plt.ylim([-30,-5])
+    elif band[0]=='L':
+        plt.ylim([-50,-5])
+    else:
+        plt.ylim([-190,-170])
+    plt.grid('both')
+    plt.xlim([fullfreqMHz[0],fullfreqMHz[-1]])
     if False:
         np.savez('sband_cross_phase.npz',**{'cross_phase':medianhvphase,'freqMHz':fullfreqMHz,'cross_phase_std':stdhvphase})
         
@@ -343,8 +477,9 @@ def plot_hv_phase_results(band='S',minantennas=33,itemname='cross_phase'):
     # spline_interp = splev(fullfreqMHz, bcross_sky_coefs)
     # plt.plot(fullfreqMHz,spline_interp)
     # ylim([-200,-170])
+    return receivers
 
-        
+
     
 parser = optparse.OptionParser(usage="%prog [options] <data file> [<data file> ...]",
                                description="""This processes delay calibration files and uses katsdpcal pipeline
@@ -365,17 +500,18 @@ if len(args) == 0:#trawl archive for 1k and 4k delaycal files
     archive = pysolr.Solr('http://kat-archive.kat.ac.za:8983/solr/kat_core')
     result = archive.search(query, sort='CaptureBlockId desc',rows=1000) #print([r.keys() for r in result][0])
     fid2fn = lambda fid: "http://archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
+    # fid2fn = lambda fid: "http://test-archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
     for r in result:
-        # if r['MinFreq']<=544e6:
-        #     band='U'
-        # elif r['MinFreq']<=856e6:
-        #     band='L'
-        # else:
-        #     band='S'
-        # if band!='S':
-        #     continue
+        if r['MinFreq']<=544e6:
+            band='U'
+        elif r['MinFreq']<=856e6:
+            band='L'
+        else:
+            band='S'
+        if band[0]!='U':
+            continue
         cbid=int(r['CaptureBlockId'])
-        if len(glob.glob('%d_cross_phase.npz'%cbid)):
+        if len(glob.glob('%d_hv_phase.npz'%cbid)):
             print('Skipping %d'%cbid)
             continue
         filename=fid2fn(cbid)
@@ -390,8 +526,47 @@ if len(args) == 0:#trawl archive for 1k and 4k delaycal files
             print('An exception occurred processing %s'%filename)
             print(e)
 elif len(args) == 1:
-    analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=True,do_plot=True,basename=opts.outfilebase)
+    analyse_hv_phase(filename,do_median_time=False,do_compute_parallelhands=True,do_plot=True,basename=opts.outfilebase)
 else:
-    for filename in args:
-        analyse_hv_phase(filename,do_median_diode_antennas=True,do_median_time=False,do_compute_parallelhands=False,do_plot=False,basename=opts.outfilebase)
+    # args=[1693662868,1695817735,1693661748,1693657602,1693660786,1693658891,1693496913,1694437059]
+    for cbid in args:
+        filename=fid2fn(cbid)
+        analyse_hv_phase(filename,do_median_time=False,do_compute_parallelhands=False,do_plot=False,basename=opts.outfilebase)
+            
+if False:#reverse order
+    query="Description: Delaycal AND NumFreqChannels: (1024 OR 4096) AND CAS.ProductTypeName: MeerKATTelescopeProduct AND CAS.ProductTransferStatus: RECEIVED"
+    archive = pysolr.Solr('http://kat-archive.kat.ac.za:8983/solr/kat_core')
+    result = archive.search(query, sort='CaptureBlockId desc',rows=1000) #print([r.keys() for r in result][0])
+    fid2fn = lambda fid: "http://archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
+    # fid2fn = lambda fid: "http://test-archive-gw-1.kat.ac.za/%d/%d_sdp_l0.full.rdb"%(fid,fid)
+    Ucbid=[]
+    Lcbid=[]
+    Scbid=[]
+    for r in result:
+        if r['MinFreq']<=544e6:
+            Ucbid.append(int(r['CaptureBlockId']))
+        elif r['MinFreq']<=856e6:
+            Lcbid.append(int(r['CaptureBlockId']))
+        else:
+            Scbid.append(int(r['CaptureBlockId']))
+
+
+    for cbid in Lcbid[::-1]:
+        if len(glob.glob('%d_hv_phase.npz'%cbid)):
+            print('Skipping %d'%cbid)
+            continue
+        filename=fid2fn(cbid)
+        print(filename)
+        try:
+            analyse_hv_phase(filename,do_compute_parallelhands=False,do_plot=False)
+        except KeyboardInterrupt:
+            break
+        except Exception as e: 
+            print('An exception occurred processing %s'%filename)
+            print(e)
+
+if False:
+    #kim's datasets
+    cbids=[1549681047]
+    cbid=1549681047#does not have cal_product_BCROSS_DIODE0
 
