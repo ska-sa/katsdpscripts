@@ -103,6 +103,7 @@ def test_distribution_fit():
 # filename='1695817735_sdp_l0.full.rdb'#lband 4k 8s 3C286
 # filename='1693661748_sdp_l0.full.rdb'#uhf 1k 8s 3C286
 # filename='./s0/1693657602_sdp_l0.full.rdb'#s0 1k 8s 3C286
+# filename='./s0/1696840275_sdp_l0.full.rdb'#s0 1k 8s 3C286
 # filename='./s2/1693660786_sdp_l0.full.rdb'#s2 1k 8s 3C286
 # filename='./s4/1693658891_sdp_l0.full.rdb'#s4 1k 8s 3C286
 # filename=1693496913 #s4 4k 8s 3C286
@@ -202,7 +203,7 @@ def analyse_hv_phase(filename,do_median_time=False,do_compute_parallelhands=True
                         ucocalvis[:,jant,iant,:]=np.conj(uncorrectedvis[:,:,productindex])
     #determine average HVphase estimate as center starting point for wrapping
     #only works properly if target is polarised
-    if f.catalogue.targets[0].aliases[0] =='3C286': 
+    if False:#f.catalogue.targets[0].aliases[0] =='3C286': 
         hist_counts=[]
         for i in range(8):
             ch=slice(i*len(f.channels)//8,(i+1)*len(f.channels)//8)
@@ -367,13 +368,10 @@ def plot_hv_phase_results(band='S',minantennas=33,itemname='hv_phase_wrap',recei
     filenames=glob.glob('*_hv_phase.npz')
     
     fig1=plt.figure(figsize=(10,4))
-    if band[0]=='U':
-        plot_hv_phase_spline(np.linspace(544,544*2,1024))
-    elif band[0]=='L':
-        plot_hv_phase_spline(np.linspace(856,856*2,1024))
     hvphaselist=[]
     freqMHzlist=[]
     cbidlist=[]
+    paranglist=[]
     receivers={}
     for filename in filenames:
         if not filename[:10].isdigit():
@@ -384,19 +382,19 @@ def plot_hv_phase_results(band='S',minantennas=33,itemname='hv_phase_wrap',recei
                 receivers[rec]=1
             else:
                 receivers[rec]+=1
-        if receivername is not None and (receivername not in fp['receivers']):
-            continue
         freqMHz=fp['freqMHz']
         cbid=int(filename[:10])
-        if itemname is None:
-            if receivername is None:
+        if receivername is None:
+            if itemname is None:
                 hvphase=np.nanmedian(0.5*(fp['hv_phase_ant']+fp['vh_phase_ant']),axis=0)
             else:
-                ind=fp['receivers'].tolist().index(receivername)
-                print(ind,receivername)
-                hvphase=0.5*(fp['hv_phase_ant'][ind,:]+fp['vh_phase_ant'][ind,:])
+                hvphase=fp[itemname]
         else:
-            hvphase=fp[itemname]
+            if receivername not in fp['receivers']:
+                continue
+            ind=fp['receivers'].tolist().index(receivername)
+            hvphase=0.5*(fp['hv_phase_ant'][ind,:]+fp['vh_phase_ant'][ind,:])
+            
         if band[0]=='U':
             if freqMHz[0]!=544:
                 continue
@@ -417,11 +415,34 @@ def plot_hv_phase_results(band='S',minantennas=33,itemname='hv_phase_wrap',recei
         print(cbid,fp['targetname'],fp['nchannels'])
         if len(fp['antennas'])<minantennas:
             continue
+        paranglist.append(fp['parang'])
         cbidlist.append(cbid)
         hvphaselist.append(hvphase)
         freqMHzlist.append(freqMHz)
-        plt.plot(freqMHz,hvphase,'.',ms=2,label='%s %s'%(time.ctime(cbid),fp['targetname']))
+        # plt.plot(freqMHz,hvphase,'.',ms=2,alpha=0.05,label='%s %s'%(time.ctime(cbid),fp['targetname']))
+        if band[0]=='S' and np.nanmean(hvphase)>-90:
+            plt.plot(freqMHz,hvphase-180,'.',ms=2,label='%s %s'%(time.ctime(cbid),fp['targetname']))
+        elif band[0]=='S' and np.nanmean(hvphase)<-180-90:
+            plt.plot(freqMHz,hvphase+360,'.',ms=2,label='%s %s'%(time.ctime(cbid),fp['targetname']))
+        else:
+            plt.plot(freqMHz,hvphase,'.',ms=2,label='%s %s'%(time.ctime(cbid),fp['targetname']))
     
+    if band[0]=='U':
+        plot_hv_phase_spline(np.linspace(544,544*2,1024))
+    elif band[0]=='L':
+        plot_hv_phase_spline(np.linspace(856,856*2,1024))
+    if band[0]=='U':
+        plt.ylim([-30,-5])
+    elif band[0]=='L':
+        plt.ylim([-50,-5])
+    else:
+        plt.ylim([-190,-170])
+    plt.grid('both')
+    if itemname is None:
+        plt.title(receivername)
+    else:
+        plt.title(itemname)
+
     fig2=plt.figure(figsize=(10,4))
     fullfreqMHz=sorted(np.unique(freqMHzlist))
     fullhvphase=np.tile(np.nan,[len(hvphaselist),len(fullfreqMHz)])
@@ -441,6 +462,10 @@ def plot_hv_phase_results(band='S',minantennas=33,itemname='hv_phase_wrap',recei
     plt.legend()
     plt.xlabel('Frequency [MHz]')
     plt.ylabel('HV phase [deg]')
+    if band[0]=='U':
+        plot_hv_phase_spline(np.linspace(544,544*2,1024))
+    elif band[0]=='L':
+        plot_hv_phase_spline(np.linspace(856,856*2,1024))
     if band[0]=='U':
         plt.ylim([-30,-5])
     elif band[0]=='L':
@@ -495,6 +520,7 @@ parser.add_option("-o", "--output", dest="outfilebase", default=None,
 (opts, args) = parser.parse_args()
 
 if len(args) == 0:#trawl archive for 1k and 4k delaycal files 
+    #archive searching adapted from systems-analysis/analysis/katselib.py
     #NOTE: CAS.ProductTransferStatus: SPOOLED means on tape; RECEIVED means in archive
     query="Description: Delaycal AND NumFreqChannels: (1024 OR 4096) AND CAS.ProductTypeName: MeerKATTelescopeProduct AND CAS.ProductTransferStatus: RECEIVED"
     archive = pysolr.Solr('http://kat-archive.kat.ac.za:8983/solr/kat_core')
@@ -508,8 +534,8 @@ if len(args) == 0:#trawl archive for 1k and 4k delaycal files
             band='L'
         else:
             band='S'
-        if band[0]!='U':
-            continue
+        # if band[0]!='U':
+        #     continue
         cbid=int(r['CaptureBlockId'])
         if len(glob.glob('%d_hv_phase.npz'%cbid)):
             print('Skipping %d'%cbid)
@@ -567,6 +593,9 @@ if False:#reverse order
 
 if False:
     #kim's datasets
-    cbids=[1549681047]
+    cbids=[1539685313,1534425960,1535892672,1544510348,1548210657,1549681047]
+    #m000_rsc_rxl_serial_number on http://portal.mkat.karoo.kat.ac.za/katgui/sensor-graph
+    #note m041 is 4066 from 23 jan 2019
+    kim_receivers={'m000':'l.4028','m001':'l.4007','m002':'l.4024','m003':'l.4017','m004':'l.4019','m005':'l.4029','m006':'l.4008','m007':'l.4016','m008':'l.4013','m009':'l.4021','m010':'l.4014','m011':'l.4032','m012':'l.4022','m013':'l.4044','m014':'l.4053','m015':'l.4005','m016':'l.4062','m017':'l.4012','m018':'l.4025','m019':'l.4057','m020':'l.4018','m021':'l.4011','m022':'l.4009','m023':'l.4052','m024':'l.4'   ,'m025':'l.4006','m026':'l.4046','m027':'l.4067','m028':'l.4063','m029':'l.4065','m030':'l.4030','m031':'l.4004','m032':'l.4060','m033':'l.4051','m034':'l.4047','m035':'l.4042','m036':'l.4020','m037':'l.4015','m038':'l.4061','m039':'l.4064','m040':'l.4059','m041':'l.4058','m042':'l.4031','m043':'l.4056','m044':'l.4048','m045':'l.4049','m046':'l.4034','m047':'l.4068','m048':'l.4033','m049':'l.4040','m050':'l.4035','m051':'l.4045','m052':'l.4027','m053':'l.4023','m054':'l.4050','m055':'l.4037','m056':'l.4039','m057':'l.4038','m058':'l.4026','m059':'l.4043','m060':'l.4036','m061':'l.4003','m062':'l.4054','m063':'l.4010'}
     cbid=1549681047#does not have cal_product_BCROSS_DIODE0
 
