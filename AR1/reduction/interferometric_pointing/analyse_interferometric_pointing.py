@@ -22,8 +22,11 @@ def active_ants(ds, state, pct=10, rel_pct=80):
         activity.append(np.count_nonzero(ds.sensor["%s_activity"%ant.name] == state))
     fracs = np.asarray(activity)/float(ds.shape[0])
     rel_fracs = np.asarray(activity)/np.max(activity)
-    ants = np.asarray(ants)[(fracs >= pct/100.) & (rel_fracs >= rel_pct/100.)]
-    return ants
+    ants_active = np.asarray(ants)[(fracs >= pct/100.) & (rel_fracs >= rel_pct/100.)]
+    if len(ds.ants)-len(ants_active) > 0 :
+        print("Number of antennas removed %i"%(len(ds.ants)-len(ants_active)))
+        print("Antennas removed :%s"%(", ".join(np.asarray(ants)[~((fracs >= pct/100.) & (rel_fracs >= rel_pct/100.))].tolist())))
+    return ants_active
 
 #TODO Remove this function once katdal has this functionality 
 def activity(h5,state = 'track'):
@@ -31,14 +34,14 @@ def activity(h5,state = 'track'):
     others appear to have lost theirs entirely.
         @return: boolean flags per dump, True when ALL antennas match `state` and nd_coupler=False """
     antlist = [a.name for a in h5.ants]
-    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
+    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=bool)
     for i,ant in enumerate(antlist) :
         sensor = h5.sensor['%s_activity'%(ant)] ==state
         if ~np.any(sensor):
             print("Antenna %s has no valid %s data"%(ant,state))
         noise_diode = ~h5.sensor['Antennas/%s/nd_coupler'%(ant)]
         activityV[i,:] +=   noise_diode &  sensor
-    return np.all(activityV,axis=0)
+    return activityV
 
 def w_average(arr,axis=None, weights=None):
     return np.nansum(arr*weights,axis=axis)/np.nansum(weights,axis=axis)
@@ -50,7 +53,10 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     gains_p = {}
     stdv = {}
     calibrated = False # placeholder for calibration
-    h5.select(compscans=compscan_index)
+    h5.select(compscans=compscan_index,scans='track')
+    reduce_antlist = list(active_ants(h5, 'track'))
+    h5.select(compscans=compscan_index,ants=reduce_antlist)
+    h5.antlist = reduce_antlist
     # Combine target indices if they refer to the same target for the purpose of this analysis
     TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
     def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
@@ -113,18 +119,27 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
-            valid_index = activity(h5,state = 'track')
-            data = h5.vis[valid_index]
-            if data.shape[0] > 0 : # need at least one data point
+            valid_ants = activity(h5,state = 'track')# 2d array (antenna,time)
+            valid_index = (valid_ants[h5.bls_lookup[:,0],:] & valid_ants[h5.bls_lookup[:,1],:]).T[:,np.newaxis,:]#(time,None,baseline)
+            raw_data = h5.vis[:]
+            raw_data[~(valid_index*np.ones_like(h5.channels).astype(bool)[np.newaxis,:,np.newaxis])] = np.nan
+            data = np.nan_to_num(np.nanmean(raw_data,axis=0))
+            if  valid_ants.sum() >0 : # need at least one data point
                 #g0 = np.ones(len(h5.ants),np.complex)
                 if use_weights :
-                    weights = h5.weights[valid_index].mean(axis=0)
+                    raw_weights = h5.weights[:]
+                    raw_weights[~(valid_index*np.ones_like(h5.channels).astype(bool)[np.newaxis,:,np.newaxis])] = np.nan
+                    weights = np.nan_to_num(np.nanmean(raw_weights,axis=0))
                 else:
-                    weights = np.ones(data.shape[1:]).astype(np.float)
-                gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
-                stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
+                    weights = np.ones(data.shape).astype(float)
+                gains_p[pol].append(calprocs.g_fit(data,weights,h5.bls_lookup,refant=0) )
+                stdv[pol].append((np.ones(data.shape[0])[:,np.newaxis]*valid_ants[np.newaxis,:,:].sum(axis=-1)))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
-                pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
+                tmp_target_x = h5.target_x[:]
+                tmp_target_y = h5.target_y[:]
+                tmp_target_x[valid_ants.T] = np.nan
+                tmp_target_y[valid_ants.T] = np.nan
+                pos.append( [np.nanmean(tmp_target_x,axis=0), np.nanmean(tmp_target_y,axis=0)] )
         for ant in range(len(h5.ants)):
             for chunk in range(chunks):
                 freq = slice(chunk*(h5.shape[1]//chunks),(chunk+1)*(h5.shape[1]//chunks))
@@ -351,7 +366,6 @@ for compscan_index  in h5.compscan_indices :
         for antname in offset_data:
             f[antname].write(output_fields % offset_data[antname])
             f[antname].flush() # Because I like to see stuff in the file
-    
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
     f[name].close()
