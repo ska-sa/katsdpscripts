@@ -493,6 +493,8 @@ if __name__=="__main__":
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--auto-delay', type='string', default=None,
                       help='Set CBF auto-delay on or off (default=%default)')
+    parser.add_option('--dump-file', type='string', default='profile.csv',
+                      help='Name of CSV file in which to dump the scan profile, when executing in test mode.')
                   
     # Set default value for any option (both standard and experiment-specific options)
     parser.set_defaults(description='Spiral holography scan', quorum=1.0, nd_params='off')
@@ -571,12 +573,11 @@ if __name__=="__main__":
         plt.xlabel('time [s]')
         plt.show()
         import csv
-        f = open('profile.csv', 'w')
-        writer = csv.writer(f)
-        writer.writerow(['time','az','el'])
-        for irow in range(len(t)):
-            writer.writerow([t[irow],scanaz[irow],scanel[irow]])
-        f.close()
+        with open(opts.dump_file, 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(['time from start [sec]','azimuth [deg]','elevation [deg]'])
+            for _t,_a,_e in zip(t,scanaz,scanel):
+                writer.writerow(["%.6f"%_ for _ in [_t,_a,_e]])
     else:
         if len(args)==0 or args[0]=='lbandtargets':#lband targets, in order of brightness
             args=['3C 273','PKS 0408-65','PKS 1934-63','Hyd A','3C 279','PKS 0023-26','J0825-5010','PKS J1924-2914']
