@@ -319,7 +319,7 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
 h5 = katdal.open(args[0])  
-ant_list = [a.name for a in dataset.ants] # Default is all antennas in the dataset
+ant_list = [a.name for a in h5.ants] # Default is all antennas in the dataset
 if opts.ants is not None  :
     ant_list = opts.ants.split(',')
 if opts.ex_ants is not None :
