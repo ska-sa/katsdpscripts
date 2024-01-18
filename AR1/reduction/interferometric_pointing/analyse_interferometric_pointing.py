@@ -25,7 +25,6 @@ def find_active_ants(ds, track_frac=0.9):
     print("Found %i good antennas out of a total if %i"%(len(good_ants),len(ds.ants)))
     antlist = [a.name for a in ds.ants]
     if len(good_ants)<len(antlist):
-        print("diff")
         for ant in sorted(set(good_ants).symmetric_difference(set(antlist))):
             print("%s removed from list with tracking fraction of %0.2f "%(ant,_c[ant]/c0))
     return good_ants
