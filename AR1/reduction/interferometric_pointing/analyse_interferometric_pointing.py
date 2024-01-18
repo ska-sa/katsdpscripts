@@ -22,7 +22,7 @@ def find_active_ants(ds, track_frac=0.9):
     _c = {ant.name:np.count_nonzero(ds.sensor["%s_activity"%ant.name] == 'track') for ant in ds.ants}
     c0 = np.median(list(_c.values()))
     good_ants = [ant for ant,c in _c.items() if c/c0 >= track_frac]
-    print("Found %i good antennas out of a total if %i"%(len(good_ants),len(ds.ants)))
+    print("Found %i good antennas out of a total of %i"%(len(good_ants),len(ds.ants)))
     antlist = [a.name for a in ds.ants]
     if len(good_ants)<len(antlist):
         for ant in sorted(set(good_ants).symmetric_difference(set(antlist))):
