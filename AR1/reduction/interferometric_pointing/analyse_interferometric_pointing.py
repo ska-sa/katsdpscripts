@@ -56,7 +56,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
     h5.select(reset='B') # Resets only pol,corrprods,ants
-    active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.95))) # Only those specified AND active during this compscan
+    active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.85))) # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
     
     # Combine target indices if they refer to the same target for the purpose of this analysis
