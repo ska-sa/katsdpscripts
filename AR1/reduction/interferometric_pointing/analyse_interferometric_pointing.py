@@ -12,7 +12,7 @@ import optparse
 
 
 def find_active_ants(ds, track_frac=0.9):
-    """ Find all antennas for which at least a fraction of `track_frack` of dumps have activity='track' relative to
+    """ Find all antennas for which at least a fraction of `track_frac` of dumps have activity='track' relative to
         the median duration of the selected interval.
         
         @param ds: a katdal dataset.
