@@ -11,16 +11,23 @@ import katpoint
 import optparse
 
 
-def find_active_ants(ds, track_frac):
+def find_active_ants(ds, track_frac=0.9):
     """ Find all antennas for which at least a fraction of `track_frack` of dumps have activity='track' relative to
         the median duration of the selected interval.
         
         @param ds: a katdal dataset.
         @param track_frac: only antennas which have count(ant,'track')/median(count(all,'track')) >= track_frac are considered 'active'.
         @return: the list of antenna names that meet the criteria to be considered 'active'. """
+    if track_frac > 1 : track_frac = 1.0
     _c = {ant.name:np.count_nonzero(ds.sensor["%s_activity"%ant.name] == 'track') for ant in ds.ants}
     c0 = np.median(list(_c.values()))
     good_ants = [ant for ant,c in _c.items() if c/c0 >= track_frac]
+    print("Found %i good antennas out of a total if %i"%(len(good_ants),len(ds.ants)))
+    antlist = [a.name for a in ds.ants]
+    if len(good_ants)<len(antlist):
+        print("diff")
+        for ant in sorted(set(good_ants).symmetric_difference(set(antlist))):
+            print("%s removed from list with tracking fraction of %0.2f "%(ant,_c[ant]/c0))
     return good_ants
 
 #TODO Remove this function once katdal has this functionality 
@@ -29,7 +36,7 @@ def activity(h5,state = 'track'):
     others appear to have lost theirs entirely.
         @return: boolean flags per dump, True when ALL antennas match `state` and nd_coupler=False """
     antlist = [a.name for a in h5.ants]
-    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
+    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=bool)
     for i,ant in enumerate(antlist) :
         sensor = h5.sensor['%s_activity'%(ant)] ==state
         if ~np.any(sensor):
@@ -50,7 +57,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
     h5.select(reset='B') # Resets only pol,corrprods,ants
-    active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.85))) # Only those specified AND active during this compscan
+    active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.95))) # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
     
     # Combine target indices if they refer to the same target for the purpose of this analysis
@@ -124,7 +131,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                 if use_weights :
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
-                    weights = np.ones(data.shape[1:]).astype(np.float)
+                    weights = np.ones(data.shape[1:]).astype(float)
                 gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
