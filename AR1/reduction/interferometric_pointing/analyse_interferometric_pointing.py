@@ -10,20 +10,23 @@ import scikits.fitting as fit
 import katpoint
 import optparse
 
-def active_ants(ds, state, pct=10, rel_pct=80):
-    """ Find antennas  for which at least `pct` of dumps have activity=`state` and the worst has no less
-        than `rel_pct` the counts of the best.
+
+def find_active_ants(ds, track_frac):
+    """ Find all antennas for which at least a fraction of `track_frac` of dumps have activity='track' relative to
+        the median duration of the selected interval.
+        
         @param ds: a katdal dataset.
-        @return: list of antenna names that can be considered as being in activity=`state`"""
-    ants = []
-    activity = []
-    for ant in ds.ants:
-        ants.append(ant.name)
-        activity.append(np.count_nonzero(ds.sensor["%s_activity"%ant.name] == state))
-    fracs = np.asarray(activity)/float(ds.shape[0])
-    rel_fracs = np.asarray(activity)/np.max(activity)
-    ants = np.asarray(ants)[(fracs >= pct/100.) & (rel_fracs >= rel_pct/100.)]
-    return ants
+        @param track_frac: only antennas which have count(ant,'track')/median(count(all,'track')) >= track_frac are considered 'active'.
+        @return: the list of antenna names that meet the criteria to be considered 'active'. """
+    if track_frac > 1 : track_frac = 1.0
+    antlist = {a.name for a in ds.ants}
+    _c = {ant:np.count_nonzero(ds.sensor["%s_activity"%ant] == 'track') for ant in antlist}
+    c0 = np.median(list(_c.values()))
+    good_ants = [ant for ant,c in _c.items() if c/c0 >= track_frac]
+    print("Found %i 'active' antennas out of a total of %i"%(len(good_ants),len(antlist)))
+    for ant in sorted(antlist - set(good_ants)):
+        print("%s removed from list with tracking fraction of %0.2f "%(ant,_c[ant]/c0))
+    return good_ants
 
 #TODO Remove this function once katdal has this functionality 
 def activity(h5,state = 'track'):
@@ -31,7 +34,7 @@ def activity(h5,state = 'track'):
     others appear to have lost theirs entirely.
         @return: boolean flags per dump, True when ALL antennas match `state` and nd_coupler=False """
     antlist = [a.name for a in h5.ants]
-    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=np.bool)
+    activityV = np.zeros((len(antlist),h5.shape[0]) ,dtype=bool)
     for i,ant in enumerate(antlist) :
         sensor = h5.sensor['%s_activity'%(ant)] ==state
         if ~np.any(sensor):
@@ -51,6 +54,10 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     stdv = {}
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
+    h5.select(reset='B') # Resets only pol,corrprods,ants
+    active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.85))) # Only those specified AND active during this compscan
+    h5.select(ants=active_ants)
+    
     # Combine target indices if they refer to the same target for the purpose of this analysis
     TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
     def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
@@ -59,10 +66,12 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     target_indices = [TI for TI in h5.target_indices if _eq_TGT_(h5.catalogue.targets[TI])]
     if len(h5.target_indices) > len(target_indices):
         print("Warning multiple targets in the compscan, using %s instead of %s"%(target_indices,h5.target_indices))
+    h5.select(compscans=compscan_index,targets=[h5.catalogue.targets[TI] for TI in target_indices])
+    
     target = h5.catalogue.targets[h5.target_indices[0]]
     
     if not return_raw:     # Calculate average target flux over entire band
-        flux_spectrum = h5.catalogue.targets[h5.target_indices[0]].flux_density(h5.freqs) # include flags
+        flux_spectrum = target.flux_density(h5.freqs) # include flags
         average_flux = np.mean([flux for flux in flux_spectrum if not np.isnan(flux)])
         temperature = np.mean(h5.temperature)
         pressure = np.mean(h5.pressure)
@@ -109,8 +118,8 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=[h5.catalogue.targets[TI] for TI in target_indices],compscans=compscan_index)
-        h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
+        h5.select(pol=pol,corrprods='cross',ants=active_ants)
+        h5.bls_lookup = calprocs.get_bls_lookup(active_ants,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
@@ -120,7 +129,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                 if use_weights :
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
-                    weights = np.ones(data.shape[1:]).astype(np.float)
+                    weights = np.ones(data.shape[1:]).astype(float)
                 gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
@@ -315,14 +324,13 @@ output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(ele
 output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
 
 h5 = katdal.open(args[0])  
-ant_list = list(active_ants(h5, 'track')) # Default list only includes those that 'track'ed some of the time
+ant_list = [a.name for a in h5.ants] # Default is all antennas in the dataset
 if opts.ants is not None  :
     ant_list = opts.ants.split(',')
 if opts.ex_ants is not None :
     for ant in opts.ex_ants.split(','):
         if ant in ant_list:
             ant_list.remove(ant)
-h5 = katdal.open(args[0])
 print("Using '%s' as the reference antenna "%(h5.ref_ant))
 h5.select(compscans='interferometric_pointing',ants=ant_list)
 
