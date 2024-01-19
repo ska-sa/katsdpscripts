@@ -11,7 +11,7 @@ import katpoint
 import optparse
 
 
-def find_active_ants(ds, track_frac=0.9):
+def find_active_ants(ds, track_frac):
     """ Find all antennas for which at least a fraction of `track_frac` of dumps have activity='track' relative to
         the median duration of the selected interval.
         
@@ -19,14 +19,13 @@ def find_active_ants(ds, track_frac=0.9):
         @param track_frac: only antennas which have count(ant,'track')/median(count(all,'track')) >= track_frac are considered 'active'.
         @return: the list of antenna names that meet the criteria to be considered 'active'. """
     if track_frac > 1 : track_frac = 1.0
-    _c = {ant.name:np.count_nonzero(ds.sensor["%s_activity"%ant.name] == 'track') for ant in ds.ants}
+    antlist = {a.name for a in ds.ants}
+    _c = {ant:np.count_nonzero(ds.sensor["%s_activity"%ant] == 'track') for ant in antlist}
     c0 = np.median(list(_c.values()))
     good_ants = [ant for ant,c in _c.items() if c/c0 >= track_frac]
-    print("Found %i good antennas out of a total of %i"%(len(good_ants),len(ds.ants)))
-    antlist = [a.name for a in ds.ants]
-    if len(good_ants)<len(antlist):
-        for ant in sorted(set(good_ants).symmetric_difference(set(antlist))):
-            print("%s removed from list with tracking fraction of %0.2f "%(ant,_c[ant]/c0))
+    print("Found %i 'active' antennas out of a total of %i"%(len(good_ants),len(antlist)))
+    for ant in sorted(antlist - set(good_ants)):
+        print("%s removed from list with tracking fraction of %0.2f "%(ant,_c[ant]/c0))
     return good_ants
 
 #TODO Remove this function once katdal has this functionality 
