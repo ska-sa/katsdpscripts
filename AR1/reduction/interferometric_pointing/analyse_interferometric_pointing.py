@@ -282,7 +282,8 @@ def load_rfi_static_mask(filename, freqs, debug_chunks=0):
             freq = slice(chunk*(nchans//debug_chunks),(chunk+1)*(nchans//debug_chunks))
             masked_f = freqs[freq][channel_flags[freq]]
             if (len(masked_f) > 0):
-                print("\tFreq. chunk %d: mask omits (%.1f - %.1f)MHz"%(chunk,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
+                mBW = len(masked_f)*(freqs[1]-freqs[0])
+                print("\tFreq. chunk %d: mask omits %.1fMHz between (%.1f - %.1f)MHz"%(chunk,mBW/1e6,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
             else:
                 print("\tFreq. chunk %d: mask omits nothing"%chunk)
     return channel_flags
