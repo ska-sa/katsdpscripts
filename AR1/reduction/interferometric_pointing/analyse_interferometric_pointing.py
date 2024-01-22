@@ -250,7 +250,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         if debug :#debug_text
             debug_text.append('')
             base = "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing_DEBUG")
-            g = file('%s:Scan%i:%s'%(base,compscan_index,target.name),'w')
+            g = open('%s:Scan%i:%s'%(base,compscan_index,target.name),'w')
             g.write("\n".join(debug_text))
             g.close()
         return ant_pointing
