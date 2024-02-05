@@ -381,6 +381,72 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flatx.extend(tmpy if kind=='rastery' else tmpx)
             flaty.extend(tmpx if kind=='rastery' else tmpy)
             flatslew.extend(tmpslew)
+    elif kind=='circle':#circle pattern(s) start at origin, do circle, then back to origin or to next circle
+        narms=trackinterval#should possibly be calculated from tottime, but usage of circle is very limited; envisaged for referencepointing only
+        compositex=[]
+        compositey=[]
+        compositeslew=[]
+        flatx=[]
+        flaty=[]
+        flatslew=[]
+        for arm in range(narms):
+            thisrad=radextent*(narms-arm)/(narms)
+            thisperimeter=2*np.pi*thisrad#degrees
+            theta=np.linspace(0,2*np.pi,int(thisperimeter/(scanspeed*sampletime)))
+            thisarmx=thisrad*np.sin(theta)
+            thisarmy=thisrad*np.cos(theta)
+
+            if (arm%2):#alternates direction with every scan
+                thisarmx=thisarmx[::-1]
+            if (arm%trackinterval==0):
+                lastarmx=np.zeros(2)
+                lastarmy=np.zeros(2)
+            else:
+                lastrad=radextent*(narms-arm+1)/(narms)
+                lastperimeter=2*np.pi*lastrad#degrees
+                theta=np.linspace(0,2*np.pi,int(lastperimeter/(scanspeed*sampletime)))
+                lastarmx=lastrad*np.sin(theta)
+                lastarmy=lastrad*np.cos(theta)
+                if (arm-1)%2:
+                    lastarmx=lastarmx[::-1]
+            
+            if ((arm+1)%trackinterval==0) or arm==narms-1:
+                nextarmx=np.zeros(2)
+                nextarmy=np.zeros(2)
+            else:
+                nextrad=radextent*(narms-arm-1)/(narms)
+                nextperimeter=2*np.pi*nextrad#degrees
+                theta=np.linspace(0,2*np.pi,int(nextperimeter/(scanspeed*sampletime)))
+                nextarmx=nextrad*np.sin(theta)
+                nextarmy=nextrad*np.cos(theta)
+                if (arm+1)%2:
+                    nextarmx=nextarmx[::-1]
+            nslew=np.sqrt((lastarmx[-1]-thisarmx[0])**2+(lastarmy[-1]-thisarmy[0])**2)/(slewspeed*sampletime)
+            indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            outslewx,outslewy=nx[1:-2],ny[1:-2]
+
+            nslew=np.sqrt((thisarmx[-1]-nextarmx[0])**2+(thisarmy[-1]-nextarmy[0])**2)/(slewspeed*sampletime)
+            indep=[thisarmx[-2],thisarmy[-2],thisarmx[-1],thisarmy[-1],nextarmx[0],nextarmy[0],nextarmx[1],nextarmy[1],nslew+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            inslewx,inslewy=nx[1:-2],ny[1:-2]
+
+            tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+
+            compositex.append(tmpx)
+            compositey.append(tmpy)
+            compositeslew.append(tmpslew)
+            flatx.extend(tmpx)
+            flaty.extend(tmpy)
+            flatslew.extend(tmpslew)
 
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
