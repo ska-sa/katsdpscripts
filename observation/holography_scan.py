@@ -382,6 +382,11 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flaty.extend(tmpx if kind=='rastery' else tmpy)
             flatslew.extend(tmpslew)
     elif kind=='circle':#circle pattern(s) start at origin, do circle, then back to origin or to next circle
+        if tottime<0:#neg number of 8s samples around perimeter plus two
+        # does extra 2 samples of pattern because timing of dumps may partially overlap slews
+            n8sdumpsperrev=-tottime
+        else:
+            n8sdumpsperrev=None
         narms=trackinterval#should possibly be calculated from tottime, but usage of circle is very limited; envisaged for referencepointing only
         compositex=[]
         compositey=[]
@@ -392,35 +397,42 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         for arm in range(narms):
             thisrad=radextent*(narms-arm)/(narms)
             thisperimeter=2*np.pi*thisrad#degrees
-            theta=np.linspace(0,2*np.pi,int(thisperimeter/(scanspeed*sampletime)))
+            if n8sdumpsperrev is not None:
+                theta=2*np.pi*np.linspace(-0.5/n8sdumpsperrev,1+(1.5)/n8sdumpsperrev,int(np.ceil(8/sampletime*(n8sdumpsperrev+2))),endpoint=False)
+            else:
+                theta=np.linspace(0,2*np.pi,int(thisperimeter/(scanspeed*sampletime)))
+            if (arm%2):#alternates direction with every scan
+                theta=-theta
             thisarmx=thisrad*np.sin(theta)
             thisarmy=thisrad*np.cos(theta)
-
-            if (arm%2):#alternates direction with every scan
-                thisarmx=thisarmx[::-1]
             if (arm%trackinterval==0):
                 lastarmx=np.zeros(2)
                 lastarmy=np.zeros(2)
             else:
                 lastrad=radextent*(narms-arm+1)/(narms)
                 lastperimeter=2*np.pi*lastrad#degrees
-                theta=np.linspace(0,2*np.pi,int(lastperimeter/(scanspeed*sampletime)))
+                if n8sdumpsperrev is not None:
+                    theta=2*np.pi*np.linspace(-0.5/n8sdumpsperrev,1+(1.5)/n8sdumpsperrev,int(np.ceil(8/sampletime*(n8sdumpsperrev+2))),endpoint=False)
+                else:
+                    theta=np.linspace(0,2*np.pi,int(lastperimeter/(scanspeed*sampletime)))
+                if (arm-1)%2:
+                    theta=-theta
                 lastarmx=lastrad*np.sin(theta)
                 lastarmy=lastrad*np.cos(theta)
-                if (arm-1)%2:
-                    lastarmx=lastarmx[::-1]
-            
             if ((arm+1)%trackinterval==0) or arm==narms-1:
                 nextarmx=np.zeros(2)
                 nextarmy=np.zeros(2)
             else:
                 nextrad=radextent*(narms-arm-1)/(narms)
                 nextperimeter=2*np.pi*nextrad#degrees
-                theta=np.linspace(0,2*np.pi,int(nextperimeter/(scanspeed*sampletime)))
+                if n8sdumpsperrev is not None:
+                    theta=2*np.pi*np.linspace(-0.5/n8sdumpsperrev,1+(1.5)/n8sdumpsperrev,int(np.ceil(8/sampletime*(n8sdumpsperrev+2))),endpoint=False)
+                else:
+                    theta=np.linspace(0,2*np.pi,int(nextperimeter/(scanspeed*sampletime)))
+                if (arm+1)%2:
+                    theta=-theta
                 nextarmx=nextrad*np.sin(theta)
                 nextarmy=nextrad*np.cos(theta)
-                if (arm+1)%2:
-                    nextarmx=nextarmx[::-1]
             nslew=np.sqrt((lastarmx[-1]-thisarmx[0])**2+(lastarmy[-1]-thisarmy[0])**2)/(slewspeed*sampletime)
             indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew+3]
             fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
