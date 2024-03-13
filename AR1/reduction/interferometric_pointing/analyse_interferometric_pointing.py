@@ -225,9 +225,8 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                 rc = katpoint.RefractionCorrection()
                 requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
                 requested_azel = katpoint.rad2deg(np.array(requested_azel))
-                target_azel = katpoint.rad2deg(np.array(target.azel(middle_time,antenna=h5.ants[ant])))  
-                ant_pointing[name]["azimuth"] =target_azel.tolist()[0]
-                ant_pointing[name]["elevation"] =target_azel.tolist()[1]
+                ant_pointing[name]["azimuth"] = requested_azel[0]
+                ant_pointing[name]["elevation"] = requested_azel[1]
                 azel_beam = w_average(gaussian_centre[pol_ind["I"],:,ant],axis=0,weights=1./gaussian_centre_std[pol_ind["I"],:,ant]**2)
                 # Make sure the offset is a small angle around 0 degrees
                 offset_azel = katpoint.wrap_angle(azel_beam - requested_azel, 360.)
