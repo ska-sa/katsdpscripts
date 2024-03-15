@@ -54,7 +54,6 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     stdv = {}
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
-    h5.select(reset='B') # Resets only pol,corrprods,ants
     active_ants = find_active_ants(h5, 0.85)    # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
     antlist = [a.name for a in h5.ants]
@@ -90,7 +89,6 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
         requested_azel = katpoint.rad2deg(np.array(requested_azel))
 
-   
     gaussian_centre     = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
     gaussian_centre_std = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
     gaussian_width      = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
@@ -340,7 +338,6 @@ if len(opts.channel_mask)>0:
 else:
     rfi_static_flags = None
 
-antlist = [a.name for a in h5.ants]
 if opts.outfilebase is None :
     outfilebase =  "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing")
 else:
