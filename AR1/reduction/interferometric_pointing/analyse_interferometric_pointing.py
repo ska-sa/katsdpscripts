@@ -57,7 +57,8 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     h5.select(reset='B') # Resets only pol,corrprods,ants
     active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.85))) # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
-    
+    h5.antlist = [a.name for a in h5.ants]
+    h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
     # Combine target indices if they refer to the same target for the purpose of this analysis
     TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
     def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
@@ -118,8 +119,8 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=active_ants)
-        h5.bls_lookup = calprocs.get_bls_lookup(active_ants,h5.corr_products)
+        h5.select(pol=pol,corrprods='cross',ants=h5.antlist,targets=[h5.catalogue.targets[TI] for TI in target_indices],compscans=compscan_index)
+        h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
@@ -340,7 +341,6 @@ else:
     rfi_static_flags = None
 
 h5.antlist = [a.name for a in h5.ants]
-h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
 if opts.outfilebase is None :
     outfilebase =  "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing")
 else:
@@ -359,7 +359,7 @@ for compscan_index  in h5.compscan_indices :
         for antname in offset_data:
             f[antname].write(output_fields % offset_data[antname])
             f[antname].flush() # Because I like to see stuff in the file
-    
+    break
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
     f[name].close()
