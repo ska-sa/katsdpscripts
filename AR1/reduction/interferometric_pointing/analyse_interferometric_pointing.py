@@ -55,7 +55,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
     h5.select(reset='B') # Resets only pol,corrprods,ants
-    active_ants = list(set([a.name for a in h5.ants]) & set(find_active_ants(h5, 0.85))) # Only those specified AND active during this compscan
+    active_ants = find_active_ants(h5, 0.85)    # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
     antlist = [a.name for a in h5.ants]
     bls_lookup = calprocs.get_bls_lookup(antlist,h5.corr_products)
