@@ -57,7 +57,6 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     active_ants = find_active_ants(h5, 0.85)    # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
     antlist = [a.name for a in h5.ants]
-    bls_lookup = calprocs.get_bls_lookup(antlist,h5.corr_products)
     # Combine target indices if they refer to the same target for the purpose of this analysis
     TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
     def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
