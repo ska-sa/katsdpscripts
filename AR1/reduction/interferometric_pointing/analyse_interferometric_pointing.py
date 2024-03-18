@@ -116,7 +116,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=antlist,targets=[h5.catalogue.targets[TI] for TI in target_indices],compscans=compscan_index)
+        h5.select(pol=pol,corrprods='cross',ants=antlist)
         bls_lookup = calprocs.get_bls_lookup(antlist,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
