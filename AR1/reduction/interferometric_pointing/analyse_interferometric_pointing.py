@@ -128,6 +128,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
                     weights = np.ones(data.shape[1:]).astype(float)
+                # NB: to ensure gains_p has the same ordering as weights, stdv & pos, bls_lookups must use antenna ordering of h5.ants!
                 gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
