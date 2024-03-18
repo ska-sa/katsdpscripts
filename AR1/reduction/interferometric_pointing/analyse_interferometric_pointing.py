@@ -54,10 +54,9 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
     stdv = {}
     calibrated = False # placeholder for calibration
     h5.select(compscans=compscan_index)
-    h5.select(reset='B') # Resets only pol,corrprods,ants
-    active_ants = list(set(h5.antlist) & set(find_active_ants(h5, 0.85))) # Only those specified AND active during this compscan
+    active_ants = find_active_ants(h5, 0.85)    # Only those specified AND active during this compscan
     h5.select(ants=active_ants)
-    
+    antlist = [a.name for a in h5.ants]
     # Combine target indices if they refer to the same target for the purpose of this analysis
     TGT = h5.catalogue.targets[h5.target_indices[0]].description.split(",")
     def _eq_TGT_(tgt): # tgt==TGT, "tags" don't matter
@@ -89,7 +88,6 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         requested_azel = [requested_azel[0], rc.apply(requested_azel[1], temperature, pressure, humidity)]
         requested_azel = katpoint.rad2deg(np.array(requested_azel))
 
-   
     gaussian_centre     = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
     gaussian_centre_std = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
     gaussian_width      = np.full((chunk_size * 2, 2, len(h5.ants)), np.nan)
@@ -118,8 +116,8 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         gains_p[pol] = []
         pos = []
         stdv[pol] = []
-        h5.select(pol=pol,corrprods='cross',ants=active_ants)
-        h5.bls_lookup = calprocs.get_bls_lookup(active_ants,h5.corr_products)
+        h5.select(pol=pol,corrprods='cross',ants=antlist)
+        bls_lookup = calprocs.get_bls_lookup(antlist,h5.corr_products)
         for scan in h5.scans() :
             if scan[1] != 'track':               continue
             valid_index = activity(h5,state = 'track')
@@ -130,7 +128,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                     weights = h5.weights[valid_index].mean(axis=0)
                 else:
                     weights = np.ones(data.shape[1:]).astype(float)
-                gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,h5.bls_lookup,refant=0) )
+                gains_p[pol].append(calprocs.g_fit(data[:].mean(axis=0),weights,bls_lookup,refant=0) )
                 stdv[pol].append(np.ones((data.shape[0],data.shape[1],len(h5.ants))).sum(axis=0))#number of data points
                 # Get coords in (x(time,ants),y(time,ants) coords) 
                 pos.append( [h5.target_x[valid_index,:].mean(axis=0), h5.target_y[valid_index,:].mean(axis=0)] ) 
@@ -339,8 +337,6 @@ if len(opts.channel_mask)>0:
 else:
     rfi_static_flags = None
 
-h5.antlist = [a.name for a in h5.ants]
-h5.bls_lookup = calprocs.get_bls_lookup(h5.antlist,h5.corr_products)
 if opts.outfilebase is None :
     outfilebase =  "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing")
 else:
@@ -353,13 +349,13 @@ for ant in range(len(h5.ants)):
     f[name].write(', '.join(output_field_names) + '\n')
 for compscan_index  in h5.compscan_indices :
     print("Compound scan %i  "%(compscan_index) )
+    h5.select(ants=ant_list)
     offset_data = reduce_compscan_inf(h5,rfi_static_flags,chunks,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
         for antname in offset_data:
             f[antname].write(output_fields % offset_data[antname])
             f[antname].flush() # Because I like to see stuff in the file
-    
 for ant in range(len(h5.ants)):
     name = h5.ants[ant].name
     f[name].close()
