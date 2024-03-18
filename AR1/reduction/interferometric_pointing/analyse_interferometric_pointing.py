@@ -349,6 +349,7 @@ for ant in range(len(h5.ants)):
     f[name].write(', '.join(output_field_names) + '\n')
 for compscan_index  in h5.compscan_indices :
     print("Compound scan %i  "%(compscan_index) )
+    h5.select(ants=ant_list)
     offset_data = reduce_compscan_inf(h5,rfi_static_flags,chunks,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
     if len(offset_data) > 0 : # if not an empty set
         print("Valid data obtained from the Compound scan")
