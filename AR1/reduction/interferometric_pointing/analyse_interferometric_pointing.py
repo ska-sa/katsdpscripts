@@ -288,7 +288,20 @@ def load_rfi_static_mask(filename, freqs, debug_chunks=0):
 
 
 def analyse_interferometric_point_source_scans(dataset, ant_list, outfilebase, rfi_static_flags, chunks, use_weights, debug=False):
-    # Processes all 'interferometric_pointing' compscans & generates CSV files for all of the listed antennas
+    """ Processes all 'interferometric_pointing' compscans to extract fitted beam parameters for all of the listed antennas.
+        Generates CSV files as per the `outfilebase`.
+
+        @param dataset: Either an already opened katdal dataset, or a URL to pass to katdal.open().
+        @param ant_list: List of antenna IDs to use and to generate fits for - other antennas are completely ignored!
+        @param chunks: (Integer) number of chunks to split the frequency range into during processing,
+                    the final result for a compscan is then the average of the results from all of the chunks.
+        @param outfilebase: Base name of output files (*.csv for output data and *.log for messages),
+                    if None then defaults to '<dataset_name>_interferometric_pointing'.
+        @param rfi_static_flags: Either a boolean array identifying frequency channels to mask, or a filename to load
+                    such a mask from (pickle or text format).
+        @param use-weights: True to use SDP visability weights, otherwise no weights are applied to the data.
+        @param debug: True to produce a debug file with fitting infomation for each frequency (default False).
+    """
     output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
                     '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
                     '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, %(beam_width_I).7f, ' \
@@ -301,7 +314,7 @@ def analyse_interferometric_point_source_scans(dataset, ant_list, outfilebase, r
     output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
     
     if isinstance(dataset, str):
-        dataset = katdal.open(dataset,ref_ant=ant_list[0])
+        dataset = katdal.open(dataset)
     print("Using %s as the reference antenna "%(dataset.ref_ant))
     dataset.select(compscans='interferometric_pointing', ants=ant_list)
 
