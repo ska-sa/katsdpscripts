@@ -378,4 +378,4 @@ if __name__ == "__main__":
             if ant in ant_list:
                 ant_list.remove(ant)
     
-    analyse_interferometric_point_source_scans(args[0], ant_list, opts.outfilebase, opts.channel_mask, opts.chunks, opts.use_weights, opts.debug)
+    analyse_interferometric_point_source_scans(h5, ant_list, opts.outfilebase, opts.channel_mask, opts.chunks, opts.use_weights, opts.debug)
