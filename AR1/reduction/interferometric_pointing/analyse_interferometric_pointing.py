@@ -287,76 +287,95 @@ def load_rfi_static_mask(filename, freqs, debug_chunks=0):
     return channel_flags
 
 
-# Parse command-line opts and arguments
-parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
-                               description="This processes an HDF5 dataset and extracts fitted beam parameters "
-                                           "from the compound scans in it.")
-parser.add_option("-a", "--ants", dest="ants",default=None,
-                  help="List of antennas to use in the reduction "
-                       "default is all antennas in the data set")
-parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
-                  help="List of antennas to exculde from the reduction "
-                       "default is None of the antennas in the data set")
-parser.add_option( "--use-weights",action="store_true",
-                  default=False, help="Use SDP visability weights ")
-parser.add_option( "--debug",action="store_true",
-                  default=False, help="Produce a debug file with fitting infomation for each frequency ")
+def analyse_interferometric_point_source_scans(dataset, ant_list, outfilebase, rfi_static_flags, chunks, use_weights, debug=False):
+    """ Processes all 'interferometric_pointing' compscans to extract fitted beam parameters for all of the listed antennas.
+        Generates CSV files as per the `outfilebase`.
 
-parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is no mask)")
-parser.add_option("-o", "--output", dest="outfilebase",default=None,
-                  help="Base name of output files (*.csv for output data and *.log for messages, "
-                       "default is '<dataset_name>_interferometric_pointing')")
+        @param dataset: Either an already opened katdal dataset, or a URL to pass to katdal.open().
+        @param ant_list: List of antenna IDs to use and to generate fits for - other antennas are completely ignored!
+        @param chunks: (Integer) number of chunks to split the frequency range into during processing,
+                    the final result for a compscan is then the average of the results from all of the chunks.
+        @param outfilebase: Base name of output files (*.csv for output data and *.log for messages),
+                    if None then defaults to '<dataset_name>_interferometric_pointing'.
+        @param rfi_static_flags: Either a boolean array identifying frequency channels to mask, or a filename to load
+                    such a mask from (pickle or text format).
+        @param use-weights: True to use SDP visability weights, otherwise no weights are applied to the data.
+        @param debug: True to produce a debug file with fitting infomation for each frequency (default False).
+    """
+    output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
+                    '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
+                    '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, %(beam_width_I).7f, ' \
+                    '%(beam_width_I_std).7f, %(baseline_height_I).7f, %(baseline_height_I_std).7f, %(refined_I).7f, ' \
+                    '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
+                    '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
+                    '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
+                    '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i, %(valid_solutions)i \n'
+    
+    output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
+    
+    if isinstance(dataset, str):
+        dataset = katdal.open(dataset)
+    print("Using %s as the reference antenna "%(dataset.ref_ant))
+    dataset.select(compscans='interferometric_pointing', ants=ant_list)
 
-(opts, args) = parser.parse_args()
+    if outfilebase is None :
+        outfilebase =  "%s_%s"%(dataset.name.split('/')[-1].split('.')[0], "interferometric_pointing")
+    
+    if isinstance(rfi_static_flags, str):
+        rfi_static_flags = load_rfi_static_mask(rfi_static_flags, dataset.freqs, chunks)
+    
+    f = {}
+    for ant in range(len(dataset.ants)):
+        name = dataset.ants[ant].name
+        f[name] = open('%s_%s.csv'%(outfilebase,dataset.ants[ant].name), 'w')
+        f[name].write('# antenna = %s\n' % dataset.ants[ant].description)
+        f[name].write(', '.join(output_field_names) + '\n')
+    try:
+        ant_list = list(f.keys())
+        for compscan_index  in dataset.compscan_indices :
+            print("Compound scan %i  "%(compscan_index) )
+            dataset.select(ants=ant_list)
+            offset_data = reduce_compscan_inf(dataset,rfi_static_flags,chunks,use_weights=use_weights,compscan_index=compscan_index,debug=debug)
+            if len(offset_data) > 0 : # if not an empty set
+                print("Valid data obtained from the Compound scan")
+                for antname in offset_data:
+                    f[antname].write(output_fields % offset_data[antname])
+                    f[antname].flush() # Because I like to see stuff in the file
+    finally:
+        for fh in f.values():
+            fh.close()
 
-chunks = 16 # Default
 
-output_fields = '%(dataset)s, %(target)s, %(timestamp_ut)s, %(azimuth).7f, %(elevation).7f, ' \
-                '%(delta_azimuth).7f, %(delta_azimuth_std).7f, %(delta_elevation).7f, %(delta_elevation_std).7f, ' \
-                '%(data_unit)s, %(beam_height_I).7f, %(beam_height_I_std).7f, %(beam_width_I).7f, ' \
-                '%(beam_width_I_std).7f, %(baseline_height_I).7f, %(baseline_height_I_std).7f, %(refined_I).7f, ' \
-                '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
-                '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
-                '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
-                '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i, %(valid_solutions)i \n'
-
-output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
-
-h5 = katdal.open(args[0])  
-ant_list = [a.name for a in h5.ants] # Default is all antennas in the dataset
-if opts.ants is not None  :
-    ant_list = opts.ants.split(',')
-if opts.ex_ants is not None :
-    for ant in opts.ex_ants.split(','):
-        if ant in ant_list:
-            ant_list.remove(ant)
-print("Using '%s' as the reference antenna "%(h5.ref_ant))
-h5.select(compscans='interferometric_pointing',ants=ant_list)
-
-if len(opts.channel_mask)>0:
-    rfi_static_flags = load_rfi_static_mask(opts.channel_mask, h5.freqs, debug_chunks=chunks)
-else:
-    rfi_static_flags = None
-
-if opts.outfilebase is None :
-    outfilebase =  "%s_%s"%(h5.name.split('/')[-1].split('.')[0], "interferometric_pointing")
-else:
-    outfilebase = opts.outfilebase
-f = {}
-for ant in range(len(h5.ants)):
-    name = h5.ants[ant].name
-    f[name] = open('%s_%s.csv'%(outfilebase,h5.ants[ant].name), 'w')
-    f[name].write('# antenna = %s\n' % h5.ants[ant].description)
-    f[name].write(', '.join(output_field_names) + '\n')
-for compscan_index  in h5.compscan_indices :
-    print("Compound scan %i  "%(compscan_index) )
-    h5.select(ants=ant_list)
-    offset_data = reduce_compscan_inf(h5,rfi_static_flags,chunks,use_weights=opts.use_weights,compscan_index=compscan_index,debug=opts.debug)
-    if len(offset_data) > 0 : # if not an empty set
-        print("Valid data obtained from the Compound scan")
-        for antname in offset_data:
-            f[antname].write(output_fields % offset_data[antname])
-            f[antname].flush() # Because I like to see stuff in the file
-for ant in range(len(h5.ants)):
-    name = h5.ants[ant].name
-    f[name].close()
+if __name__ == "__main__":
+    # Parse command-line opts and arguments
+    parser = optparse.OptionParser(usage="%prog [opts] <HDF5 file>",
+                                   description="This processes an HDF5 dataset and extracts fitted beam parameters "
+                                               "from the compound scans in it.")
+    parser.add_option("-a", "--ants", dest="ants",default=None,
+                      help="List of antennas to use in the reduction "
+                           "default is all antennas in the data set")
+    parser.add_option( "--exclude-ants", dest="ex_ants",default=None,
+                      help="List of antennas to exculde from the reduction "
+                           "default is None of the antennas in the data set")
+    parser.add_option( "--use-weights",action="store_true",
+                      default=False, help="Use SDP visability weights ")
+    parser.add_option( "--debug",action="store_true",
+                      default=False, help="Produce a debug file with fitting infomation for each frequency ")
+    parser.add_option("-k", "--chunks", type="int", default=16, help="Number of chunks to split the frequency range into, (default %default)")
+    parser.add_option("-c", "--channel-mask", default="/var/kat/katsdpscripts/RTS/rfi_mask.pickle", help="Optional pickle file with boolean array specifying channels to mask (default is %default)")
+    parser.add_option("-o", "--output", dest="outfilebase",default=None,
+                      help="Base name of output files (*.csv for output data and *.log for messages, "
+                           "default is '<dataset_name>_interferometric_pointing')")
+    
+    (opts, args) = parser.parse_args()
+    
+    h5 = katdal.open(args[0])
+    ant_list = [a.name for a in h5.ants] # Default is all antennas in the dataset
+    if opts.ants is not None  :
+        ant_list = opts.ants.split(',')
+    if opts.ex_ants is not None :
+        for ant in opts.ex_ants.split(','):
+            if ant in ant_list:
+                ant_list.remove(ant)
+    
+    analyse_interferometric_point_source_scans(h5, ant_list, opts.outfilebase, opts.channel_mask, opts.chunks, opts.use_weights, opts.debug)
