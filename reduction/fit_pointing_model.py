@@ -290,7 +290,7 @@ plt.ion()
 fig = plt.figure(1, figsize=(15, 10))
 fig.clear()
 # Store highlighted target index on figure object
-fig.highlighted_target = 0
+fig.highlighted_target = target_index[keep][0]
 
 # Axes to contain detail residual plots - initialise plots with old residuals
 ax = fig.add_axes([0.27, 0.74, 0.2, 0.2])
