@@ -178,7 +178,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             repl=np.linspace(0.0,scanspeed*sampletime,2+int(slowtime/sampletime))
             dt[:len(repl)-1]=repl[1:]
         lastr=0.0
-        twistfactore=np.float(twistfactor)/(totextent)
+        twistfactore=np.float64(twistfactor)/(totextent)
         for it in range(1,ntime):
             data=np.array([dt[it-1]])
             indep=np.array([armx[it-1],army[it-1],twistfactore])#last calculated coordinate in arm, is x0,y0
@@ -600,7 +600,7 @@ if __name__=="__main__":
         plt.axis('equal')
         plt.title('%s scans: %d total time: %.1fs slew: %.1fs'%(opts.kind,len(compositex),len(sl)*opts.sampletime,np.sum(sl)*opts.sampletime))
         slewindex=np.nonzero(sl)[0]
-        t=np.arange(len(x))*np.float(opts.sampletime)
+        t=np.arange(len(x))*np.float64(opts.sampletime)
         plt.figure()
         plt.subplot(3,1,1)
         plt.plot(t[slewindex],x[slewindex],'r.')
