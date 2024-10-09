@@ -38,7 +38,7 @@ parser.add_option('-m', '--min-time', type="float", default=-1.0,
                        "(default=one loop through sources)")
 parser.add_option('--max-extent', type='float', default=1.0,
                   help='Maximum distance of pointing offset from target, in degrees')
-parser.add_option('--pointings', type='int', default=8,
+parser.add_option('--pointings', type='int', default=9,
                   help='Number of offset pointings per pointing scan')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(description='Pointing check', nd_params='off')
