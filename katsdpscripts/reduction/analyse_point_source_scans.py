@@ -181,7 +181,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
         fixed, variable = reduce_compscan(compscan_dataset.compscans[0], cal_dataset, **kwargs)
         iter_outputs.append(np.rec.fromrecords([tuple(variable.values())], names=list(variable.keys())))
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
-    var_output = np.concatenate(iter_outputs).view(np.float).reshape(mc_iterations, -1)
+    var_output = np.concatenate(iter_outputs).view(float).reshape(mc_iterations, -1)
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
     var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
