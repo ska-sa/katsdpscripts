@@ -189,7 +189,7 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     var_output = np.concatenate(iter_outputs).view(float).reshape(mc_iterations, -1)
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
     var_std = {k+"_std":v for k,v in zip(variable, var_output.std(axis=0)) if not k.endswith("_std")}
-    if (mc_iterations <= 0): # If no Monte Carlo then take forward the first reduction run's residuals
+    if (mc_iterations <= 1): # If no Monte Carlo then take forward the first reduction run's residuals
         var_std.update({k:v for k,v in variable.items() if k.endswith("_std")})
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
     keep = batch and main_compscan.beam is not None and (keep_all or main_compscan.beam.is_valid)
