@@ -387,11 +387,7 @@ def analyse_point_source_scans(dataset, opts):
     chan_select = list(range(start_chan, end_chan + 1))
     # Check if a channel mask is specified and apply
     if opts.channel_mask:
-        mask_file = open(opts.channel_mask,mode='rb')
-        chan_select = ~(pickle.load(mask_file))
-        mask_file.close()
-        if len(chan_select) != num_channels:
-            raise ValueError('Number of channels in provided mask does not match number of channels in data')
+        chan_select = ~(load_rfi_static_mask(opts.channel_mask, dataset.freqs))
         chan_select[:start_chan] = False
         chan_select[end_chan:] = False
     dataset = dataset.select(freqkeep=chan_select)
@@ -584,3 +580,38 @@ def batch_mode_analyse_point_source_scans(filename, outfilebase=None, keepfilena
     (dataset_antenna, output_data,) = analyse_point_source_scans(filename, fake_opts)
 
     return dataset_antenna, output_data
+
+
+# Copied from AR1/reduction/interferometric_pointing/analyse_interferometric_pointing.py
+def load_rfi_static_mask(filename, freqs, debug_chunks=0):
+    # Construct a mask either from a pickle file, or a text file with frequency ranges
+    nchans = len(freqs)
+    channel_width = abs(freqs[1]-freqs[0])
+    try:
+        with open(filename, "rb") as pickle_file:
+            channel_flags = pickle.load(pickle_file)
+        nflags = len(channel_flags)
+        if (nchans != nflags):
+            print("Warning channel mask (%d) is stretched to fit dataset (%d)!"%(nflags,nchans))
+            N = nchans/float(nflags)
+            channel_flags = np.repeat(channel_flags, int(N+0.5)) if (N > 1) else channel_flags[::int(1/N)]
+        channel_flags = channel_flags[:nchans] # Clip, just in case
+    except pickle.UnpicklingError: # Not a pickle file, perhaps a plain text file with frequency ranges in MHz?
+        mask_ranges = np.loadtxt(filename, comments='#', delimiter=',')
+        channel_flags = np.full((nchans,), False)
+        low = freqs - 0.5 * channel_width
+        high = freqs + 0.5 * channel_width
+        for r in mask_ranges:
+            in_range = (low <= r[1]*1e6) & (r[0]*1e6 <= high)
+            idx = np.where(in_range)[0]
+            channel_flags[idx] = True
+    if debug_chunks > 0:
+        for chunk in range(debug_chunks):
+            freq = slice(chunk*(nchans//debug_chunks),(chunk+1)*(nchans//debug_chunks))
+            masked_f = freqs[freq][channel_flags[freq]]
+            if (len(masked_f) > 0):
+                mBW = len(masked_f)*(freqs[1]-freqs[0])
+                print("\tFreq. chunk %d: mask omits %.1fMHz between (%.1f - %.1f)MHz"%(chunk,mBW/1e6,np.min(masked_f)/1e6,np.max(masked_f)/1e6))
+            else:
+                print("\tFreq. chunk %d: mask omits nothing"%chunk)
+    return channel_flags
