@@ -62,6 +62,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
 
     # Fit the requested beams and extract beam/baseline parameters
     beams = []
+    beams_std = []
     for pol in beam_pols:
         compscan.fit_beam_and_baselines(pol='abs' + pol)
         bh = compscan.baseline_height()
@@ -70,6 +71,7 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
         beam_params = [compscan.beam.height, katpoint.rad2deg(np.mean(compscan.beam.width)), bh,
                        float(compscan.beam.refined)] if compscan.beam else [np.nan, np.nan, bh, 0.]
         beams.append((pol, beam_params))
+        beams_std.append((pol, [compscan.beam.std_height, compscan.beam.std_width]))
 
     # Obtain environmental data averaged across the compound scan
     compscan_times = np.hstack([scan.timestamps for scan in compscan.scans])
@@ -125,6 +127,9 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
     variable = offset_azel.tolist()
     for beam in beams:
         var_names += ' beam_height_%s beam_width_%s baseline_height_%s refined_%s' % tuple([beam[0]] * 4)
+        variable += list(beam[1])
+    for beam in beams_std:
+        var_names += ' beam_height_%s_std beam_width_%s_std' % tuple([beam[0]] * 2)
         variable += list(beam[1])
     return dict(zip(fixed_names.split(), fixed)), dict(zip(var_names.split(), variable))
 
@@ -183,7 +188,9 @@ def reduce_compscan_with_uncertainty(dataset, compscan_index=0, mc_iterations=1,
     # Get mean and uncertainty of variable part of output data (assumed to be floats)
     var_output = np.concatenate(iter_outputs).view(float).reshape(mc_iterations, -1)
     var_mean = dict(zip(variable.keys(), var_output.mean(axis=0)))
-    var_std = dict(zip([name + '_std' for name in variable], var_output.std(axis=0)))
+    var_std = {k+"_std":v for k,v in zip(variable, var_output.std(axis=0)) if not k.endswith("_std")}
+    if (mc_iterations <= 0): # If no Monte Carlo then take forward the first reduction run's residuals
+        var_std.update({k:v for k,v in variable.items() if k.endswith("_std")})
     # Keep scan only with a valid beam in batch mode (otherwise keep button has to do it explicitly)
     keep = batch and main_compscan.beam is not None and (keep_all or main_compscan.beam.is_valid)
     if 'logger' in kwargs:
