@@ -71,7 +71,8 @@ def reduce_compscan(compscan, cal_dataset, beam_pols=['HH', 'VV', 'I'], **kwargs
         beam_params = [compscan.beam.height, katpoint.rad2deg(np.mean(compscan.beam.width)), bh,
                        float(compscan.beam.refined)] if compscan.beam else [np.nan, np.nan, bh, 0.]
         beams.append((pol, beam_params))
-        beams_std.append((pol, [compscan.beam.std_height, compscan.beam.std_width]))
+        beams_std.append((pol, [compscan.beam.std_height, compscan.beam.std_width] if compscan.beam
+                               else [np.nan, np.nan]))
 
     # Obtain environmental data averaged across the compound scan
     compscan_times = np.hstack([scan.timestamps for scan in compscan.scans])
