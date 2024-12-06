@@ -459,6 +459,10 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flatx.extend(tmpx)
             flaty.extend(tmpy)
             flatslew.extend(tmpslew)
+    elif kind=='horizon_scan' or kind=='azimuth_scan':
+        compositex=[[None]]
+        compositey=[[None]]
+        compositeslew=[[None]]
 
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
@@ -467,27 +471,81 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
 #for a given 10 degree (5 degree center to extreme) scan, this limits maximum elevation of a target to np.arccos(5./45)*180./np.pi=83.62 degrees before experiencing unachievable azimuth values within a scan arm in the worst case scenario
 #note scan arms are unwrapped based on current target azimuth position, so may choose new branch cut for next scan arm, possibly corrupting current cycle.
 def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0,clip_safety_margin=1.0,min_elevation=15.,max_elevation=90.):
-    num_points = np.shape(az_arm)[0]
-    az_arm = az_arm*np.pi/180.0
-    el_arm = el_arm*np.pi/180.0
-    scan_data = np.zeros((num_points,3))
-    attime = lasttime+np.arange(1,num_points+1)*timeperstep
-    #spiral arm scan
-    targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
-    targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
-    scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
-    if high_elevation_slowdown_factor>1.0:
-        meanscanarmel=np.mean(scanel)*180./np.pi
-        if meanscanarmel>60.:#recompute slower scan arm based on average elevation at if measured at normal speed
-            slowdown_factor=(meanscanarmel-60.)/(90.-60.)*(high_elevation_slowdown_factor-1.)+1.0#scales linearly from 1 at 60 deg el, to high_elevation_slowdown_factor at 90 deg el
-            attime = lasttime+np.arange(1,num_points+1)*timeperstep*slowdown_factor
-            targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
-            targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
-            scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
-    #clipping prevents antenna from hitting hard limit and getting stuck until technician reset it, 
-    #but not ideal to reach this because then actual azel could be equal to requested azel even though not right and may falsely cause one to believe everything is ok
-    azdata=np.unwrap(scanaz)*180.0/np.pi
-    eldata=scanel*180.0/np.pi
+    if opts.kind=='horizon_scan' or opts.kind=='azimuth_scan':#horizon_scan hack#use '3C 273' preferably or 'PKS 0408-65' as targets, when at low elevation
+        clip_safety_margin=0.5#override, tight margins needed
+        drift_el=opts.azimuth_scan_elevation#36.24#Mario Santos uses 36.24 el drift scans
+        slewspeed=1.1#2 deg/s slew speed seems to be standard
+        num_track_points = int(opts.tracktime/opts.sampletime)
+        num_slew_points = int((360)/(slewspeed*opts.sampletime))#budgeted
+        num_scan_points = int((360)/(opts.scanspeed*opts.sampletime))
+        num_points=num_track_points*2+num_slew_points+num_scan_points
+        scan_data = np.zeros((num_points,4))
+        attime = lasttime+np.arange(1,num_points+1)*timeperstep
+        
+        #goes from az +185 to -185
+        targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+        targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
+        targetaz,targetel=targetaz_rad*180./np.pi,targetel_rad*180./np.pi
+
+        lastarmx=np.tile(targetaz[num_track_points],2)
+        lastarmy=np.tile(targetel[num_track_points],2)
+        nextarmx=np.tile(targetaz[-num_track_points-1],2)
+        nextarmy=np.tile(targetel[-num_track_points-1],2)
+        scanaz=np.linspace(-180+45,180+45,num_scan_points)#scans from fixed azimuth angle 225 to -135 (over a -360 deg range) plus extra +/-5 degrees due to target movement
+        thisarmx=scanaz
+        
+        nslew0_=int(np.abs(lastarmx[-1]-thisarmx[0])/(slewspeed*opts.sampletime))
+        nslew1_=int(np.abs(thisarmx[-1]-nextarmx[0])/(slewspeed*opts.sampletime))
+        nslew0=int(num_slew_points*nslew0_/(nslew0_+nslew1_))#rescale required slew to budgeted slew
+        nslew1=num_slew_points-nslew0
+        
+        beamrelaz=scanaz-targetaz[num_track_points+nslew0:num_track_points+nslew0+num_scan_points]
+        if opts.kind=='azimuth_scan':#assumed that target is azel, GSM tower
+            thisarmy=drift_el+0*np.cos((beamrelaz)*np.pi/180.0)
+        else:
+            thisarmy=drift_el+targetel[num_track_points+nslew0:num_track_points+nslew0+num_scan_points]*np.cos((beamrelaz)*np.pi/180.0)
+        
+        indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew0+3]
+        fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+        fitter.fit(indep,np.zeros(6))
+        params=fitter.params
+        nx,ny=bezierpath(params,indep)
+        outslewx,outslewy=nx[1:-2],ny[1:-2]
+
+        indep=[thisarmx[-2],thisarmy[-2],thisarmx[-1],thisarmy[-1],nextarmx[0],nextarmy[0],nextarmx[1],nextarmy[1],nslew1+3]
+        fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+        fitter.fit(indep,np.zeros(6))
+        params=fitter.params
+        nx,ny=bezierpath(params,indep)
+        inslewx,inslewy=nx[1:-2],ny[1:-2]
+
+        azdata=np.r_[targetaz[:num_track_points],outslewx,thisarmx,inslewx,targetaz[-num_track_points:]]
+        eldata=np.r_[targetel[:num_track_points],outslewy,thisarmy,inslewy,targetel[-num_track_points:]]
+        slewdata=np.r_[np.zeros(num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.zeros(num_track_points)]
+        scan_data[:,3]=slewdata
+        print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'duration',attime[-1]-attime[0],'slewtime',num_slew_points*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
+    else:#typically
+        num_points = np.shape(az_arm)[0]
+        az_arm = az_arm*np.pi/180.0
+        el_arm = el_arm*np.pi/180.0
+        scan_data = np.zeros((num_points,3))
+        attime = lasttime+np.arange(1,num_points+1)*timeperstep
+        #spiral arm scan
+        targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+        targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
+        scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
+        if high_elevation_slowdown_factor>1.0:
+            meanscanarmel=np.mean(scanel)*180./np.pi
+            if meanscanarmel>60.:#recompute slower scan arm based on average elevation at if measured at normal speed
+                slowdown_factor=(meanscanarmel-60.)/(90.-60.)*(high_elevation_slowdown_factor-1.)+1.0#scales linearly from 1 at 60 deg el, to high_elevation_slowdown_factor at 90 deg el
+                attime = lasttime+np.arange(1,num_points+1)*timeperstep*slowdown_factor
+                targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+                targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
+                scanaz,scanel=plane_to_sphere_holography(targetaz_rad,targetel_rad,az_arm ,el_arm)
+        #clipping prevents antenna from hitting hard limit and getting stuck until technician reset it, 
+        #but not ideal to reach this because then actual azel could be equal to requested azel even though not right and may falsely cause one to believe everything is ok
+        azdata=np.unwrap(scanaz)*180.0/np.pi
+        eldata=scanel*180.0/np.pi
     scan_data[:,0] = attime
     scan_data[:,1] = np.clip(np.nan_to_num(azdata),-180.0+clip_safety_margin,270.0-clip_safety_margin)
     scan_data[:,2] = np.clip(np.nan_to_num(eldata),min_elevation+clip_safety_margin,max_elevation-clip_safety_margin)
@@ -504,6 +562,8 @@ def gen_track(attime,target):
     return track_data
 
 def test_target_azel_limits(target,clip_safety_margin,min_elevation,max_elevation):
+    if opts.kind=='horizon_scan':#override, tight margins needed
+        clip_safety_margin=0.5
     now=time.time()
     targetazel=gen_track([now],target)[0][1:]
     slewtotargettime=np.max([0.5*np.abs(currentaz-targetazel[0]),1.*np.abs(currentel-targetazel[1])])+1.0#antenna can slew at 2 degrees per sec in azimuth and 1 degree per sec in elev
@@ -547,6 +607,8 @@ if __name__=="__main__":
                       help='Diameter of beam pattern to measure, in degrees (default=%default)')
     parser.add_option('--kind', type='string', default='spiral',
                       help='Kind could be "spiral", "radial", "raster", "rastery" (default=%default)')
+    parser.add_option('--azimuth-scan-elevation', type='string', default=36.24,
+                      help='Elevation angle used when --kind=azimuth_scan (default=%default)')
     parser.add_option('--tracktime', type='float', default=10,
                       help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
     parser.add_option('--trackinterval', type='int', default=1,
@@ -851,6 +913,8 @@ if __name__=="__main__":
                                 session.ants = scan_ants_array[iant]
                                 target.antenna = scan_observers[iant]
                                 scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                if scan_data.shape[1]==4:#horizon_scan hack
+                                    cs=[scan_data[:,3]]
                                 if not kat.dry_run:
                                     if clipping_occurred:
                                         user_logger.info("Warning unexpected clipping occurred in scan pattern")
@@ -861,6 +925,8 @@ if __name__=="__main__":
                                 session.ants = track_ants_array[iant]
                                 target.antenna = track_observers[iant]
                                 scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                if scan_data.shape[1]==4:#horizon_scan hack
+                                    cs=[scan_data[:,3]]
                                 if not kat.dry_run:
                                     if clipping_occurred:
                                         user_logger.info("Warning unexpected clipping occurred in scan pattern")
