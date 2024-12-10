@@ -607,7 +607,7 @@ if __name__=="__main__":
                       help='Diameter of beam pattern to measure, in degrees (default=%default)')
     parser.add_option('--kind', type='string', default='spiral',
                       help='Kind could be "spiral", "radial", "raster", "rastery" (default=%default)')
-    parser.add_option('--azimuth-scan-elevation', type='string', default=36.24,
+    parser.add_option('--azimuth-scan-elevation', type='float', default=36.24,
                       help='Elevation angle used when --kind=azimuth_scan (default=%default)')
     parser.add_option('--tracktime', type='float', default=10,
                       help='Extra time in seconds for scanning antennas to track when passing over target (default=%default)')
@@ -624,7 +624,7 @@ if __name__=="__main__":
     parser.add_option('--slewspeed', type='float', default=-1,
                       help='speed at which to slew in degrees per second, or if negative number then this multiplied by scanspeed (default=%default)')
     parser.add_option('--twistfactor', type='float', default=1,
-                      help='spiral twist factor (0 for straight radial, 1 standard spiral) (default=%default)')
+                      help='spiral twist factor (0 for straight radial, 1 standard spiral), and if negative then alternate each cycle (default=%default)')
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
     parser.add_option('--elevation-histogram', type='string', default='',
@@ -722,7 +722,7 @@ if __name__=="__main__":
         if len(args)==0 or args[0]=='lbandtargets':#lband targets, in order of brightness
             args=['3C 273','PKS 0408-65','PKS 1934-63','Hyd A','3C 279','PKS 0023-26','J0825-5010','PKS J1924-2914']
         elif args[0]=='sbandtargets':#sband targets, in order of brightness in S4 band
-            args=['3C 454.3','PKS J1924-2914','PKS 1934-63','3C 279','PKS 2134+004','PKS 0723-008','PKS 0408-65','PKS 1421-490','PKS 0023-26','J0825-5010']
+            args=['3C 454.3','PKS J1924-2914','J2136+0041','J0137+3309','PKS 1934-63','PKS 2134+004','3C 279','PKS 0723-008','PKS 0408-65','PKS 1421-490','PKS 0023-26','J0825-5010']
         #useful targets might not exist in catalogue
         ensure_cat={'3C 273':'J1229+0203 | *3C 273 | PKS 1226+02,radec, 12:29:06.70,  +02:03:08.6',
         'PKS 1934-63':'J1939-6342 | *PKS 1934-63,radec, 19:39:25.03,  -63:42:45.7',
@@ -735,7 +735,8 @@ if __name__=="__main__":
         '3C 454.3':'J2253+1608 | 3C 454.3 | PKS 2251+158, radec, 22:53:57.75, 16:08:53.6',
         'PKS 0723-008':'J0725-0055 | PKS 0723-008, radec, 07:25:50.64, -00:54:56.5',
         'PKS 2134+004':'J2136+0041 | PKS 2134+004, radec, 21:36:38.59, 00:41:54.2',
-        'PKS 1421-490':'J1424-4913 | PKS 1421-490, radec, 14:24:32.24, -49:13:49.7'}
+        'PKS 1421-490':'J1424-4913 | PKS 1421-490, radec, 14:24:32.24, -49:13:49.7',
+        'J0137+3309':'J0137+3309, radec, 01:37:41.30,  +33:09:35.1'}
 
         # Check basic command-line options and obtain a kat object connected to the appropriate system
         with verify_and_connect(opts) as kat:
@@ -895,7 +896,7 @@ if __name__=="__main__":
                             user_logger.info("Performing follow up track")
                             session.telstate.add('obs_label','delay set track')
                             session.track(target, duration=opts.cycle_tracktime, announce=False)
-                        if (target_rising):#target is rising - scan top half of pattern first
+                        if ((opts.twistfactor>=0 and target_rising) or (opts.twistfactor<0 and (cycle%2==0))):#target is rising - scan top half of pattern first, or twistfactor<0 means must alternate
                             cx=compositex
                             cy=compositey
                             cs=compositeslew
