@@ -624,7 +624,9 @@ if __name__=="__main__":
     parser.add_option('--slewspeed', type='float', default=-1,
                       help='speed at which to slew in degrees per second, or if negative number then this multiplied by scanspeed (default=%default)')
     parser.add_option('--twistfactor', type='float', default=1,
-                      help='spiral twist factor (0 for straight radial, 1 standard spiral), and if negative then alternate each cycle (default=%default)')
+                      help='spiral twist factor (0 for straight radial, 1 standard spiral) (default=%default)')
+    parser.add_option('--cycle-rotations', type='float', default=0,
+                      help='rotate each cycle progressively to get to next arm in this many cycles (default=%default)')
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
     parser.add_option('--elevation-histogram', type='string', default='',
@@ -647,17 +649,27 @@ if __name__=="__main__":
         x=[]
         y=[]
         sl=[]
-        for iarm in range(len(compositex)):
-            plt.plot(compositex[iarm],compositey[iarm],'.')
-            x.extend(compositex[iarm])
-            y.extend(compositey[iarm])
-            sl.extend(compositeslew[iarm])
+        for cycle in range(opts.num_cycles if opts.num_cycles>0 else 1):
+            for iarm in range(len(compositex)):
+                plt.plot(compositex[iarm],compositey[iarm],'.')
+                x.extend(compositex[iarm])
+                y.extend(compositey[iarm])
+                sl.extend(compositeslew[iarm])
+            for iarm in range(len(compositex)):
+                slewindex=np.nonzero(compositeslew[iarm])[0]
+                plt.plot(compositex[iarm][slewindex],compositey[iarm][slewindex],'.k',ms=1)
+            if opts.cycle_rotations!=0:#rotate each cycle progressively to get to next arm in this many cycles
+                theta=np.pi/len(compositex)/opts.cycle_rotations
+                costheta=np.cos(theta)
+                sintheta=np.sin(theta)
+                rcx=[compositex[i]*costheta-compositey[i]*sintheta for i in range(len(compositex))]
+                rcy=[compositex[i]*sintheta+compositey[i]*costheta for i in range(len(compositex))]
+                compositex=rcx
+                compositey=rcy
         x=np.array(x)
         y=np.array(y)
         sl=np.array(sl)
-        for iarm in range(len(compositex)):
-            slewindex=np.nonzero(compositeslew[iarm])[0]
-            plt.plot(compositex[iarm][slewindex],compositey[iarm][slewindex],'.k',ms=1)
+        
         plt.ylim([-opts.scan_extent/2,opts.scan_extent/2])
         plt.axis('equal')
         plt.title('%s scans: %d total time: %.1fs slew: %.1fs'%(opts.kind,len(compositex),len(sl)*opts.sampletime,np.sum(sl)*opts.sampletime))
@@ -896,14 +908,25 @@ if __name__=="__main__":
                             user_logger.info("Performing follow up track")
                             session.telstate.add('obs_label','delay set track')
                             session.track(target, duration=opts.cycle_tracktime, announce=False)
-                        if ((opts.twistfactor>=0 and target_rising) or (opts.twistfactor<0 and (cycle%2==0))):#target is rising - scan top half of pattern first, or twistfactor<0 means must alternate
-                            cx=compositex
-                            cy=compositey
+                        if opts.cycle_rotations!=0:#rotate each cycle progressively to get to next arm in this many cycles
+                            theta=np.pi/len(compositex)/opts.cycle_rotations
+                            costheta=np.cos(theta)
+                            sintheta=np.sin(theta)
+                            cx=[compositex[i]*costheta-compositey[i]*sintheta for i in range(len(compositex))]
+                            cy=[compositex[i]*sintheta+compositey[i]*costheta for i in range(len(compositex))]
                             cs=compositeslew
-                        else:  #target is setting - scan bottom half of pattern first
-                            cx=[com[::-1] for com in compositex[::-1]]
-                            cy=[com[::-1] for com in compositey[::-1]]
-                            cs=[com[::-1] for com in compositeslew[::-1]]
+                            compositex=cx
+                            compositey=cy
+                        else:#dont do this if cycle rotation is being done
+                            if (target_rising):#target is rising - scan top half of pattern first
+                                cx=compositex
+                                cy=compositey
+                                cs=compositeslew
+                            else:  #target is setting - scan bottom half of pattern first
+                                cx=[com[::-1] for com in compositex[::-1]]
+                                cy=[com[::-1] for com in compositey[::-1]]
+                                cs=[com[::-1] for com in compositeslew[::-1]]
+                             
                         user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants if ant.name not in always_scan_ants_names]))
                         lasttime = time.time()
                         for iarm in range(len(cx)):#spiral arm index
