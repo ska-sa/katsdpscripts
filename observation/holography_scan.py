@@ -14,7 +14,10 @@ except:
     import optparse
     testmode=True
     standard_script_options=optparse.OptionParser
-    
+
+#uncomment the line below for DVS
+#from dvs_obslib import collect_targets, start_holog_session as start_session # Override previous import
+
 import numpy as np
 import scipy
 from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
@@ -631,6 +634,8 @@ if __name__=="__main__":
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
     parser.add_option('--elevation-histogram', type='string', default='',
                       help='A string of 15 comma separated count values representing a histogram in 5 degree intervals from 15 to 90 degrees elevation of known measurements (default=%default). A preferred target making the biggest impact to flatten the histogram will be selected.')
+    parser.add_option('--max-loadscan-samples', type='int', default=2000,
+                      help='maximum number of samples that can be transmitted to loadscan at a time (default=%default)')
     parser.add_option('--prepopulatetime', type='float', default=10.0,
                       help='time in seconds to prepopulate buffer in advance (default=%default)')
     parser.add_option('--auto-delay', type='string', default=None,
@@ -810,6 +815,7 @@ if __name__=="__main__":
                 track_ants = ant_array(kat, track_ants, 'track_ants')
                 track_ants_array = [ant_array(kat, [track_ant], 'track_ant') for track_ant in track_ants]
                 scan_ants_array = [ant_array(kat, [scan_ant], 'scan_ant') for scan_ant in scan_ants]
+                all_ants_array = [ant_array(kat, [all_ant], 'scan_ant') for all_ant in all_ants]
 
                 # Add metadata
                 #note obs_params is immutable and can only be changed before capture_start is called
@@ -817,6 +823,7 @@ if __name__=="__main__":
                 session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
                 session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
                 # Get observers
+                all_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for all_ant in all_ants]
                 scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
                 track_observers = [katpoint.Antenna(track_ant.sensor.observer.get_value()) for track_ant in track_ants]
                 # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
@@ -933,37 +940,31 @@ if __name__=="__main__":
                             user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
                             user_logger.info("Using Scan antennas: %s %s",
                                              ' '.join(always_scan_ants_names),' '.join([ant.name for ant in scan_ants if ant.name not in always_scan_ants_names]))
-                            for iant,scan_ant in enumerate(scan_ants):
-                                session.ants = scan_ants_array[iant]
-                                target.antenna = scan_observers[iant]
-                                scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
-                                if scan_data.shape[1]==4:#horizon_scan hack
-                                    cs=[scan_data[:,3]]
-                                if not kat.dry_run:
-                                    if clipping_occurred:
-                                        user_logger.info("Warning unexpected clipping occurred in scan pattern")
-                                    session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                            for iant,track_ant in enumerate(track_ants):#also include always_scan_ants in track_ant list
-                                if track_ant.name not in always_scan_ants_names:
-                                    continue
-                                session.ants = track_ants_array[iant]
-                                target.antenna = track_observers[iant]
-                                scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
-                                if scan_data.shape[1]==4:#horizon_scan hack
-                                    cs=[scan_data[:,3]]
-                                if not kat.dry_run:
-                                    if clipping_occurred:
-                                        user_logger.info("Warning unexpected clipping occurred in scan pattern")
-                                    session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                            for istart_sample in range(0,len(cx[iarm]),opts.max_loadscan_samples):
+                                if istart_sample+opts.max_loadscan_samples<len(cx[iarm]):
+                                    istop_sample=istart_sample+opts.max_loadscan_samples
+                                else:
+                                    istop_sample=len(cx[iarm])
+                                for iant,all_ant in enumerate(all_ants):
+                                    if (all_ant.name in [scan_ant.name for scan_ant in scan_ants]) or (all_ant.name in always_scan_ants_names):
+                                        session.ants = all_ants_array[iant]
+                                        target.antenna = all_observers[iant]
+                                        scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                        if scan_data.shape[1]==4:#horizon_scan hack
+                                            cs=[scan_data[:,3]]
+                                        if not kat.dry_run:
+                                            if clipping_occurred:
+                                                user_logger.info("Warning unexpected clipping occurred in scan pattern")
+                                            session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
                             
-                            lastisslew=None#so that first sample's state is also recorded
-                            for it in range(len(cx[iarm])):
-                                if cs[iarm][it]!=lastisslew:
-                                    lastisslew=cs[iarm][it]
-                                    session.telstate.add('obs_label','slew' if lastisslew else '%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[it,0])
+                                lastisslew=None#so that first sample's state is also recorded
+                                for it in range(istart_sample,istop_sample):
+                                    if cs[iarm][it]!=lastisslew:
+                                        lastisslew=cs[iarm][it]
+                                        session.telstate.add('obs_label','slew' if lastisslew else '%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[it,0])
                                 
-                            time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
-                            lasttime = scan_data[-1,0]
+                                time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
+                                lasttime = scan_data[-1,0]
                         if (len(grouprange)==2):#swap scanning and tracking antennas
                             track_ants,scan_ants=scan_ants,track_ants
                             track_observers,scan_observers=scan_observers,track_observers
