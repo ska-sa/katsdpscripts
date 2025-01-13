@@ -934,13 +934,13 @@ if __name__=="__main__":
                                 cy=[com[::-1] for com in compositey[::-1]]
                                 cs=[com[::-1] for com in compositeslew[::-1]]
                         
-                        if opts.kind=='horizon_scan':
-                            horizon_scan_data, clipping_occurred = gen_scan(0,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
-                            ct=[horizon_scan_data[:,0]]
-                            cx=[horizon_scan_data[:,1]]
-                            cy=[horizon_scan_data[:,2]]
-                            cs=[horizon_scan_data[:,3]]
-                             
+                        if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan':
+                            azimuth_scan_data, clipping_occurred = gen_scan(0,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                            ct=[azimuth_scan_data[:,0]]
+                            cx=[azimuth_scan_data[:,1]]
+                            cy=[azimuth_scan_data[:,2]]
+                            cs=[azimuth_scan_data[:,3]]
+                        
                         user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants if ant.name not in always_scan_ants_names]))
                         lasttime = time.time()
                         for iarm in range(len(cx)):#spiral arm index
@@ -958,8 +958,8 @@ if __name__=="__main__":
                                     if (all_ant.name in [scan_ant.name for scan_ant in scan_ants]) or (all_ant.name in always_scan_ants_names):
                                         session.ants = all_ants_array[iant]
                                         target.antenna = all_observers[iant]
-                                        if opts.kind=='horizon_scan':
-                                            scan_data=horizon_scan_data[istart_sample:istop_sample,:]
+                                        if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan':
+                                            scan_data=azimuth_scan_data[istart_sample:istop_sample,:]
                                         else:
                                             scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                         if not kat.dry_run:
