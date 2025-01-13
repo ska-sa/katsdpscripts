@@ -946,6 +946,7 @@ if __name__=="__main__":
                                     user_logger.info("Chunking loadscan samples %d to %d of %d.", istart_sample, istop_sample, len(cx[iarm]))
                                 else:
                                     istop_sample=len(cx[iarm])
+                                    user_logger.info("Not chunking loadscan samples (total %d).", len(cx[iarm]))
                                 for iant,all_ant in enumerate(all_ants):
                                     if (all_ant.name in [scan_ant.name for scan_ant in scan_ants]) or (all_ant.name in always_scan_ants_names):
                                         session.ants = all_ants_array[iant]
