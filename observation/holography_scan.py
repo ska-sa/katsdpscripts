@@ -948,18 +948,18 @@ if __name__=="__main__":
                             user_logger.info("Using Scan antennas: %s %s",
                                              ' '.join(always_scan_ants_names),' '.join([ant.name for ant in scan_ants if ant.name not in always_scan_ants_names]))
                             for istart_sample in range(0,len(cx[iarm]),opts.max_loadscan_samples):
-                                if istart_sample+opts.max_loadscan_samples<len(cx[iarm]):
-                                    istop_sample=istart_sample+opts.max_loadscan_samples
+                                istop_sample=np.min([istart_sample+opts.max_loadscan_samples,len(cx[iarm])])
+                                if opts.max_loadscan_samples<len(cx[iarm]):
                                     user_logger.info("Chunking loadscan samples %d to %d of %d.", istart_sample, istop_sample, len(cx[iarm]))
                                 else:
-                                    istop_sample=len(cx[iarm])
-                                    user_logger.info("Not chunking loadscan samples (total %d <= max %d).", len(cx[iarm]),opts.max_loadscan_samples)
+                                    user_logger.info("Not chunking loadscan samples (total samples per arm %d, max chunk size %d).", len(cx[iarm]),opts.max_loadscan_samples)
                                 for iant,all_ant in enumerate(all_ants):
                                     if (all_ant.name in [scan_ant.name for scan_ant in scan_ants]) or (all_ant.name in always_scan_ants_names):
                                         session.ants = all_ants_array[iant]
                                         target.antenna = all_observers[iant]
                                         if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan':
-                                            scan_data=azimuth_scan_data[istart_sample:istop_sample,:]
+                                            scan_data=azimuth_scan_data[istart_sample:istop_sample,:]+0
+                                            scan_data[:,0]+=lasttime-azimuth_scan_data[istart_sample,0]
                                         else:
                                             scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                         if not kat.dry_run:
