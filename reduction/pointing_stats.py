@@ -17,9 +17,9 @@ def angle_wrap(angle, period=2.0 * np.pi):
 def read_offsetfile(filename):
     """Load data file in one shot as an array of strings."""
     string_fields = ['dataset', 'target', 'timestamp_ut', 'data_unit']
-    data = np.loadtxt(filename, dtype=str, comments='#', delimiter=', ')
+    data = np.loadtxt(filename, dtype=str, comments='#', delimiter=',')
     # Interpret first non-comment line as header
-    fields = data[0].tolist()
+    fields = [i.strip() for i in data[0].tolist()]
     # By default, all fields are assumed to contain floats
     formats = np.tile(float, len(fields))
     # The string_fields are assumed to contain strings - use data's string type, as it is of sufficient length
