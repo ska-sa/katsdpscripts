@@ -943,6 +943,7 @@ if __name__=="__main__":
                             for istart_sample in range(0,len(cx[iarm]),opts.max_loadscan_samples):
                                 if istart_sample+opts.max_loadscan_samples<len(cx[iarm]):
                                     istop_sample=istart_sample+opts.max_loadscan_samples
+                                    user_logger.info("Chunking loadscan samples %d to %d of %d.", istart_sample, istop_sample, len(cx[iarm]))
                                 else:
                                     istop_sample=len(cx[iarm])
                                 for iant,all_ant in enumerate(all_ants):
@@ -951,7 +952,7 @@ if __name__=="__main__":
                                         target.antenna = all_observers[iant]
                                         scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                         if scan_data.shape[1]==4:#horizon_scan hack
-                                            cs=[scan_data[:,3]]
+                                            cs=[np.r_[np.zeros(istart_sample),scan_data[:,3]]]
                                         if not kat.dry_run:
                                             if clipping_occurred:
                                                 user_logger.info("Warning unexpected clipping occurred in scan pattern")
@@ -961,7 +962,7 @@ if __name__=="__main__":
                                 for it in range(istart_sample,istop_sample):
                                     if cs[iarm][it]!=lastisslew:
                                         lastisslew=cs[iarm][it]
-                                        session.telstate.add('obs_label','slew' if lastisslew else '%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[it,0])
+                                        session.telstate.add('obs_label','slew' if lastisslew else '%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[it-istart_sample,0])
                                 
                                 time.sleep(scan_data[-1,0]-time.time()-opts.prepopulatetime)
                                 lasttime = scan_data[-1,0]
