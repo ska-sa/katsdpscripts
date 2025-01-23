@@ -462,7 +462,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flatx.extend(tmpx)
             flaty.extend(tmpy)
             flatslew.extend(tmpslew)
-    elif kind=='horizon_scan' or kind=='azimuth_scan':
+    elif kind=='azimuth_scan' or kind=='horizon_scan':
         compositex=[[None]]
         compositey=[[None]]
         compositeslew=[[None]]
@@ -474,7 +474,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
 #for a given 10 degree (5 degree center to extreme) scan, this limits maximum elevation of a target to np.arccos(5./45)*180./np.pi=83.62 degrees before experiencing unachievable azimuth values within a scan arm in the worst case scenario
 #note scan arms are unwrapped based on current target azimuth position, so may choose new branch cut for next scan arm, possibly corrupting current cycle.
 def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_factor=1.0,clip_safety_margin=1.0,min_elevation=15.,max_elevation=90.):
-    if opts.kind=='horizon_scan' or opts.kind=='azimuth_scan':#horizon_scan hack#use '3C 273' preferably or 'PKS 0408-65' as targets, when at low elevation
+    if opts.kind=='azimuth_scan':#assumed that target is azel, GSM tower
         clip_safety_margin=0.5#override, tight margins needed
         drift_el=opts.azimuth_scan_elevation#36.24#Mario Santos uses 36.24 el drift scans
         slewspeed=1.1#2 deg/s slew speed seems to be standard
@@ -503,10 +503,8 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         nslew1=num_slew_points-nslew0
         
         beamrelaz=scanaz-targetaz[num_track_points+nslew0:num_track_points+nslew0+num_scan_points]
-        if opts.kind=='azimuth_scan':#assumed that target is azel, GSM tower
-            thisarmy=drift_el+0*np.cos((beamrelaz)*np.pi/180.0)
-        else:
-            thisarmy=drift_el+targetel[num_track_points+nslew0:num_track_points+nslew0+num_scan_points]*np.cos((beamrelaz)*np.pi/180.0)
+        
+        thisarmy=drift_el+0*np.cos((beamrelaz)*np.pi/180.0)
         
         indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew0+3]
         fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
@@ -527,6 +525,68 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         slewdata=np.r_[np.zeros(num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.zeros(num_track_points)]
         scan_data[:,3]=slewdata
         print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'duration',attime[-1]-attime[0],'slewtime',num_slew_points*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
+    elif opts.kind=='horizon_scan':#chooses best of specific drift_el section to scan that is offered by this target
+        clip_safety_margin=0.5#override, tight margins needed
+        drift_el=opts.azimuth_scan_elevation#36.24#Mario Santos uses 36.24 el drift scans
+        slewspeed=1.1#2 deg/s slew speed seems to be standard
+        num_track_points = int(opts.tracktime/opts.sampletime)
+        num_el_slew_points=int(drift_el/(opts.scanspeed*opts.sampletime))#to slew from target to scanel initially, using scanspeed
+        num_scan_points=int((360)/(opts.scanspeed*opts.sampletime))#this is to test scan extent only
+        num_points=num_track_points+num_el_slew_points+num_scan_points
+        attime = lasttime+np.arange(1,num_points+1)*timeperstep
+        targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+        targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
+        targetaz,targetel=targetaz_rad*180./np.pi,targetel_rad*180./np.pi
+        if np.mean(targetaz)<45:#45 deg is center of -180 to +270 deg azimuth range
+            beamaz=np.r_[np.zeros(num_track_points+num_el_slew_points),np.linspace(0,360,num_scan_points)]#beamaz=scanaz-targetaz
+        else:
+            beamaz=np.r_[np.zeros(num_track_points+num_el_slew_points),np.linspace(0,-360,num_scan_points)]#beamaz=scanaz-targetaz
+        scanel=drift_el+targetel*np.cos(beamaz*np.pi/180.0)
+        scanaz=beamaz+targetaz
+        #see at what point scan bombs out; note targetel doesnt necessarily need to be > horizon limit but might be bad and might bomb out elsewhere
+        bombout_ind=np.nonzero((scanel>opts.horizon+clip_safety_margin)*(targetel>opts.horizon+clip_safety_margin)*(scanaz>-180+clip_safety_margin)*(scanaz<270-clip_safety_margin))[0][0]
+        #now recalculate now that max az extent is known
+        beamaz_max=beamaz[bombout_ind]
+        num_scan_points=int((beamaz_max)/(opts.scanspeed*opts.sampletime))
+        num_az_slew_points = int((beamaz_max)/(slewspeed*opts.sampletime))
+        num_points=num_track_points+num_el_slew_points+num_scan_points+num_az_slew_points+num_track_points
+        attime = lasttime+np.arange(1,num_points+1)*timeperstep
+        targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
+        targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
+        targetaz,targetel=targetaz_rad*180./np.pi,targetel_rad*180./np.pi
+        beamaz=np.r_[np.zeros(num_track_points+num_el_slew_points),np.linspace(0,beamaz_max,num_scan_points),np.zeros(num_az_slew_points,num_track_points)]
+        scanel=drift_el+targetel*np.cos(beamaz*np.pi/180.0)
+        scanaz=beamaz+targetaz
+        thisarmx=scanaz[num_track_points+num_el_slew_points:num_track_points+num_el_slew_points+num_scan_points]
+        thisarmy=scanel[num_track_points+num_el_slew_points:num_track_points+num_el_slew_points+num_scan_points]
+        nslew0=num_el_slew_points
+        nslew1=num_az_slew_points#should check this is enough to allow el slew if necessary
+        
+        #starts and ends with on target track
+        lastarmx=np.tile(targetaz[num_track_points],2)
+        lastarmy=np.tile(targetel[num_track_points],2)
+        nextarmx=np.tile(targetaz[-num_track_points-1],2)
+        nextarmy=np.tile(targetel[-num_track_points-1],2)
+
+        indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew0+3]
+        fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+        fitter.fit(indep,np.zeros(6))
+        params=fitter.params
+        nx,ny=bezierpath(params,indep)
+        outslewx,outslewy=nx[1:-2],ny[1:-2]
+
+        indep=[thisarmx[-2],thisarmy[-2],thisarmx[-1],thisarmy[-1],nextarmx[0],nextarmy[0],nextarmx[1],nextarmy[1],nslew1+3]
+        fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+        fitter.fit(indep,np.zeros(6))
+        params=fitter.params
+        nx,ny=bezierpath(params,indep)
+        inslewx,inslewy=nx[1:-2],ny[1:-2]
+        
+        azdata=np.r_[targetaz[:num_track_points],outslewx,thisarmx,inslewx,targetaz[-num_track_points:]]
+        eldata=np.r_[targetel[:num_track_points],outslewy,thisarmy,inslewy,targetel[-num_track_points:]]
+        slewdata=np.r_[np.zeros(num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.zeros(num_track_points)]
+        scan_data[:,3]=slewdata
+        print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'duration',attime[-1]-attime[0],'slewtime',(num_az_slew_points+num_el_slew_points)*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
     else:#typically
         num_points = np.shape(az_arm)[0]
         az_arm = az_arm*np.pi/180.0
@@ -553,6 +613,9 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
     scan_data[:,1] = np.clip(np.nan_to_num(azdata),-180.0+clip_safety_margin,270.0-clip_safety_margin)
     scan_data[:,2] = np.clip(np.nan_to_num(eldata),min_elevation+clip_safety_margin,max_elevation-clip_safety_margin)
     clipping_occurred=(np.sum(azdata==scan_data[:,1])+np.sum(eldata==scan_data[:,2])!=len(eldata)*2)
+    print('azdata',azdata)
+    print('eldata',scan_data[:,1])
+    print('tot',len(eldata))
     return scan_data,clipping_occurred
 
 def gen_track(attime,target):
