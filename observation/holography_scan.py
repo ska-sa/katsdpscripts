@@ -544,17 +544,29 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         scanel=drift_el+targetel*np.cos(beamaz*np.pi/180.0)
         scanaz=beamaz+targetaz
         #see at what point scan bombs out; note targetel doesnt necessarily need to be > horizon limit but might be bad and might bomb out elsewhere
-        bombout_ind=np.nonzero((scanel>opts.horizon+clip_safety_margin)*(targetel>opts.horizon+clip_safety_margin)*(scanaz>-180+clip_safety_margin)*(scanaz<270-clip_safety_margin))[0][0]
+        bombout_ind=np.nonzero(np.logical_not((scanel>opts.horizon+clip_safety_margin*2)*(targetel>opts.horizon+clip_safety_margin*2)*(scanaz>-180+clip_safety_margin*2)*(scanaz<270-clip_safety_margin*2)))[0]
+        if len(bombout_ind)==0:
+            beamaz_max=0
+            num_scan_points=2
+            num_az_slew_points=2
+            print('done this')
+        else:
+            beamaz_max=beamaz[bombout_ind[0]]
+            num_scan_points=int(np.abs(beamaz_max)/(opts.scanspeed*opts.sampletime))
+            num_az_slew_points = int(np.abs(beamaz_max)/(slewspeed*opts.sampletime))
+            if num_scan_points<2:
+                num_scan_points=2
+            if num_az_slew_points<2:
+                num_az_slew_points=2
+            print('done that',beamaz_max,bombout_ind[0])
         #now recalculate now that max az extent is known
-        beamaz_max=beamaz[bombout_ind]
-        num_scan_points=int((beamaz_max)/(opts.scanspeed*opts.sampletime))
-        num_az_slew_points = int((beamaz_max)/(slewspeed*opts.sampletime))
         num_points=num_track_points+num_el_slew_points+num_scan_points+num_az_slew_points+num_track_points
+        scan_data = np.zeros((num_points,4))
         attime = lasttime+np.arange(1,num_points+1)*timeperstep
         targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
         targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
         targetaz,targetel=targetaz_rad*180./np.pi,targetel_rad*180./np.pi
-        beamaz=np.r_[np.zeros(num_track_points+num_el_slew_points),np.linspace(0,beamaz_max,num_scan_points),np.zeros(num_az_slew_points,num_track_points)]
+        beamaz=np.r_[np.zeros(num_track_points+num_el_slew_points),np.linspace(0,beamaz_max,num_scan_points),np.zeros(num_az_slew_points+num_track_points)]
         scanel=drift_el+targetel*np.cos(beamaz*np.pi/180.0)
         scanaz=beamaz+targetaz
         thisarmx=scanaz[num_track_points+num_el_slew_points:num_track_points+num_el_slew_points+num_scan_points]
@@ -567,7 +579,7 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         lastarmy=np.tile(targetel[num_track_points],2)
         nextarmx=np.tile(targetaz[-num_track_points-1],2)
         nextarmy=np.tile(targetel[-num_track_points-1],2)
-
+        print('lens',len(lastarmx),len(thisarmx),len(nextarmx))
         indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew0+3]
         fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
         fitter.fit(indep,np.zeros(6))
@@ -586,7 +598,7 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         eldata=np.r_[targetel[:num_track_points],outslewy,thisarmy,inslewy,targetel[-num_track_points:]]
         slewdata=np.r_[np.zeros(num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.zeros(num_track_points)]
         scan_data[:,3]=slewdata
-        print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'duration',attime[-1]-attime[0],'slewtime',(num_az_slew_points+num_el_slew_points)*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
+        print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'min az',np.min(azdata),'max az',np.max(azdata),'duration',attime[-1]-attime[0],'slewtime',(num_az_slew_points+num_el_slew_points)*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
     else:#typically
         num_points = np.shape(az_arm)[0]
         az_arm = az_arm*np.pi/180.0
@@ -997,15 +1009,15 @@ if __name__=="__main__":
                                 cy=[com[::-1] for com in compositey[::-1]]
                                 cs=[com[::-1] for com in compositeslew[::-1]]
                         
+                        
+                        user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants if ant.name not in always_scan_ants_names]))
+                        lasttime = time.time()
                         if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan':
-                            azimuth_scan_data, clipping_occurred = gen_scan(0,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                            azimuth_scan_data, clipping_occurred = gen_scan(lasttime,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                             ct=[azimuth_scan_data[:,0]]
                             cx=[azimuth_scan_data[:,1]]
                             cy=[azimuth_scan_data[:,2]]
                             cs=[azimuth_scan_data[:,3]]
-                        
-                        user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants if ant.name not in always_scan_ants_names]))
-                        lasttime = time.time()
                         for iarm in range(len(cx)):#spiral arm index
                             user_logger.info("Performing scan arm %d of %d.", iarm + 1, len(cx))
                             user_logger.info("Using Scan antennas: %s %s",
@@ -1022,7 +1034,6 @@ if __name__=="__main__":
                                         target.antenna = all_observers[iant]
                                         if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan':
                                             scan_data=azimuth_scan_data[istart_sample:istop_sample,:]+0
-                                            scan_data[:,0]+=lasttime-azimuth_scan_data[istart_sample,0]
                                         else:
                                             scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                         if not kat.dry_run:
