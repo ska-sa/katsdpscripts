@@ -158,8 +158,10 @@ for scan_ind, state, target in data.scans():
     # Get corrections from existing / old correlator delay model and undo delay tracking
     # Since baseline-based `delay` is delay2 - delay1, subtract the corrections accordingly
     delay_corrections = correlator_model.corrections(target, ts)[0]
+    static_delays = data.sensor["cbf_delay_adjustments"]
     for bl, (inp1, inp2) in enumerate(data.corr_products):
-        delay_stats_mu[:, bl] += delay_corrections[inp1][:, 0] - delay_corrections[inp2][:, 0]
+        delay_stats_mu[:, bl] += delay_corrections[inp1][:, 0] - delay_corrections[inp2][:, 0] \
+                              - (np.r_[[_.get(inp1,0) for _ in static_delays]] - np.r_[[_.get(inp2,0) for _ in static_delays]])
     # Rearrange measurements to shape (B T,)
     group_delay.append(delay_stats_mu.T.ravel())
     sigma_delay.append(delay_stats_sigma.T.ravel())
@@ -334,7 +336,7 @@ ax.scatter(np.pi/2 - np.array(scan_mid_az), np.pi/2 - np.array(scan_mid_el), 100
 targets_done = set()
 for name, az, el in zip(scan_targets, scan_mid_az, scan_mid_el):
     if name not in targets_done:
-        ax.text(np.pi/2. - az, np.pi/2. - el, name, ha='left', va='top')
+        ax.text(np.pi/2. - az, np.pi/2. - el, name, fontsize='x-small', ha='left', va='top')
         targets_done.add(name)
 ax.set_xticks(katpoint.deg2rad(np.arange(0., 360., 90.)))
 ax.set_xticklabels(['E', 'N', 'W', 'S'])
