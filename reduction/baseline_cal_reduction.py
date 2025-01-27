@@ -160,7 +160,7 @@ for scan_ind, state, target in data.scans():
     delay_corrections = correlator_model.corrections(target, ts)[0]
     static_delays = data.sensor["cbf_delay_adjustments"]
     for bl, (inp1, inp2) in enumerate(data.corr_products):
-        delay_stats_mu[:, bl] += delay_corrections[inp1][:, 0] - delay_corrections[inp2][:, 0] \
+        delay_stats_mu[:, bl] -= delay_corrections[inp2][:, 0] - delay_corrections[inp1][:, 0]
                               - (np.r_[[_.get(inp1,0) for _ in static_delays]] - np.r_[[_.get(inp2,0) for _ in static_delays]])
     # Rearrange measurements to shape (B T,)
     group_delay.append(delay_stats_mu.T.ravel())
