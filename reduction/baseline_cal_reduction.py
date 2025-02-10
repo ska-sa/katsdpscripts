@@ -33,6 +33,8 @@ parser.add_option('-s', '--max-sigma', type='float', default=0.2,
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
 parser.add_option('-x', '--exclude', default='', help="Comma-separated list of sources to exclude from fit")
+parser.add_option('--allow-ambiguous-delays', action="store_true", default=False,
+                  help="Don't wrap the measured delays to fit within +-0.5*measurable_range (default=%default)")
 (opts, args) = parser.parse_args()
 
 # Quick way to set options for use with cut-and-pasting of script bits
@@ -189,7 +191,10 @@ sigma_delay[sigma_delay < 1e-5 * max_sigma_delay] = 1e-5 * max_sigma_delay
 old_delay_model = np.c_[old_positions / katpoint.lightspeed, old_receiver_delays].ravel()
 old_predicted_delay = np.dot(old_delay_model, augmented_targetdir)
 norm_residual_delay = (group_delay - old_predicted_delay) / delay_period
-unwrapped_group_delay = delay_period * (norm_residual_delay - np.round(norm_residual_delay)) + old_predicted_delay
+if not opts.allow_ambiguous_delays:
+    unwrapped_group_delay = delay_period * (norm_residual_delay - np.round(norm_residual_delay)) + old_predicted_delay
+else: # Forced to allow delays solutions that are larger than what can be measured unambiguously
+    unwrapped_group_delay = delay_period * norm_residual_delay + old_predicted_delay
 old_resid = unwrapped_group_delay - old_predicted_delay
 
 # Construct design matrix, containing weighted basis functions
