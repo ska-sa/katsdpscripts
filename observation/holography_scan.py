@@ -9,14 +9,13 @@ import time
 import katpoint
 try:
     from katcorelib import (standard_script_options, verify_and_connect,collect_targets, start_session, user_logger, ant_array)
+    #uncomment the line below for DVS
+    # from dvs_obslib import collect_targets, standard_script_options, start_hacked_session as start_session # Override previous import
     testmode=False
 except:
     import optparse
     testmode=True
     standard_script_options=optparse.OptionParser
-
-#uncomment the line below for DVS
-#from dvs_obslib import collect_targets, start_holog_session as start_session # Override previous import
 
 import numpy as np
 import scipy
