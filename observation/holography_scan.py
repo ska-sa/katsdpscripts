@@ -204,7 +204,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         #maxnarms=int((tottime)/(minscantime))#if no time spent on slews nor tracktime
         #solve for maxnarms if no time spent on slews; tracktime every trackinterval arm including after last one
         #maxnarms=int((float(tottime)-float(tracktime)*(float(maxnarms)/float(trackinterval)+1.))/float(minscantime))
-        perimetertime=2*np.pi*radextent/(scanspeed)#time to scan around perimeter (is done during slew in sections)
+        perimetertime=2*np.pi*radextent/(slewspeed)#time to scan around perimeter (is done during slew in sections)
         narms=int((tottime-perimetertime-tracktime)/(minscantime+tracktime/(trackinterval)))#if no time spent on slews
         nslew=int(perimetertime/(narms*sampletime))
 
