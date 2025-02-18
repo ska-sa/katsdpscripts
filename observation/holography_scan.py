@@ -933,6 +933,7 @@ if __name__=="__main__":
                         #choose target
                         target=None
                         target_rising=False
+                        target_rising_at_start=None
                         target_elevation_cost=1e10
                         target_expected_duration=0
                         target_meanelev=0
@@ -987,6 +988,12 @@ if __name__=="__main__":
                             session.telstate.add('obs_label','delay set track')
                             session.track(target, duration=opts.cycle_tracktime, announce=False)
                         if opts.cycle_rotations!=0:#rotate each cycle progressively to get to next arm in this many cycles
+                            if target_rising_at_start is None:#done once only to decide which direction all scans are done
+                                target_rising_at_start=target_rising
+                                if not target_rising_at_start:#target is rising at start; change direction of scanpattern once only then stick to it
+                                    compositex=[com[::-1] for com in compositex[::-1]]
+                                    compositey=[com[::-1] for com in compositey[::-1]]
+                                    compositeslew=[com[::-1] for com in compositeslew[::-1]]
                             theta=np.pi/len(compositex)/opts.cycle_rotations
                             costheta=np.cos(theta)
                             sintheta=np.sin(theta)
