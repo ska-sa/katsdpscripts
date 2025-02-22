@@ -975,8 +975,10 @@ if __name__=="__main__":
                         session.set_target(target)
                         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
                         targetazel=gen_track([time.time()+opts.tracktime],target)[0][1:]
-                        azeltarget=katpoint.Target('azimuthunwrap,azel,%s,%s'%(targetazel[0], targetazel[1]))
-                        session.track(azeltarget, duration=0, announce=False)#azel target
+                        # Make this an RA,DEC target so that each antenna gets its own topocentric az,el, not the az,el of the catalogue's antenna!
+                        targetradec=target.antenna.observer.radec_of(*(targetazel*np.pi/180))
+                        radectarget=katpoint.Target('azimuthunwrap,radec,%s,%s'%targetradec)
+                        session.track(radectarget, duration=0, announce=False)#radec target
 
                         user_logger.info("Performing initial track")
                         session.telstate.add('obs_label','track')
