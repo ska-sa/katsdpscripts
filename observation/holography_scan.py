@@ -25,6 +25,57 @@ try:
 except:
     pass
 
+#override from aph to allow TLE use
+def collect_targets(cam, args, opts=None):
+    """ Alternative to katcorelib.collect_targets():
+            a) this can take a catalogue in either radec or TLE text formats
+            b) if a catalogue is specified plus target names then only that SUBSET of targets are used (katcorelib.collect_targets() uses the catalogue PLUS targets)
+        If a catalogue is specified it must either be the first argument, or opts/catalogue.
+        
+        @param args: either empty list, or the first string should contain a target name or comma-separated list of names
+        @param opts: parsed options may contain `.catalogue`, the filename of the catalogue to load.
+        @return: katpoint.Catalogue
+    """
+    # Get the catalogue to draw from
+    cat, catfn = None, None
+    # Possibly first argument is the catalogue
+    if (len(args) > 0) and os.path.isfile(args[0]):
+        catfn = args[0]
+        args = args[1:]
+    else: # Optionally specify --catalogue
+        try: 
+            catfn = opts.catalogue
+        except:
+            pass  
+    if catfn and os.path.isfile(catfn):
+        cat = katpoint.Catalogue(antenna=cam.sources.antenna)
+        try: # Maybe a standard catalogue file
+            cat.add(open(catfn, 'rt'))
+        except ValueError: # Possibly a TLE formatted file
+            try:
+                cat.add_tle(open(catfn, 'rt'))
+            except:
+                raise ValueError("%s is not a valid target catalogue file!" % catfn)
+    
+    # Just a catalogue specified - so return that as the targets to use
+    if (len(args) == 0) and (cat is not None):
+        return cat
+    elif (cat is None): # No catalogue file specified, use the standard one
+        cat = cam.sources
+    
+    # Subset / specified targets from the catalogue
+    selected_tgts = []
+    for arg in args:
+        tgts = [cat[tgt] for tgt in arg.split(",")] 
+        named_tgts = [tgt for tgt in tgts if (tgt is not None)]
+        if (len(named_tgts) > 0): # Targets by name
+            selected_tgts.extend(named_tgts)
+        else: # Else may only be a full target description
+            selected_tgts.append(katpoint.Target(arg))
+    assert (len(selected_tgts) > 0), "No target retrieved from argument list!"
+    cat = katpoint.Catalogue(selected_tgts, antenna=cam.sources.antenna)
+    return cat
+    
 #anystowed=np.any([res._returns[0][4]=='STOW' for res in all_ants.req.sensor_value('mode').values()])
 def plane_to_sphere_holography(targetaz,targetel,ll,mm):
     scanaz=targetaz-np.arcsin(np.clip(ll/np.cos(targetel),-1.0,1.0))
