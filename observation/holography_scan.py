@@ -26,6 +26,7 @@ except:
     pass
 
 #override from aph to allow TLE use
+import os
 def collect_targets(cam, args, opts=None):
     """ Alternative to katcorelib.collect_targets():
             a) this can take a catalogue in either radec or TLE text formats
@@ -625,17 +626,22 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         nslew1=num_az_slew_points#should check this is enough to allow el slew if necessary
         
         #starts and ends with on target track
-        lastarmx=np.tile(targetaz[num_track_points],2)
-        lastarmy=np.tile(targetel[num_track_points],2)
-        nextarmx=np.tile(targetaz[-num_track_points-1],2)
-        nextarmy=np.tile(targetel[-num_track_points-1],2)
-        print('lens',len(lastarmx),len(thisarmx),len(nextarmx))
-        indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew0+3]
-        fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
-        fitter.fit(indep,np.zeros(6))
-        params=fitter.params
-        nx,ny=bezierpath(params,indep)
-        outslewx,outslewy=nx[1:-2],ny[1:-2]
+        if False:#bezier interpolates from onaxis tracking to start of azimuthal scanning
+            lastarmx=np.tile(targetaz[num_track_points],2)
+            lastarmy=np.tile(targetel[num_track_points],2)
+            nextarmx=np.tile(targetaz[-num_track_points-1],2)
+            nextarmy=np.tile(targetel[-num_track_points-1],2)
+            print('lens',len(lastarmx),len(thisarmx),len(nextarmx))
+            indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew0+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            outslewx,outslewy=nx[1:-2],ny[1:-2]
+        else:#no interpolation, rather capture elevation scan on vertical line
+            outslewx,outslewy=nx[1:-2],ny[1:-2]
+            outslewx=np.tile(targetaz[num_track_points],num_el_slew_points)
+            outslewy=np.linspace(targetel[num_track_points],scanel[num_track_points+num_el_slew_points],num_el_slew_points)
 
         indep=[thisarmx[-2],thisarmy[-2],thisarmx[-1],thisarmy[-1],nextarmx[0],nextarmy[0],nextarmx[1],nextarmy[1],nslew1+3]
         fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
