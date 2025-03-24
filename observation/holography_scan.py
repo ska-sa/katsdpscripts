@@ -673,6 +673,11 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
             nx,ny=bezierpath(params,indep)
             outslewx,outslewy=nx[1:-2],ny[1:-2]
         else:#no interpolation, rather capture elevation scan on vertical line
+            lastarmx=np.tile(targetaz[num_track_points],2)
+            lastarmy=np.tile(targetel[num_track_points],2)
+            nextarmx=np.tile(targetaz[-num_track_points-1],2)
+            nextarmy=np.tile(targetel[-num_track_points-1],2)
+            print('lens',len(lastarmx),len(thisarmx),len(nextarmx))
             outslewx=np.tile(targetaz[num_track_points],num_el_slew_points)
             outslewy=np.linspace(targetel[num_track_points],scanel[num_track_points+num_el_slew_points],num_el_slew_points)
 
@@ -695,16 +700,16 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         num_track_points = int(opts.tracktime/opts.sampletime)
         num_loop_points = int(5/(opts.scanspeed*opts.sampletime))
         num_el_slew_points=int(drift_el/(opts.scanspeed*opts.sampletime))#to slew from target to scanel initially, using scanspeed, not really a slew
-        num_scan_points=int((360)/(opts.scanspeed*opts.sampletime))#this is to test scan extent only
+        num_scan_points=int((180)/(opts.scanspeed*opts.sampletime))#this is to test scan extent only
         num_points=num_track_points+num_loop_points+num_el_slew_points+num_loop_points+num_scan_points
         attime = lasttime+np.arange(1,num_points+1)*timeperstep
         targetaz_rad,targetel_rad=target.azel(attime)#gives targetaz in range 0 to 2*pi
         targetaz_rad=((targetaz_rad+135*np.pi/180.)%(2.*np.pi)-135.*np.pi/180.)#valid steerable az is from -180 to 270 degrees so move branch cut to -135 or 225 degrees
         targetaz,targetel=targetaz_rad*180./np.pi,targetel_rad*180./np.pi
         if np.mean(targetaz)<45:#45 deg is center of -180 to +270 deg azimuth range
-            beamaz=np.r_[np.zeros(num_track_points+num_loop_points+num_el_slew_points+num_loop_points),np.linspace(0,360,num_scan_points)]#beamaz=scanaz-targetaz
+            beamaz=np.r_[np.zeros(num_track_points+num_loop_points+num_el_slew_points+num_loop_points),np.linspace(0,180,num_scan_points)]#beamaz=scanaz-targetaz
         else:
-            beamaz=np.r_[np.zeros(num_track_points+num_loop_points+num_el_slew_points+num_loop_points),np.linspace(0,-360,num_scan_points)]#beamaz=scanaz-targetaz
+            beamaz=np.r_[np.zeros(num_track_points+num_loop_points+num_el_slew_points+num_loop_points),np.linspace(0,-180,num_scan_points)]#beamaz=scanaz-targetaz
         scanel=drift_el+targetel*np.cos(beamaz*np.pi/180.0)
         scanaz=beamaz+targetaz
         #see at what point scan bombs out; note targetel doesnt necessarily need to be > horizon limit but might be bad and might bomb out elsewhere
@@ -722,7 +727,6 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
                 num_scan_points=2
             if num_az_slew_points<2:
                 num_az_slew_points=2
-            print('done that',beamaz_max,bombout_ind[0])
         #now recalculate now that max az extent is known
         num_points=num_track_points+num_loop_points+num_el_slew_points+num_loop_points+num_scan_points+num_az_slew_points+num_track_points
         scan_data = np.zeros((num_points,4))
@@ -735,19 +739,18 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         scanaz=beamaz+targetaz
         thisarmx=scanaz[num_track_points+num_loop_points+num_el_slew_points+num_loop_points:num_track_points+num_loop_points+num_el_slew_points+num_loop_points+num_scan_points]
         thisarmy=scanel[num_track_points+num_loop_points+num_el_slew_points+num_loop_points:num_track_points+num_loop_points+num_el_slew_points+num_loop_points+num_scan_points]
-
         azdata=np.r_[targetaz[:num_track_points],
                      np.tile(np.nan,num_loop_points),
                      np.tile(targetaz[num_track_points],num_el_slew_points),
                      np.tile(np.nan,num_loop_points),
-                     thisarmx,
+                     thisarmx+0,
                      np.tile(np.nan,num_az_slew_points),
                      targetaz[-num_track_points:]]
         eldata=np.r_[targetel[:num_track_points],
                      np.tile(np.nan,num_loop_points),
                      np.linspace(targetel[num_track_points],scanel[num_track_points+num_el_slew_points],num_el_slew_points),
                      np.tile(np.nan,num_loop_points),
-                     thisarmy,
+                     thisarmy+0,
                      np.tile(np.nan,num_az_slew_points),
                      targetel[-num_track_points:]]
         slewdata=np.isnan(azdata)
@@ -885,7 +888,7 @@ if __name__=="__main__":
 
             #useful targets might not exist in catalogue
             ensure_cat={
-            'azel target':'azel target, azel, 00:00:00.00, 27:00:00'
+            'azel target':'azel target, azel, 10:00:00.00, 28:00:00'
             }
             for tar in ensure_cat.keys():
                 if tar not in cat:
@@ -1211,7 +1214,7 @@ if __name__=="__main__":
                                     if (all_ant.name in [scan_ant.name for scan_ant in scan_ants]) or (all_ant.name in always_scan_ants_names):
                                         session.ants = all_ants_array[iant]
                                         target.antenna = all_observers[iant]
-                                        if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan':
+                                        if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan_ext':
                                             scan_data=azimuth_scan_data[istart_sample:istop_sample,:]+0
                                         else:
                                             scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
