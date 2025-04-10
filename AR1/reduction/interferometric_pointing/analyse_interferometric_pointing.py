@@ -77,6 +77,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
         humidity = np.mean(h5.humidity)
         wind_speed = np.mean(h5.wind_speed)
         wind_direction  = np.degrees(np.angle(np.mean(np.exp(1j*np.radians(h5.wind_direction)))) )# Vector Mean
+        wind_std = np.std(h5.wind_speed)
         sun = katpoint.Target('Sun, special')
         # Calculate pointing offset
         # Obtain middle timestamp of compound scan, where all pointing calculations are done
@@ -212,6 +213,7 @@ def reduce_compscan_inf(h5,rfi_static_flags=None,chunks=16,return_raw=False,use_
                 ant_pointing[name]["humidity"] =humidity
                 ant_pointing[name]["wind_speed"] =wind_speed
                 ant_pointing[name]["wind_direction"] =wind_direction
+                ant_pointing[name]["wind_std"] =wind_std
                 # work out the sun's angle
                 sun_azel = katpoint.rad2deg(np.array(sun.azel(middle_time,antenna=h5.ants[ant])))  
                 ant_pointing[name]["sun_az"] = sun_azel.tolist()[0]
@@ -309,7 +311,7 @@ def analyse_interferometric_point_source_scans(dataset, ant_list, outfilebase, r
                     '%(beam_height_HH).7f, %(beam_width_HH).7f, %(baseline_height_HH).7f, %(refined_HH).7f, ' \
                     '%(beam_height_VV).7f, %(beam_width_VV).7f, %(baseline_height_VV).7f, %(refined_VV).7f, ' \
                     '%(frequency).7f, %(flux).4f, %(temperature).2f, %(pressure).2f, %(humidity).2f, %(wind_speed).2f, ' \
-                    '%(wind_direction).2f , %(sun_az).7f, %(sun_el).7f, %(timestamp)i, %(valid_solutions)i \n'
+                    '%(wind_direction).2f, %(wind_std).2f, %(sun_az).7f, %(sun_el).7f, %(timestamp)i, %(valid_solutions)i \n'
     
     output_field_names = [name.partition(')')[0] for name in output_fields[2:].split(', %(')]
     
