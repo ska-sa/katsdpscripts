@@ -33,6 +33,8 @@ parser.add_option('-s', '--max-sigma', type='float', default=0.2,
 parser.add_option("-t", "--time-offset", type='float', default=0.0,
                   help="Time offset to add to DBE timestamps, in seconds (default = %default)")
 parser.add_option('-x', '--exclude', default='', help="Comma-separated list of sources to exclude from fit")
+parser.add_option('--fit-niao', action="store_true", default=False,
+                  help="Also fit Non-Intersecting Axes Offset, instead of keeping it constant (default=%default)")
 parser.add_option('--allow-ambiguous-delays', action="store_true", default=False,
                   help="Don't wrap the measured delays to fit within +-0.5*measurable_range (default=%default)")
 (opts, args) = parser.parse_args()
@@ -83,6 +85,7 @@ excluded_targets = opts.exclude.split(',')
 old_positions = np.array([ant.position_enu for ant in data.ants])
 old_cable_lengths = np.array([ant.delay_model['FIX_' + active_pol.upper()] for ant in data.ants])
 old_receiver_delays = old_cable_lengths / cable_lightspeed
+old_niao = np.array([ant.delay_model['NIAO'] for ant in data.ants])
 # Pick reference position of first antenna as array antenna (and hope the rest are identical)
 array_ant = katpoint.Antenna('ref', *(data.ants[0].ref_position_wgs84))
 # Original delay model
@@ -110,11 +113,11 @@ print('baselines (%d): %s' % (num_bls, ' '.join([('%d-%d' % (indA, indB)) for in
 # This will be used to assemble target direction vectors with the appropriate sign to form design matrix
 # Since baseline AB = (ant B - ant A) positions, the bl'th set of P rows has a negative identity matrix
 # in the position of ant A and a positive identity matrix in the position of ant B
-num_params = 4 * len(data.ants)
-bl_parameter_map = np.zeros((num_bls * num_params, 4))
+num_params = 5 * len(data.ants)
+bl_parameter_map = np.zeros((num_bls * num_params, 5))
 for bl, (indA, indB) in enumerate(baseline_inds):
-    bl_parameter_map[(bl * num_params + 4 * indA):(bl * num_params + 4 * indA + 4), :] = -np.eye(4)
-    bl_parameter_map[(bl * num_params + 4 * indB):(bl * num_params + 4 * indB + 4), :] = +np.eye(4)
+    bl_parameter_map[(bl * num_params + 5 * indA):(bl * num_params + 5 * indA + 5), :] = -np.eye(5)
+    bl_parameter_map[(bl * num_params + 5 * indB):(bl * num_params + 5 * indB + 5), :] = +np.eye(5)
 
 # Iterate through scans
 augmented_targetdir, group_delay, sigma_delay = [], [], []
@@ -138,8 +141,8 @@ for scan_ind, state, target in data.scans():
     targetdir = np.array(katpoint.azel_to_enu(az, el))
     # Invert sign of target vector, as positive dot product with baseline implies negative delay / advance
     # Augment target vector with a 1 to be 4-dimensional, as this allows fitting of constant (receiver) delay
-    # This array has shape (4, T), with the augmented target vectors as columns
-    scan_augmented_targetdir = np.vstack((-targetdir, np.ones(len(el))))
+    # This array has shape (5, T), with the augmented target vectors as columns
+    scan_augmented_targetdir = np.vstack((-targetdir, np.ones(len(el)), -np.cos(el)))
     # Create section of design matrix with shape (B P, T), by inserting target dir vectors in right places
     augm_block = np.dot(bl_parameter_map, scan_augmented_targetdir)
     # Rearrange shape to (P, B T) to be compatible with ravelled delay data, which has shape (B T,)
@@ -188,7 +191,7 @@ sigma_delay[sigma_delay < 1e-5 * max_sigma_delay] = 1e-5 * max_sigma_delay
 
 # Assume that delay errors are within +-0.5 delay_period, based on current delay model
 # Then unwrap the measured group delay to be within this range of the predicted delays, to avoid delay wrapping issues
-old_delay_model = np.c_[old_positions / katpoint.lightspeed, old_receiver_delays].ravel()
+old_delay_model = np.c_[old_positions / katpoint.lightspeed, old_receiver_delays, old_niao / katpoint.lightspeed].ravel()
 old_predicted_delay = np.dot(old_delay_model, augmented_targetdir)
 norm_residual_delay = (group_delay - old_predicted_delay) / delay_period
 if not opts.allow_ambiguous_delays:
@@ -200,7 +203,7 @@ old_resid = unwrapped_group_delay - old_predicted_delay
 # Construct design matrix, containing weighted basis functions
 A = augmented_targetdir / sigma_delay
 # Throw out reference antenna columns, as we can't solve reference antenna parameters (assumed zero)
-A = np.vstack((A[:(4 * ref_ant_ind), :], A[(4 * ref_ant_ind + 4):, :]))
+A = np.vstack((A[:(5 * ref_ant_ind), :], A[(5 * ref_ant_ind + 5):, :]))
 # Measurement vector, containing weighted observed delays
 b = unwrapped_group_delay / sigma_delay
 # Throw out data points with standard deviations above the given threshold
@@ -210,21 +213,27 @@ b = b[good]
 print('\nFitting %d parameters to %d data points (discarded %d)...' % (A.shape[0], len(b), len(sigma_delay) - len(b)))
 if len(b) == 0:
     raise ValueError('No solution possible, as all data points were discarded')
+if not opts.fit_niao: # Remove NIAO from fit
+    A = A[:4, ...]
 # Solve linear least-squares problem using SVD (see NRinC, 2nd ed, Eq. 15.4.17)
 U, s, Vrt = np.linalg.svd(A.transpose(), full_matrices=False)
 params = np.dot(Vrt.T, np.dot(U.T, b) / s)
 # Also obtain standard errors of parameters (see NRinC, 2nd ed, Eq. 15.4.19)
 sigma_params = np.sqrt(np.sum((Vrt.T / s[np.newaxis, :]) ** 2, axis=1))
 print('Condition number = %.3f' % (s[0] / s[-1],))
-
+if not opts.fit_niao: # Add "old" NIAO because it wasn't fitted
+    fixed_niao = np.r_[old_niao[:ref_ant_ind], old_niao[ref_ant_ind+1:]] - old_niao[ref_ant_ind]
+    params = np.hstack((params, fixed_niao / katpoint.lightspeed))
+    sigma_params = np.hstack((sigma_params, np.zeros(len(data.ants)-1)))
+    
 # Reshape parameters to be per antenna, also inserting a row of zeros for reference antenna
-ant_params = params.reshape(-1, 4)
-ant_params = np.vstack((ant_params[:ref_ant_ind, :], np.zeros(4), ant_params[ref_ant_ind:, :]))
-ant_sigma_params = sigma_params.reshape(-1, 4)
+ant_params = params.reshape(-1, 5)
+ant_params = np.vstack((ant_params[:ref_ant_ind, :], np.zeros(5), ant_params[ref_ant_ind:, :]))
+ant_sigma_params = sigma_params.reshape(-1, 5)
 # Assign half the uncertainty of each antenna offset to the reference antenna itself, which is assumed
 # to be known perfectly, but obviously isn't (and should have similar uncertainty to the rest)
 ## ref_sigma = 0.5 * ant_sigma_params.min(axis=0)
-ant_sigma_params = np.vstack((ant_sigma_params[:ref_ant_ind, :], np.zeros(4), ant_sigma_params[ref_ant_ind:, :]))
+ant_sigma_params = np.vstack((ant_sigma_params[:ref_ant_ind, :], np.zeros(5), ant_sigma_params[ref_ant_ind:, :]))
 ## ant_sigma_params -= ref_sigma[np.newaxis, :]
 ## ant_sigma_params[ref_ant_ind] = ref_sigma
 # Convert to useful output (antenna positions and cable lengths in metres)
@@ -234,8 +243,10 @@ cable_lengths = ant_params[:, 3] * cable_lightspeed + old_cable_lengths[ref_ant_
 sigma_cable_lengths = ant_sigma_params[:, 3] * cable_lightspeed
 receiver_delays = cable_lengths / cable_lightspeed
 sigma_receiver_delays = sigma_cable_lengths / cable_lightspeed
+niao = ant_params[:, 4] * katpoint.lightspeed + old_niao[ref_ant_ind]
+sigma_niao = ant_sigma_params[:, 4] * katpoint.lightspeed
 # Obtain new predictions
-new_delay_model = np.c_[positions / katpoint.lightspeed, receiver_delays].ravel()
+new_delay_model = np.c_[positions / katpoint.lightspeed, receiver_delays, niao / katpoint.lightspeed].ravel()
 new_predicted_delay = np.dot(new_delay_model, augmented_targetdir)
 new_resid = unwrapped_group_delay - new_predicted_delay
 
@@ -258,6 +269,9 @@ for n, ant in enumerate(data.ants):
     print("Receiver delay (ns): %7.3f +- %.3f   (was %7.3f)%s" % \
           (receiver_delays[n] * 1e9, sigma_receiver_delays[n] * 1e9, old_receiver_delays[n] * 1e9,
            ' *' if np.abs(receiver_delays[n] - old_receiver_delays[n]) > 3 * sigma_receiver_delays[n] else ''))
+    print("NIAO (m):            %7.3f +- %.5f (was %7.3f)%s" % \
+          (niao[n], sigma_niao[n], old_niao[n],
+           ' *' if np.abs(niao[n] - old_niao[n]) > 3 * sigma_niao[n] else ''))
 
 scan_lengths = [len(ts) for ts in scan_timestamps]
 scan_bl_starts = num_bls * np.cumsum([0] + scan_lengths)[:-1]
