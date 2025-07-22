@@ -551,6 +551,60 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         compositex=[[None]]
         compositey=[[None]]
         compositeslew=[[None]]
+    elif kind=='offset':#offset pointings in circle, start at origin, do offset at radius in circle, then back to origin or to next offset cycle
+        #lingers tracktime on each offset pointing at fixed posiyion in beam
+        #trackinterval-1 offset pointings and one center pointing
+        narms=trackinterval-1
+        compositex=[]
+        compositey=[]
+        compositeslew=[]
+        flatx=[]
+        flaty=[]
+        flatslew=[]
+        for arm in range(narms):
+            theta=np.tile(2*np.pi*arm/narms,int(np.ceil(tracktime/(sampletime))))
+            thisarmx=radextent*np.sin(theta)
+            thisarmy=radextent*np.cos(theta)
+            if (arm%trackinterval==0):
+                lastarmx=np.zeros(2)
+                lastarmy=np.zeros(2)
+            else:
+                theta=np.tile(2*np.pi*(arm-1)/narms,int(np.ceil(tracktime/(sampletime))))
+                lastarmx=radextent*np.sin(theta)
+                lastarmy=radextent*np.cos(theta)
+            if ((arm+1)%trackinterval==0) or arm==narms-1:
+                nextarmx=np.zeros(2)
+                nextarmy=np.zeros(2)
+            else:
+                theta=np.tile(2*np.pi*(arm+1)/narms,int(np.ceil(tracktime/(sampletime))))
+                nextarmx=radextent*np.sin(theta)
+                nextarmy=radextent*np.cos(theta)
+            nslew=np.sqrt((lastarmx[-1]-thisarmx[0])**2+(lastarmy[-1]-thisarmy[0])**2)/(slewspeed*sampletime)
+            indep=[lastarmx[-2],lastarmy[-2],lastarmx[-1],lastarmy[-1],thisarmx[0],thisarmy[0],thisarmx[1],thisarmy[1],nslew+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            outslewx,outslewy=nx[1:-2],ny[1:-2]
+
+            nslew=np.sqrt((thisarmx[-1]-nextarmx[0])**2+(thisarmy[-1]-nextarmy[0])**2)/(slewspeed*sampletime)
+            indep=[thisarmx[-2],thisarmy[-2],thisarmx[-1],thisarmy[-1],nextarmx[0],nextarmy[0],nextarmx[1],nextarmy[1],nslew+3]
+            fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
+            fitter.fit(indep,np.zeros(6))
+            params=fitter.params
+            nx,ny=bezierpath(params,indep)
+            inslewx,inslewy=nx[1:-2],ny[1:-2]
+
+            tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+
+            compositex.append(tmpx)
+            compositey.append(tmpy)
+            compositeslew.append(tmpslew)
+            flatx.extend(tmpx)
+            flaty.extend(tmpy)
+            flatslew.extend(tmpslew)
 
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
