@@ -552,6 +552,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         compositey=[[None]]
         compositeslew=[[None]]
     elif kind=='offset':#offset pointings in circle, start at origin, do offset at radius in circle, then back to origin or to next offset cycle
+        #example usage holography_scan.py --scan-extent 1 --kind offset --tracktime 60 --trackinterval 5 --slewspeed 0.2 --num-cycles 3
         #lingers tracktime on each offset pointing at fixed posiyion in beam
         #trackinterval-1 offset pointings and one center pointing
         narms=trackinterval-1
