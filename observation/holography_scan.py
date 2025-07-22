@@ -1088,7 +1088,9 @@ if __name__=="__main__":
                 grouprange = [0]
                 always_scan_ants=[]
                 always_scan_ants_names=[]
-                if (opts.track_ants and opts.track_ants.isdigit()):
+                if opts.track_ants==0:#all antennas are scanants
+                    scan_ants = ant_array(kat, [ant for ant in all_ants], 'scan_ants')
+                elif (opts.track_ants and opts.track_ants.isdigit()):
                     GroupA,GroupB=SplitArray(np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[0] for ant in session.ants]),np.array([katpoint.Antenna(ant.sensor.observer.get_value()).position_enu[1] for ant in session.ants]),doplot=False)
                     GroupA.extend(GroupB[::-1])
                     if int(opts.track_ants)>0:
