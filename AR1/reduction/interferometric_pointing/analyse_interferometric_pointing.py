@@ -2,7 +2,7 @@
 # Script that uses katsdpcal's calprocs to reduce data consisting of offset tracks on multiple point sources.
 #
 
-from katsdpcal import calprocs
+from katsdpcalproc import calprocs
 import pickle
 import katdal
 import numpy as np
