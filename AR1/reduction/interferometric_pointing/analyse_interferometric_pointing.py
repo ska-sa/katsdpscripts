@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Script that uses katsdpcal's calprocs to reduce data consisting of offset tracks on multiple point sources.
+# Script that uses katsdpcalproc's calprocs to reduce data consisting of offset tracks on multiple point sources.
 #
 
 from katsdpcalproc import calprocs
