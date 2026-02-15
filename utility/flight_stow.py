@@ -3,6 +3,8 @@
 
 from katcorelib import (standard_script_options, verify_and_connect, user_logger)
 import time
+import katpoint
+import numpy as np
 
 def start_ants(ants, dry_run=False):
     if not dry_run:
@@ -10,7 +12,7 @@ def start_ants(ants, dry_run=False):
         ants.set_sampling_strategy('mode', 'event')
         ants.req.mode('STOP')
         try:
-            ants.wait('mode', 'STOP', timeout=12)
+            ants.wait('mode', 'STOP', timeout=30) # 12 for MK, 30 for MKE
         except Exception as err:
             #user_logger.warn(err)	
             user_logger.warn("not all antennas were in 'STOP' mode.")
@@ -38,15 +40,21 @@ def move_ri(ants, ridx_pos, dry_run=False):
             time.sleep(2)
 
 def point_ants(ants, dry_run=False):
+    airstrip_lla = (np.radians(-30.690197222222224), np.radians(21.454725), 1080) # lat [rad], long [rad], alt [m]
+    airstrip_heading = np.radians(123) # Azimuth angle, 0=north
+    ant_ecef = [katpoint.Antenna(ant.sensor.observer.get_value()).position_ecef for ant in ants]
+    ant_enu = [katpoint.ecef_to_enu(*(list(airstrip_lla)+list(xyz))) for xyz in ant_ecef]
+    ant_headings = [np.arctan2(e,n) for e,n,u in ant_enu]
+    user_logger.info("Airstrip is oriented along azim %gdeg" % np.degrees(airstrip_heading))
+    
     ants.set_sampling_strategy('lock', 'event')
-    ant_diff = ['m057', 'm058', 'm059']
-    for ant in ants:
-        if ant.name in ant_diff:
-            user_logger.info('slewing %s to azim: 30,   elev: 18' % ant.name)
-            ant.req.target_azel(30, 18)
-        else:
-            user_logger.info('slewing %s to azim: 217,  elev: 18' % (ant.name))
-            ant.req.target_azel(217, 18)
+    for ant,heading in zip(ants, ant_headings):
+        if (airstrip_heading-np.pi < heading < airstrip_heading): # North of airstrip, point NE
+            az, el = (30, 18)
+        else: # South of airstrip, point SW
+            az, el = (217, 18)
+        user_logger.info('%s heading is %.fdeg, slewing to azim: %g,   elev: %g' % (ant.name, np.degrees(heading), az, el))
+        ant.req.target_azel(az, el)
         ant.req.mode('POINT')
 
     if not dry_run:

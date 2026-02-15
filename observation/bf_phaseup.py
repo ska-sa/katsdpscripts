@@ -116,7 +116,8 @@ parser.add_option('--max-gap-MHz', type='float', default=128.0,
                        'interpolated across, in MHz (default=%default)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='comm_test', nd_params='off', project_id='COMMTEST',
-                    description='Phase-up observation that sets F-engine gains')
+                    description='Phase-up observation that sets F-engine gains',
+                    horizon=15.0)
 # Parse the command line
 opts, args = parser.parse_args()
 

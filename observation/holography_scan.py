@@ -9,13 +9,16 @@ import time
 import katpoint
 try:
     from katcorelib import (standard_script_options, verify_and_connect,collect_targets, start_session, user_logger, ant_array)
-    #uncomment the line below for DVS
-    # from dvs_obslib import collect_targets, standard_script_options, start_hacked_session as start_session # Override previous import
     testmode=False
 except:
     import optparse
     testmode=True
     standard_script_options=optparse.OptionParser
+try:
+    from dvs_obslib import hack_SetPointingCorrections, collect_targets, standard_script_options, start_hacked_session as start_session # Override previous import
+    DVS = True
+except:
+    DVS = False
 
 import numpy as np
 import scipy
@@ -1207,6 +1210,7 @@ if __name__=="__main__":
                             user_logger.info("Using target '%s' (mean elevation %.1f degrees)",target.name,target_meanelev)
                             user_logger.info("Current scan estimated to complete at UT %s (in %.1f minutes)",time.ctime(time.time()+target_expected_duration+time.timezone),target_expected_duration/60.)
 
+                        if DVS and not kat.dry_run: hack_SetPointingCorrections(all_ants) # TEMP HACK: change to & from load_scan causes OHB's ACU to re-enable ACU corrections
                         target.tags = target.tags[:1] # this is to avoid overloading the cal pipeline
                         session.set_target(target)
                         user_logger.info("Performing azimuth unwrap")#ensures wrap of session.track is same as being used in load_scan
@@ -1279,6 +1283,7 @@ if __name__=="__main__":
                                             if clipping_occurred:
                                                 user_logger.info("Warning unexpected clipping occurred in scan pattern")
                                             session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                                if DVS and (iarm == 0) and not kat.dry_run: hack_SetPointingCorrections(all_ants) # TEMP HACK: change to & from load_scan causes OHB's ACU to re-enable ACU corrections
                             
                                 lastisslew=None#so that first sample's state is also recorded
                                 for it in range(istart_sample,istop_sample):
