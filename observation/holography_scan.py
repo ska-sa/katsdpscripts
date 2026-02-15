@@ -552,32 +552,32 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         compositey=[[None]]
         compositeslew=[[None]]
     elif kind=='offset':#offset pointings in circle, start at origin, do offset at radius in circle, then back to origin or to next offset cycle
-        #example usage holography_scan.py --scan-extent 1 --kind offset --tracktime 60 --trackinterval 5 --slewspeed 0.2 --num-cycles 3
+        #example usage holography_scan.py --scan-extent 1 --kind offset --tracktime 40 --trackinterval 5 --slewspeed 0.1 --num-cycles 3 --track-ants 0 pks0408-65
         #lingers tracktime on each offset pointing at fixed posiyion in beam
         #trackinterval-1 offset pointings and one center pointing
-        narms=trackinterval-1
-        compositex=[]
-        compositey=[]
-        compositeslew=[]
-        flatx=[]
-        flaty=[]
-        flatslew=[]
-        for arm in range(narms):
-            theta=np.tile(2*np.pi*arm/narms,int(np.ceil(tracktime/(sampletime))))
+        narms=trackinterval
+        compositex=[np.zeros(int(tracktime/sampletime))]#populate first arm on-axis
+        compositey=[np.zeros(int(tracktime/sampletime))]
+        compositeslew=[np.zeros(int(tracktime/sampletime))]
+        flatx=[np.zeros(int(tracktime/sampletime))]
+        flaty=[np.zeros(int(tracktime/sampletime))]
+        flatslew=[np.zeros(int(tracktime/sampletime))]
+        for arm in range(narms-1):
+            theta=np.tile(2*np.pi*(arm)/(narms-1),int(np.ceil(tracktime/(sampletime))))
             thisarmx=radextent*np.sin(theta)
             thisarmy=radextent*np.cos(theta)
-            if (arm%trackinterval==0):
+            if (arm==0):
                 lastarmx=np.zeros(2)
                 lastarmy=np.zeros(2)
             else:
-                theta=np.tile(2*np.pi*(arm-1)/narms,int(np.ceil(tracktime/(sampletime))))
+                theta=np.tile(2*np.pi*(arm-1)/(narms-1),int(np.ceil(tracktime/(sampletime))))
                 lastarmx=radextent*np.sin(theta)
                 lastarmy=radextent*np.cos(theta)
-            if ((arm+1)%trackinterval==0) or arm==narms-1:
+            if (arm==narms-2):
                 nextarmx=np.zeros(2)
                 nextarmy=np.zeros(2)
             else:
-                theta=np.tile(2*np.pi*(arm+1)/narms,int(np.ceil(tracktime/(sampletime))))
+                theta=np.tile(2*np.pi*(arm+1)/(narms-1),int(np.ceil(tracktime/(sampletime))))
                 nextarmx=radextent*np.sin(theta)
                 nextarmy=radextent*np.cos(theta)
             nslew=np.sqrt((lastarmx[-1]-thisarmx[0])**2+(lastarmy[-1]-thisarmy[0])**2)/(slewspeed*sampletime)
@@ -596,9 +596,9 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             nx,ny=bezierpath(params,indep)
             inslewx,inslewy=nx[1:-2],ny[1:-2]
 
-            tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpx=np.r_[outslewx,thisarmx,inslewx if (arm==narms-2) else []]
+            tmpy=np.r_[outslewy,thisarmy,inslewy if (arm==narms-2) else []]
+            tmpslew=np.r_[np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (arm==narms-2) else []]
 
             compositex.append(tmpx)
             compositey.append(tmpy)
@@ -995,16 +995,16 @@ if __name__=="__main__":
         plt.legend(['x','y'])
         plt.title('Position profile')
         plt.subplot(3,1,2)
-        plt.plot(t[slewindex],(np.diff(x)/opts.sampletime)[slewindex],'r.')
-        plt.plot(t[slewindex],(np.diff(y)/opts.sampletime)[slewindex],'r.')
+        plt.plot(t[slewindex[:-1]],(np.diff(x)/opts.sampletime)[slewindex[:-1]],'r.')
+        plt.plot(t[slewindex[:-1]],(np.diff(y)/opts.sampletime)[slewindex[:-1]],'r.')
         plt.plot(t[:-1],np.diff(x)/opts.sampletime,'-')
         plt.plot(t[:-1],np.diff(y)/opts.sampletime,'--')
         plt.ylabel('[degrees/s]')
         plt.legend(['dx','dy'])
         plt.title('Speed profile')
         plt.subplot(3,1,3)
-        plt.plot(t[slewindex-1],(np.diff(np.diff(x))/opts.sampletime/opts.sampletime)[slewindex-1],'r.')
-        plt.plot(t[slewindex-1],(np.diff(np.diff(y))/opts.sampletime/opts.sampletime)[slewindex-1],'r.')
+        plt.plot(t[slewindex[:-2]],(np.diff(np.diff(x))/opts.sampletime/opts.sampletime)[slewindex[:-2]],'r.')
+        plt.plot(t[slewindex[:-2]],(np.diff(np.diff(y))/opts.sampletime/opts.sampletime)[slewindex[:-2]],'r.')
         plt.plot(t[:-2],np.diff(np.diff(x))/opts.sampletime/opts.sampletime,'-')
         plt.plot(t[:-2],np.diff(np.diff(y))/opts.sampletime/opts.sampletime,'--')
         plt.ylabel('[degrees/s^2]')
