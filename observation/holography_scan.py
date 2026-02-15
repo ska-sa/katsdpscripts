@@ -251,7 +251,7 @@ def SplitArray(x,y,doplot=False):
 #scanspeed,slewspeed is in degrees/second
 #sampletime is in seconds per sample
 #trackinterval: in number of scans: returns to track for tracktime after this many scans, track for tracktime include scan in front and end of pattern regardless
-def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=1,scanspeed=0.15,slewspeed=-1,twistfactor=1.,trackinterval=1,kind='spiral'):
+def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=1,scanspeed=0.15,slewspeed=-1,twistfactor=1.,trackinterval=1,slowextent=0,kind='spiral'):
     if slewspeed<0.:#then factor of scanspeed
         slewspeed*=-scanspeed
     radextent=totextent/2.
@@ -266,17 +266,30 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
         dt=np.repeat(scanspeed*sampletime,ntime)#note dt is the distance in degrees between samples
         if (slowtime>0.0):
-            repl=np.linspace(0.0,scanspeed*sampletime,2+int(slowtime/sampletime))
+            nsamplesslowtime=2+int(slowtime/sampletime)
+            repl=np.linspace(0.0,scanspeed*sampletime,nsamplesslowtime)
             dt[:len(repl)-1]=repl[1:]
+        if slowextent:#speeds up to half speed from center
+            dt=0.5*dt
+            fulldt=scanspeed*sampletime
+            
         lastr=0.0
+        slowcount=0
         twistfactore=np.float64(twistfactor)/(totextent)
         for it in range(1,ntime):
+            if slowextent:
+                if slowcount>=nsamplesslowtime:
+                    dt[it-1]=fulldt
+                elif lastr>slowextent/2:#speeds up to full speed from half speed
+                    dt[it-1]+=dt[slowcount]
+                    slowcount+=1
+
             data=np.array([dt[it-1]])
             indep=np.array([armx[it-1],army[it-1],twistfactore])#last calculated coordinate in arm, is x0,y0
-            initialparams=np.array([lastr+dt[it-1]]);
+            initialparams=np.array([lastr+dt[it-1]])
             fitter=NonLinearLeastSquaresFit(spiral,initialparams)
             fitter.fit(indep,data)
-            lastr=fitter.params[0];
+            lastr=fitter.params[0]
             armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactore)
             army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactore)
             if lastr>=radextent:
@@ -896,6 +909,8 @@ if __name__=="__main__":
                       help='Time to spend measuring beam pattern per cycle, in seconds (default=%default)')
     parser.add_option('-l', '--scan-extent', type='float', default=10,
                       help='Diameter of beam pattern to measure, in degrees (default=%default)')
+    parser.add_option('--slowextent', type='float', default=0,
+                      help='Diameter of beam pattern to measure at half speed, in degrees, 0 to ignore (default=%default)')    
     parser.add_option('--kind', type='string', default='spiral',
                       help='Kind could be "spiral", "radial", "raster", "rastery" (default=%default)')
     parser.add_option('--azimuth-scan-elevation', type='float', default=36.24,
@@ -936,7 +951,7 @@ if __name__=="__main__":
     # Parse the command line
     opts, args = parser.parse_args()
 
-    compositex,compositey,compositeslew=generatepattern(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slowtime=opts.slowtime,sampletime=opts.sampletime,scanspeed=opts.scanspeed,slewspeed=opts.slewspeed,twistfactor=opts.twistfactor,trackinterval=opts.trackinterval,kind=opts.kind)
+    compositex,compositey,compositeslew=generatepattern(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slowtime=opts.slowtime,sampletime=opts.sampletime,scanspeed=opts.scanspeed,slewspeed=opts.slewspeed,twistfactor=opts.twistfactor,trackinterval=opts.trackinterval,slowextent=opts.slowextent,kind=opts.kind)
     if testmode:
 
         if opts.kind=='horizon_scan_ext':
