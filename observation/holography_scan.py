@@ -338,13 +338,13 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flatx.extend(tmpx*np.cos(theta)+tmpy*np.sin(theta))
             flaty.extend(tmpy*np.cos(theta)-tmpx*np.sin(theta))
             flatslew.extend(tmpslew)
-    elif kind=='sinaz': #scans in azimuth only following a sinusoid across totextent at scanspeed for several cycles consuming tottime
+    elif kind=='sinx': #scans in azimuth only following a sinusoid across totextent at scanspeed for several cycles consuming tottime
         tt=np.arange(0,tottime,sampletime)
         nhalfcycles=np.floor((scanspeed*tt[-1]/radextent)/(np.pi))
         nvalid=len(np.nonzero((scanspeed*tt/radextent)<nhalfcycles*np.pi)[0])
         flatx=radextent*np.sin(scanspeed*tt[:nvalid]/radextent)
         flatx=flatx.tolist()
-        flatx.extend([0])
+        flatx.extend([0,0])
         flaty=[0 for i in range(len(flatx))]
         flatslew=[0 for i in range(len(flatx))]
         compositex=[np.array(flatx)]#combined into cycle, we do not want different cycles to use same values
