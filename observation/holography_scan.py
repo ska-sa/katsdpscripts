@@ -1161,7 +1161,7 @@ if __name__=="__main__":
                 session.obs_params['scan_ants']=','.join(np.sort([ant.name for ant in scan_ants]))
                 session.obs_params['track_ants']=','.join(np.sort([ant.name for ant in track_ants]))
                 # Get observers
-                all_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for all_ant in all_ants]
+                all_observers = [katpoint.Antenna(all_ant.sensor.observer.get_value()) for all_ant in all_ants]
                 scan_observers = [katpoint.Antenna(scan_ant.sensor.observer.get_value()) for scan_ant in scan_ants]
                 track_observers = [katpoint.Antenna(track_ant.sensor.observer.get_value()) for track_ant in track_ants]
                 # Disable noise diode by default (to prevent it firing on scan antennas only during scans)
