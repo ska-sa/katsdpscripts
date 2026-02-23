@@ -173,6 +173,15 @@ reduced_ants  =remove_ants(ants,missing_ants,args.verbose)
 # Minimum fraction of available baselines in the baseline_bins intervals
 ProjectConstraints = namedtuple('ProjectConstraints', 'minfrac baseline_bins mintotal required_ants required_ants_number')
 # Different projects will have different contraints
+
+projects['SCI-20251101-FM-01'] = ProjectConstraints(
+    baseline_bins=np.array([0, 50, 100, 200, 400, 1000, 3000, 6000, 9000]),
+    minfrac=np.array([0.00, 0.0, 0.0, 0.66, 0.66, 0.66, 0.50, 0.00]),
+    mintotal = None, # Minimum number of antennas
+    required_ants = None,
+    required_ants_number = None
+)
+
 projects['MHONGOOSE'] = ProjectConstraints(
     baseline_bins=np.array([0, 50, 100, 200, 400, 1000, 3000, 6000, 9000]),
     minfrac=np.array([0.80, 0.66, 0.66, 0.66, 0.66, 0.66, 0.50, 0.00]),
