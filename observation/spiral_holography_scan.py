@@ -763,7 +763,6 @@ if __name__=="__main__":
                                         if clipping_occurred:
                                             user_logger.info("Warning unexpected clipping occurred in scan pattern")
                                         session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
-                                scan_data=None
                                 for iant,track_ant in enumerate(track_ants):#also include always_scan_ants in track_ant list                                
                                     if track_ant.name not in always_scan_ants_names:
                                         continue
