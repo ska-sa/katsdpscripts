@@ -1299,14 +1299,16 @@ if __name__=="__main__":
                                     user_logger.info("Chunking loadscan samples %d to %d of %d.", istart_sample, istop_sample, len(cx[iarm]))
                                 else:
                                     user_logger.info("Not chunking loadscan samples (total samples per arm %d, max chunk size %d).", len(cx[iarm]),opts.max_loadscan_samples)
+                                scan_data=None
                                 for iant,all_ant in enumerate(all_ants):
                                     if (all_ant.name in [scan_ant.name for scan_ant in scan_ants]) or (all_ant.name in always_scan_ants_names):
                                         session.ants = all_ants_array[iant]
                                         target.antenna = all_observers[iant]
-                                        if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan_ext':
-                                            scan_data=azimuth_scan_data[istart_sample:istop_sample,:]+0
-                                        else:
-                                            scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                        if not kat.dry_run or (kat.dry_run and scan_data is None):#always if not dry_run, else if dry_run then only first time
+                                            if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan_ext':
+                                                    scan_data=azimuth_scan_data[istart_sample:istop_sample,:]+0
+                                            else:
+                                                scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                         if not kat.dry_run:
                                             if clipping_occurred:
                                                 user_logger.info("Warning unexpected clipping occurred in scan pattern")
@@ -1333,10 +1335,5 @@ if __name__=="__main__":
                         if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                             elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
-                        if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
-                            user_logger.info("Testing only one group for dry-run")
-                            break
-                    if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
-                        user_logger.info("Testing only cycle for dry-run")
-                        break
+                    #note indentation at outer loop
                     cycle+=1
