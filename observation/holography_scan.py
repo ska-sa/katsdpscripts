@@ -1336,4 +1336,7 @@ if __name__=="__main__":
                             elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
                     #note indentation at outer loop
+                    if kat.dry_run and opts.num_cycles<0:
+                        user_logger.info("Only simulating first of infinite number of cycles in dry run")
+                        break
                     cycle+=1

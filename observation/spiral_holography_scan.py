@@ -753,20 +753,24 @@ if __name__=="__main__":
                             else:#fix individual target.antenna issue
                                 user_logger.info("Using Scan antennas: %s %s",
                                                  ' '.join(always_scan_ants_names),' '.join([ant.name for ant in scan_ants if ant.name not in always_scan_ants_names]))
+                                scan_data=None
                                 for iant,scan_ant in enumerate(scan_ants):
                                     session.ants = scan_ants_array[iant]
                                     target.antenna = scan_observers[iant]
-                                    scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                    if not kat.dry_run or (kat.dry_run and scan_data is None):#always if not dry_run, else if dry_run then only first time
+                                        scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                     if not kat.dry_run:
                                         if clipping_occurred:
                                             user_logger.info("Warning unexpected clipping occurred in scan pattern")
                                         session.load_scan(scan_data[:,0],scan_data[:,1],scan_data[:,2])
+                                scan_data=None
                                 for iant,track_ant in enumerate(track_ants):#also include always_scan_ants in track_ant list                                
                                     if track_ant.name not in always_scan_ants_names:
                                         continue
                                     session.ants = track_ants_array[iant]
                                     target.antenna = track_observers[iant]
-                                    scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                    if not kat.dry_run or (kat.dry_run and scan_data is None):#always if not dry_run, else if dry_run then only first time
+                                        scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm],cy[iarm],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
                                     if not kat.dry_run:
                                         if clipping_occurred:
                                             user_logger.info("Warning unexpected clipping occurred in scan pattern")
@@ -800,10 +804,8 @@ if __name__=="__main__":
                         if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
                             elevation_histogram[target_histindex]+=1#update histogram as we go along
                         user_logger.info("Safe to interrupt script now if necessary")
-                        if kat.dry_run:#only test one group - dryrun takes too long and causes CAM to bomb out
-                            user_logger.info("Testing only one group for dry-run")
-                            break
-                    if kat.dry_run:#only test one cycle - dryrun takes too long and causes CAM to bomb out
-                        user_logger.info("Testing only cycle for dry-run")
+                    #note indentation at outer loop
+                    if kat.dry_run and opts.num_cycles<0:
+                        user_logger.info("Only simulating first of infinite number of cycles in dry run")
                         break
                     cycle+=1
