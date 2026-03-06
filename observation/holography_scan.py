@@ -127,7 +127,7 @@ def bezierpath(params,indep):
     ny=np.cumsum(vy)+y0
     return nx,ny
 
-def dbezierpath(params,indep):
+def odbezierpath(params,indep):
     Kx,Ky=params
     if len(indep)==8:
         x0,y0,x1,y1,x2,y2,x3,y3=indep
@@ -146,6 +146,19 @@ def dbezierpath(params,indep):
     nx1=np.cumsum(vx)+x0
     ny1=np.cumsum(vy)+y0
     return (nx1-nx0)*1000/int(abs(n)),(ny1-ny0)*1000/int(abs(n))#unfortunately this still needs to be scaled (divided) by sampletime
+
+def dbezierpath(params,indep):
+    Kx,Ky=params
+    if len(indep)==8:
+        x0,y0,x1,y1,x2,y2,x3,y3=indep
+        n=6+2+2*np.sqrt((x1-x2)**2+(y1-y2)**2)/(np.sqrt((x1-x0)**2+(y1-y0)**2)+np.sqrt((x3-x2)**2+(y3-y2)**2))
+    else:
+        x0,y0,x1,y1,x2,y2,x3,y3,n=indep
+        
+    t=np.linspace(0,1,int(abs(n)))
+    vx=(x1-x0)*(1.-t)+(x3-x2)*(t)+Kx*t*(t-1.)
+    vy=(y1-y0)*(1.-t)+(y3-y2)*(t)+Ky*t*(t-1.)
+    return vx,vy
 
 def bezierpathcost(params,indep):
     x0,y0,x1,y1,x2,y2,x3,y3=indep[:8]
@@ -356,8 +369,8 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         if calculate_derivative:
             doutarmx=darmx[:it]*np.cos(outtheta)+darmy[:it]*np.sin(outtheta)
             doutarmy=darmy[:it]*np.cos(outtheta)-darmx[:it]*np.sin(outtheta)
-            dinarmx=doutarmx[::-1]*np.cos(intheta)+doutarmy[::-1]*np.sin(intheta)
-            dinarmy=doutarmy[::-1]*np.cos(intheta)-doutarmx[::-1]*np.sin(intheta)
+            dinarmx=-(doutarmx[::-1]*np.cos(intheta)+doutarmy[::-1]*np.sin(intheta))
+            dinarmy=-(doutarmy[::-1]*np.cos(intheta)-doutarmx[::-1]*np.sin(intheta))
             dnx,dny=dbezierpath(params,indep)#must still be converted from units of degrees/sample to degrees/seconds
             dslewx,dslewy=dnx[1:-2]/sampletime,dny[1:-2]/sampletime
             dcompositex=[]
