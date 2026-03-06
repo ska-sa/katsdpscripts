@@ -127,39 +127,6 @@ def bezierpath(params,indep):
     ny=np.cumsum(vy)+y0
     return nx,ny
 
-def odbezierpath(params,indep):
-    Kx,Ky=params
-    if len(indep)==8:
-        x0,y0,x1,y1,x2,y2,x3,y3=indep
-        n=6+2+2*np.sqrt((x1-x2)**2+(y1-y2)**2)/(np.sqrt((x1-x0)**2+(y1-y0)**2)+np.sqrt((x3-x2)**2+(y3-y2)**2))
-    else:
-        x0,y0,x1,y1,x2,y2,x3,y3,n=indep
-        
-    t=np.linspace(0,1,int(abs(n)))
-    vx=(x1-x0)*(1.-t)+(x3-x2)*(t)+Kx*t*(t-1.)
-    vy=(y1-y0)*(1.-t)+(y3-y2)*(t)+Ky*t*(t-1.)
-    nx0=np.cumsum(vx)+x0
-    ny0=np.cumsum(vy)+y0
-    t=t+1/1000
-    vx=(x1-x0)*(1.-t)+(x3-x2)*(t)+Kx*t*(t-1.)
-    vy=(y1-y0)*(1.-t)+(y3-y2)*(t)+Ky*t*(t-1.)
-    nx1=np.cumsum(vx)+x0
-    ny1=np.cumsum(vy)+y0
-    return (nx1-nx0)*1000/int(abs(n)),(ny1-ny0)*1000/int(abs(n))#unfortunately this still needs to be scaled (divided) by sampletime
-
-def dbezierpath(params,indep):
-    Kx,Ky=params
-    if len(indep)==8:
-        x0,y0,x1,y1,x2,y2,x3,y3=indep
-        n=6+2+2*np.sqrt((x1-x2)**2+(y1-y2)**2)/(np.sqrt((x1-x0)**2+(y1-y0)**2)+np.sqrt((x3-x2)**2+(y3-y2)**2))
-    else:
-        x0,y0,x1,y1,x2,y2,x3,y3,n=indep
-        
-    t=np.linspace(0,1,int(abs(n)))
-    vx=(x1-x0)*(1.-t)+(x3-x2)*(t)+Kx*t*(t-1.)
-    vy=(y1-y0)*(1.-t)+(y3-y2)*(t)+Ky*t*(t-1.)
-    return vx,vy
-
 def bezierpathcost(params,indep):
     x0,y0,x1,y1,x2,y2,x3,y3=indep[:8]
     nx,ny=bezierpath(params,indep)
@@ -284,7 +251,7 @@ def SplitArray(x,y,doplot=False):
 #scanspeed,slewspeed is in degrees/second
 #sampletime is in seconds per sample
 #trackinterval: in number of scans: returns to track for tracktime after this many scans, track for tracktime include scan in front and end of pattern regardless
-def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=1,scanspeed=0.15,slewspeed=-1,twistfactor=1.,trackinterval=1,slowextent=0,slowfactor=2,kind='spiral',calculate_derivative=False):
+def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=1,scanspeed=0.15,slewspeed=-1,twistfactor=1.,trackinterval=1,slowextent=0,slowfactor=2,kind='spiral'):
     if slewspeed<0.:#then factor of scanspeed
         slewspeed*=-scanspeed
     radextent=totextent/2.
@@ -293,9 +260,6 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         twistfactor=0.
     if kind=='spiral':
         ntime=int(tottime)
-        if calculate_derivative:#calculate at it; take finite difference of 100th of step;remember dt is in degrees
-            darmx=np.zeros(ntime)
-            darmy=np.zeros(ntime)
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
@@ -328,15 +292,6 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             lastr=fitter.params[0]
             armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactore)
             army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactore)
-            if calculate_derivative:#calculate at it; take finite difference of 100th of step;remember dt is in degrees
-                data=np.array([dt[it]/100])
-                indep=np.array([armx[it],army[it],twistfactore])#last calculated coordinate in arm, is x0,y0
-                initialparams=np.array([lastr+dt[it]/100])#now the updated lastr is at it
-                fitter=NonLinearLeastSquaresFit(spiral,initialparams)
-                fitter.fit(indep,data)
-                newr=fitter.params[0]
-                darmx[it]=(newr*np.cos(2.0*np.pi*newr*twistfactore)-armx[it])*100/sampletime
-                darmy[it]=(newr*np.sin(2.0*np.pi*newr*twistfactore)-army[it])*100/sampletime
 
             if lastr>=radextent:
                 break
@@ -366,30 +321,6 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         params=fitter.params
         nx,ny=bezierpath(params,indep)
         slewx,slewy=nx[1:-2],ny[1:-2]
-        if calculate_derivative:
-            doutarmx=darmx[:it]*np.cos(outtheta)+darmy[:it]*np.sin(outtheta)
-            doutarmy=darmy[:it]*np.cos(outtheta)-darmx[:it]*np.sin(outtheta)
-            dinarmx=-(doutarmx[::-1]*np.cos(intheta)+doutarmy[::-1]*np.sin(intheta))
-            dinarmy=-(doutarmy[::-1]*np.cos(intheta)-doutarmx[::-1]*np.sin(intheta))
-            dnx,dny=dbezierpath(params,indep)#must still be converted from units of degrees/sample to degrees/seconds
-            dslewx,dslewy=dnx[1:-2]/sampletime,dny[1:-2]/sampletime
-            dcompositex=[]
-            dcompositey=[]
-            dcompositeslew=[]
-            dflatx=[]
-            dflaty=[]
-            dflatslew=[]
-            for arm in range(narms):
-                theta=2.*np.pi*arm/narms
-                dtmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),doutarmx,dslewx,dinarmx,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-                dtmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),doutarmy,dslewy,dinarmy,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-                dtmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.zeros(len(doutarmy)),np.ones(len(dslewy)),np.zeros(len(dinarmy)),np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-                dcompositex.append(dtmpx*np.cos(theta)+dtmpy*np.sin(theta))
-                dcompositey.append(dtmpy*np.cos(theta)-dtmpx*np.sin(theta))
-                dcompositeslew.append(dtmpslew)
-                dflatx.extend(dtmpx*np.cos(theta)+dtmpy*np.sin(theta))
-                dflaty.extend(dtmpy*np.cos(theta)-dtmpx*np.sin(theta))
-                dflatslew.extend(dtmpslew)
 
         compositex=[]
         compositey=[]
@@ -704,8 +635,6 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flaty.extend(tmpy)
             flatslew.extend(tmpslew)
 
-    if calculate_derivative:
-        return compositex,compositey,compositeslew,dcompositex,dcompositey,dcompositeslew    
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
 #high_elevation_slowdown_factor: normal speed up to 60degrees elevation slowed down linearly by said factor at 90 degrees elevation
