@@ -145,7 +145,7 @@ def dbezierpath(params,indep):
     vy=(y1-y0)*(1.-t)+(y3-y2)*(t)+Ky*t*(t-1.)
     nx1=np.cumsum(vx)+x0
     ny1=np.cumsum(vy)+y0
-    return (nx1-nx)*1000,(ny1-ny)*1000#unfortunately this still needs to be scaled (divided) by total time of n in seconds
+    return (nx1-nx0)*1000,(ny1-ny0)*1000#unfortunately this still needs to be scaled (divided) by total time of n in seconds
 
 def bezierpathcost(params,indep):
     x0,y0,x1,y1,x2,y2,x3,y3=indep[:8]
