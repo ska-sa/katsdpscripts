@@ -21,8 +21,7 @@ except:
     DVS = False
 
 import numpy as np
-import scipy
-from scikits.fitting import NonLinearLeastSquaresFit, PiecewisePolynomial1DFit
+from scikits.fitting import NonLinearLeastSquaresFit
 try:
     import matplotlib.pyplot as plt
 except:
@@ -102,6 +101,75 @@ def spiral(params,indep):
     x=r*np.cos(2.0*np.pi*r*twistfactor)
     y=r*np.sin(2.0*np.pi*r*twistfactor)
     return np.sqrt((x-x0)**2+(y-y0)**2)
+
+class BezierCurve(object):
+    """Class managing bezier interpolation from katholog.beziercurve.py
+    """
+    def __init__(self,t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1):
+        self.from_endpoints(t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1)
+
+    #specify
+    #x0,y0,dxdt0,dydt0 at t0=t[0]
+    #x1,y1,dxdt1,dydt1 at t1=t[-1]
+    def from_endpoints(self,t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1):
+        # posx=ax+bx*t+cx*t^2+dx*t^3
+        # velx=bx+2*cx*t+3*dx*t^2
+        # accx=2*cx+6*dx*t
+
+        self.endpoints=[t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1]
+        dx=((t1-t0)*(dxdt0+dxdt1)-2*x1+2*x0)/((t1-t0)*(3*t0**2+3*t1**2)-2*t1**3+2*t0**3)
+        dy=((t1-t0)*(dydt0+dydt1)-2*y1+2*y0)/((t1-t0)*(3*t0**2+3*t1**2)-2*t1**3+2*t0**3)
+        cx=(x1-x0-dxdt0*(t1-t0)+dx*(3*t0**2*(t1-t0)-t1**3+t0**3))/(t1-t0)**2
+        cy=(y1-y0-dydt0*(t1-t0)+dy*(3*t0**2*(t1-t0)-t1**3+t0**3))/(t1-t0)**2
+        bx=(x1-x0-cx*(t1**2-t0**2)-dx*(t1**3-t0**3))/(t1-t0)
+        by=(y1-y0-cy*(t1**2-t0**2)-dy*(t1**3-t0**3))/(t1-t0)
+        ax=x0-bx*t0-cx*t0**2-dx*t0**3
+        ay=y0-by*t0-cy*t0**2-dy*t0**3
+        self.coeffs=[ax,bx,cx,dx,ay,by,cy,dy]
+
+    #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
+    def eval(self,t=None,n=None):
+        if t is None and n is not None:
+            t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
+        #position
+        nx=ax+bx*t+cx*t**2+dx*t**3
+        ny=ay+by*t+cy*t**2+dy*t**3
+        return nx,ny
+
+    #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
+    def eval_vel(self,t=None,n=None):
+        if t is None and n is not None:
+            t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
+        #velocity
+        nvx=bx+2*cx*t+3*dx*t**2
+        nvy=by+2*cy*t+3*dy*t**2
+        return nvx,nvy
+
+    #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
+    def eval_acc(self,t=None,n=None):
+        if t is None and n is not None:
+            t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
+        #accelleration
+        nax=2*cx+6*dx*t
+        nay=2*cy+6*dy*t
+        return nax,nay
+
+    def plot(self,t=None,n=None):
+        t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
+        if n is not None:
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        elif t is None:
+            t=np.linspace(t0,t1,1000)
+        nx,ny=self.eval(t)
+        plt.plot(nx,ny,'.')
+        plt.plot([x0,x0+dxdt0*1],[y0,y0+dydt0*1])
+        plt.plot([x1-dxdt1*1,x1],[y1-dydt1*1,y1])
 
 #velocity vector changes smoothly from vstart to vend from start to end in length and orientation as fn of time
 #can add extra acceleration with zero extra velocity at start and end
@@ -251,7 +319,7 @@ def SplitArray(x,y,doplot=False):
 #scanspeed,slewspeed is in degrees/second
 #sampletime is in seconds per sample
 #trackinterval: in number of scans: returns to track for tracktime after this many scans, track for tracktime include scan in front and end of pattern regardless
-def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=1,scanspeed=0.15,slewspeed=-1,twistfactor=1.,trackinterval=1,slowextent=0,slowfactor=2,kind='spiral'):
+def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=1,scanspeed=0.15,slewspeed=-1,twistfactor=1.,trackinterval=1,slowextent=0,slowfactor=2,kind='spiral',calculate_derivative=False):
     if slewspeed<0.:#then factor of scanspeed
         slewspeed*=-scanspeed
     radextent=totextent/2.
@@ -260,6 +328,10 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         twistfactor=0.
     if kind=='spiral':
         ntime=int(tottime)
+        if calculate_derivative:
+            darmx=np.zeros(ntime)
+            darmy=np.zeros(ntime)
+
         armx=np.zeros(ntime)
         army=np.zeros(ntime)
         #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
@@ -290,8 +362,16 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             fitter=NonLinearLeastSquaresFit(spiral,initialparams)
             fitter.fit(indep,data)
             lastr=fitter.params[0]
-            armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactore)
+            armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactore)#lastr*cos(2.0*pi*lastr*twistfactore)
             army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactore)
+            if calculate_derivative:
+                xcomp=-2.0*np.pi*lastr*twistfactore*np.sin(2.0*np.pi*lastr*twistfactore)+np.cos(2.0*np.pi*lastr*twistfactore)
+                ycomp=2.0*np.pi*lastr*twistfactore*np.cos(2.0*np.pi*lastr*twistfactore)+np.sin(2.0*np.pi*lastr*twistfactore)
+                rcomp=np.sqrt(xcomp**2+ycomp**2)
+                darmx[it]=xcomp/rcomp*0.5*(dt[it-1]+dt[it])/sampletime#use direction but replace speed itself with what it is supposed to be
+                darmy[it]=ycomp/rcomp*0.5*(dt[it-1]+dt[it])/sampletime
+                # darmx[it]=xcomp/rcomp*(dt[it-1])/sampletime#use direction but replace speed itself with what it is supposed to be
+                # darmy[it]=ycomp/rcomp*(dt[it-1])/sampletime
 
             if lastr>=radextent:
                 break
@@ -302,6 +382,9 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         outtheta=np.pi+np.arctan2(army[it-1],armx[it-1])
         outarmx=armx[:it]*np.cos(outtheta)+army[:it]*np.sin(outtheta)
         outarmy=army[:it]*np.cos(outtheta)-armx[:it]*np.sin(outtheta)
+        if calculate_derivative:
+            doutarmx=darmx[:it]*np.cos(outtheta)+darmy[:it]*np.sin(outtheta)
+            doutarmy=darmy[:it]*np.cos(outtheta)-darmx[:it]*np.sin(outtheta)
 
         minscantime=len(outarmx)*sampletime*2#'interruptable' per scanpair, not per scan
         #maxnarms=int((tottime)/(minscantime))#if no time spent on slews nor tracktime
@@ -314,6 +397,9 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         intheta=np.pi/narms
         inarmx=outarmx[::-1]*np.cos(intheta)+outarmy[::-1]*np.sin(intheta)
         inarmy=outarmy[::-1]*np.cos(intheta)-outarmx[::-1]*np.sin(intheta)
+        if calculate_derivative:
+            dinarmx=-(doutarmx[::-1]*np.cos(intheta)+doutarmy[::-1]*np.sin(intheta))
+            dinarmy=-(doutarmy[::-1]*np.cos(intheta)-doutarmx[::-1]*np.sin(intheta))
         
         indep=[outarmx[-2],outarmy[-2],outarmx[-1],outarmy[-1],inarmx[0],inarmy[0],inarmx[1],inarmy[1],nslew+3]
         fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
@@ -321,7 +407,25 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         params=fitter.params
         nx,ny=bezierpath(params,indep)
         slewx,slewy=nx[1:-2],ny[1:-2]
+        if calculate_derivative==2:
+            bz=BezierCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0])
+            slewx,slewy=bz.eval(n=nslew)
+            dslewx,dslewy=bz.eval_vel(n=nslew)
+        else:
+            dslewx,dslewy=slewx*0,slewy*0
 
+        if calculate_derivative:
+            dcompositex=[]
+            dcompositey=[]
+            dcompositeslew=[]
+            for arm in range(narms):
+                theta=2.*np.pi*arm/narms
+                tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),doutarmx,dslewx,dinarmx,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),doutarmy,dslewy,dinarmy,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.zeros(len(outarmy)),np.ones(len(slewy)),np.zeros(len(inarmy)),np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                dcompositex.append(tmpx*np.cos(theta)+tmpy*np.sin(theta))
+                dcompositey.append(tmpy*np.cos(theta)-tmpx*np.sin(theta))
+                dcompositeslew.append(tmpslew)
         compositex=[]
         compositey=[]
         compositeslew=[]
@@ -635,6 +739,8 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flaty.extend(tmpy)
             flatslew.extend(tmpslew)
 
+    if calculate_derivative:
+        return compositex,compositey,compositeslew,dcompositex,dcompositey,dcompositeslew
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
 #high_elevation_slowdown_factor: normal speed up to 60degrees elevation slowed down linearly by said factor at 90 degrees elevation
