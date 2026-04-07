@@ -327,7 +327,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         kind='spiral'
         twistfactor=0.
     if kind=='spiral':
-        ntime=int(tottime)
+        ntime=int(tottime/sampletime)
         if calculate_derivative:
             darmx=np.zeros(ntime)
             darmy=np.zeros(ntime)
