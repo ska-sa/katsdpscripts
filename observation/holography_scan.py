@@ -160,6 +160,16 @@ class BezierCurve(object):
         nay=2*cy+6*dy*t
         return nax,nay
 
+    def eval_jerk(self,t=None,n=None):
+        if t is None and n is not None:
+            t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
+        #jerk - derivative of accelleration
+        nax=6*dx
+        nay=6*dy
+        return nax,nay
+    
     def plot(self,t=None,n=None):
         t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
         if n is not None:
