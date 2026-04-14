@@ -166,8 +166,8 @@ class BezierCurve(object):
             t=np.linspace(t0,t1,n+2)[1:-1]
         ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
         #jerk - derivative of accelleration
-        nax=6*dx
-        nay=6*dy
+        nax=6*dx+0*t
+        nay=6*dy+0*t
         return nax,nay
     
     def plot(self,t=None,n=None):
