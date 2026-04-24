@@ -5,7 +5,7 @@
 # email: mattieu@ska.ac.za
 
 import time
-
+import scipy.optimize as opt
 import katpoint
 try:
     from katcorelib import (standard_script_options, verify_and_connect,collect_targets, start_session, user_logger, ant_array)
@@ -102,6 +102,31 @@ def spiral(params,indep):
     y=r*np.sin(2.0*np.pi*r*twistfactor)
     return np.sqrt((x-x0)**2+(y-y0)**2)
 
+#interpolates acceleration from time, position, velocities at sample points only using bezier curve
+#only use this estimate where not slewwing, and not over slew/no slew boundaries
+def make_acc(t,x,y,dx,dy):
+    ax=np.zeros(len(x),dtype=x.dtype)
+    ay=np.zeros(len(x),dtype=x.dtype)
+    for i in range(len(t)-1):
+        bc=BezierCurve(t[i],t[i+1],x[i],x[i+1],dx[i],dx[i+1],y[i],y[i+1],dy[i],dy[i+1])
+        tax,tay=bc.eval_acc(t=np.array([t[i],t[i+1]]))
+        if i==0:
+            ax[i]=tax[0]
+            ay[i]=tay[0]
+            ax[i+1]+=tax[1]*0.5
+            ay[i+1]+=tay[1]*0.5
+        elif i==len(t)-2:
+            ax[i]+=tax[0]*0.5
+            ay[i]+=tay[0]*0.5
+            ax[i+1]=tax[1]
+            ay[i+1]=tay[1]
+        else:
+            ax[i]+=tax[0]*0.5
+            ay[i]+=tay[0]*0.5
+            ax[i+1]+=tax[1]*0.5
+            ay[i+1]+=tay[1]*0.5
+    return ax,ay
+
 class BezierCurve(object):
     """Class managing bezier interpolation from katholog.beziercurve.py
     """
@@ -169,7 +194,7 @@ class BezierCurve(object):
         njx=6*dx+0*t
         njy=6*dy+0*t
         return njx,njy
-    
+
     def plot(self,t=None,n=None):
         t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1=self.endpoints
         if n is not None:
@@ -180,6 +205,459 @@ class BezierCurve(object):
         plt.plot(nx,ny,'.')
         plt.plot([x0,x0+dxdt0*1],[y0,y0+dydt0*1])
         plt.plot([x1-dxdt1*1,x1],[y1-dydt1*1,y1])
+
+# bz=BezierCurve(t0=0,t1=10,x0=-10,x1=10,dxdt0=20,dxdt1=-10,y0=-10,y1=-30,dydt0=0,dydt1=10)
+# bz.plot()
+
+#relates time to linear (curved) distance travelled
+#typically determines how to get from rest to scanspeed
+#determines required distance before scanspeed is reached
+class TimeCurve(object):
+    #constructs a linear time profile based on provided scanspeeds and linear distances
+    #given linear distances of endpoints and speeds in regions, determine knot locations and time required
+    def __init__(self,x=[1,5],dx=[0.1/3,0.1],slowtime=2):
+        lastx=0
+        lastdx=0
+        self.x=x
+        self.dx=dx
+        self.slowtime=slowtime
+        self.time=[]
+        self.slowt=[]
+        self.slowdx=[]
+        for i in range(len(x)):
+            self.slowt.append(slowtime)
+            self.slowdx.append(self.get_x1(t1=slowtime,dxdt0=lastdx,dxdt1=dx[i]))
+            lastdx=dx[i]
+            self.time.append(self.slowt[i]+(x[i]-lastx-self.slowdx[i])/dx[i])#slowtime part is fixed and time to next boundary must have the slow part subtracted
+            lastx=x[i]
+        self.totslowt=np.sum(self.slowt)
+        self.totslowdx=np.sum(self.slowdx)
+        self.tottime=np.sum(self.time)
+        return
+
+    def eval(self,t=None):
+        if t is None:
+            t=np.linspace(0,self.tottime,1000)
+        x=np.zeros(t.shape,dtype=float)
+        t0=0
+        x0=0
+        dxdt0=0
+        for i in range(len(self.x)):
+            t1=t0+self.slowt[i]
+            x1=x0+self.slowdx[i]
+            dxdt1=self.dx[i]
+            valid=np.nonzero(np.logical_and(t>=t0,t<=t1))[0]
+            jc=JerkCurve(t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0=0,dxdtdt1=0,y0=0,y1=0,dydt0=0,dydt1=0,dydtdt0=0,dydtdt1=0)
+            x[valid],dud=jc.eval(t[valid])
+            valid=np.nonzero(np.logical_and(t>t1,t<=self.time[i]+t0))[0]
+            x[valid]=(t[valid]-t1)*self.dx[i]+x1
+            t0=self.time[i]
+            x0=self.x[i]
+            dxdt0=self.dx[i]
+        return x
+
+    def eval_vel(self,t=None):
+        if t is None:
+            t=np.linspace(0,self.tottime,1000)
+        dx=np.zeros(t.shape,dtype=float)
+        t0=0
+        x0=0
+        dxdt0=0
+        for i in range(len(self.x)):
+            t1=t0+self.slowt[i]
+            x1=x0+self.slowdx[i]
+            dxdt1=self.dx[i]
+            valid=np.nonzero(np.logical_and(t>=t0,t<=t1))[0]
+            jc=JerkCurve(t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0=0,dxdtdt1=0,y0=0,y1=0,dydt0=0,dydt1=0,dydtdt0=0,dydtdt1=0)
+            dx[valid],dud=jc.eval_vel(t[valid])
+            valid=np.nonzero(np.logical_and(t>t1,t<=self.time[i]+t0))[0]
+            dx[valid]=self.dx[i]
+            t0=self.time[i]
+            x0=self.x[i]
+            dxdt0=self.dx[i]
+        return dx
+
+    def eval_acc(self,t=None):
+        if t is None:
+            t=np.linspace(0,self.tottime,1000)
+        ax=np.zeros(t.shape,dtype=float)
+        t0=0
+        x0=0
+        dxdt0=0
+        for i in range(len(self.x)):
+            t1=t0+self.slowt[i]
+            x1=x0+self.slowdx[i]
+            dxdt1=self.dx[i]
+            valid=np.nonzero(np.logical_and(t>=t0,t<=t1))[0]
+            jc=JerkCurve(t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0=0,dxdtdt1=0,y0=0,y1=0,dydt0=0,dydt1=0,dydtdt0=0,dydtdt1=0)
+            ax[valid],dud=jc.eval_acc(t[valid])
+            valid=np.nonzero(np.logical_and(t>t1,t<=self.time[i]+t0))[0]
+            ax[valid]=0
+            t0=self.time[i]
+            x0=self.x[i]
+            dxdt0=self.dx[i]
+
+        return ax
+
+    def eval_jerk(self,t=None):
+        if t is None:
+            t=np.linspace(0,self.tottime,1000)
+        jx=np.zeros(t.shape,dtype=float)
+        t0=0
+        x0=0
+        dxdt0=0
+        for i in range(len(self.x)):
+            t1=t0+self.slowt[i]
+            x1=x0+self.slowdx[i]
+            dxdt1=self.dx[i]
+            valid=np.nonzero(np.logical_and(t>=t0,t<=t1))[0]
+            jc=JerkCurve(t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0=0,dxdtdt1=0,y0=0,y1=0,dydt0=0,dydt1=0,dydtdt0=0,dydtdt1=0)
+            jx[valid],dud=jc.eval_jerk(t[valid])
+            valid=np.nonzero(np.logical_and(t>t1,t<=self.time[i]+t0))[0]
+            jx[valid]=0
+            t0=self.time[i]
+            x0=self.x[i]
+            dxdt0=self.dx[i]
+
+        return jx
+    
+    #given t0,t1,x0,dxdt0,dxdtdt0, determine x1, in order to achieve dxdt1,dxdtdt1 early or late acceleration
+    #typically use 'user supplied' t1 allocated speedup time 'slowtime'
+    def get_x1(self,t0=0,t1=None,x0=0,dxdt0=0,dxdtdt0=0,dxdt1=None,dxdtdt1=0):
+        x1=x0+(t1-t0)*(dxdt1+dxdt0)/2#assuming dxdt0=dxdtdt0=dxdtdt1=0, this causes maximum acceleration to occur halfway between x0 and x1
+        return x1
+        if False:#show testcase
+            t0,x0,dxdt0,dxdtdt0,dxdt1,dxdtdt1=0,0,0.1,0,0.05,0
+            t1=3
+            x1=x0+(t1-t0)*(dxdt1+dxdt0)/2#assuming dxdt0=dxdtdt0=dxdtdt1=0, this causes maximum acceleration to be halfway between x0 and x1
+
+            jc=JerkCurve(t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,0,0,0,0,0,0)
+            testtime=np.linspace(t0,t1,1000)
+            jx,dud=jc.eval(testtime)
+            jdx,dud=jc.eval_vel(testtime)
+            jax,dud=jc.eval_acc(testtime)
+            jjx,jjy=jc.eval_jerk(testtime)
+            subplot(4,1,1)
+            plot(testtime,jx)
+            subplot(4,1,2)
+            plot(testtime,jdx)
+            subplot(4,1,3)
+            plot(testtime,jax)
+            subplot(4,1,4)
+            plot(testtime,jjx)
+
+
+class JerkCurve(object):
+    """Class managing jerk interpolation from katholog.beziercurve.py
+    """
+    def __init__(self,t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1):
+        self.from_endpoints(t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1)
+
+    #specify location, velocity and acceleration to interpolate inbetween
+    #x0,y0,dxdt0,dydt0,dxdtdt0,dydtdt0 at t0=t[0]
+    #x1,y1,dxdt1,dydt1,dxdtdt1,dydtdt1 at t1=t[-1]
+    def from_endpoints(self,t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1):
+        # posx=ax+bx*t+cx*t^2+dx*t^3+ex*t^4+fx*t^5
+        # velx=bx+2*cx*t+3*dx*t^2+4*ex*t^3+5*fx*t^4
+        # accx=2*cx+6*dx*t+12*ex*t^2+20*fx*t^3
+        # jerkx=6*dx+24*ex*t+60*fx*t^2
+
+        self.endpoints=[t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1]
+        #these equations simplify under the condition that time is normalised for this interpolation between 0 and 1
+        #the consequence is that the derivatives must be normalised by (t1-t0) too and then unnormalised afterwards...
+        dt=(t1-t0)
+        dt2=dt**2
+        dxdt0,dxdt1,dxdtdt0,dxdtdt1,dydt0,dydt1,dydtdt0,dydtdt1=dxdt0*dt,dxdt1*dt,dxdtdt0*dt2,dxdtdt1*dt2,dydt0*dt,dydt1*dt,dydtdt0*dt2,dydtdt1*dt2
+        ax=x0
+        bx=dxdt0
+        cx=dxdtdt0/2
+
+        dx=10*(x1-x0)+1/2*(dxdtdt1-3*dxdtdt0)-4*(dxdt1+3/2*dxdt0)
+        ex=dxdt1-dxdt0-3/2*dx-1/4*(dxdtdt1+3*dxdtdt0)
+        fx=1/20*(dxdtdt1-dxdtdt0-6*dx-12*ex)
+
+        ay=y0
+        by=dydt0
+        cy=dydtdt0/2
+        dy=10*(y1-y0)+1/2*(dydtdt1-3*dydtdt0)-4*(dydt1+3/2*dydt0)
+        ey=dydt1-dydt0-3/2*dy-1/4*(dydtdt1+3*dydtdt0)
+        fy=1/20*(dydtdt1-dydtdt0-6*dy-12*ey)
+
+        self.coeffs=[ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy]
+
+    #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
+    def eval(self,t=None,n=None):
+        t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1=self.endpoints
+        if t is None and n is not None:
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
+        #position
+        tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
+        nx=ax+bx*tnorm+cx*tnorm**2+dx*tnorm**3+ex*tnorm**4+fx*tnorm**5
+        ny=ay+by*tnorm+cy*tnorm**2+dy*tnorm**3+ey*tnorm**4+fy*tnorm**5
+        return nx,ny
+
+    #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
+    def eval_vel(self,t=None,n=None):
+        t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1=self.endpoints
+        if t is None and n is not None:
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
+        #velocity
+        tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
+        nvx=bx+2*cx*tnorm+3*dx*tnorm**2+4*ex*tnorm**3+5*fx*tnorm**4
+        nvy=by+2*cy*tnorm+3*dy*tnorm**2+4*ey*tnorm**3+5*fy*tnorm**4
+        dt=(t1-t0)
+        return nvx/dt,nvy/dt
+
+    #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
+    def eval_acc(self,t=None,n=None):
+        t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1=self.endpoints
+        if t is None and n is not None:
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
+        #accelleration
+        tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
+        nax=2*cx+6*dx*tnorm+12*ex*tnorm**2+20*fx*tnorm**3
+        nay=2*cy+6*dy*tnorm+12*ey*tnorm**2+20*fy*tnorm**3
+        dt=(t1-t0)
+        return nax/dt**2,nay/dt**2
+
+    def eval_jerk(self,t=None,n=None):
+        t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1=self.endpoints
+        if t is None and n is not None:
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
+        #jerk - derivative of accelleration
+        tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
+        njx=6*dx+24*ex*tnorm+60*fx*tnorm**2
+        njy=6*dy+24*ey*tnorm+60*fy*tnorm**2
+        dt=(t1-t0)
+        return njx/dt**3,njy/dt**3
+
+    def plot(self,t=None,n=None):
+        t0,t1,x0,x1,dxdt0,dxdt1,dxdtdt0,dxdtdt1,y0,y1,dydt0,dydt1,dydtdt0,dydtdt1=self.endpoints
+        if n is not None:
+            t=np.linspace(t0,t1,n+2)[1:-1]
+        elif t is None:
+            t=np.linspace(t0,t1,1000)
+        nx,ny=self.eval(t)
+        plt.plot(nx,ny,'.')
+        plt.plot([x0,x0+dxdt0*1],[y0,y0+dydt0*1])
+        plt.plot([x1-dxdt1*1,x1],[y1-dydt1*1,y1])
+
+#archimedean spiral
+#x=r*cos(theta)=(a+b*theta)*cos(theta)
+#y=r*sin(theta)=(a+b*theta)*sin(theta)
+#for a=0, totalarclength=b/2*(theta*sqrt(1+theta**2)+log(theta+sqrt(1+theta**2)))
+#the issue is that spiral is defined in terms of theta, but we want to use it in terms of time in seconds, and travel equal distances in equal time
+class Spiral(object):
+    def __init__(self,radial_extent=5,slowtime=6,scanspeed=0.33,sampletime=0.25,twistfactor=1,radial_slowextent=1,slowfactor=3.3):
+        self.radial_extent=radial_extent
+        self.scanspeed=scanspeed
+        self.slowtime=slowtime
+        self.sampletime=sampletime
+        self.twistfactor=twistfactor#with twistfactore=twistfactor/extent
+        self.a=0#starting radius, origin=0
+        self.b=radial_extent/(np.pi*twistfactor)#spacing between turns
+        #theta=lastr/self.b#in radians; where lastr is in degrees in l,m plane
+        if radial_slowextent:
+            self.timecurve=TimeCurve(x=[self.arclength(radial_slowextent),self.arclength(radial_extent)],dx=[scanspeed/slowfactor,scanspeed],slowtime=slowtime)
+        else:
+            self.timecurve=TimeCurve(x=[self.arclength(radial_extent)],dx=[scanspeed],slowtime=slowtime)
+        self.t=np.arange(0,self.timecurve.tottime,self.sampletime)
+        self.thearclength=self.timecurve.eval(self.t)
+        self.thescanspeed=self.timecurve.eval_vel(self.t)
+        self.theradius_deg=self.radius_deg_from_arclength(self.thearclength)
+        self.x,self.y=self.eval(self.theradius_deg)
+        self.dx,self.dy=self.eval_vel(self.theradius_deg,self.thescanspeed)
+        self.ax,self.ay=self.eval_acc(self.theradius_deg,self.thescanspeed,self.t)
+        self.jx,self.jy=self.eval_jerk(self.theradius_deg,self.thescanspeed,self.t)
+        self.endx,self.endy=self.eval(self.radial_extent)#end points of spiral probably does not coincide on a sample
+        self.endtime=self.timecurve.tottime#note that this is slightly more than last quantised time t
+
+    def interpspiral(self,arctime,ninterp=10):
+        arclength=self.timecurve.eval(arctime)
+        thescanspeed=self.timecurve.eval_vel(arctime)
+        radius_deg=self.radius_deg_from_arclength(arclength)
+        # radius_deg=self.radius_deg_from_arctime(arctime)
+        x,y=self.eval(radius_deg)
+        dx,dy=self.eval_vel(radius_deg,thescanspeed)
+        ax,ay=self.eval_acc(radius_deg,thescanspeed,arctime)
+        jx,jy=self.eval_jerk(radius_deg,thescanspeed,arctime)
+        ix=np.zeros((len(x)-1)*(ninterp)+1)
+        iy=np.zeros((len(x)-1)*(ninterp)+1)
+        idx=np.zeros((len(x)-1)*(ninterp)+1)
+        idy=np.zeros((len(x)-1)*(ninterp)+1)
+        iax=np.zeros((len(x)-1)*(ninterp)+1)
+        iay=np.zeros((len(x)-1)*(ninterp)+1)
+        ijx=np.zeros((len(x)-1)*(ninterp)+1)
+        ijy=np.zeros((len(x)-1)*(ninterp)+1)
+        it=np.zeros((len(x)-1)*(ninterp)+1)
+        for i in range(len(radius_deg)-1):
+            # jc=BezierCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],y[i],y[i+1],dy[i],dy[i+1])
+            # jc=JerkCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],0,0,y[i],y[i+1],dy[i],dy[i+1],0,0)
+            jc=JerkCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],ax[i],ax[i+1],y[i],y[i+1],dy[i],dy[i+1],ay[i],ay[i+1])
+            # jc=JerkCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],ax[i]*2,ax[i+1]*2,y[i],y[i+1],dy[i],dy[i+1],ay[i]*2,ay[i+1]*2)
+            # jc=JerkCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],ax[i]/4,ax[i+1]/4,y[i],y[i+1],dy[i],dy[i+1],ay[i]/4,ay[i+1]/4)
+            # jc=JerkCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],-ax[i]/4,-ax[i+1]/4,y[i],y[i+1],dy[i],dy[i+1],-ay[i]/4,-ay[i+1]/4)
+            tit=np.linspace(arctime[i],arctime[i+1],ninterp,endpoint=False)
+            tix,tiy=jc.eval(tit)
+            tidx,tidy=jc.eval_vel(tit)
+            tiax,tiay=jc.eval_acc(tit)
+            tijx,tijy=jc.eval_jerk(tit)
+            ix[i*(ninterp):(i+1)*(ninterp)]=tix
+            iy[i*(ninterp):(i+1)*(ninterp)]=tiy
+            idx[i*(ninterp):(i+1)*(ninterp)]=tidx
+            idy[i*(ninterp):(i+1)*(ninterp)]=tidy
+            iax[i*(ninterp):(i+1)*(ninterp)]=tiax
+            iay[i*(ninterp):(i+1)*(ninterp)]=tiay
+            ijx[i*(ninterp):(i+1)*(ninterp)]=tijx
+            ijy[i*(ninterp):(i+1)*(ninterp)]=tijy
+            it[i*(ninterp):(i+1)*(ninterp)]=tit
+        ix[-1]=x[-1]
+        iy[-1]=y[-1]
+        idx[-1]=dx[-1]
+        idy[-1]=dy[-1]
+        iax[-1]=ax[-1]
+        iay[-1]=ay[-1]
+        ijx[-1]=jx[-1]
+        ijy[-1]=jy[-1]
+        it[-1]=arctime[-1]
+        return ix,iy,idx,idy,iax,iay,ijx,ijy,it
+
+    #use JerkCurve to interpolate slowtime period
+    def evalslowtime(self,arctime,extratime=0):
+        islowtime=np.argmin(np.abs((arctime-arctime[0])-self.slowtime))
+        iextratime=np.argmin(np.abs((arctime-arctime[0])-self.slowtime-extratime))
+        if arctime[islowtime]-arctime[0]<self.slowtime:
+            islowtime+=1
+        if arctime[iextratime]-arctime[0]<self.slowtime+extratime:
+            iextratime+=1
+        radius_deg=self.radius_deg_from_arctime(arctime)
+        x,y=self.eval(radius_deg)
+        dx,dy=self.eval_vel(radius_deg)
+        ax,ay=self.eval_acc(radius_deg)
+        jc=JerkCurve(arctime[0],arctime[iextratime],0,x[islowtime],0,dx[islowtime],0,ax[islowtime],0,y[islowtime],0,dy[islowtime],0,ay[islowtime])
+        # jc=JerkCurve(arctime[0],arctime[iextratime],0,x[islowtime],0,dx[islowtime],0,ax[islowtime]/4,0,y[islowtime],0,dy[islowtime],0,ay[islowtime]/4)
+        # jc=JerkCurve(arctime[0],arctime[iextratime],0,x[islowtime],0,dx[islowtime],0,0,0,y[islowtime],0,dy[islowtime],0,0)
+        slowx,slowy=jc.eval(t=arctime[:iextratime])
+        return slowx,slowy
+
+    def eval(self,radius_deg):
+        theta=radius_deg/self.b#in radians; where lastr is in degrees in l,m plane
+        x=(self.a+self.b*theta)*np.cos(theta)
+        y=(self.a+self.b*theta)*np.sin(theta)
+        return x,y#in l,m degrees
+
+    def eval_vel(self,radius_deg,scanspeed=None):#assuning a=0
+        theta=radius_deg/self.b#in radians; where lastr is in degrees in l,m plane
+        unitdx=(np.cos(theta)-theta*np.sin(theta))/np.sqrt(1+theta**2)#normalized unit vector component in cartesian plane, assuming a=0, at scanspeed=1 deg/s
+        unitdy=(np.sin(theta)+theta*np.cos(theta))/np.sqrt(1+theta**2)#normalized unit vector component in cartesian plane, assuming a=0
+        if scanspeed is not None:
+            return unitdx*scanspeed,unitdy*scanspeed#in l,m degrees/s
+        return unitdx*self.scanspeed,unitdy*self.scanspeed#in l,m degrees/s
+
+    def eval_acc_seems_wrong(self,radius_deg):#assuning a=0
+        theta=radius_deg/self.b#in radians; where lastr is in degrees in l,m plane
+        # unitdx=(cos(theta)-theta*sin(theta))/sqrt(1+theta^2)
+        # unitdy=(sin(theta)+theta*cos(theta))/sqrt(1+theta^2)
+        unitd2x=(-(2+theta**2)*(np.sin(theta)+np.cos(theta)*theta))/np.sqrt(1+theta**2)**3
+        unitd2y=((2+theta**2)*(np.cos(theta)-np.sin(theta)*theta))/np.sqrt(1+theta**2)**3
+        return unitd2x*self.scanspeed**2,unitd2y*self.scanspeed**2#in l,m degrees/s^2
+    
+    #average using bezier curve acceleration at each side of knot
+    def eval_acc(self,radius_deg,scanspeed=None,arctime=None):
+        x,y=self.eval(radius_deg)
+        dx,dy=self.eval_vel(radius_deg,scanspeed)
+        ax=np.zeros(len(radius_deg),dtype=dx.dtype)
+        ay=np.zeros(len(radius_deg),dtype=dx.dtype)
+        if arctime is None:#only do this if linear time sampling
+            arctime=self.arctime(radius_deg)
+        for i in range(len(radius_deg)-1):
+            jc=BezierCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],y[i],y[i+1],dy[i],dy[i+1])
+            jax,jay=jc.eval_acc(np.r_[arctime[i],arctime[i+1]])
+            if i==0:
+                ax[i]=jax[0]
+                ay[i]=jay[0]
+                ax[i+1]+=0.5*jax[1]
+                ay[i+1]+=0.5*jay[1]
+            elif i==len(radius_deg)-2:
+                ax[i]+=0.5*jax[0]
+                ay[i]+=0.5*jay[0]
+                ax[i+1]=jax[1]
+                ay[i+1]=jay[1]
+            else:
+                ax[i]+=0.5*jax[0]
+                ay[i]+=0.5*jay[0]
+                ax[i+1]+=0.5*jax[1]
+                ay[i+1]+=0.5*jay[1]
+        return ax,ay
+
+    def eval_jerk(self,radius_deg,scanspeed=None,arctime=None):
+        x,y=self.eval(radius_deg)
+        dx,dy=self.eval_vel(radius_deg,scanspeed)
+        ax,ay=self.eval_acc(radius_deg,scanspeed,arctime)
+        jx=np.zeros(len(radius_deg),dtype=dx.dtype)
+        jy=np.zeros(len(radius_deg),dtype=dx.dtype)
+        if arctime is None:#only do this if linear time sampling
+            arctime=self.arctime(radius_deg)
+        for i in range(len(radius_deg)-1):
+            jc=JerkCurve(arctime[i],arctime[i+1],x[i],x[i+1],dx[i],dx[i+1],ax[i],ax[i+1],y[i],y[i+1],dy[i],dy[i+1],ay[i],ay[i+1])
+            jjx,jjy=jc.eval_jerk(np.r_[arctime[i],arctime[i+1]])
+            if i==0:
+                jx[i]=jjx[0]
+                jy[i]=jjy[0]
+                jx[i+1]+=0.5*jjx[1]
+                jy[i+1]+=0.5*jjy[1]
+            elif i==len(radius_deg)-2:
+                jx[i]+=0.5*jjx[0]
+                jy[i]+=0.5*jjy[0]
+                jx[i+1]=jjx[1]
+                jy[i+1]=jjy[1]
+            else:
+                jx[i]+=0.5*jjx[0]
+                jy[i]+=0.5*jjy[0]
+                jx[i+1]+=0.5*jjx[1]
+                jy[i+1]+=0.5*jjy[1]
+        return jx,jy
+    
+    def arclength(self,radius_deg):
+        #lastr=radius_deg
+        theta=radius_deg/self.b#in radians; where lastr is in degrees in l,m plane
+        totalarclength=self.b/2*(theta*np.sqrt(1+theta**2)+np.log(theta+np.sqrt(1+theta**2)))
+        return totalarclength#in l,m degrees
+
+    def darclength(self,radius_deg):
+        #lastr=radius_deg
+        theta=radius_deg/self.b#in radians; where lastr is in degrees in l,m plane
+        dtotalarclength=1/2*self.b*((2*theta**2+1)/np.sqrt(1+theta**2)+(theta+np.sqrt(1+theta**2))/(theta*np.sqrt(1+theta**2)+1+theta**2))
+        return dtotalarclength
+
+    #numerical inverse of arclength()
+    def radius_deg_from_arclength(self,arclength):
+        x0=np.linspace(0,self.radial_extent,len(arclength))
+        # radius_deg = opt.newton(lambda x: self.arclength(x) - arclength, x0=x0, fprime=self.darclength, tol=1e-14, maxiter=100)
+        radius_deg = opt.newton(lambda x: self.arclength(x) - arclength, x0=x0, tol=1e-14, maxiter=100)#seems more robust in some corner cases
+        return radius_deg
+
+    #radius_deg=sp.radius_deg_from_arctime(arctime)
+    def radius_deg_from_arctime(self,arctime):
+        arclength=arctime*self.scanspeed
+        radius_deg=self.radius_deg_from_arclength(arclength)
+        return radius_deg
+    
+    #we want to relate time linearly to pathlength
+    #arctime=arange(0,sp.arctime(sp.radial_extent),sp.sampletime)
+    #arctime in seconds
+    def arctime(self,radius_deg):
+        arclength=self.arclength(radius_deg)
+        arctime=arclength/self.scanspeed
+        return arctime
+
+    def plot(self,scale=None,width=None):
+        plt.quiver(self.x,self.y,self.dx,self.dy,scale=scale,width=width,pivot='mid')
+        axis('equal')
 
 #velocity vector changes smoothly from vstart to vend from start to end in length and orientation as fn of time
 #can add extra acceleration with zero extra velocity at start and end
@@ -337,66 +815,121 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         kind='spiral'
         twistfactor=0.
     if kind=='spiral':
-        ntime=int(tottime/sampletime)
-        if calculate_derivative:
+        if calculate_derivative is not False and calculate_derivative==4:
+            sp=Spiral(radial_extent=totextent/2,slowtime=slowtime,scanspeed=scanspeed,sampletime=sampletime,twistfactor=twistfactor,radial_slowextent=slowextent/2,slowfactor=slowfactor)
+            armx=sp.x
+            army=sp.y
+            darmx=sp.dx
+            darmy=sp.dy
+            ddarmx=sp.ax
+            ddarmy=sp.ay
+            dddarmx=sp.jx
+            dddarmy=sp.jy
+            outtheta=np.pi+np.arctan2(sp.endy,sp.endx)
+            minscantime=sp.endtime*2#use theoretical time for arc rather than quantised, for consistency when different sampletime
+        else:
+            ntime=int(tottime/sampletime)
+            armx=np.zeros(ntime)
+            army=np.zeros(ntime)
             darmx=np.zeros(ntime)
             darmy=np.zeros(ntime)
+            #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
+            #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
+            dt=np.repeat(scanspeed*sampletime,ntime)#note dt is the distance in degrees between samples
+            ddt=np.repeat(scanspeed*sampletime,ntime)#note dt is the distance in degrees between samples
+            if (slowtime>0.0):#testing smoother transition
+                if calculate_derivative==3:
+                    nsamplesslowtime=2+int(slowtime/sampletime)
+                    jc=JerkCurve(t0=0,t1=slowtime,x0=0,x1=scanspeed*sampletime,dxdt0=0,dxdt1=0,dxdtdt0=0,dxdtdt1=0,y0=0,y1=0,dydt0=0,dydt1=0,dydtdt0=0,dydtdt1=0)
+                    interptime=np.linspace(0.0,slowtime,nsamplesslowtime)
+                    interpdt,dud=jc.eval(t=interptime)
+                    interpddt,dud=jc.eval_vel(t=interptime)
+                    dt[:nsamplesslowtime]=interpdt
+                # elif calculate_derivative==2:
+                #     nsamplesslowtime=2+int(slowtime/sampletime)
+                #     jc=BezierCurve(t0=0,t1=slowtime,x0=0,x1=scanspeed*sampletime,dxdt0=0,dxdt1=0,y0=0,y1=0,dydt0=0,dydt1=0)
+                #     interptime=np.linspace(0.0,slowtime,nsamplesslowtime)
+                #     interpdt,dud=jc.eval(t=interptime)
+                #     dt[:nsamplesslowtime]=interpdt
+                else:#originally
+                    nsamplesslowtime=2+int(slowtime/sampletime)
+                    repl=np.linspace(0.0,scanspeed*sampletime,nsamplesslowtime)
+                    dt[:len(repl)-1]=repl[1:]
 
-        armx=np.zeros(ntime)
-        army=np.zeros(ntime)
-        #must be on curve x=t*cos(np.pi*t),y=t*sin(np.pi*t)
-        #intersect (x-x0)**2+(y-y0)**2=1/ntime**2 with spiral
-        dt=np.repeat(scanspeed*sampletime,ntime)#note dt is the distance in degrees between samples
-        if (slowtime>0.0):
-            nsamplesslowtime=2+int(slowtime/sampletime)
-            repl=np.linspace(0.0,scanspeed*sampletime,nsamplesslowtime)
-            dt[:len(repl)-1]=repl[1:]
-        if slowextent:#speeds up to scanspeed/slowfactor from center
-            dt=(1/slowfactor)*dt
-            fulldt=scanspeed*sampletime
-            
-        lastr=0.0
-        slowcount=0
-        twistfactore=np.float64(twistfactor)/(totextent)
-        for it in range(1,ntime):
-            if slowextent:#speeds up from quarter speed to full speed
-                if slowcount>=nsamplesslowtime:
-                    dt[it-1]=fulldt
-                elif lastr>slowextent/2:#speeds up to full speed from 1/slowfactor speed
-                    dt[it-1]+=dt[slowcount]*(slowfactor-1)#i.e. remainder portion
-                    slowcount+=1
+            if slowextent:#speeds up to scanspeed/slowfactor from center
+                dt=(1/slowfactor)*dt
+                fulldt=scanspeed*sampletime
+                
+            lastr=0.0
+            slowcount=0
+            twistfactore=np.float64(twistfactor)/(totextent)
+            for it in range(1,ntime):
+                if slowextent:#speeds up from quarter speed to full speed
+                    if slowcount>=nsamplesslowtime:
+                        dt[it-1]=fulldt
+                    elif lastr>slowextent/2:#speeds up to full speed from 1/slowfactor speed
+                        dt[it-1]+=dt[slowcount]*(slowfactor-1)#i.e. remainder portion
+                        slowcount+=1
 
-            data=np.array([dt[it-1]])
-            indep=np.array([armx[it-1],army[it-1],twistfactore])#last calculated coordinate in arm, is x0,y0
-            initialparams=np.array([lastr+dt[it-1]])
-            fitter=NonLinearLeastSquaresFit(spiral,initialparams)
-            fitter.fit(indep,data)
-            lastr=fitter.params[0]
-            armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactore)#lastr*cos(2.0*pi*lastr*twistfactore)
-            army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactore)
+                data=np.array([dt[it-1]])
+                indep=np.array([armx[it-1],army[it-1],twistfactore])#last calculated coordinate in arm, is x0,y0
+                initialparams=np.array([lastr+dt[it-1]])
+                fitter=NonLinearLeastSquaresFit(spiral,initialparams)
+                fitter.fit(indep,data)
+                lastr=fitter.params[0]
+                #note spiral is unfortunately parameterised by radius, not time
+                armx[it]=lastr*np.cos(2.0*np.pi*lastr*twistfactore)#lastr*cos(2.0*pi*lastr*twistfactore)
+                army[it]=lastr*np.sin(2.0*np.pi*lastr*twistfactore)
+                if calculate_derivative:#dx/dlastr,dy/dlastr,dr/dlastr
+                    dxcomp=-2.0*np.pi*lastr*twistfactore*np.sin(2.0*np.pi*lastr*twistfactore)+np.cos(2.0*np.pi*lastr*twistfactore)
+                    dycomp=2.0*np.pi*lastr*twistfactore*np.cos(2.0*np.pi*lastr*twistfactore)+np.sin(2.0*np.pi*lastr*twistfactore)
+                    drcomp=np.sqrt(dxcomp**2+dycomp**2)
+                    #note spiral's tangential scanspeed at lastr: drcomp=sqrt((2*np.pi*lastr*twistfactore)**2+1)#scanspeed
+                    #so dt=sqrt((2*np.pi*lastr*twistfactore)**2+1), and t=integral(dt)
+                    #dt=sqrt((2*pi*lastr*twistfactore)^2+1)
+
+                    #drcomp_dlastr=4*(np.pi**2*lastr*twistfactore**2)/sqrt(4*np.pi**2*lastr**2*twistfactore**2+1)
+                    #spiral_speed_ratio=drcomp/sampletime#what speed of spiral (true derivative) is compared to linear speed at this point
+                    darmx[it]=dxcomp/drcomp*0.5*(dt[it-1]+dt[it])/sampletime#use direction but replace speed itself with what it is supposed to be
+                    darmy[it]=dycomp/drcomp*0.5*(dt[it-1]+dt[it])/sampletime
+                    
+                    #experiment 
+                    # darmx[it]=dxcomp/drcomp*(dt[it-1]+1.2*dt[it])/(2.2)/sampletime#use direction but replace speed itself with what it is supposed to be
+                    # darmy[it]=dycomp/drcomp*(dt[it-1]+1.2*dt[it])/(2.2)/sampletime
+
+                    #calculate acceleration on spiral given spiral_speed_ratio
+                    # ddxcomp=-2*np.pi*twistfactore*2*(np.sin(2*np.pi*lastr*twistfactore)+lastr*np.cos(2*np.pi*lastr*twistfactore)*np.pi*twistfactore)
+                    # ddycomp=2*np.pi*twistfactore*2*(np.cos(2*np.pi*lastr*twistfactore)-lastr*np.sin(2*np.pi*lastr*twistfactore)*np.pi*twistfactore)
+                    #that is correct but this doesnt work (when applying conversion to linear speed):
+                    # ddrcomp=np.sqrt(ddxcomp**2+ddycomp**2)
+                    # ddarmx[it]=ddxcomp*(1/drcomp*0.5*(dt[it-1]+dt[it])/sampletime)**2#use direction but replace speed itself with what it is supposed to be
+                    # ddarmy[it]=ddycomp*(1/drcomp*0.5*(dt[it-1]+dt[it])/sampletime)**2
+
+                if lastr>=radextent:
+                    break
+                #points used for outward arm including start one at origin = it-1 (so armx[it] army[it] is first point out of bounds):
+                # outarmx=armx[:it]
+                # outarmy=army[:it]
+                #rotate such that first arm orientated at 9 O'clock position (and scans go clockwise)
+                if calculate_derivative:
+                    t=sampletime*np.arange(it)
+                    ddarmx,ddarmy=make_acc(sampletime*np.arange(it),armx[:it],army[:it],darmx[:it],darmy[:it])
             if calculate_derivative:
-                xcomp=-2.0*np.pi*lastr*twistfactore*np.sin(2.0*np.pi*lastr*twistfactore)+np.cos(2.0*np.pi*lastr*twistfactore)
-                ycomp=2.0*np.pi*lastr*twistfactore*np.cos(2.0*np.pi*lastr*twistfactore)+np.sin(2.0*np.pi*lastr*twistfactore)
-                rcomp=np.sqrt(xcomp**2+ycomp**2)
-                darmx[it]=xcomp/rcomp*0.5*(dt[it-1]+dt[it])/sampletime#use direction but replace speed itself with what it is supposed to be
-                darmy[it]=ycomp/rcomp*0.5*(dt[it-1]+dt[it])/sampletime
-                # darmx[it]=xcomp/rcomp*(dt[it-1])/sampletime#use direction but replace speed itself with what it is supposed to be
-                # darmy[it]=ycomp/rcomp*(dt[it-1])/sampletime
-
-            if lastr>=radextent:
-                break
-        #points used for outward arm including start one at origin = it-1 (so armx[it] army[it] is first point out of bounds):
-        # outarmx=armx[:it]
-        # outarmy=army[:it]
-        #rotate such that first arm orientated at 9 O'clock position (and scans go clockwise)
-        outtheta=np.pi+np.arctan2(army[it-1],armx[it-1])
-        outarmx=armx[:it]*np.cos(outtheta)+army[:it]*np.sin(outtheta)
-        outarmy=army[:it]*np.cos(outtheta)-armx[:it]*np.sin(outtheta)
+                armx,army,darmx,darmy,ddarmx,ddarmy,dddarmx,dddarmy=armx[:it],army[:it],darmx[:it],darmy[:it],ddarmx[:it],ddarmy[:it],ddarmx[:it]*0,ddarmy[:it]*0
+            else:
+                armx,army=armx[:it],army[:it]
+            outtheta=np.pi+np.arctan2(army[-1],armx[-1])
+            minscantime=len(armx)*sampletime*2#'interruptable' per scanpair, not per scan # note defficiency that this varies depending on sampling
+        outarmx=armx*np.cos(outtheta)+army*np.sin(outtheta)
+        outarmy=army*np.cos(outtheta)-armx*np.sin(outtheta)
         if calculate_derivative:
-            doutarmx=darmx[:it]*np.cos(outtheta)+darmy[:it]*np.sin(outtheta)
-            doutarmy=darmy[:it]*np.cos(outtheta)-darmx[:it]*np.sin(outtheta)
+            doutarmx=darmx*np.cos(outtheta)+darmy*np.sin(outtheta)
+            doutarmy=darmy*np.cos(outtheta)-darmx*np.sin(outtheta)
+            ddoutarmx=ddarmx*np.cos(outtheta)+ddarmy*np.sin(outtheta)
+            ddoutarmy=ddarmy*np.cos(outtheta)-ddarmx*np.sin(outtheta)
+            dddoutarmx=dddarmx*np.cos(outtheta)+dddarmy*np.sin(outtheta)
+            dddoutarmy=dddarmy*np.cos(outtheta)-dddarmx*np.sin(outtheta)
 
-        minscantime=len(outarmx)*sampletime*2#'interruptable' per scanpair, not per scan
         #maxnarms=int((tottime)/(minscantime))#if no time spent on slews nor tracktime
         #solve for maxnarms if no time spent on slews; tracktime every trackinterval arm including after last one
         #maxnarms=int((float(tottime)-float(tracktime)*(float(maxnarms)/float(trackinterval)+1.))/float(minscantime))
@@ -408,8 +941,12 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
         inarmx=outarmx[::-1]*np.cos(intheta)+outarmy[::-1]*np.sin(intheta)
         inarmy=outarmy[::-1]*np.cos(intheta)-outarmx[::-1]*np.sin(intheta)
         if calculate_derivative:
-            dinarmx=-(doutarmx[::-1]*np.cos(intheta)+doutarmy[::-1]*np.sin(intheta))
+            dinarmx=-(doutarmx[::-1]*np.cos(intheta)+doutarmy[::-1]*np.sin(intheta))#sign change
             dinarmy=-(doutarmy[::-1]*np.cos(intheta)-doutarmx[::-1]*np.sin(intheta))
+            ddinarmx=(ddoutarmx[::-1]*np.cos(intheta)+ddoutarmy[::-1]*np.sin(intheta))#no sign change
+            ddinarmy=(ddoutarmy[::-1]*np.cos(intheta)-ddoutarmx[::-1]*np.sin(intheta))
+            dddinarmx=-(dddoutarmx[::-1]*np.cos(intheta)+dddoutarmy[::-1]*np.sin(intheta))#sign change
+            dddinarmy=-(dddoutarmy[::-1]*np.cos(intheta)-dddoutarmx[::-1]*np.sin(intheta))
         
         indep=[outarmx[-2],outarmy[-2],outarmx[-1],outarmy[-1],inarmx[0],inarmy[0],inarmx[1],inarmy[1],nslew+3]
         fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
@@ -421,21 +958,57 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             bz=BezierCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0])
             slewx,slewy=bz.eval(n=nslew)
             dslewx,dslewy=bz.eval_vel(n=nslew)
+            ddslewx,ddslewy=bz.eval_acc(n=nslew)
+            dddslewx,dddslewy=bz.eval_jerk(n=nslew)
+        elif calculate_derivative==3:
+            # originally using assuming no curvature at end points of spiral arms
+            jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],dxdtdt0=0,dxdtdt1=0,y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0],dydtdt0=0,dydtdt1=0)
+            slewx,slewy=jc.eval(n=nslew)
+            dslewx,dslewy=jc.eval_vel(n=nslew)
+            ddslewx,ddslewy=jc.eval_acc(n=nslew)
+            dddslewx,dddslewy=jc.eval_jerk(n=nslew)
+        elif calculate_derivative==4:
+            # outbz=BezierCurve(t0=0,t1=sampletime,x0=outarmx[-2],x1=outarmx[-1],dxdt0=doutarmx[-2],dxdt1=doutarmx[-1],y0=outarmy[-2],y1=outarmy[-1],dydt0=doutarmy[-2],dydt1=doutarmy[-1])
+            # dxdtdt0,dydtdt0=outbz.eval_acc(t=np.array([1]))
+            # inbz=BezierCurve(t0=0,t1=sampletime,x0=inarmx[0],x1=inarmx[1],dxdt0=dinarmx[0],dxdt1=dinarmx[1],y0=inarmy[0],y1=inarmy[1],dydt0=dinarmy[0],dydt1=dinarmy[1])
+            # dxdtdt1,dydtdt1=inbz.eval_acc(t=np.array([0]))
+            # jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],dxdtdt0=dxdtdt0,dxdtdt1=dxdtdt1,y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0],dydtdt0=dydtdt0,dydtdt1=dydtdt1)
+
+            jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],dxdtdt0=ddinarmx[0],dxdtdt1=ddoutarmx[-1],y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0],dydtdt0=ddoutarmy[-1],dydtdt1=ddinarmy[0])
+            slewx,slewy=jc.eval(n=nslew)
+            dslewx,dslewy=jc.eval_vel(n=nslew)
+            ddslewx,ddslewy=jc.eval_acc(n=nslew)
+            dddslewx,dddslewy=jc.eval_jerk(n=nslew)
         else:
             dslewx,dslewy=slewx*0,slewy*0
+            ddslewx,ddslewy=slewx*0,slewy*0
+            dddslewx,dddslewy=slewx*0,slewy*0
 
         if calculate_derivative:
             dcompositex=[]
             dcompositey=[]
-            dcompositeslew=[]
             for arm in range(narms):
                 theta=2.*np.pi*arm/narms
                 tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),doutarmx,dslewx,dinarmx,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
                 tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),doutarmy,dslewy,dinarmy,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-                tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.zeros(len(outarmy)),np.ones(len(slewy)),np.zeros(len(inarmy)),np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
                 dcompositex.append(tmpx*np.cos(theta)+tmpy*np.sin(theta))
                 dcompositey.append(tmpy*np.cos(theta)-tmpx*np.sin(theta))
-                dcompositeslew.append(tmpslew)
+            ddcompositex=[]
+            ddcompositey=[]
+            for arm in range(narms):
+                theta=2.*np.pi*arm/narms
+                tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),ddoutarmx,ddslewx,ddinarmx,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),ddoutarmy,ddslewy,ddinarmy,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                ddcompositex.append(tmpx*np.cos(theta)+tmpy*np.sin(theta))
+                ddcompositey.append(tmpy*np.cos(theta)-tmpx*np.sin(theta))
+            dddcompositex=[]
+            dddcompositey=[]
+            for arm in range(narms):
+                theta=2.*np.pi*arm/narms
+                tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),dddoutarmx,dddslewx,dddinarmx,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),dddoutarmy,dddslewy,dddinarmy,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+                dddcompositex.append(tmpx*np.cos(theta)+tmpy*np.sin(theta))
+                dddcompositey.append(tmpy*np.cos(theta)-tmpx*np.sin(theta))
         compositex=[]
         compositey=[]
         compositeslew=[]
@@ -750,7 +1323,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             flatslew.extend(tmpslew)
 
     if calculate_derivative:
-        return compositex,compositey,compositeslew,dcompositex,dcompositey,dcompositeslew
+        return compositex,compositey,dcompositex,dcompositey,ddcompositex,ddcompositey,dddcompositex,dddcompositey,compositeslew
     return compositex,compositey,compositeslew #these coordinates are such that the upper part of pattern is sampled first; reverse order to sample bottom part first
 
 #high_elevation_slowdown_factor: normal speed up to 60degrees elevation slowed down linearly by said factor at 90 degrees elevation
@@ -1035,6 +1608,8 @@ if __name__=="__main__":
                       help='Number of beam measurement cycles to complete (default=%default) use -1 for indefinite')
     parser.add_option('--cycle-duration', type='float', default=1800,
                       help='Time to spend measuring beam pattern per cycle, in seconds (default=%default)')
+    parser.add_option('--calculate-derivative', type='int', default=4,
+                      help='calculate derivative options(default=%default)')
     parser.add_option('-l', '--scan-extent', type='float', default=10,
                       help='Diameter of beam pattern to measure, in degrees (default=%default)')
     parser.add_option('--slowextent', type='float', default=0,
@@ -1081,7 +1656,11 @@ if __name__=="__main__":
     # Parse the command line
     opts, args = parser.parse_args()
 
-    compositex,compositey,compositeslew=generatepattern(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slowtime=opts.slowtime,sampletime=opts.sampletime,scanspeed=opts.scanspeed,slewspeed=opts.slewspeed,twistfactor=opts.twistfactor,trackinterval=opts.trackinterval,slowextent=opts.slowextent,slowfactor=opts.slowfactor,kind=opts.kind)
+    if opts.calculate_derivative:
+        compositex,compositey,dcompositex,dcompositey,ddcompositex,ddcompositey,dddcompositex,dddcompositey,compositeslew=generatepattern(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slowtime=opts.slowtime,sampletime=opts.sampletime,scanspeed=opts.scanspeed,slewspeed=opts.slewspeed,twistfactor=opts.twistfactor,trackinterval=opts.trackinterval,slowextent=opts.slowextent,slowfactor=opts.slowfactor,kind=opts.kind,calculate_derivative=opts.calculate_derivative)
+    else:
+        compositex,compositey,compositeslew=generatepattern(totextent=opts.scan_extent,tottime=opts.cycle_duration,tracktime=opts.tracktime,slowtime=opts.slowtime,sampletime=opts.sampletime,scanspeed=opts.scanspeed,slewspeed=opts.slewspeed,twistfactor=opts.twistfactor,trackinterval=opts.trackinterval,slowextent=opts.slowextent,slowfactor=opts.slowfactor,kind=opts.kind,calculate_derivative=opts.calculate_derivative)
+    
     if testmode:
 
         if opts.kind=='horizon_scan_ext':
