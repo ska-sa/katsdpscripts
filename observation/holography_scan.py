@@ -142,10 +142,10 @@ class BezierCurve(object):
         # accx=2*cx+6*dx*t
 
         self.endpoints=[t0,t1,x0,x1,dxdt0,dxdt1,y0,y1,dydt0,dydt1]
-        dx=((t1-t0)*(dxdt0+dxdt1)-2*x1+2*x0)/((t1-t0)*(3*t0**2+3*t1**2)-2*t1**3+2*t0**3)
-        dy=((t1-t0)*(dydt0+dydt1)-2*y1+2*y0)/((t1-t0)*(3*t0**2+3*t1**2)-2*t1**3+2*t0**3)
-        cx=(x1-x0-dxdt0*(t1-t0)+dx*(3*t0**2*(t1-t0)-t1**3+t0**3))/(t1-t0)**2
-        cy=(y1-y0-dydt0*(t1-t0)+dy*(3*t0**2*(t1-t0)-t1**3+t0**3))/(t1-t0)**2
+        dx=((t1-t0)*(dxdt0+dxdt1)-2.*x1+2*x0)/((t1-t0)*(3.*t0**2+3.*t1**2)-2.*t1**3+2.*t0**3)
+        dy=((t1-t0)*(dydt0+dydt1)-2.*y1+2*y0)/((t1-t0)*(3.*t0**2+3.*t1**2)-2.*t1**3+2.*t0**3)
+        cx=(x1-x0-dxdt0*(t1-t0)+dx*(3.*t0**2*(t1-t0)-t1**3+t0**3))/(t1-t0)**2
+        cy=(y1-y0-dydt0*(t1-t0)+dy*(3.*t0**2*(t1-t0)-t1**3+t0**3))/(t1-t0)**2
         bx=(x1-x0-cx*(t1**2-t0**2)-dx*(t1**3-t0**3))/(t1-t0)
         by=(y1-y0-cy*(t1**2-t0**2)-dy*(t1**3-t0**3))/(t1-t0)
         ax=x0-bx*t0-cx*t0**2-dx*t0**3
@@ -170,8 +170,8 @@ class BezierCurve(object):
             t=np.linspace(t0,t1,n+2)[1:-1]
         ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
         #velocity
-        nvx=bx+2*cx*t+3*dx*t**2
-        nvy=by+2*cy*t+3*dy*t**2
+        nvx=bx+2.*cx*t+3.*dx*t**2
+        nvy=by+2.*cy*t+3.*dy*t**2
         return nvx,nvy
 
     #either supply timestamps in t or specify n number of points to interpolate inbetween endpoints t0 and t1
@@ -181,8 +181,8 @@ class BezierCurve(object):
             t=np.linspace(t0,t1,n+2)[1:-1]
         ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
         #accelleration
-        nax=2*cx+6*dx*t
-        nay=2*cy+6*dy*t
+        nax=2.*cx+6.*dx*t
+        nay=2.*cy+6.*dy*t
         return nax,nay
 
     def eval_jerk(self,t=None,n=None):
@@ -191,8 +191,8 @@ class BezierCurve(object):
             t=np.linspace(t0,t1,n+2)[1:-1]
         ax,bx,cx,dx,ay,by,cy,dy=self.coeffs
         #jerk - derivative of accelleration
-        njx=6*dx+0*t
-        njy=6*dy+0*t
+        njx=6.*dx+0.*t
+        njy=6.*dy+0.*t
         return njx,njy
 
     def plot(self,t=None,n=None):
@@ -372,16 +372,16 @@ class JerkCurve(object):
         bx=dxdt0
         cx=dxdtdt0/2
 
-        dx=10*(x1-x0)+1/2*(dxdtdt1-3*dxdtdt0)-4*(dxdt1+3/2*dxdt0)
-        ex=dxdt1-dxdt0-3/2*dx-1/4*(dxdtdt1+3*dxdtdt0)
-        fx=1/20*(dxdtdt1-dxdtdt0-6*dx-12*ex)
+        dx=10.*(x1-x0)+1./2.*(dxdtdt1-3.*dxdtdt0)-4.*(dxdt1+3./2.*dxdt0)
+        ex=dxdt1-dxdt0-3./2.*dx-1./4.*(dxdtdt1+3.*dxdtdt0)
+        fx=1./20.*(dxdtdt1-dxdtdt0-6.*dx-12.*ex)
 
         ay=y0
         by=dydt0
-        cy=dydtdt0/2
-        dy=10*(y1-y0)+1/2*(dydtdt1-3*dydtdt0)-4*(dydt1+3/2*dydt0)
-        ey=dydt1-dydt0-3/2*dy-1/4*(dydtdt1+3*dydtdt0)
-        fy=1/20*(dydtdt1-dydtdt0-6*dy-12*ey)
+        cy=dydtdt0/2.
+        dy=10.*(y1-y0)+1./2.*(dydtdt1-3.*dydtdt0)-4.*(dydt1+3./2.*dydt0)
+        ey=dydt1-dydt0-3./2.*dy-1./4.*(dydtdt1+3.*dydtdt0)
+        fy=1./20.*(dydtdt1-dydtdt0-6.*dy-12.*ey)
 
         self.coeffs=[ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy]
 
@@ -405,8 +405,8 @@ class JerkCurve(object):
         ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
         #velocity
         tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
-        nvx=bx+2*cx*tnorm+3*dx*tnorm**2+4*ex*tnorm**3+5*fx*tnorm**4
-        nvy=by+2*cy*tnorm+3*dy*tnorm**2+4*ey*tnorm**3+5*fy*tnorm**4
+        nvx=bx+2.*cx*tnorm+3.*dx*tnorm**2+4.*ex*tnorm**3+5.*fx*tnorm**4
+        nvy=by+2.*cy*tnorm+3.*dy*tnorm**2+4.*ey*tnorm**3+5.*fy*tnorm**4
         dt=(t1-t0)
         return nvx/dt,nvy/dt
 
@@ -418,8 +418,8 @@ class JerkCurve(object):
         ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
         #accelleration
         tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
-        nax=2*cx+6*dx*tnorm+12*ex*tnorm**2+20*fx*tnorm**3
-        nay=2*cy+6*dy*tnorm+12*ey*tnorm**2+20*fy*tnorm**3
+        nax=2.*cx+6.*dx*tnorm+12.*ex*tnorm**2+20.*fx*tnorm**3
+        nay=2.*cy+6.*dy*tnorm+12.*ey*tnorm**2+20.*fy*tnorm**3
         dt=(t1-t0)
         return nax/dt**2,nay/dt**2
 
@@ -430,8 +430,8 @@ class JerkCurve(object):
         ax,bx,cx,dx,ex,fx,ay,by,cy,dy,ey,fy=self.coeffs
         #jerk - derivative of accelleration
         tnorm=(t-t0)/(t1-t0)#coefficients defined as normalised by end point timestamps
-        njx=6*dx+24*ex*tnorm+60*fx*tnorm**2
-        njy=6*dy+24*ey*tnorm+60*fy*tnorm**2
+        njx=6.*dx+24.*ex*tnorm+60.*fx*tnorm**2
+        njy=6.*dy+24.*ey*tnorm+60.*fy*tnorm**2
         dt=(t1-t0)
         return njx/dt**3,njy/dt**3
 
@@ -1682,6 +1682,25 @@ if __name__=="__main__":
             compositex=[scan_data[:,1]]
             compositey=[scan_data[:,2]]
             compositeslew=[scan_data[:,3]]
+        # else:
+        #     cat=katpoint.Catalogue(add_specials=False)
+        #     cat.antenna=katpoint.Antenna('kat,-30:43:17.3,21:24:38.5,1038,12.0')
+        #     cat.flux_freq_MHz=1500
+
+        #     #useful targets might not exist in catalogue
+        #     ensure_cat={
+        #     'azel target':'azel target, azel, 10:00:00.00, 45:00:00'
+        #     }
+        #     for tar in ensure_cat.keys():
+        #         if tar not in cat:
+        #             print('adding ',tar)
+        #             cat.add(ensure_cat[tar])
+        #     target=cat.targets[0]
+        #     opts.horizon=15#note in testmode horizon doesnt exist
+        #     scan_data, clipping_occurred = gen_scan(time.time(),target,np.array(compositex[0]),np.array(compositey[0]),timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+        #     compositex=[scan_data[:,1]]
+        #     compositey=[scan_data[:,2]]
+        #     compositeslew=[compositeslew[0]]
         plt.figure()
         x=[]
         y=[]
@@ -1716,46 +1735,57 @@ if __name__=="__main__":
         plt.subplot(3,1,1)
         plt.plot(t[slewindex],x[slewindex],'r.')
         plt.plot(t[slewindex],y[slewindex],'r.')
+        plt.plot(t[slewindex],np.sqrt(x[slewindex]**2+y[slewindex]**2),'r.')
         plt.plot(t,x,'-')
         plt.plot(t,y,'--')
+        plt.plot(t,np.sqrt(x**2+y**2),'--')
         plt.ylabel('[degrees]')
         plt.legend(['x','y'])
         plt.title('Position profile')
         plt.subplot(3,1,2)
         plt.plot(t[slewindex[:-1]],(np.diff(x)/opts.sampletime)[slewindex[:-1]],'r.')
         plt.plot(t[slewindex[:-1]],(np.diff(y)/opts.sampletime)[slewindex[:-1]],'r.')
+        plt.plot(t[slewindex[:-1]],np.sqrt((np.diff(x)/opts.sampletime)[slewindex[:-1]]**2+(np.diff(y)/opts.sampletime)[slewindex[:-1]]**2),'r.')
         plt.plot(t[:-1],np.diff(x)/opts.sampletime,'-')
         plt.plot(t[:-1],np.diff(y)/opts.sampletime,'--')
+        plt.plot(t[:-1],np.sqrt((np.diff(x)/opts.sampletime)**2+(np.diff(y)/opts.sampletime)**2),'--')
         plt.ylabel('[degrees/s]')
         plt.legend(['dx','dy'])
         plt.title('Speed profile')
         plt.subplot(3,1,3)
         plt.plot(t[slewindex[:-2]],(np.diff(np.diff(x))/opts.sampletime/opts.sampletime)[slewindex[:-2]],'r.')
         plt.plot(t[slewindex[:-2]],(np.diff(np.diff(y))/opts.sampletime/opts.sampletime)[slewindex[:-2]],'r.')
+        plt.plot(t[slewindex[:-2]],np.sqrt(((np.diff(np.diff(x))/opts.sampletime/opts.sampletime)[slewindex[:-2]])**2+((np.diff(np.diff(y))/opts.sampletime/opts.sampletime)[slewindex[:-2]])**2),'r.')
         plt.plot(t[:-2],np.diff(np.diff(x))/opts.sampletime/opts.sampletime,'-')
         plt.plot(t[:-2],np.diff(np.diff(y))/opts.sampletime/opts.sampletime,'--')
+        plt.plot(t[:-2],np.sqrt((np.diff(np.diff(x))/opts.sampletime/opts.sampletime)**2+(np.diff(np.diff(y))/opts.sampletime/opts.sampletime)**2),'--')
         plt.ylabel('[degrees/s^2]')
         plt.legend(['ddx','ddy'])
         plt.title('Acceleration profile')
         plt.figure()
-        scanaz_rad,scanel_rad=plane_to_sphere_holography(45.*np.pi/180.,45.*np.pi/180.,x*np.pi/180. ,y*np.pi/180.)
+        targetel=45
+        targetaz=45
+        scanaz_rad,scanel_rad=plane_to_sphere_holography(targetaz*np.pi/180.,targetel*np.pi/180.,x*np.pi/180. ,y*np.pi/180.)
         scanaz=scanaz_rad*180./np.pi
         scanel=scanel_rad*180./np.pi
         plt.subplot(3,1,1)
         plt.plot(t,scanaz,'-')
         plt.plot(t,scanel,'--')
+        # plt.plot(t,np.sqrt((scanaz)**2+(scanel)**2),'--')
         plt.title('Position profile')
         plt.legend(['az','el'])
         plt.ylabel('[degrees]')
         plt.subplot(3,1,2)
         plt.plot(t[:-1],np.diff(scanaz)/opts.sampletime,'-')
         plt.plot(t[:-1],np.diff(scanel)/opts.sampletime,'--')
+        plt.plot(t[:-1],np.sqrt((np.diff(scanaz)/opts.sampletime)**2+(np.diff(scanel)/opts.sampletime)**2),'--')
         plt.ylabel('[degrees/s]')
         plt.legend(['daz/dt','del/dt'])
         plt.title('Speed profile')
         plt.subplot(3,1,3)
         plt.plot(t[:-2],np.diff(np.diff(scanaz))/opts.sampletime/opts.sampletime,'-')
         plt.plot(t[:-2],np.diff(np.diff(scanel))/opts.sampletime/opts.sampletime,'--')
+        plt.plot(t[:-2],np.sqrt((np.diff(np.diff(scanaz))/opts.sampletime/opts.sampletime)**2+(np.diff(np.diff(scanel))/opts.sampletime/opts.sampletime)**2),'--')
         plt.ylabel('[degrees/s^2]')
         plt.legend(['daz/dt^2','del/dt^2'])
         plt.title('Acceleration profile')
