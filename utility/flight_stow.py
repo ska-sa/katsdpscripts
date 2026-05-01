@@ -10,8 +10,8 @@ import numpy as np
 def split_ants(ants):
     """ @param ants: a list of CAM antennas
         @return: [m0XX...], [eXXX...] """
-    m_ants = [ant for ant in kat.ants if hasattr(ant.sensor, "ap_indexer_position")]
-    e_ants = [ant for ant in kat.ants if hasattr(ant.sensor, "dsm_indexerPosition")]
+    m_ants = [ant for ant in ants if hasattr(ant.sensor, "ap_indexer_position")]
+    e_ants = [ant for ant in ants if hasattr(ant.sensor, "dsm_indexerPosition")]
     container = ants[0].parent
     m_ants, e_ants = ant_array(container, m_ants, "MKAT ants"), ant_array(container, e_ants, "MKE ants")
     return m_ants, e_ants
