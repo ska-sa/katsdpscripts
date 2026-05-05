@@ -1,10 +1,20 @@
 #!/usr/bin/python
 # Script to lower antennas in preparation for flight arrivals and departures from site
 
-from katcorelib import (standard_script_options, verify_and_connect, user_logger)
+from katcorelib import (standard_script_options, verify_and_connect, ant_array, user_logger)
 import time
 import katpoint
 import numpy as np
+
+
+def split_ants(ants):
+    """ @param ants: a list of CAM antennas
+        @return: [m0XX...], [eXXX...] """
+    m_ants = [ant for ant in ants if hasattr(ant.sensor, "ap_indexer_position")]
+    e_ants = [ant for ant in ants if hasattr(ant.sensor, "dsm_indexerPosition")]
+    container = ants[0].parent
+    m_ants, e_ants = ant_array(container, m_ants, "MKAT ants"), ant_array(container, e_ants, "MKE ants")
+    return m_ants, e_ants
 
 def start_ants(ants, dry_run=False):
     if not dry_run:
@@ -20,24 +30,30 @@ def start_ants(ants, dry_run=False):
 def move_ri(ants, ridx_pos, dry_run=False):
     if ridx_pos not in ['u', 'l', 's', 'x']:
         raise ValueError("indexer position {} does not exist. active bands are 'u', 'l', 's', and 'x'".format(ridx_pos))
+    ridx_pos_e = {'u':None, 'l':(2,'B2'), 's':(7,'B5c'), 'x':(1,'B1')}[ridx_pos] # :(set,read)
+    ants_m, ants_e = split_ants(ants)
     user_logger.info("Moving receiver indexers to '{}' position".format(ridx_pos))
-    ants.set_sampling_strategy("ap.ridx-brakes-released","period 0.5")
-    ants.req.ap_set_indexer_position(ridx_pos)
+    ants_m.set_sampling_strategy("ap.ridx-brakes-released","period 0.5")
+    if (len(ants_m) > 0): ants_m.req.ap_set_indexer_position(ridx_pos)
+    ants_e.set_sampling_strategy("dsm.indexerAxisState","period 0.5")
+    if (len(ants_e) > 0): ants_e.req.dsh_SetIndexerPosition(ridx_pos_e[0]) 
     time.sleep(10)
     if not dry_run:
         try:
             # Wait for indexer brakes to engage again
-            ants.wait('ap.ridx-brakes-released', False, timeout=60)
+            ants_m.wait('ap.ridx-brakes-released', False, timeout=60)
+            ants_e.wait('dsm.indexerAxisState', 'PARKED', timeout=60)
             user_logger.info('{} position reached'.format(ridx_pos))
         except Exception:
-            not_on_pos = []
-            not_on_pos = [ant.name for ant in ants if ant.sensor.ap_indexer_position.get_value() != ridx_pos]
-            user_logger.error("Indexer brakes did not engage on: {}".format(', '.join(not_on_pos)))
+            pass
         finally:
             # allow brakes to engage and put antennas to stop
             time.sleep(3)
             ants.req.mode('STOP')
             time.sleep(2)
+        not_on_pos = [ant.name for ant in ants_m if ant.sensor.ap_indexer_position.get_value() != ridx_pos]
+        not_on_pos += [ant.name for ant in ants_e if ant.sensor.dsm_indexerPosition.get_value() != ridx_pos_e[-1]]
+        if (len(not_on_pos) > 0): user_logger.error("Indexer change did not complete on: {}".format(', '.join(not_on_pos)))
 
 def point_ants(ants, dry_run=False):
     airstrip_lla = (np.radians(-30.690197222222224), np.radians(21.454725), 1080) # lat [rad], long [rad], alt [m]
