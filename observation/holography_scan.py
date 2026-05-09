@@ -473,8 +473,14 @@ class Spiral(object):
         self.dx,self.dy=self.eval_vel(self.theradius_deg,self.thescanspeed)
         self.ax,self.ay=self.eval_acc(self.theradius_deg,self.thescanspeed,self.t)
         self.jx,self.jy=self.eval_jerk(self.theradius_deg,self.thescanspeed,self.t)
-        self.endx,self.endy=self.eval(self.radial_extent)#end points of spiral probably does not coincide on a sample
+        #end points of spiral probably does not coincide on a sample
         self.endtime=self.timecurve.tottime#note that this is slightly more than last quantised time t
+        self.endarclength=self.timecurve.eval(np.array([self.timecurve.tottime]))[0]
+        self.endscanspeed=self.timecurve.eval_vel(np.array([self.endtime]))[0]
+        self.endx,self.endy=self.eval(self.radial_extent)
+        self.enddx,self.enddy=self.eval_vel(self.radial_extent,self.endscanspeed)
+        self.endax,self.enday=self.ax[-1],self.ay[-1]#approximately, maybe improve in future
+        self.endjx,self.endjy=self.jx[-1],self.jy[-1]#approximately, maybe improve in future
 
     def interpspiral(self,arctime,ninterp=10):
         arclength=self.timecurve.eval(arctime)
@@ -825,6 +831,14 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             ddarmy=sp.ay
             dddarmx=sp.jx
             dddarmy=sp.jy
+            lastsampletime=sp.t[-1]
+            endtime=sp.endtime
+            endarmx=sp.endx
+            endarmy=sp.endy
+            enddarmx=sp.enddx
+            enddarmy=sp.enddy
+            endddarmx=sp.endax
+            endddarmy=sp.enday
             outtheta=np.pi+np.arctan2(sp.endy,sp.endx)
             minscantime=sp.endtime*2#use theoretical time for arc rather than quantised, for consistency when different sampletime
         else:
@@ -929,6 +943,12 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             ddoutarmy=ddarmy*np.cos(outtheta)-ddarmx*np.sin(outtheta)
             dddoutarmx=dddarmx*np.cos(outtheta)+dddarmy*np.sin(outtheta)
             dddoutarmy=dddarmy*np.cos(outtheta)-dddarmx*np.sin(outtheta)
+            endoutarmx=endarmx*np.cos(outtheta)+endarmy*np.sin(outtheta)
+            endoutarmy=endarmy*np.cos(outtheta)-endarmx*np.sin(outtheta)
+            enddoutarmx=enddarmx*np.cos(outtheta)+enddarmy*np.sin(outtheta)
+            enddoutarmy=enddarmy*np.cos(outtheta)-enddarmx*np.sin(outtheta)
+            endddoutarmx=endddarmx*np.cos(outtheta)+endddarmy*np.sin(outtheta)
+            endddoutarmy=endddarmy*np.cos(outtheta)-endddarmx*np.sin(outtheta)
 
         #maxnarms=int((tottime)/(minscantime))#if no time spent on slews nor tracktime
         #solve for maxnarms if no time spent on slews; tracktime every trackinterval arm including after last one
@@ -947,6 +967,12 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             ddinarmy=(ddoutarmy[::-1]*np.cos(intheta)-ddoutarmx[::-1]*np.sin(intheta))
             dddinarmx=-(dddoutarmx[::-1]*np.cos(intheta)+dddoutarmy[::-1]*np.sin(intheta))#sign change
             dddinarmy=-(dddoutarmy[::-1]*np.cos(intheta)-dddoutarmx[::-1]*np.sin(intheta))
+            endinarmx=endoutarmx*np.cos(intheta)+endoutarmy*np.sin(intheta)
+            endinarmy=endoutarmy*np.cos(intheta)-endoutarmx*np.sin(intheta)
+            enddinarmx=-(enddoutarmx*np.cos(intheta)+enddoutarmy*np.sin(intheta))#sign change
+            enddinarmy=-(enddoutarmy*np.cos(intheta)-enddoutarmx*np.sin(intheta))
+            endddinarmx=(endddoutarmx*np.cos(intheta)+endddoutarmy*np.sin(intheta))#no sign change
+            endddinarmy=(endddoutarmy*np.cos(intheta)-endddoutarmx*np.sin(intheta))
         
         indep=[outarmx[-2],outarmy[-2],outarmx[-1],outarmy[-1],inarmx[0],inarmy[0],inarmx[1],inarmy[1],nslew+3]
         fitter=NonLinearLeastSquaresFit(bezierpathcost,[0.,0.])
@@ -968,17 +994,27 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             ddslewx,ddslewy=jc.eval_acc(n=nslew)
             dddslewx,dddslewy=jc.eval_jerk(n=nslew)
         elif calculate_derivative==4:
+            #some original version used average of each side of knot bezier curve accelerations:...
             # outbz=BezierCurve(t0=0,t1=sampletime,x0=outarmx[-2],x1=outarmx[-1],dxdt0=doutarmx[-2],dxdt1=doutarmx[-1],y0=outarmy[-2],y1=outarmy[-1],dydt0=doutarmy[-2],dydt1=doutarmy[-1])
             # dxdtdt0,dydtdt0=outbz.eval_acc(t=np.array([1]))
             # inbz=BezierCurve(t0=0,t1=sampletime,x0=inarmx[0],x1=inarmx[1],dxdt0=dinarmx[0],dxdt1=dinarmx[1],y0=inarmy[0],y1=inarmy[1],dydt0=dinarmy[0],dydt1=dinarmy[1])
             # dxdtdt1,dydtdt1=inbz.eval_acc(t=np.array([0]))
             # jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],dxdtdt0=dxdtdt0,dxdtdt1=dxdtdt1,y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0],dydtdt0=dydtdt0,dydtdt1=dydtdt1)
 
-            jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],dxdtdt0=ddinarmx[0],dxdtdt1=ddoutarmx[-1],y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0],dydtdt0=ddoutarmy[-1],dydtdt1=ddinarmy[0])
-            slewx,slewy=jc.eval(n=nslew)
-            dslewx,dslewy=jc.eval_vel(n=nslew)
-            ddslewx,ddslewy=jc.eval_acc(n=nslew)
-            dddslewx,dddslewy=jc.eval_jerk(n=nslew)
+            if False:#test where jerkcurve interplation starts and ends on spiral analytical end points (instead of originally the last sample)
+                #however in cases where last sample on spiral far from end this places an extra burden on interpation that extra samples are needed compared to 'indeterministic' option below.
+                jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=endoutarmx,x1=endinarmx,dxdt0=enddoutarmx,dxdt1=enddinarmx,dxdtdt0=endddoutarmx,dxdtdt1=endddinarmx,y0=endoutarmy,y1=endinarmy,dydt0=enddoutarmy,dydt1=enddinarmy,dydtdt0=endddoutarmy,dydtdt1=endddinarmy)
+                t=np.linspace(-(endtime-lastsampletime),(nslew+1)*sampletime+(endtime-lastsampletime),nslew+2)[1:-1]
+                slewx,slewy=jc.eval(t=t)
+                dslewx,dslewy=jc.eval_vel(t=t)
+                ddslewx,ddslewy=jc.eval_acc(t=t)
+                dddslewx,dddslewy=jc.eval_jerk(t=t)
+            else:#original where jerkcurve interpolation starts and ends on spiral samples instead of analytical end points
+                jc=JerkCurve(t0=0,t1=(nslew+1)*sampletime,x0=outarmx[-1],x1=inarmx[0],dxdt0=doutarmx[-1],dxdt1=dinarmx[0],dxdtdt0=ddoutarmx[-1],dxdtdt1=ddinarmx[0],y0=outarmy[-1],y1=inarmy[0],dydt0=doutarmy[-1],dydt1=dinarmy[0],dydtdt0=ddoutarmy[-1],dydtdt1=ddinarmy[0])
+                slewx,slewy=jc.eval(n=nslew)
+                dslewx,dslewy=jc.eval_vel(n=nslew)
+                ddslewx,ddslewy=jc.eval_acc(n=nslew)
+                dddslewx,dddslewy=jc.eval_jerk(n=nslew)
         else:
             dslewx,dslewy=slewx*0,slewy*0
             ddslewx,ddslewy=slewx*0,slewy*0
