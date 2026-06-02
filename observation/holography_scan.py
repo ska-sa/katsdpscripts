@@ -2044,7 +2044,7 @@ if __name__=="__main__":
                         
                         
                         user_logger.info("Using Track antennas: %s",' '.join([ant.name for ant in track_ants if ant.name not in always_scan_ants_names]))
-                        lasttime = time.time()
+                        lasttime = time.time() + opts.prepopulatetime
                         user_logger.info("Scanpattern alignment timestamp: %.17g"%(lasttime))
                         if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan_ext':
                             azimuth_scan_data, clipping_occurred = gen_scan(lasttime,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
