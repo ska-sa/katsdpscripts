@@ -2011,6 +2011,7 @@ if __name__=="__main__":
                         user_logger.info("Performing initial track")
                         session.telstate.add('obs_label','track')
                         session.track(target, duration=opts.cycle_tracktime, announce=False)#radec target
+                        session.telstate.add('obs_label','prepopulate')
                         if opts.auto_delay is not None:
                             user_logger.info("Setting auto delay to "+opts.auto_delay)
                             session.cbf.req.auto_delay(opts.auto_delay)
