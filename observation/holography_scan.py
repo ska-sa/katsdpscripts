@@ -1674,7 +1674,7 @@ if __name__=="__main__":
                       help='spiral twist factor (0 for straight radial, 1 standard spiral) (default=%default)')
     parser.add_option('--cycle-rotations', type='float', default=0,
                       help='rotate each cycle progressively to get to next arm in this many cycles (default=%default)')
-    parser.add_option('--high-elevation-slowdown-factor', type='float', default=2.0,
+    parser.add_option('--high-elevation-slowdown-factor', type='float', default=1.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
     parser.add_option('--elevation-histogram', type='string', default='',
                       help='A string of 15 comma separated count values representing a histogram in 5 degree intervals from 15 to 90 degrees elevation of known measurements (default=%default). A preferred target making the biggest impact to flatten the histogram will be selected.')
