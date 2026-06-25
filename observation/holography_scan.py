@@ -1676,6 +1676,10 @@ if __name__=="__main__":
                       help='rotate each cycle progressively to get to next arm in this many cycles (default=%default)')
     parser.add_option('--high-elevation-slowdown-factor', type='float', default=1.0,
                       help='factor by which to slow down nominal scanning speed at 90 degree elevation, linearly scaled from factor of 1 at 60 degrees elevation (default=%default)')
+    parser.add_option('--clip-safety-margin', type='float', default=1.0,
+                      help='Clip safety margin in degrees to ensure coordinates away by this much away from AZEL limits (default=%default)')
+    parser.add_option('--target-select-safety-margin', type='float', default=2.0,
+                      help='Do not select targets where according to simulation AZEL will be closer than this to AZEL limits in degrees (default=%default)')
     parser.add_option('--elevation-histogram', type='string', default='',
                       help='A string of 15 comma separated count values representing a histogram in 5 degree intervals from 15 to 90 degrees elevation of known measurements (default=%default). A preferred target making the biggest impact to flatten the histogram will be selected.')
     parser.add_option('--max-loadscan-samples', type='int', default=2000,
@@ -1714,7 +1718,7 @@ if __name__=="__main__":
                     cat.add(ensure_cat[tar])
             target=cat.targets[0]
             opts.horizon=15#note in testmode horizon doesnt exist
-            scan_data, clipping_occurred = gen_scan(time.time(),target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+            scan_data, clipping_occurred = gen_scan(time.time(),target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=opts.clip_safety_margin,min_elevation=opts.horizon)
             compositex=[scan_data[:,1]]
             compositey=[scan_data[:,2]]
             compositeslew=[scan_data[:,3]]
@@ -1733,7 +1737,7 @@ if __name__=="__main__":
         #             cat.add(ensure_cat[tar])
         #     target=cat.targets[0]
         #     opts.horizon=15#note in testmode horizon doesnt exist
-        #     scan_data, clipping_occurred = gen_scan(time.time(),target,np.array(compositex[0]),np.array(compositey[0]),timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+        #     scan_data, clipping_occurred = gen_scan(time.time(),target,np.array(compositex[0]),np.array(compositey[0]),timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=opts.clip_safety_margin,min_elevation=opts.horizon)
         #     compositex=[scan_data[:,1]]
         #     compositey=[scan_data[:,2]]
         #     compositeslew=[compositeslew[0]]
@@ -1970,7 +1974,7 @@ if __name__=="__main__":
                         target_histindex=0
                         targetinfotext=[]
                         for testtarget in targets:
-                            suitable, rising, expected_duration, meanelev, minsunangle = test_target_azel_limits(testtarget,clip_safety_margin=2.0,min_elevation=opts.horizon,max_elevation=90.)
+                            suitable, rising, expected_duration, meanelev, minsunangle = test_target_azel_limits(testtarget,clip_safety_margin=opts.target_select_safety_margin,min_elevation=opts.horizon,max_elevation=90.)
                             targetinfotext.append('%s (elev %.1f%s%s)'%(testtarget.name,meanelev,', sun %.1f'%minsunangle if (minsunangle<180) else '','' if suitable else ', unsuitable'))
                             if suitable:
                                 if len(elevation_histogram)==15:#by design this histogram is meant to have 15 bins, from 15 to 90 deg elevation in 5 degree intervals
@@ -2048,7 +2052,7 @@ if __name__=="__main__":
                         lasttime = time.time() + opts.prepopulatetime
                         user_logger.info("Scanpattern alignment timestamp: %.17g"%(lasttime))
                         if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan_ext':
-                            azimuth_scan_data, clipping_occurred = gen_scan(lasttime,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                            azimuth_scan_data, clipping_occurred = gen_scan(lasttime,target,[[None]],[[None]],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=opts.clip_safety_margin,min_elevation=opts.horizon)
                             ct=[azimuth_scan_data[:,0]]
                             cx=[azimuth_scan_data[:,1]]
                             cy=[azimuth_scan_data[:,2]]
@@ -2072,7 +2076,7 @@ if __name__=="__main__":
                                             if opts.kind=='azimuth_scan' or opts.kind=='horizon_scan' or opts.kind=='horizon_scan_ext':
                                                     scan_data=azimuth_scan_data[istart_sample:istop_sample,:]+0
                                             else:
-                                                scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=1.0,min_elevation=opts.horizon)
+                                                scan_data, clipping_occurred = gen_scan(lasttime,target,cx[iarm][istart_sample:istop_sample],cy[iarm][istart_sample:istop_sample],timeperstep=opts.sampletime,high_elevation_slowdown_factor=opts.high_elevation_slowdown_factor,clip_safety_margin=opts.clip_safety_margin,min_elevation=opts.horizon)
                                         if not kat.dry_run:
                                             if clipping_occurred:
                                                 user_logger.info("Warning unexpected clipping occurred in scan pattern")
