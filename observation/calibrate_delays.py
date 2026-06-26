@@ -27,7 +27,7 @@ parser.add_option('-t', '--track-duration', type='float', default=32.0,
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit the source for verification, '
                        'in seconds (default=%default)')
-parser.add_option('--fengine-gain', type='int_or_default', default='default',
+parser.add_option('--fengine-gain', type='float_or_default', default='default',
                   help='Set correlator F-engine gain')
 parser.add_option('--fft-shift', type='int_or_default', default='default',
                   help='Set correlator F-engine FFT shift')

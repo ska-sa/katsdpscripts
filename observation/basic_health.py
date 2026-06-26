@@ -21,7 +21,7 @@ parser = standard_script_options(usage, description)
 parser.add_option('--verify-duration', type='float', default=64.0,
                   help='Length of time to revisit source for verification, '
                        'in seconds (default=%default)')
-parser.add_option('--fengine-gain', type='int_or_default', default='default',
+parser.add_option('--fengine-gain', type='float_or_default', default='default',
                   help='Set correlator F-engine gain (average magnitude)')
 # Set default value for any option (both standard and experiment-specific options)
 parser.set_defaults(observer='basic_health', nd_params='off',
