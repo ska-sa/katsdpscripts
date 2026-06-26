@@ -1774,7 +1774,7 @@ if __name__=="__main__":
         plt.ylim([-opts.scan_extent/2,opts.scan_extent/2])
         plt.axis('equal')
         plt.title('%s scans: %d total time: %.1fs slew: %.1fs'%(opts.kind,len(compositex),len(sl)*opts.sampletime,np.sum(sl)*opts.sampletime))
-        slewindex=np.nonzero(sl)[0]
+        slewindex=np.nonzero(sl==1)[0]
         t=np.arange(len(x))*np.float64(opts.sampletime)
         plt.figure()
         plt.subplot(3,1,1)
