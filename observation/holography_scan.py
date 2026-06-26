@@ -1055,7 +1055,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
             theta=2.*np.pi*arm/narms
             tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outarmx,slewx,inarmx,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
             tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outarmy,slewy,inarmy,np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.zeros(len(outarmy)),np.ones(len(slewy)),np.zeros(len(inarmy)),np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpslew=np.r_[np.tile(2,int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.zeros(len(outarmy)),np.ones(len(slewy)),np.zeros(len(inarmy)),np.tile(2,int(tracktime/sampletime) if (arm==narms-1) else 0)]
             compositex.append(tmpx*np.cos(theta)+tmpy*np.sin(theta))
             compositey.append(tmpy*np.cos(theta)-tmpx*np.sin(theta))
             compositeslew.append(tmpslew)
@@ -1133,7 +1133,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
 
             tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
             tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpslew=np.r_[np.tile(2,int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.tile(2,int(tracktime/sampletime) if (arm==narms-1) else 0)]
             
 
             compositex.append(tmpy if kind=='rastery' else tmpx)
@@ -1211,8 +1211,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
 
             tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
             tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            
+            tmpslew=np.r_[np.tile(2,int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.tile(2,int(tracktime/sampletime) if (arm==narms-1) else 0)]
 
             compositex.append(tmpy if kind=='rastery' else tmpx)
             compositey.append(tmpx if kind=='rastery' else tmpy)
@@ -1290,7 +1289,7 @@ def generatepattern(totextent=10,tottime=1800,tracktime=5,slowtime=6,sampletime=
 
             tmpx=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewx,thisarmx,inslewx if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
             tmpy=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),outslewy,thisarmy,inslewy if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
-            tmpslew=np.r_[np.zeros(int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.zeros(int(tracktime/sampletime) if (arm==narms-1) else 0)]
+            tmpslew=np.r_[np.tile(2,int(tracktime/sampletime) if (arm%trackinterval==0) else 0),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)) if (((arm+1)%trackinterval==0) or arm==narms-1) else [],np.tile(2,int(tracktime/sampletime) if (arm==narms-1) else 0)]
 
             compositex.append(tmpx)
             compositey.append(tmpy)
@@ -1415,7 +1414,7 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
 
         azdata=np.r_[targetaz[:num_track_points],outslewx,thisarmx,inslewx,targetaz[-num_track_points:]]
         eldata=np.r_[targetel[:num_track_points],outslewy,thisarmy,inslewy,targetel[-num_track_points:]]
-        slewdata=np.r_[np.zeros(num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.zeros(num_track_points)]
+        slewdata=np.r_[np.tile(2,num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.tile(2,num_track_points)]
         scan_data[:,3]=slewdata
         print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'duration',attime[-1]-attime[0],'slewtime',num_slew_points*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
     elif opts.kind=='horizon_scan':#chooses best of specific drift_el section to scan that is offered by this target
@@ -1498,7 +1497,7 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
         
         azdata=np.r_[targetaz[:num_track_points],outslewx,thisarmx,inslewx,targetaz[-num_track_points:]]
         eldata=np.r_[targetel[:num_track_points],outslewy,thisarmy,inslewy,targetel[-num_track_points:]]
-        slewdata=np.r_[np.zeros(num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.zeros(num_track_points)]
+        slewdata=np.r_[np.tile(2,num_track_points),np.ones(len(outslewy)),np.zeros(len(thisarmy)),np.ones(len(inslewy)),np.tile(2,num_track_points)]
         scan_data[:,3]=slewdata
         print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'min az',np.min(azdata),'max az',np.max(azdata),'duration',attime[-1]-attime[0],'slewtime',(num_az_slew_points+num_el_slew_points)*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
     elif opts.kind=='horizon_scan_ext':#adds extra circular speedup slews #chooses best of specific drift_el section to scan that is offered by this target
@@ -1561,7 +1560,13 @@ def gen_scan(lasttime,target,az_arm,el_arm,timeperstep,high_elevation_slowdown_f
                      thisarmy+0,
                      np.tile(np.nan,num_az_slew_points),
                      targetel[-num_track_points:]]
-        slewdata=np.isnan(azdata)
+        slewdata=np.r_[np.tile(2,len(targetaz[:num_track_points])),
+                     np.zeros(num_loop_points),
+                     np.ones(num_el_slew_points),
+                     np.zeros(num_loop_points),
+                     np.zeros(len(thisarmx)),
+                     np.ones(num_az_slew_points),
+                     np.tile(2,len(targetaz[-num_track_points:]))]
         azdata,eldata=bezier_pad_nans(azdata,eldata)        
         scan_data[:,3]=slewdata
         print(target.name,'drift_el',drift_el,'min el',np.min(eldata),'max el',np.max(eldata),'min az',np.min(azdata),'max az',np.max(azdata),'duration',attime[-1]-attime[0],'slewtime',(num_az_slew_points+num_el_slew_points+2*num_loop_points)*opts.sampletime,'max slew speed',np.max(np.abs(np.diff(azdata)))/opts.sampletime)
@@ -1752,7 +1757,7 @@ if __name__=="__main__":
                 y.extend(compositey[iarm])
                 sl.extend(compositeslew[iarm])
             for iarm in range(len(compositex)):
-                slewindex=np.nonzero(compositeslew[iarm])[0]
+                slewindex=np.nonzero(compositeslew[iarm]==1)[0]
                 plt.plot(compositex[iarm][slewindex],compositey[iarm][slewindex],'.k',ms=1)
             if opts.cycle_rotations!=0:#rotate each cycle progressively to get to next arm in this many cycles
                 theta=np.pi/len(compositex)/opts.cycle_rotations
@@ -2085,7 +2090,7 @@ if __name__=="__main__":
                             
                                 lastisslew=None#so that first sample's state is also recorded
                                 for it in range(istart_sample,istop_sample):
-                                    if cs[iarm][it]!=lastisslew:
+                                    if (cs[iarm][it]==1)!=lastisslew:#compositeslew==1 means 'slew', 0 means 'scan' 2 means 'track'
                                         lastisslew=cs[iarm][it]
                                         session.telstate.add('obs_label','slew' if lastisslew else '%d.%d.%d'%(cycle,igroup,iarm),ts=scan_data[it-istart_sample,0])
                                 
