@@ -1860,7 +1860,8 @@ if __name__=="__main__":
         'PKS 0723-008':'J0725-0055 | PKS 0723-008, radec, 07:25:50.64, -00:54:56.5',
         'PKS 2134+004':'J2136+0041 | PKS 2134+004, radec, 21:36:38.59, 00:41:54.2',
         'PKS 1421-490':'J1424-4913 | PKS 1421-490, radec, 14:24:32.24, -49:13:49.7',
-        'J0137+3309':'J0137+3309, radec, 01:37:41.30,  +33:09:35.1'}
+        'J0137+3309':'J0137+3309, radec, 01:37:41.30,  +33:09:35.1',
+        'PKS 1830-210':'PKS 1830-210, radec, 18:33:39.92, -21:03:40.1'}
 
         # Check basic command-line options and obtain a kat object connected to the appropriate system
         with verify_and_connect(opts) as kat:
@@ -1915,6 +1916,8 @@ if __name__=="__main__":
                         always_scan_ants_names=[ant.name for ant in always_scan_ants]
                     if (scan_ants_lower_list[0]=='groupab'):
                         grouprange = range(2)
+                elif (scan_ants_lower_list[0]=='groupe'):
+                    scan_ants = ant_array(kat, [ant for ant in session.ants if ant.name[0].lower()=='e' or ant.name in scan_ants_lower_list[1:]], 'scan_ants')
                 else:
                     # Form scanning antenna subarray (or pick the first antenna as the default scanning antenna)
                     scan_ants = ant_array(kat, opts.scan_ants if opts.scan_ants else session.ants[0], 'scan_ants')
