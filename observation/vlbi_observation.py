@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # Observation script for VLBI observations.
 
+import hashlib
+import io
+import os.path
 import time
 import numpy as np
 import scipy.ndimage
@@ -12,9 +15,12 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
 
 # Set up standard script options
 usage = '%prog [options] <VLBI catalogue.csv>'
-description = 'Run a UTC-scheduled VLBI observation from a CSV catalogue.'
+description = 'Run a UTC-scheduled VLBI observation from a CSV catalogue. ' \
+              'Use --online to publish the catalogue for online VLBI processing.'
 parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
+parser.add_option('--online', action='store_true', default=False,
+                  help='Publish the VLBI catalogue to SDP for online processing.')
 parser.add_option('--max-wait-time', type='float', default=1200.0,
                   help="Maximum time telescope will wait for target UTC "
                        "observation window rather than terminating observation, "
@@ -139,7 +145,7 @@ def bad_corrections(corr_ut):
     return False
 
 
-def parse_vlbi_cat(vlbi_cat_fn, ref_ant=None):
+def parse_vlbi_cat(vlbi_cat_fn, ref_ant=None, content=None):
     """ Parses the provided VLBI catalogue file and provides a list of scan parameters and
     a katpoint catalogue of unique targets in the observation. 
 
@@ -149,6 +155,8 @@ def parse_vlbi_cat(vlbi_cat_fn, ref_ant=None):
         Location of text file containing observation scan information
     ref_ant : katpoint Antenna object
         Reference antenna for katpoint Catalogue
+    content : bytes, optional
+        Catalogue snapshot to parse in online mode
 
     Returns
     -------
@@ -161,7 +169,8 @@ def parse_vlbi_cat(vlbi_cat_fn, ref_ant=None):
 
     """
     # Read the VLBI catalogue file 
-    with open(vlbi_cat_fn, 'r') as cat_file:
+    with (open(vlbi_cat_fn, 'r') if content is None
+          else io.StringIO(content.decode('utf-8'), newline=None)) as cat_file:
         csv_lines = cat_file.readlines()
         # Read header info
         obs_params = {}
@@ -196,6 +205,25 @@ def parse_vlbi_cat(vlbi_cat_fn, ref_ant=None):
                 kp_target_list.append(sp['kp_tgt'])
         vlbi_cat = katpoint.Catalogue(kp_target_list, antenna=ref_ant)
     return obs_params, scan_params, vlbi_cat
+
+
+def persist_vlbi_catalogue(session, catalogue_path, experiment, content):
+    """Publish the exact CSV used for this observation in capture-scoped telstate."""
+    for product in session.sdp.products:
+        capture_block_id = str(product.telstate['sdp_capture_block_id'])
+        if (capture_block_id not in session.capture_block_ids or not capture_block_id
+                or any(digit not in '0123456789' for digit in capture_block_id)):
+            raise ValueError("A decimal SDP capture block ID matching the session is required")
+    key_values = {
+        'vlbi_catalogue_content': content,
+        'vlbi_catalogue_sha256': hashlib.sha256(content).hexdigest(),
+        'vlbi_catalogue_name': os.path.basename(os.path.realpath(catalogue_path)),
+        'vlbi_experiment': experiment,
+        'vlbi_catalogue_format': 'csv',
+    }
+    # After capture-start, session.telstate writes to each product's capture block view.
+    for key, value in key_values.items():
+        session.telstate.add(key, value, immutable=True)
 
 
 class vlbi_observation_manager():
@@ -620,7 +648,16 @@ with verify_and_connect(opts) as kat:
     # Set reference antenna 
     ref_ant = kat.sources.antenna
     # Read observation scan parameters and catalogue
-    exp_pars, scan_pars, obs_cat = parse_vlbi_cat(args[0], ref_ant)
+    catalogue_path = args[0]
+    catalogue_content = None
+    if opts.online:
+        # Read once so the published bytes match the catalogue used for the schedule.
+        catalogue_path = os.path.expanduser(catalogue_path)
+        with open(catalogue_path, 'rb') as catalogue_file:
+            catalogue_content = catalogue_file.read()
+        if not catalogue_content:
+            raise ValueError('CSV catalogue must be non-empty')
+    exp_pars, scan_pars, obs_cat = parse_vlbi_cat(catalogue_path, ref_ant, catalogue_content)
     mcal_scan_name = exp_pars['CAL_PREFIX'].lower()
     mpcc_scan_name = exp_pars['PCC_PREFIX'].lower()
     mpcc_verification_scans = True if exp_pars['PCC_VERIFICATION']=='True' else False
@@ -636,6 +673,9 @@ with verify_and_connect(opts) as kat:
         session.standard_setup(**vars(opts))               
         # Start SDP capture.  
         session.capture_start()
+        if opts.online and not kat.dry_run:
+            persist_vlbi_catalogue(session, catalogue_path, exp_pars['EXPERIMENT'],
+                                   catalogue_content)
             
         #FIXME Loop counters to prevent infinite loop errors.
         loop_count, max_loops = 0, 10*len(scan_pars) 
