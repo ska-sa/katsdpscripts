@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Observation script for VLBI observations. 
+# Observation script for VLBI observations.
 
 import time
 import numpy as np
@@ -11,9 +11,8 @@ from katcorelib.observe import (standard_script_options, verify_and_connect,
 
 
 # Set up standard script options
-usage = "%prog [options] <'target/catalogue'> [<'target/catalogue'> ...]"
-description = 'Track one or more sources for a specified time. At least one ' \
-              'target must be specified. Note also some **required** options below.'
+usage = '%prog [options] <VLBI catalogue.csv>'
+description = 'Run a UTC-scheduled VLBI observation from a CSV catalogue.'
 parser = standard_script_options(usage=usage, description=description)
 # Add experiment-specific options
 parser.add_option('--max-wait-time', type='float', default=1200.0,
@@ -25,12 +24,12 @@ parser.add_option('--min-scan-duration', type='float', default=10.0,
                        "skipped if possible track time is shorter than this "
                        "value, in seconds (default=%default)")
 parser.add_option('--max-mpcc-delay', type='float', default=60.0,
-                  help='Max tollerated delay in start time of phase correction '
+                  help='Max tolerated delay in start time of phase correction '
                        'operation, in seconds. (default=%default)')
 parser.add_option('--bf-gain', type=float, default=0.5,
                   help='Set beamformer quantisation gain (default=%default/sqrt(N_ants))')
 parser.add_option('--bf-inst', type='string', default='narrow1',
-                  help='Instrument on which to setup beamformer weights and gains.'
+                  help='CBF instrument on which to set up beamformer weights and gains. '
                        '(default=%default)')
 parser.add_option('--bf-core-only', action="store_true", default=False,
                   help='Zero beamformer weights on all but core antennas.')
@@ -50,9 +49,7 @@ parser.set_defaults(description='VLBI Observation Test',
 # Parse the command line
 opts, args = parser.parse_args()
 if len(args) == 0:
-    raise ValueError("Please specify at least one target argument via name "
-                     "('Cygnus A'), description ('azel, 20, 30') or catalogue "
-                     "file name ('sources.csv')")
+    raise ValueError("Please specify a VLBI catalogue file (e.g. 'sources.csv')")
 
 
 # Defined functions / parameters
@@ -165,7 +162,7 @@ def parse_vlbi_cat(vlbi_cat_fn, ref_ant=None):
     """
     # Read the VLBI catalogue file 
     with open(vlbi_cat_fn, 'r') as cat_file:
-        csv_lines = [line for line in cat_file.readlines()]
+        csv_lines = cat_file.readlines()
         # Read header info
         obs_params = {}
         header_keys = ['EXPERIMENT', 'POL', 'CAL_PREFIX', 'PCC_PREFIX', 'PCC_VERIFICATION']
@@ -596,7 +593,7 @@ with verify_and_connect(opts) as kat:
     user_logger.info('Antennas in beamformer = %s', ' '.join(sorted(bf_ants)))
     # Set the beamformer quantisation gain and beamformer weights
     for stream in cbf.beamformers:
-        stream_inst = str(stream).split(' ')[1].split('.')[0][1:]
+        stream_inst = stream._instrument_name
         if stream_inst==opts.bf_inst:
             # Set beamformer quantization gain.
             bq_gain = opts.bf_gain / np.sqrt(len(bf_ants))
@@ -661,9 +658,9 @@ with verify_and_connect(opts) as kat:
                     
                     user_logger.info("Peforming phase correction {}.".format(scan_name))
                     # Create targets with appropriate tags for calibration and tracking
-                    calib_tgt = katpoint.Target(obs_tgt.format_katcp())
-                    calib_tgt.add_tags('radec bfcal single_accumulation')
-                    dwell_tgt = katpoint.Target(obs_tgt.format_katcp())
+                    calib_tgt = katpoint.Target(obs_tgt)
+                    calib_tgt.add_tags('bfcal single_accumulation')
+                    dwell_tgt = katpoint.Target(obs_tgt)
                     dwell_tgt.tags = ['radec']
                     # Resetting wideband gains.
                     if opts.reset_gains:
@@ -675,9 +672,9 @@ with verify_and_connect(opts) as kat:
                     session.track(calib_tgt, duration=0, announce=True)
                     scan_start = time.time()
                     session.fire_noise_diode(on=scan_duration, off=0)
-                    # Wait for pipeline solutions
+                    # Flush the calibration scan while the antennas keep tracking.
                     session.label(scan_name+' solve')
-                    session.track(dwell_tgt, duration=0, announce=False)
+                    session.activity('await_pipeline')
                     user_logger.info("Waiting for gains to materialise in cal pipeline.")
                     # Determine corrections
                     hv_gains, hv_delays = {}, {}
@@ -728,7 +725,9 @@ with verify_and_connect(opts) as kat:
                         # Apply wideband corrections
                         if not opts.skip_wide_correction:
                             session.set_fengine_gains(corrections)
-                        # Interpolate wideband corrections onto narrowband frequencies 
+                        # Round the centre frequency to the 32-bit tuning step at the
+                        # L-band ADC sample rate, then build the 32768-channel axis
+                        # across 107 MHz with the centre at channel 16384.
                         nb_center_freq = np.round(opts.nb_center_freq/1712e6*2**32)*1712e6/2**32
                         freqs_nb = nb_center_freq + (np.arange(2**15)-2**14)*(107e6/2**15)
                         if not (cal_channel_freqs[0]<=freqs_nb[0] and freqs_nb[-1]<=cal_channel_freqs[-1]):
